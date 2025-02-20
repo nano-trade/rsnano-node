@@ -24,6 +24,7 @@ members = [
 	"tools/insight", 
     "daemon", 
     "nullables/console", 
-    "websocket_messages"
-, "tools/record-rep-weights"]
+    "websocket_messages", 
+	"tools/record-rep-weights"]
+
 resolver = "2"

@@ -37,7 +37,7 @@ impl<'a> WorkTicket<'a> {
 }
 
 pub(crate) struct WorkItem {
-    pub item: Root,
+    pub root: Root,
     pub min_difficulty: u64,
     pub callback: Option<Box<dyn FnOnce(Option<u64>) + Send>>,
 }
@@ -64,7 +64,7 @@ impl WorkQueue {
 
     pub fn is_first(&self, root: &Root) -> bool {
         if let Some(front) = self.first() {
-            front.item == *root
+            front.root == *root
         } else {
             false
         }
@@ -73,7 +73,7 @@ impl WorkQueue {
     pub fn cancel(&mut self, root: &Root) -> Vec<Box<dyn FnOnce(Option<u64>) + Send>> {
         let mut cancelled = Vec::new();
         self.0.retain_mut(|item| {
-            let retain = item.item != *root;
+            let retain = item.root != *root;
             if !retain {
                 if let Some(callback) = item.callback.take() {
                     cancelled.push(callback);
