@@ -1,6 +1,6 @@
 use rsnano_core::{
     utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
-    work::{OpenClConfig, WorkPoolImpl},
+    work::{OpenClConfig, WorkPool},
     Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
@@ -29,7 +29,7 @@ use tracing_subscriber::EnvFilter;
 
 pub struct System {
     pub network_params: NetworkParams,
-    pub work: Arc<WorkPoolImpl>,
+    pub work: Arc<WorkPool>,
     pub nodes: Vec<Arc<Node>>,
     pub initialization_blocks: Vec<Block>,
     pub initialization_blocks_cemented: Vec<Block>,
@@ -41,7 +41,7 @@ impl System {
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
 
         Self {
-            work: Arc::new(WorkPoolImpl::new(
+            work: Arc::new(WorkPool::new(
                 network_params.work.clone(),
                 1,
                 Duration::ZERO,

@@ -7,8 +7,8 @@ use crate::{
     working_path_for, Node, NodeArgs,
 };
 use rsnano_core::{
-    utils::get_cpu_count, work::WorkPoolImpl, Account, Amount, Networks, SavedBlock, Vote,
-    VoteCode, VoteSource, VoteWithWeightInfo,
+    utils::get_cpu_count, work::WorkPool, Account, Amount, Networks, SavedBlock, Vote, VoteCode,
+    VoteSource, VoteWithWeightInfo,
 };
 use rsnano_messages::Message;
 use rsnano_network::{Channel, ChannelId};
@@ -93,7 +93,7 @@ pub struct NodeBuilder {
     config: Option<NodeConfig>,
     network_params: Option<NetworkParams>,
     flags: Option<NodeFlags>,
-    work: Option<Arc<WorkPoolImpl>>,
+    work: Option<Arc<WorkPool>>,
     callbacks: Option<NodeCallbacks>,
 }
 
@@ -130,7 +130,7 @@ impl NodeBuilder {
         self
     }
 
-    pub fn work(mut self, work: Arc<WorkPoolImpl>) -> Self {
+    pub fn work(mut self, work: Arc<WorkPool>) -> Self {
         self.work = Some(work);
         self
     }
@@ -171,7 +171,7 @@ impl NodeBuilder {
 
         let flags = self.flags.unwrap_or_default();
         let work = self.work.unwrap_or_else(|| {
-            Arc::new(WorkPoolImpl::new(
+            Arc::new(WorkPool::new(
                 network_params.work.clone(),
                 config.work_threads as usize,
                 Duration::from_nanos(config.pow_sleep_interval_ns as u64),

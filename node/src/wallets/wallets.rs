@@ -12,7 +12,7 @@ use crate::{
 use rand::Rng;
 use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo},
-    work::{WorkPoolImpl, WorkThresholds},
+    work::{WorkPool, WorkThresholds},
     Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, Networks,
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
@@ -106,7 +106,7 @@ impl Wallets {
             &NodeConfig::new_test_instance(),
             WorkThresholds::new(0, 0, 0),
             Arc::new(DistributedWorkFactory::new(
-                Arc::new(WorkPoolImpl::disabled()),
+                Arc::new(WorkPool::disabled()),
                 tokio_handle.clone(),
             )),
             NetworkParams::new(NetworkConstants::active_network()),

@@ -1,8 +1,7 @@
 use rsnano_core::{
-    utils::milliseconds_since_epoch, work::WorkPool, Account, Amount, Block, BlockHash,
-    DifficultyV1, PrivateKey, PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs,
-    UncheckedInfo, UnsavedBlockLatticeBuilder, Vote, VoteSource, VoteWithWeightInfo,
-    DEV_GENESIS_KEY,
+    utils::milliseconds_since_epoch, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
+    PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo,
+    UnsavedBlockLatticeBuilder, Vote, VoteSource, VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,

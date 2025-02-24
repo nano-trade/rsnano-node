@@ -46,7 +46,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
-    work::{WorkPool, WorkPoolImpl},
+    work::WorkPool,
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, WorkNonce,
 };
@@ -86,7 +86,7 @@ pub struct Node {
     wallet_workers: Arc<dyn ThreadPool>,
     election_workers: Arc<dyn ThreadPool>,
     pub flags: NodeFlags,
-    pub work: Arc<WorkPoolImpl>,
+    pub work: Arc<WorkPool>,
     pub distributed_work: Arc<DistributedWorkFactory>,
     pub store: Arc<LmdbStore>,
     pub unchecked: Arc<UncheckedMap>,
@@ -146,7 +146,7 @@ pub(crate) struct NodeArgs {
     pub config: NodeConfig,
     pub network_params: NetworkParams,
     pub flags: NodeFlags,
-    pub work: Arc<WorkPoolImpl>,
+    pub work: Arc<WorkPool>,
     pub callbacks: NodeCallbacks,
 }
 
@@ -160,7 +160,7 @@ impl NodeArgs {
             config,
             flags: Default::default(),
             callbacks: Default::default(),
-            work: Arc::new(WorkPoolImpl::new_null(WorkNonce::from(123))),
+            work: Arc::new(WorkPool::new_null(WorkNonce::from(123))),
         }
     }
 }
@@ -1724,7 +1724,7 @@ mod tests {
             app_path.push(format!("rsnano-test-{}", Uuid::new_v4().simple()));
             let config = NodeConfig::new_test_instance();
             let network_params = NetworkParams::new(Networks::NanoDevNetwork);
-            let work = Arc::new(WorkPoolImpl::new(
+            let work = Arc::new(WorkPool::new(
                 network_params.work.clone(),
                 1,
                 Duration::ZERO,

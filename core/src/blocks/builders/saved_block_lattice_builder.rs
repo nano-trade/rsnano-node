@@ -5,7 +5,7 @@ use crate::{
     },
     dev_epoch1_signer, epoch_v1_link,
     utils::UnixTimestamp,
-    work::{WorkPool, WorkPoolImpl},
+    work::WorkPool,
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, ChangeBlockArgs, Epoch, Link,
     PendingInfo, PendingKey, PrivateKey, PublicKey, Root, SavedBlock, StateBlockArgs,
     DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 pub struct SavedBlockLatticeBuilder {
     accounts: HashMap<Account, Frontier>,
-    work_pool: WorkPoolImpl,
+    work_pool: WorkPool,
     pending_receives: HashMap<PendingKey, PendingInfo>,
     now: UnixTimestamp,
 }
@@ -39,7 +39,7 @@ impl SavedBlockLatticeBuilder {
                 height: 1,
             },
         );
-        let work_pool = WorkPoolImpl::new_dev();
+        let work_pool = WorkPool::new_dev();
         Self {
             accounts,
             work_pool,
@@ -132,7 +132,7 @@ impl Clone for SavedBlockLatticeBuilder {
     fn clone(&self) -> Self {
         Self {
             accounts: self.accounts.clone(),
-            work_pool: WorkPoolImpl::new_dev(),
+            work_pool: WorkPool::new_dev(),
             pending_receives: self.pending_receives.clone(),
             now: self.now,
         }

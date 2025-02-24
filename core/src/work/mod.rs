@@ -10,7 +10,7 @@ mod xorshift;
 
 pub(crate) use cpu_work_generator::CpuWorkGenerator;
 pub(crate) use work_pool::WorkGenerator;
-pub use work_pool::{WorkPool, WorkPoolImpl};
+pub use work_pool::WorkPool;
 pub use work_queue::WorkTicket;
 pub(crate) use work_queue::{WorkItem, WorkQueueCoordinator};
 pub(crate) use work_thread::WorkThread;

@@ -1,8 +1,4 @@
-use rsnano_core::{
-    to_hex_string,
-    work::{WorkPool, WorkPoolImpl},
-    Account, Block, Root, WorkNonce,
-};
+use rsnano_core::{to_hex_string, work::WorkPool, Account, Block, Root, WorkNonce};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -53,13 +49,13 @@ impl WorkRequest {
 }
 
 pub struct DistributedWorkFactory {
-    work_pool: Arc<WorkPoolImpl>,
+    work_pool: Arc<WorkPool>,
     tokio: tokio::runtime::Handle,
     cancel_listener: OutputListenerMt<Root>,
 }
 
 impl DistributedWorkFactory {
-    pub fn new(work_pool: Arc<WorkPoolImpl>, tokio: tokio::runtime::Handle) -> Self {
+    pub fn new(work_pool: Arc<WorkPool>, tokio: tokio::runtime::Handle) -> Self {
         Self {
             work_pool,
             tokio,
@@ -149,13 +145,13 @@ impl DistributedWorkFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::work::WorkPoolImpl;
+    use rsnano_core::work::WorkPool;
     use std::sync::Arc;
 
     #[tokio::test]
     async fn use_local_work_factor_when_no_peers_given() {
         let expected_work = WorkNonce::from(12345);
-        let work_pool = Arc::new(WorkPoolImpl::new_null(expected_work));
+        let work_pool = Arc::new(WorkPool::new_null(expected_work));
         let work_factory =
             DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
 
@@ -171,7 +167,7 @@ mod tests {
 
     #[tokio::test]
     async fn cancellations_can_be_tracked() {
-        let work_pool = Arc::new(WorkPoolImpl::new_null(1.into()));
+        let work_pool = Arc::new(WorkPool::new_null(1.into()));
         let work_factory =
             DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
         let cancel_tracker = work_factory.track_cancellations();

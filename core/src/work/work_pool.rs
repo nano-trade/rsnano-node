@@ -12,20 +12,7 @@ use std::{
     time::Duration,
 };
 
-pub trait WorkPool: Send + Sync {
-    fn generate_async(
-        &self,
-        root: Root,
-        difficulty: u64,
-        done: Option<Box<dyn FnOnce(Option<WorkNonce>) + Send>>,
-    );
-
-    fn generate_dev(&self, root: Root) -> Option<WorkNonce>;
-
-    fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce>;
-}
-
-pub struct WorkPoolImpl {
+pub struct WorkPool {
     threads: Vec<JoinHandle<()>>,
     work_queue: Arc<WorkQueueCoordinator>,
     work_thresholds: WorkThresholds,
@@ -33,7 +20,7 @@ pub struct WorkPoolImpl {
     has_open_cl: bool,
 }
 
-impl WorkPoolImpl {
+impl WorkPool {
     pub fn new(
         work_thresholds: WorkThresholds,
         thread_count: usize,
@@ -174,10 +161,8 @@ impl WorkPoolImpl {
     pub fn container_info(&self) -> ContainerInfo {
         [("pending", self.size(), Self::pending_value_size())].into()
     }
-}
 
-impl WorkPool for WorkPoolImpl {
-    fn generate_async(
+    pub fn generate_async(
         &self,
         root: Root,
         difficulty: u64,
@@ -195,11 +180,11 @@ impl WorkPool for WorkPoolImpl {
         }
     }
 
-    fn generate_dev(&self, root: Root) -> Option<WorkNonce> {
+    pub fn generate_dev(&self, root: Root) -> Option<WorkNonce> {
         self.generate(root, self.work_thresholds.base)
     }
 
-    fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
+    pub fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
         if self.threads.is_empty() {
             return None;
         }
@@ -257,7 +242,7 @@ impl WorkDoneNotifier {
     }
 }
 
-impl Drop for WorkPoolImpl {
+impl Drop for WorkPool {
     fn drop(&mut self) {
         self.stop();
         for handle in self.threads.drain(..) {
@@ -294,8 +279,8 @@ mod tests {
     use crate::{Block, TestBlockBuilder};
     use std::sync::{mpsc, LazyLock};
 
-    pub static WORK_POOL: LazyLock<WorkPoolImpl> = LazyLock::new(|| {
-        WorkPoolImpl::new(
+    pub static WORK_POOL: LazyLock<WorkPool> = LazyLock::new(|| {
+        WorkPool::new(
             WorkThresholds::publish_dev().clone(),
             crate::utils::get_cpu_count(),
             Duration::ZERO,
@@ -306,7 +291,7 @@ mod tests {
 
     #[test]
     fn work_disabled() {
-        let pool = WorkPoolImpl::new(
+        let pool = WorkPool::new(
             WorkThresholds::publish_dev().clone(),
             0,
             Duration::ZERO,
