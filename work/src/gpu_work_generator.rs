@@ -67,7 +67,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(not(feature = "opencl"), ignore)]
     fn gpu_work() {
         let mut work_generator = GpuWorkGenerator::new(OpenClConfig::default()).unwrap();
         let min_difficulty = WorkThresholds::publish_dev().threshold_base();

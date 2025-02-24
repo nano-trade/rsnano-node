@@ -7,22 +7,7 @@ use ocl::{
 use rsnano_core::Root;
 use tracing::info;
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct OpenClConfig {
-    pub platform: usize,
-    pub device: usize,
-    pub threads: usize,
-}
-
-impl Default for OpenClConfig {
-    fn default() -> Self {
-        Self {
-            platform: 0,
-            device: 0,
-            threads: 1024 * 1024,
-        }
-    }
-}
+use crate::OpenClConfig;
 
 pub struct Gpu {
     kernel: ocl::Kernel,

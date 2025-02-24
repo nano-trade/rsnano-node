@@ -12,9 +12,11 @@ use rsnano_core::{
 
 use tracing::warn;
 
+#[cfg(feature = "opencl")]
+use super::gpu_work_generator::GpuWorkGenerator;
 use super::{
-    gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, WorkItem,
-    WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
+    CpuWorkGenerator, OpenClConfig, WorkItem, WorkQueueCoordinator, WorkThread, WorkThresholds,
+    WorkTicket, WORK_THRESHOLDS_STUB,
 };
 
 pub struct WorkPoolBuilder {
@@ -164,6 +166,7 @@ impl WorkPool {
         enable_open_cl: bool,
         opencl_config: OpenClConfig,
     ) {
+        #[cfg(feature = "opencl")]
         let mut gpu_work = if enable_open_cl {
             match GpuWorkGenerator::new(opencl_config) {
                 Ok(gpu) => Some(gpu),
@@ -177,8 +180,10 @@ impl WorkPool {
         };
 
         for _ in 0..thread_count {
+            #[cfg(feature = "opencl")]
             if let Some(gpu) = gpu_work.take() {
                 self.threads.push(self.spawn_worker_thread(gpu));
+                self.has_open_cl = true;
                 continue;
             }
             self.threads.push(self.spawn_cpu_worker_thread())

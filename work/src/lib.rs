@@ -1,7 +1,10 @@
 mod cpu_work_generator;
+
+#[cfg(feature = "opencl")]
 mod gpu;
+#[cfg(feature = "opencl")]
 mod gpu_work_generator;
-mod opencl_work_generator;
+
 mod work_pool;
 mod work_queue;
 mod work_thread;
@@ -20,4 +23,20 @@ pub(crate) use xorshift::XorShift1024Star;
 pub(crate) trait WorkRng {
     fn next_work(&mut self) -> u64;
 }
-pub use gpu::OpenClConfig;
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct OpenClConfig {
+    pub platform: usize,
+    pub device: usize,
+    pub threads: usize,
+}
+
+impl Default for OpenClConfig {
+    fn default() -> Self {
+        Self {
+            platform: 0,
+            device: 0,
+            threads: 1024 * 1024,
+        }
+    }
+}
