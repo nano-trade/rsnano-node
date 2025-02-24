@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::{anyhow, bail};
-use rsnano_core::{Amount, BlockDetails, PendingKey, Root};
+use rsnano_core::{Amount, BlockDetails, PendingKey, Root, WorkNonce};
 use rsnano_node::wallets::{WalletsError, WalletsExt};
 use rsnano_rpc_messages::{BlockDto, ReceiveArgs};
 use std::cmp::max;
@@ -27,7 +27,7 @@ impl RpcCommandHandler {
             bail!("Block is not receivable");
         };
 
-        let work = if let Some(work) = args.work {
+        let work: WorkNonce = if let Some(work) = args.work {
             let (head, epoch) =
                 if let Some(info) = self.node.ledger.any().get_account(&txn, &args.account) {
                     // When receiving, epoch version is the higher between the previous and the source blocks
@@ -47,7 +47,7 @@ impl RpcCommandHandler {
             if !self.node.distributed_work.work_generation_enabled() {
                 bail!("Work generation is disabled");
             }
-            0
+            0.into()
         };
 
         // Representative is only used by receive_action when opening accounts
@@ -55,7 +55,7 @@ impl RpcCommandHandler {
         let representative = self.node.wallets.get_representative(args.wallet)?;
 
         // Disable work generation if "work" option is provided
-        let generate_work = work == 0;
+        let generate_work = work.is_zero();
 
         let block = self
             .node

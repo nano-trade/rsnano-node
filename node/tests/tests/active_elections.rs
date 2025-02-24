@@ -940,7 +940,7 @@ fn confirmation_consistency() {
                 *DEV_GENESIS_ACCOUNT,
                 Account::from(0),
                 node.config.receive_minimum,
-                0,
+                0.into(),
                 true,
                 None,
             )

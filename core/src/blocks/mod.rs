@@ -32,7 +32,7 @@ pub use builders::*;
 use crate::{
     utils::{BufferWriter, Deserialize, MemoryStream, Stream, UnixTimestamp},
     Account, Amount, BlockHash, Epoch, Epochs, Link, PrivateKey, PublicKey, QualifiedRoot, Root,
-    Signature,
+    Signature, WorkNonce,
 };
 use num::FromPrimitive;
 use std::{
@@ -105,8 +105,8 @@ pub trait BlockBase {
     fn link_field(&self) -> Option<Link>;
     fn signature(&self) -> &Signature;
     fn set_signature(&mut self, signature: Signature);
-    fn work(&self) -> u64;
-    fn set_work(&mut self, work: u64);
+    fn work(&self) -> WorkNonce;
+    fn set_work(&mut self, work: WorkNonce);
     fn previous(&self) -> BlockHash;
     fn serialize_without_block_type(&self, writer: &mut dyn BufferWriter);
     fn to_json(&self) -> anyhow::Result<String> {
@@ -159,7 +159,7 @@ impl Block {
             representative: 789.into(),
             balance: 420.into(),
             link: 111.into(),
-            work: 69420,
+            work: 69420.into(),
         }
         .into()
     }
@@ -172,7 +172,7 @@ impl Block {
             representative: 789.into(),
             balance: 420.into(),
             link: 111.into(),
-            work: 69420,
+            work: 69420.into(),
         }
         .into()
     }

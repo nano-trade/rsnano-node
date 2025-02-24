@@ -216,7 +216,7 @@ fn vote_generator_multiple_representatives() {
         *DEV_GENESIS_ACCOUNT,
         key1.account(),
         amount,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -225,7 +225,7 @@ fn vote_generator_multiple_representatives() {
         *DEV_GENESIS_ACCOUNT,
         key2.account(),
         amount,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -234,7 +234,7 @@ fn vote_generator_multiple_representatives() {
         *DEV_GENESIS_ACCOUNT,
         key3.account(),
         amount,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -247,12 +247,27 @@ fn vote_generator_multiple_representatives() {
     });
 
     // Change representatives
-    node.wallets
-        .change_action2(&wallet_id, key1.account(), key1.public_key(), 0, true);
-    node.wallets
-        .change_action2(&wallet_id, key2.account(), key2.public_key(), 0, true);
-    node.wallets
-        .change_action2(&wallet_id, key3.account(), key3.public_key(), 0, true);
+    node.wallets.change_action2(
+        &wallet_id,
+        key1.account(),
+        key1.public_key(),
+        0.into(),
+        true,
+    );
+    node.wallets.change_action2(
+        &wallet_id,
+        key2.account(),
+        key2.public_key(),
+        0.into(),
+        true,
+    );
+    node.wallets.change_action2(
+        &wallet_id,
+        key3.account(),
+        key3.public_key(),
+        0.into(),
+        true,
+    );
 
     assert_eq!(node.ledger.weight(&key1.public_key()), amount);
     assert_eq!(node.ledger.weight(&key2.public_key()), amount);
@@ -266,7 +281,7 @@ fn vote_generator_multiple_representatives() {
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_ACCOUNT,
         Amount::raw(1),
-        0,
+        0.into(),
         true,
         None,
     );

@@ -1,14 +1,14 @@
 use crate::{
     blocks::receive_block::ReceiveBlockArgs,
     work::{WorkPool, STUB_WORK_POOL},
-    Block, BlockHash, PrivateKey,
+    Block, BlockHash, PrivateKey, WorkNonce,
 };
 
 pub struct TestLegacyReceiveBlockBuilder {
     previous: Option<BlockHash>,
     source: Option<BlockHash>,
     key_pair: Option<PrivateKey>,
-    work: Option<u64>,
+    work: Option<WorkNonce>,
 }
 
 impl TestLegacyReceiveBlockBuilder {
@@ -36,7 +36,7 @@ impl TestLegacyReceiveBlockBuilder {
         self
     }
 
-    pub fn work(mut self, work: u64) -> Self {
+    pub fn work(mut self, work: WorkNonce) -> Self {
         self.work = Some(work);
         self
     }

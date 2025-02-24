@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
-use rsnano_core::BlockDetails;
+use rsnano_core::{BlockDetails, WorkNonce};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::{BlockDto, SendArgs};
 
@@ -14,8 +14,8 @@ impl RpcCommandHandler {
         }
         let source = args.source;
         let destination = args.destination;
-        let work: u64 = args.work.unwrap_or_default().into();
-        if work == 0 && !self.node.distributed_work.work_generation_enabled() {
+        let work: WorkNonce = args.work.unwrap_or_default().into();
+        if work.is_zero() && !self.node.distributed_work.work_generation_enabled() {
             bail!("Work generation is disabled");
         }
 
@@ -23,7 +23,7 @@ impl RpcCommandHandler {
         let info = self.load_account(&tx, &source)?;
         let balance = info.balance;
 
-        if work > 0 {
+        if !work.is_zero() {
             let details = BlockDetails::new(info.epoch, true, false, false);
             if self
                 .node
@@ -36,7 +36,7 @@ impl RpcCommandHandler {
             }
         }
 
-        let generate_work = work == 0; // Disable work generation if "work" option is provided
+        let generate_work = work.is_zero(); // Disable work generation if "work" option is provided
         let send_id = args.id;
 
         let block_hash = self.node.wallets.send_sync(

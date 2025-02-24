@@ -1,5 +1,7 @@
 use anyhow::Context;
-use rsnano_core::{work::WorkThresholds, KeyDerivationFunction, PrivateKey, PublicKey, Root};
+use rsnano_core::{
+    work::WorkThresholds, KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce,
+};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbWalletStore, LmdbWriteTransaction, Transaction};
 use std::{
@@ -62,7 +64,7 @@ impl Wallet {
         txn: &mut LmdbWriteTransaction,
         pub_key: &PublicKey,
         root: &Root,
-        work: u64,
+        work: WorkNonce,
     ) {
         debug_assert!(self.work_thresholds.validate_entry(root, work));
         debug_assert!(self.store.exists(txn, pub_key));

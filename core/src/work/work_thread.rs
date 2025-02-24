@@ -1,3 +1,5 @@
+use crate::WorkNonce;
+
 use super::{work_queue::WorkQueue, WorkGenerator, WorkQueueCoordinator, WorkTicket};
 use std::sync::{Arc, MutexGuard};
 
@@ -44,7 +46,7 @@ where
     }
 
     fn handle_work_result<'a>(
-        result: Option<u64>,
+        result: Option<WorkNonce>,
         work_queue: &'a WorkQueueCoordinator,
         work_ticket: &WorkTicket,
     ) -> MutexGuard<'a, WorkQueue> {
@@ -63,7 +65,7 @@ where
     fn notify_work_found<'a>(
         work_queue: &'a WorkQueueCoordinator,
         mut queue_lock: MutexGuard<'a, WorkQueue>,
-        work: u64,
+        work: WorkNonce,
     ) -> MutexGuard<'a, WorkQueue> {
         // Signal other threads to stop their work next time they check their ticket
         work_queue.expire_work_tickets();

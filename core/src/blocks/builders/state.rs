@@ -3,7 +3,7 @@ use crate::work::WorkPool;
 use crate::{work::STUB_WORK_POOL, StateBlock};
 use crate::{
     Account, Amount, Block, BlockBase, BlockDetails, BlockHash, BlockSideband, Epoch, Link,
-    PrivateKey, PublicKey, SavedBlock, Signature, StateBlockArgs,
+    PrivateKey, PublicKey, SavedBlock, Signature, StateBlockArgs, WorkNonce,
 };
 use anyhow::Result;
 
@@ -14,7 +14,7 @@ pub struct TestStateBlockBuilder {
     balance: Amount,
     link: Link,
     priv_key: PrivateKey,
-    work: Option<u64>,
+    work: Option<WorkNonce>,
     signature: Option<Signature>,
     previous_balance: Option<Amount>,
 }
@@ -125,8 +125,8 @@ impl TestStateBlockBuilder {
         self.signature(Signature::new())
     }
 
-    pub fn work(mut self, work: u64) -> Self {
-        self.work = Some(work);
+    pub fn work(mut self, work: impl Into<WorkNonce>) -> Self {
+        self.work = Some(work.into());
         self
     }
 
@@ -137,7 +137,7 @@ impl TestStateBlockBuilder {
         self.balance = Amount::zero();
         self.link = Link::zero();
         self.signature = None;
-        self.work = Some(0);
+        self.work = Some(0.into());
         self
     }
 
@@ -324,7 +324,7 @@ mod tests {
             representative: 3.into(),
             balance: 2.into(),
             link: 4.into(),
-            work: 5,
+            work: 5.into(),
         }
         .into();
 

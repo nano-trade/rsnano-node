@@ -180,7 +180,7 @@ fn insufficient_spend_one() {
             *DEV_GENESIS_ACCOUNT,
             key1.account(),
             Amount::raw(500),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -193,7 +193,7 @@ fn insufficient_spend_one() {
             *DEV_GENESIS_ACCOUNT,
             key1.account(),
             Amount::MAX,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -214,7 +214,7 @@ fn spend_all_one() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             Amount::MAX,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -250,7 +250,7 @@ fn send_async() {
             Box::new(move |b| {
                 *block2.lock().unwrap() = Some(b);
             }),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -278,7 +278,7 @@ fn spend() {
             Account::zero(),
             key2.account(),
             Amount::zero(),
-            0,
+            0.into(),
             true,
             None
         )
@@ -289,7 +289,7 @@ fn spend() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             Amount::MAX,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -310,7 +310,7 @@ fn partial_spend() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             Amount::raw(500),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -342,7 +342,7 @@ fn spend_no_previous() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             Amount::raw(500),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -707,7 +707,7 @@ fn work_generate() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(100),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -756,7 +756,7 @@ fn work_cache_delayed() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(100),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -768,7 +768,7 @@ fn work_cache_delayed() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(100),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -936,18 +936,18 @@ fn no_work() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             Amount::MAX,
-            0,
+            0.into(),
             false,
             None,
         )
         .unwrap();
-    assert_ne!(block.work(), 0);
+    assert_ne!(block.work(), 0.into());
     assert!(
         DEV_NETWORK_PARAMS.work.difficulty_block(&block)
             >= DEV_NETWORK_PARAMS.work.threshold(block.details())
     );
     let cached_work = node1.wallets.work_get(&wallet_id, &DEV_GENESIS_PUB_KEY);
-    assert_eq!(cached_work, 0);
+    assert_eq!(cached_work, 0.into());
 }
 
 #[test]
@@ -968,7 +968,7 @@ fn send_race() {
                 *DEV_GENESIS_ACCOUNT,
                 key2.account(),
                 Amount::nano(1000),
-                0,
+                0.into(),
                 true,
                 None,
             )
@@ -1064,7 +1064,7 @@ fn change_seed() {
             *DEV_GENESIS_ACCOUNT,
             pub_key.into(),
             Amount::raw(100),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1103,7 +1103,7 @@ fn epoch_2_validation() {
                 *DEV_GENESIS_ACCOUNT,
                 *DEV_GENESIS_ACCOUNT,
                 amount,
-                1,
+                1.into(),
                 true,
                 None,
             )
@@ -1119,7 +1119,7 @@ fn epoch_2_validation() {
                 *DEV_GENESIS_PUB_KEY,
                 amount,
                 *DEV_GENESIS_ACCOUNT,
-                1,
+                1.into(),
                 true,
             )
             .unwrap()
@@ -1142,7 +1142,7 @@ fn epoch_2_validation() {
             &wallet_id,
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_PUB_KEY,
-            1,
+            1.into(),
             true,
         )
         .unwrap();
@@ -1185,7 +1185,7 @@ fn epoch_2_receive_propagation() {
                 *DEV_GENESIS_ACCOUNT,
                 key.account(),
                 amount,
-                1,
+                1.into(),
                 true,
                 None,
             )
@@ -1197,7 +1197,7 @@ fn epoch_2_receive_propagation() {
                 *DEV_GENESIS_PUB_KEY,
                 amount,
                 key.account(),
-                1,
+                1.into(),
                 true,
             )
             .unwrap();
@@ -1213,7 +1213,7 @@ fn epoch_2_receive_propagation() {
                 *DEV_GENESIS_ACCOUNT,
                 key.account(),
                 amount,
-                1,
+                1.into(),
                 true,
                 None,
             )
@@ -1226,7 +1226,7 @@ fn epoch_2_receive_propagation() {
                 *DEV_GENESIS_PUB_KEY,
                 amount,
                 key.account(),
-                1,
+                1.into(),
                 true,
             )
             .unwrap()
@@ -1280,7 +1280,7 @@ fn epoch_2_receive_unopened() {
                 *DEV_GENESIS_ACCOUNT,
                 key.account(),
                 amount,
-                1,
+                1.into(),
                 true,
                 None,
             )
@@ -1316,7 +1316,7 @@ fn epoch_2_receive_unopened() {
                 key.public_key(),
                 amount,
                 key.account(),
-                1,
+                1.into(),
                 true,
             )
             .unwrap()
@@ -1476,7 +1476,7 @@ fn receive_pruned() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             amount,
-            1,
+            1.into(),
             true,
             None,
         )
@@ -1488,7 +1488,7 @@ fn receive_pruned() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(1),
-            1,
+            1.into(),
             true,
             None,
         )
@@ -1514,7 +1514,7 @@ fn receive_pruned() {
             key.public_key(),
             amount,
             key.account(),
-            1,
+            1.into(),
             true,
         )
         .unwrap()

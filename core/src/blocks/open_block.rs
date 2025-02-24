@@ -8,7 +8,7 @@ use anyhow::Result;
 
 #[derive(Clone, Debug)]
 pub struct OpenBlock {
-    work: u64,
+    work: WorkNonce,
     signature: Signature,
     hashables: OpenHashables,
     hash: BlockHash,
@@ -25,7 +25,7 @@ impl OpenBlock {
             key: &key,
             source: BlockHash::from(123),
             representative: PublicKey::from(456),
-            work: 69420,
+            work: 69420.into(),
         }
         .into()
     }
@@ -51,7 +51,7 @@ impl OpenBlock {
         let signature = Signature::deserialize(stream)?;
         let mut work_bytes = [0u8; 8];
         stream.read_bytes(&mut work_bytes, 8)?;
-        let work = u64::from_le_bytes(work_bytes);
+        let work = u64::from_le_bytes(work_bytes).into();
         let hash = hashables.hash();
         Ok(OpenBlock {
             work,
@@ -105,11 +105,11 @@ impl BlockBase for OpenBlock {
         self.signature = signature;
     }
 
-    fn set_work(&mut self, work: u64) {
+    fn set_work(&mut self, work: WorkNonce) {
         self.work = work;
     }
 
-    fn work(&self) -> u64 {
+    fn work(&self) -> WorkNonce {
         self.work
     }
 
@@ -122,7 +122,7 @@ impl BlockBase for OpenBlock {
         self.hashables.representative.serialize(writer);
         self.hashables.account.serialize(writer);
         self.signature.serialize(writer);
-        writer.write_bytes_safe(&self.work.to_le_bytes());
+        writer.write_bytes_safe(&self.work.0.to_le_bytes());
     }
 
     fn root(&self) -> Root {
@@ -190,7 +190,7 @@ pub struct OpenBlockArgs<'a> {
     pub key: &'a PrivateKey,
     pub source: BlockHash,
     pub representative: PublicKey,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl<'a> From<OpenBlockArgs<'a>> for OpenBlock {
@@ -261,7 +261,7 @@ mod tests {
             key: &key,
             source,
             representative,
-            work: 0,
+            work: 0.into(),
         }
         .into();
 

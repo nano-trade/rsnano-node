@@ -1,6 +1,6 @@
 use crate::{
     difficulty::{Difficulty, DifficultyV1},
-    Root,
+    Root, WorkNonce,
 };
 
 use super::{WorkGenerator, WorkRng, WorkTicket, XorShift1024Star};
@@ -118,19 +118,19 @@ where
     Diff: Difficulty,
     Sleep: Sleeper,
 {
-    fn next(&mut self, item: &Root) -> (u64, u64) {
-        let work = self.rng.next_work();
+    fn next(&mut self, item: &Root) -> (WorkNonce, u64) {
+        let work = WorkNonce::from(self.rng.next_work());
         let difficulty = self.difficulty.get_difficulty(item, work);
         (work, difficulty)
     }
 
     /// Tries to create PoW in a batch of 256 iterations
-    fn try_create_batch(&mut self, item: &Root, min_difficulty: u64) -> Option<u64> {
+    fn try_create_batch(&mut self, item: &Root, min_difficulty: u64) -> Option<WorkNonce> {
         // Don't query main memory every iteration in order to reduce memory bus traffic
         // All operations here operate on stack memory
         // Count iterations down to zero since comparing to zero is easier than comparing to another number
         let mut iteration = self.iteration_size;
-        let mut work = 0;
+        let mut work = WorkNonce::from(0);
         let mut difficulty = 0;
         while difficulty < min_difficulty && iteration > 0 {
             (work, difficulty) = self.next(item);
@@ -156,11 +156,11 @@ where
         item: &Root,
         min_difficulty: u64,
         work_ticket: &WorkTicket,
-    ) -> Option<u64> {
+    ) -> Option<WorkNonce> {
         while !work_ticket.expired() {
             let result = self.try_create_batch(item, min_difficulty);
             if result.is_some() {
-                return result;
+                return result.map(|i| i.into());
             }
 
             // Add a rate limiter (if specified) to the pow calculation to save some CPUs which don't want to operate at full throttle
@@ -230,10 +230,10 @@ mod tests {
     #[test]
     fn create_work() {
         let root = Root::from(1);
-        let work = 2;
+        let work = WorkNonce::from(2);
         let difficulty = 100;
 
-        let stub_rng = StubWorkRng::new(vec![work]);
+        let stub_rng = StubWorkRng::new(vec![work.into()]);
         let mut difficulty_calc = StubDifficulty::new();
         difficulty_calc.set_difficulty(root, work, difficulty);
         let mut generator =
@@ -247,10 +247,10 @@ mod tests {
     #[test]
     fn create_work_multiple_tries() {
         let root = Root::from(1);
-        let work = 5;
+        let work = WorkNonce::from(5);
         let difficulty = 100;
 
-        let stub_rng = StubWorkRng::new(vec![1, 2, 3, 4, work]);
+        let stub_rng = StubWorkRng::new(vec![1, 2, 3, 4, work.into()]);
         let mut difficulty_calc = StubDifficulty::new();
         difficulty_calc.set_difficulty(root, work, difficulty);
 
@@ -267,10 +267,10 @@ mod tests {
     #[test]
     fn rate_limit() {
         let root = Root::from(1);
-        let work = 5;
+        let work = WorkNonce::from(5);
         let difficulty = 100;
 
-        let stub_rng = StubWorkRng::new(vec![1, 2, 3, 4, work]);
+        let stub_rng = StubWorkRng::new(vec![1, 2, 3, 4, work.into()]);
         let mut difficulty_calc = StubDifficulty::new();
         difficulty_calc.set_difficulty(root, work, difficulty);
 

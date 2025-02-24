@@ -8,7 +8,7 @@ use anyhow::Result;
 
 #[derive(Clone, Debug)]
 pub struct ChangeBlock {
-    work: u64,
+    work: WorkNonce,
     signature: Signature,
     hashables: ChangeHashables,
     hash: BlockHash,
@@ -21,7 +21,7 @@ impl ChangeBlock {
             key: &key,
             previous: 123.into(),
             representative: 456.into(),
-            work: 69420,
+            work: 69420.into(),
         }
         .into()
     }
@@ -45,7 +45,7 @@ impl ChangeBlock {
         let signature = Signature::deserialize(stream)?;
         let mut work_bytes = [0u8; 8];
         stream.read_bytes(&mut work_bytes, 8)?;
-        let work = u64::from_le_bytes(work_bytes);
+        let work = u64::from_le_bytes(work_bytes).into();
         let hash = hashables.hash();
         Ok(Self {
             work,
@@ -101,11 +101,11 @@ impl BlockBase for ChangeBlock {
         &self.signature
     }
 
-    fn set_work(&mut self, work: u64) {
+    fn set_work(&mut self, work: WorkNonce) {
         self.work = work;
     }
 
-    fn work(&self) -> u64 {
+    fn work(&self) -> WorkNonce {
         self.work
     }
 
@@ -121,7 +121,7 @@ impl BlockBase for ChangeBlock {
         self.hashables.previous.serialize(writer);
         self.hashables.representative.serialize(writer);
         self.signature.serialize(writer);
-        writer.write_bytes_safe(&self.work.to_le_bytes());
+        writer.write_bytes_safe(&self.work.0.to_le_bytes());
     }
 
     fn root(&self) -> Root {
@@ -181,7 +181,7 @@ pub struct ChangeBlockArgs<'a> {
     pub key: &'a PrivateKey,
     pub previous: BlockHash,
     pub representative: PublicKey,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl<'a> From<ChangeBlockArgs<'a>> for ChangeBlock {
@@ -248,7 +248,7 @@ mod tests {
             key: &key1,
             previous,
             representative: 2.into(),
-            work: 5,
+            work: 5.into(),
         }
         .into();
         assert_eq!(block.previous(), previous);
@@ -263,7 +263,7 @@ mod tests {
             key: &key1,
             previous: 1.into(),
             representative: 2.into(),
-            work: 5,
+            work: 5.into(),
         }
         .into();
         let mut stream = MemoryStream::new();

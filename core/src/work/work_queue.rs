@@ -1,4 +1,4 @@
-use crate::Root;
+use crate::{Root, WorkNonce};
 use std::sync::{
     atomic::{AtomicBool, AtomicI32, Ordering},
     Condvar, Mutex, MutexGuard,
@@ -39,11 +39,11 @@ impl<'a> WorkTicket<'a> {
 pub(crate) struct WorkItem {
     pub root: Root,
     pub min_difficulty: u64,
-    pub callback: Option<Box<dyn FnOnce(Option<u64>) + Send>>,
+    pub callback: Option<Box<dyn FnOnce(Option<WorkNonce>) + Send>>,
 }
 
 impl WorkItem {
-    pub fn work_found(&mut self, work: u64) {
+    pub fn work_found(&mut self, work: WorkNonce) {
         // we're the ones that found the solution
         if let Some(callback) = self.callback.take() {
             (callback)(Some(work));
@@ -70,7 +70,7 @@ impl WorkQueue {
         }
     }
 
-    pub fn cancel(&mut self, root: &Root) -> Vec<Box<dyn FnOnce(Option<u64>) + Send>> {
+    pub fn cancel(&mut self, root: &Root) -> Vec<Box<dyn FnOnce(Option<WorkNonce>) + Send>> {
         let mut cancelled = Vec::new();
         self.0.retain_mut(|item| {
             let retain = item.root != *root;

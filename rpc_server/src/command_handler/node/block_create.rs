@@ -3,7 +3,7 @@ use anyhow::bail;
 use rsnano_core::{
     Account, Amount, Block, BlockDetails, BlockHash, ChangeBlockArgs, Epoch, OpenBlockArgs,
     PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root, SavedBlock, SendBlockArgs,
-    StateBlockArgs,
+    StateBlockArgs, WorkNonce,
 };
 use rsnano_node::Node;
 use rsnano_rpc_messages::{BlockCreateArgs, BlockCreateResponse, BlockTypeDto};
@@ -25,13 +25,13 @@ impl RpcCommandHandler {
         let destination = args.destination.unwrap_or_default();
         let source = args.source.unwrap_or_default();
         let amount = args.balance.unwrap_or_default();
-        let work: u64 = args.work.unwrap_or(0.into()).into();
+        let work: WorkNonce = args.work.unwrap_or(0.into()).into();
 
         let mut previous = args.previous.unwrap_or(BlockHash::zero());
         let mut balance = args.balance.unwrap_or(Amount::zero());
         let mut prv_key = PrivateKey::zero();
 
-        if work == 0 && !self.node.distributed_work.work_generation_enabled() {
+        if work.is_zero() && !self.node.distributed_work.work_generation_enabled() {
             bail!("Work generation is disabled");
         }
 
@@ -211,7 +211,7 @@ impl RpcCommandHandler {
             }
         };
 
-        if work == 0 {
+        if work.is_zero() {
             // Difficulty calculation
             let difficulty = if args.difficulty.is_none() {
                 difficulty_ledger(self.node.clone(), &block)

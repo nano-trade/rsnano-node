@@ -24,10 +24,11 @@ mod tests {
         });
 
         assert_timely(Duration::from_secs(5), || {
-            node.wallets
+            !node
+                .wallets
                 .work_get2(&wallet_id, &Account::zero().into())
                 .unwrap()
-                != 0
+                .is_zero()
         });
     }
 

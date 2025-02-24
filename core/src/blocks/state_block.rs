@@ -11,7 +11,7 @@ pub struct StateBlock {
     hashables: StateHashables,
     signature: Signature,
     hash: BlockHash,
-    work: u64,
+    work: WorkNonce,
 }
 
 impl StateBlock {
@@ -64,7 +64,7 @@ impl StateBlock {
         let signature = Signature::deserialize(stream)?;
         let mut work_bytes = [0u8; 8];
         stream.read_bytes(&mut work_bytes, 8)?;
-        let work = u64::from_be_bytes(work_bytes);
+        let work = u64::from_be_bytes(work_bytes).into();
         let hashables = StateHashables {
             account,
             previous,
@@ -117,11 +117,11 @@ impl BlockBase for StateBlock {
         self.signature = signature;
     }
 
-    fn set_work(&mut self, work: u64) {
+    fn set_work(&mut self, work: WorkNonce) {
         self.work = work;
     }
 
-    fn work(&self) -> u64 {
+    fn work(&self) -> WorkNonce {
         self.work
     }
 
@@ -136,7 +136,7 @@ impl BlockBase for StateBlock {
         self.hashables.balance.serialize(writer);
         self.hashables.link.serialize(writer);
         self.signature.serialize(writer);
-        writer.write_bytes_safe(&self.work.to_be_bytes());
+        writer.write_bytes_safe(&self.work.0.to_be_bytes());
     }
 
     fn root(&self) -> Root {
@@ -225,7 +225,7 @@ pub struct StateBlockArgs<'a> {
     pub representative: PublicKey,
     pub balance: Amount,
     pub link: Link,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl<'a> From<StateBlockArgs<'a>> for Block {
@@ -257,7 +257,7 @@ pub struct EpochBlockArgs<'a> {
     pub representative: PublicKey,
     pub balance: Amount,
     pub link: Link,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl<'a> From<EpochBlockArgs<'a>> for Block {

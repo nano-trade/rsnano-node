@@ -801,7 +801,7 @@ mod tests {
             BlockProcessor::new(config, ledger, unchecked, stats.clone(), notifier.into());
 
         let mut block = Block::new_test_instance();
-        block.set_work(3);
+        block.set_work(3.into());
 
         block_processor.add(block, BlockSource::Live, ChannelId::LOOPBACK);
 

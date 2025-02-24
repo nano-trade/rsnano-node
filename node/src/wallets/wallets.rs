@@ -15,6 +15,7 @@ use rsnano_core::{
     work::{WorkPoolImpl, WorkThresholds},
     Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, Networks,
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
+    WorkNonce,
 };
 use rsnano_ledger::{Ledger, RepWeightCache};
 use rsnano_messages::{Message, Publish};
@@ -557,7 +558,7 @@ impl Wallets {
         &self,
         wallet_id: &WalletId,
         pub_key: &PublicKey,
-        work: u64,
+        work: WorkNonce,
     ) -> Result<(), WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
@@ -616,7 +617,7 @@ impl Wallets {
         source: Account,
         account: Account,
         amount: Amount,
-        mut work: u64,
+        mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
         let block_tx = self.ledger.read_txn();
         if !wallet.store.valid_password(tx) {
@@ -634,7 +635,7 @@ impl Wallets {
 
         let info = self.ledger.account_info(&block_tx, &source).unwrap();
         let prv_key_raw = wallet.store.fetch(tx, &source.into()).unwrap();
-        if work == 0 {
+        if work.is_zero() {
             work = wallet
                 .store
                 .work_get(tx, &source.into())
@@ -662,7 +663,7 @@ impl Wallets {
         source: Account,
         account: Account,
         amount: Amount,
-        mut work: u64,
+        mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
         let block_tx = self.ledger.read_txn();
 
@@ -696,7 +697,7 @@ impl Wallets {
 
             let info = self.ledger.account_info(&block_tx, &source).unwrap();
             let prv_key_raw = wallet.store.fetch(tx, &source.into()).unwrap();
-            if work == 0 {
+            if work.is_zero() {
                 work = wallet
                     .store
                     .work_get(tx, &source.into())
@@ -718,27 +719,27 @@ impl Wallets {
         }
     }
 
-    pub fn work_get(&self, wallet_id: &WalletId, pub_key: &PublicKey) -> u64 {
+    pub fn work_get(&self, wallet_id: &WalletId, pub_key: &PublicKey) -> WorkNonce {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         let Some(wallet) = guard.get(&wallet_id) else {
-            return 1;
+            return 1.into();
         };
-        wallet.store.work_get(&tx, pub_key).unwrap_or(1)
+        wallet.store.work_get(&tx, pub_key).unwrap_or(1.into())
     }
 
     pub fn work_get2(
         &self,
         wallet_id: &WalletId,
         pub_key: &PublicKey,
-    ) -> Result<u64, WalletsError> {
+    ) -> Result<WorkNonce, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
         if wallet.store.find(&tx, pub_key).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
-        Ok(wallet.store.work_get(&tx, pub_key).unwrap_or(1))
+        Ok(wallet.store.work_get(&tx, pub_key).unwrap_or(1.into()))
     }
 
     pub fn get_accounts(&self, max_results: usize) -> Vec<Account> {
@@ -976,7 +977,7 @@ pub trait WalletsExt {
         source: Account,
         account: Account,
         amount: Amount,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> anyhow::Result<SavedBlock>;
@@ -987,7 +988,7 @@ pub trait WalletsExt {
         source: Account,
         account: Account,
         amount: Amount,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> Result<SavedBlock, WalletsError>;
@@ -997,7 +998,7 @@ pub trait WalletsExt {
         wallet: &Arc<Wallet>,
         source: Account,
         representative: PublicKey,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Option<Block>;
 
@@ -1006,7 +1007,7 @@ pub trait WalletsExt {
         wallet_id: &WalletId,
         source: Account,
         representative: PublicKey,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Option<Block>;
 
@@ -1017,7 +1018,7 @@ pub trait WalletsExt {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<Option<SavedBlock>, WalletsError>;
 
@@ -1028,7 +1029,7 @@ pub trait WalletsExt {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Option<SavedBlock>;
 
@@ -1040,7 +1041,7 @@ pub trait WalletsExt {
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     );
 
@@ -1052,7 +1053,7 @@ pub trait WalletsExt {
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<(), WalletsError>;
 
@@ -1063,7 +1064,7 @@ pub trait WalletsExt {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<SavedBlock, WalletsError>;
 
@@ -1074,7 +1075,7 @@ pub trait WalletsExt {
         account: Account,
         amount: Amount,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     );
@@ -1086,7 +1087,7 @@ pub trait WalletsExt {
         account: Account,
         amount: Amount,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> Result<(), WalletsError>;
@@ -1097,7 +1098,7 @@ pub trait WalletsExt {
         source: Account,
         account: Account,
         amount: Amount,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> BlockHash;
@@ -1129,7 +1130,7 @@ pub trait WalletsExt {
         source: Account,
         representative: PublicKey,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     );
 
@@ -1146,7 +1147,7 @@ pub trait WalletsExt {
         source: Account,
         representative: PublicKey,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<(), WalletsError>;
 
@@ -1170,7 +1171,7 @@ impl WalletsExt for Arc<Wallets> {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<Option<SavedBlock>, WalletsError> {
         let guard = self.mutex.lock().unwrap();
@@ -1428,7 +1429,7 @@ impl WalletsExt for Arc<Wallets> {
         source: Account,
         account: Account,
         amount: Amount,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> Result<SavedBlock, WalletsError> {
@@ -1444,7 +1445,7 @@ impl WalletsExt for Arc<Wallets> {
         source: Account,
         account: Account,
         amount: Amount,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> anyhow::Result<SavedBlock> {
@@ -1472,7 +1473,7 @@ impl WalletsExt for Arc<Wallets> {
         wallet: &Arc<Wallet>,
         source: Account,
         representative: PublicKey,
-        mut work: u64,
+        mut work: WorkNonce,
         generate_work: bool,
     ) -> Option<Block> {
         let mut epoch = Epoch::Epoch0;
@@ -1497,7 +1498,7 @@ impl WalletsExt for Arc<Wallets> {
                 );
                 let info = self.ledger.account_info(&block_tx, &source).unwrap();
                 let prv = wallet.store.fetch(&wallet_tx, &source.into()).unwrap();
-                if work == 0 {
+                if work.is_zero() {
                     work = wallet
                         .store
                         .work_get(&wallet_tx, &source.into())
@@ -1534,7 +1535,7 @@ impl WalletsExt for Arc<Wallets> {
         wallet_id: &WalletId,
         source: Account,
         representative: PublicKey,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Option<Block> {
         let guard = self.mutex.lock().unwrap();
@@ -1549,7 +1550,7 @@ impl WalletsExt for Arc<Wallets> {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        mut work: u64,
+        mut work: WorkNonce,
         generate_work: bool,
     ) -> Option<SavedBlock> {
         if amount < self.node_config.receive_minimum {
@@ -1581,7 +1582,7 @@ impl WalletsExt for Arc<Wallets> {
                         account.encode_account(),
                         pending_info.amount.number()
                     );
-                    if work == 0 {
+                    if work.is_zero() {
                         work = wallet
                             .store
                             .work_get(&wallet_tx, &account.into())
@@ -1648,7 +1649,7 @@ impl WalletsExt for Arc<Wallets> {
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) {
         let self_l = Arc::clone(self);
@@ -1678,7 +1679,7 @@ impl WalletsExt for Arc<Wallets> {
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<(), WalletsError> {
         let guard = self.mutex.lock().unwrap();
@@ -1712,7 +1713,7 @@ impl WalletsExt for Arc<Wallets> {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<SavedBlock, WalletsError> {
         let wallet = {
@@ -1750,7 +1751,7 @@ impl WalletsExt for Arc<Wallets> {
         account: Account,
         amount: Amount,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) {
@@ -1783,7 +1784,7 @@ impl WalletsExt for Arc<Wallets> {
         account: Account,
         amount: Amount,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> Result<(), WalletsError> {
@@ -1816,7 +1817,7 @@ impl WalletsExt for Arc<Wallets> {
         source: Account,
         account: Account,
         amount: Amount,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
         id: Option<String>,
     ) -> BlockHash {
@@ -1891,7 +1892,7 @@ impl WalletsExt for Arc<Wallets> {
                                 amount,
                                 account.into(),
                                 Box::new(|_| {}),
-                                0,
+                                0.into(),
                                 true,
                             );
                         } else if !self.confirming_set.contains(&hash) {
@@ -1936,7 +1937,7 @@ impl WalletsExt for Arc<Wallets> {
                         amount,
                         destination,
                         Box::new(|_| {}),
-                        0,
+                        0.into(),
                         true,
                     );
                 } else {
@@ -2059,7 +2060,7 @@ impl WalletsExt for Arc<Wallets> {
         source: Account,
         representative: PublicKey,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) {
         let self_l = Arc::clone(self);
@@ -2090,7 +2091,7 @@ impl WalletsExt for Arc<Wallets> {
                 *result_clone.1.lock().unwrap() = (true, block.is_some());
                 result_clone.0.notify_all();
             }),
-            0,
+            0.into(),
             true,
         );
         let mut guard = result.1.lock().unwrap();
@@ -2108,7 +2109,7 @@ impl WalletsExt for Arc<Wallets> {
         source: Account,
         representative: PublicKey,
         action: Box<dyn Fn(Option<Block>) + Send + Sync>,
-        work: u64,
+        work: WorkNonce,
         generate_work: bool,
     ) -> Result<(), WalletsError> {
         let guard = self.mutex.lock().unwrap();
@@ -2168,7 +2169,14 @@ impl WalletsExt for Arc<Wallets> {
         }
 
         for account in accounts {
-            self.change_async(wallet_id, account.into(), rep, Box::new(|_| {}), 0, false)?;
+            self.change_async(
+                wallet_id,
+                account.into(),
+                rep,
+                Box::new(|_| {}),
+                0.into(),
+                false,
+            )?;
         }
 
         Ok(())

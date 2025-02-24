@@ -1,8 +1,7 @@
 use rsnano_core::{PublicKey, RawKey, WalletId};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::WalletAddArgs;
-use std::time::Duration;
-use test_helpers::{assert_timely, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 #[test]
 fn account_create_index_none() {
@@ -100,11 +99,12 @@ fn wallet_add_work_true() {
             .unwrap()
     });
 
-    assert_timely(Duration::from_secs(5), || {
-        node.wallets
+    assert_timely2(|| {
+        !node
+            .wallets
             .work_get2(&wallet_id, &result.account.into())
             .unwrap()
-            != 0
+            .is_zero()
     });
 }
 
@@ -129,10 +129,10 @@ fn wallet_add_work_false() {
         .runtime
         .block_on(async { server.client.wallet_add(args).await.unwrap() });
 
-    assert_timely(Duration::from_secs(5), || {
+    assert_timely2(|| {
         node.wallets
             .work_get2(&wallet_id, &result.account.into())
             .unwrap()
-            == 0
+            .is_zero()
     });
 }

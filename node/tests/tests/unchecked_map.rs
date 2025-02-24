@@ -121,7 +121,7 @@ fn multiple_get() {
         representative: *DEV_GENESIS_PUB_KEY,
         balance: Amount::raw(1),
         link: (*DEV_GENESIS_ACCOUNT).into(),
-        work: 0,
+        work: 0.into(),
     }
     .into();
 
@@ -132,7 +132,7 @@ fn multiple_get() {
         representative: *DEV_GENESIS_PUB_KEY,
         balance: Amount::raw(1),
         link: (*DEV_GENESIS_ACCOUNT).into(),
-        work: 0,
+        work: 0.into(),
     }
     .into();
 
@@ -143,7 +143,7 @@ fn multiple_get() {
         representative: *DEV_GENESIS_PUB_KEY,
         balance: Amount::raw(1),
         link: (*DEV_GENESIS_ACCOUNT).into(),
-        work: 0,
+        work: 0.into(),
     }
     .into();
     // Add the blocks' info to the unchecked table

@@ -4,7 +4,7 @@ use super::{
     gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, StubWorkPool, WorkItem,
     WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
 };
-use crate::{utils::ContainerInfo, Root};
+use crate::{utils::ContainerInfo, Root, WorkNonce};
 use std::{
     mem::size_of,
     sync::{Arc, Condvar, LazyLock, Mutex},
@@ -17,12 +17,12 @@ pub trait WorkPool: Send + Sync {
         &self,
         root: Root,
         difficulty: u64,
-        done: Option<Box<dyn FnOnce(Option<u64>) + Send>>,
+        done: Option<Box<dyn FnOnce(Option<WorkNonce>) + Send>>,
     );
 
-    fn generate_dev(&self, root: Root) -> Option<u64>;
+    fn generate_dev(&self, root: Root) -> Option<WorkNonce>;
 
-    fn generate(&self, root: Root, difficulty: u64) -> Option<u64>;
+    fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce>;
 }
 
 pub struct WorkPoolImpl {
@@ -63,7 +63,7 @@ impl WorkPoolImpl {
         )
     }
 
-    pub fn new_null(configured_work: u64) -> Self {
+    pub fn new_null(configured_work: WorkNonce) -> Self {
         let mut pool = Self {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
@@ -73,7 +73,7 @@ impl WorkPoolImpl {
         };
 
         pool.threads
-            .push(pool.spawn_stub_worker_thread(configured_work));
+            .push(pool.spawn_stub_worker_thread(configured_work.0));
         pool
     }
 
@@ -167,7 +167,7 @@ impl WorkPoolImpl {
         self.work_thresholds.threshold_base()
     }
 
-    pub fn difficulty(&self, root: &Root, work: u64) -> u64 {
+    pub fn difficulty(&self, root: &Root, work: WorkNonce) -> u64 {
         self.work_thresholds.difficulty(root, work)
     }
 
@@ -181,7 +181,7 @@ impl WorkPool for WorkPoolImpl {
         &self,
         root: Root,
         difficulty: u64,
-        done: Option<Box<dyn FnOnce(Option<u64>) + Send>>,
+        done: Option<Box<dyn FnOnce(Option<WorkNonce>) + Send>>,
     ) {
         debug_assert!(!root.is_zero());
         if !self.threads.is_empty() {
@@ -195,11 +195,11 @@ impl WorkPool for WorkPoolImpl {
         }
     }
 
-    fn generate_dev(&self, root: Root) -> Option<u64> {
+    fn generate_dev(&self, root: Root) -> Option<WorkNonce> {
         self.generate(root, self.work_thresholds.base)
     }
 
-    fn generate(&self, root: Root, difficulty: u64) -> Option<u64> {
+    fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
         if self.threads.is_empty() {
             return None;
         }
@@ -221,7 +221,7 @@ impl WorkPool for WorkPoolImpl {
 
 #[derive(Default)]
 struct WorkDoneState {
-    work: Option<u64>,
+    work: Option<WorkNonce>,
     done: bool,
 }
 
@@ -237,7 +237,7 @@ impl WorkDoneNotifier {
         }
     }
 
-    fn signal_done(&self, work: Option<u64>) {
+    fn signal_done(&self, work: Option<WorkNonce>) {
         {
             let mut lock = self.state.0.lock().unwrap();
             lock.work = work;
@@ -246,7 +246,7 @@ impl WorkDoneNotifier {
         self.state.1.notify_one();
     }
 
-    fn wait(&self) -> Option<u64> {
+    fn wait(&self) -> Option<WorkNonce> {
         let mut lock = self.state.0.lock().unwrap();
         loop {
             if lock.done {
@@ -267,8 +267,12 @@ impl Drop for WorkPoolImpl {
 }
 
 pub(crate) trait WorkGenerator {
-    fn create(&mut self, item: &Root, min_difficulty: u64, work_ticket: &WorkTicket)
-        -> Option<u64>;
+    fn create(
+        &mut self,
+        item: &Root,
+        min_difficulty: u64,
+        work_ticket: &WorkTicket,
+    ) -> Option<WorkNonce>;
 }
 
 struct StubWorkGenerator(u64);
@@ -279,8 +283,8 @@ impl WorkGenerator for StubWorkGenerator {
         _item: &Root,
         _min_difficulty: u64,
         _work_ticket: &WorkTicket,
-    ) -> Option<u64> {
-        Some(self.0)
+    ) -> Option<WorkNonce> {
+        Some(self.0.into())
     }
 }
 

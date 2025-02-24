@@ -6,7 +6,7 @@ use rsnano_core::{
     utils::{
         BufferReader, BufferWriter, Deserialize, MutStreamAdapter, Serialize, Stream, StreamExt,
     },
-    Account, KeyDerivationFunction, PublicKey, RawKey,
+    Account, KeyDerivationFunction, PublicKey, RawKey, WorkNonce,
 };
 use std::{
     fs::{set_permissions, File, Permissions},
@@ -32,11 +32,11 @@ impl Fans {
 
 pub struct WalletValue {
     pub key: RawKey,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl WalletValue {
-    pub fn new(key: RawKey, work: u64) -> Self {
+    pub fn new(key: RawKey, work: WorkNonce) -> Self {
         Self { key, work }
     }
 
@@ -51,7 +51,7 @@ impl WalletValue {
 impl Serialize for WalletValue {
     fn serialize(&self, writer: &mut dyn BufferWriter) {
         self.key.serialize(writer);
-        writer.write_u64_ne_safe(self.work);
+        writer.write_u64_ne_safe(self.work.into());
     }
 }
 
@@ -61,7 +61,7 @@ impl Deserialize for WalletValue {
     fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Self::Target> {
         let key = RawKey::deserialize(stream)?;
         let work = stream.read_u64_ne()?;
-        Ok(WalletValue::new(key, work))
+        Ok(WalletValue::new(key, work.into()))
     }
 }
 
@@ -98,7 +98,11 @@ impl LmdbWalletStore {
         if let Err(lmdb::Error::NotFound) = txn.get(handle, Self::version_special().as_bytes()) {
             store.version_put(txn, Self::VERSION_CURRENT);
             let salt = RawKey::random();
-            store.entry_put_raw(txn, &Self::salt_special(), &WalletValue::new(salt, 0));
+            store.entry_put_raw(
+                txn,
+                &Self::salt_special(),
+                &WalletValue::new(salt, 0.into()),
+            );
             // Wallet key is a fixed random key that encrypts all entries
             let wallet_key = RawKey::random();
             let password = RawKey::zero();
@@ -110,25 +114,29 @@ impl LmdbWalletStore {
             store.entry_put_raw(
                 txn,
                 &Self::wallet_key_special(),
-                &WalletValue::new(encrypted, 0),
+                &WalletValue::new(encrypted, 0.into()),
             );
             let wallet_key_enc = encrypted;
             guard.wallet_key_mem.value_set(wallet_key_enc);
             drop(guard);
             let check = zero.encrypt(&wallet_key, &salt.initialization_vector_low());
-            store.entry_put_raw(txn, &Self::check_special(), &WalletValue::new(check, 0));
+            store.entry_put_raw(
+                txn,
+                &Self::check_special(),
+                &WalletValue::new(check, 0.into()),
+            );
             let rep = RawKey::from_bytes(*representative.as_bytes());
             store.entry_put_raw(
                 txn,
                 &Self::representative_special(),
-                &WalletValue::new(rep, 0),
+                &WalletValue::new(rep, 0.into()),
             );
             let seed = RawKey::random();
             store.set_seed(txn, &seed);
             store.entry_put_raw(
                 txn,
                 &Self::deterministic_index_special(),
-                &WalletValue::new(RawKey::zero(), 0),
+                &WalletValue::new(RawKey::zero(), 0.into()),
             );
         }
         {
@@ -165,7 +173,7 @@ impl LmdbWalletStore {
                 if let serde_json::Value::String(v_str) = v {
                     let key = PublicKey::decode_hex(k)?;
                     let value = RawKey::decode_hex(v_str)?;
-                    store.entry_put_raw(txn, &key, &WalletValue::new(value, 0));
+                    store.entry_put_raw(txn, &key, &WalletValue::new(value, 0.into()));
                 } else {
                     bail!("expected string value");
                 }
@@ -258,7 +266,7 @@ impl LmdbWalletStore {
                 let mut stream = BufferReader::new(bytes);
                 WalletValue::deserialize(&mut stream).unwrap()
             }
-            _ => WalletValue::new(RawKey::zero(), 0),
+            _ => WalletValue::new(RawKey::zero(), 0.into()),
         }
     }
 
@@ -308,7 +316,11 @@ impl LmdbWalletStore {
         let password_l = self.wallet_key(txn);
         let iv = self.salt(txn).initialization_vector_high();
         let ciphertext = prv.encrypt(&password_l, &iv);
-        self.entry_put_raw(txn, &Self::seed_special(), &WalletValue::new(ciphertext, 0));
+        self.entry_put_raw(
+            txn,
+            &Self::seed_special(),
+            &WalletValue::new(ciphertext, 0.into()),
+        );
         self.deterministic_clear(txn);
     }
 
@@ -325,7 +337,7 @@ impl LmdbWalletStore {
 
     pub fn deterministic_index_set(&self, txn: &mut LmdbWriteTransaction, index: u32) {
         let index = RawKey::from(index as u64);
-        let value = WalletValue::new(index, 0);
+        let value = WalletValue::new(index, 0.into());
         self.entry_put_raw(txn, &Self::deterministic_index_special(), &value);
     }
 
@@ -367,7 +379,7 @@ impl LmdbWalletStore {
             self.entry_put_raw(
                 txn,
                 &Self::wallet_key_special(),
-                &WalletValue::new(encrypted, 0),
+                &WalletValue::new(encrypted, 0.into()),
             );
             Ok(())
         } else {
@@ -466,7 +478,7 @@ impl LmdbWalletStore {
         let mut marker = 1u64;
         marker <<= 32;
         marker |= index as u64;
-        self.entry_put_raw(txn, &result, &WalletValue::new(marker.into(), 0));
+        self.entry_put_raw(txn, &result, &WalletValue::new(marker.into(), 0.into()));
         index += 1;
         self.deterministic_index_set(txn, index);
         result
@@ -478,7 +490,7 @@ impl LmdbWalletStore {
         let mut marker = 1u64;
         marker <<= 32;
         marker |= index as u64;
-        self.entry_put_raw(txn, &result, &WalletValue::new(marker.into(), 0));
+        self.entry_put_raw(txn, &result, &WalletValue::new(marker.into(), 0.into()));
         result
     }
 
@@ -520,7 +532,7 @@ impl LmdbWalletStore {
         self.entry_put_raw(
             txn,
             &Self::representative_special(),
-            &WalletValue::new(rep, 0),
+            &WalletValue::new(rep, 0.into()),
         );
     }
 
@@ -529,7 +541,7 @@ impl LmdbWalletStore {
         let pub_key = PublicKey::try_from(prv).unwrap();
         let password = self.wallet_key(txn);
         let ciphertext = prv.encrypt(&password, &pub_key.initialization_vector());
-        self.entry_put_raw(txn, &pub_key, &WalletValue::new(ciphertext, 0));
+        self.entry_put_raw(txn, &pub_key, &WalletValue::new(ciphertext, 0.into()));
         pub_key
     }
 
@@ -542,7 +554,7 @@ impl LmdbWalletStore {
             bail!("invalid public key");
         }
 
-        self.entry_put_raw(txn, pub_key, &WalletValue::new(RawKey::zero(), 0));
+        self.entry_put_raw(txn, pub_key, &WalletValue::new(RawKey::zero(), 0.into()));
         Ok(())
     }
 
@@ -657,10 +669,14 @@ impl LmdbWalletStore {
         Ok(())
     }
 
-    pub fn work_get(&self, txn: &dyn Transaction, pub_key: &PublicKey) -> anyhow::Result<u64> {
+    pub fn work_get(
+        &self,
+        txn: &dyn Transaction,
+        pub_key: &PublicKey,
+    ) -> anyhow::Result<WorkNonce> {
         let entry = self.entry_get_raw(txn, pub_key);
         if !entry.key.is_zero() {
-            Ok(entry.work)
+            Ok(entry.work.into())
         } else {
             Err(anyhow!("not found"))
         }
@@ -668,10 +684,14 @@ impl LmdbWalletStore {
 
     pub fn version_put(&self, txn: &mut LmdbWriteTransaction, version: u32) {
         let entry = RawKey::from(version as u64);
-        self.entry_put_raw(txn, &Self::version_special(), &WalletValue::new(entry, 0));
+        self.entry_put_raw(
+            txn,
+            &Self::version_special(),
+            &WalletValue::new(entry, 0.into()),
+        );
     }
 
-    pub fn work_put(&self, txn: &mut LmdbWriteTransaction, pub_key: &PublicKey, work: u64) {
+    pub fn work_put(&self, txn: &mut LmdbWriteTransaction, pub_key: &PublicKey, work: WorkNonce) {
         let mut entry = self.entry_get_raw(txn, pub_key);
         debug_assert!(!entry.key.is_zero());
         entry.work = work;

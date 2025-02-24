@@ -224,7 +224,7 @@ fn weights() {
         *DEV_GENESIS_ACCOUNT,
         key0.account(),
         level0,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -233,7 +233,7 @@ fn weights() {
         *DEV_GENESIS_ACCOUNT,
         key1.account(),
         level1,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -243,7 +243,7 @@ fn weights() {
         *DEV_GENESIS_ACCOUNT,
         key2.account(),
         level2,
-        0,
+        0.into(),
         true,
         None,
     );

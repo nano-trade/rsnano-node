@@ -34,7 +34,7 @@ fn process_fails_with_low_work() {
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let mut send1 = lattice.genesis().send(&*DEV_GENESIS_KEY, 100);
-    send1.set_work(1);
+    send1.set_work(1.into());
 
     let args: ProcessArgs = ProcessArgs::build(send1.json_representation())
         .subtype(BlockSubTypeDto::Send)

@@ -455,7 +455,7 @@ fn confirm_quorum() {
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_ACCOUNT,
             new_balance,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -492,7 +492,7 @@ fn send_callback() {
         *DEV_GENESIS_ACCOUNT,
         key2.account(),
         node.config.receive_minimum,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -540,7 +540,7 @@ fn no_voting() {
             *DEV_GENESIS_ACCOUNT,
             key1.account(),
             Amount::nano(1),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -955,7 +955,7 @@ fn unlock_search() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1002,7 +1002,7 @@ fn search_receivable_confirmed() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1018,7 +1018,7 @@ fn search_receivable_confirmed() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1079,7 +1079,7 @@ fn search_receivable_pruned() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node2.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1092,7 +1092,7 @@ fn search_receivable_pruned() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node2.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1160,7 +1160,7 @@ fn search_receivable() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1193,7 +1193,7 @@ fn search_receivable_same() {
         *DEV_GENESIS_ACCOUNT,
         key2.account(),
         node.config.receive_minimum,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -1203,7 +1203,7 @@ fn search_receivable_same() {
         *DEV_GENESIS_ACCOUNT,
         key2.account(),
         node.config.receive_minimum,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -1239,7 +1239,7 @@ fn search_receivable_multiple() {
             *DEV_GENESIS_ACCOUNT,
             key3.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1255,7 +1255,7 @@ fn search_receivable_multiple() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1266,7 +1266,7 @@ fn search_receivable_multiple() {
             key3.account(),
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1315,7 +1315,7 @@ fn auto_bootstrap_reverse() {
         *DEV_GENESIS_ACCOUNT,
         key2.account(),
         node0.config.receive_minimum,
-        0,
+        0.into(),
         true,
         None,
     );
@@ -1420,7 +1420,7 @@ fn send_single_observing_peer() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node1.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1470,7 +1470,7 @@ fn send_single() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node1.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1509,7 +1509,7 @@ fn send_self() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1678,7 +1678,7 @@ fn fork_no_vote_quorum() {
             *DEV_GENESIS_ACCOUNT,
             key4.into(),
             Amount::MAX / 4,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -1701,7 +1701,7 @@ fn fork_no_vote_quorum() {
             *DEV_GENESIS_ACCOUNT,
             key1.into(),
             node1.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -2507,7 +2507,7 @@ fn auto_bootstrap() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             node0.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )
@@ -2672,7 +2672,7 @@ fn unconfirmed_send() {
             *DEV_GENESIS_ACCOUNT,
             key2.account(),
             Amount::nano(2),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -2738,7 +2738,7 @@ fn unconfirmed_send() {
             key2.account(),
             *DEV_GENESIS_ACCOUNT,
             Amount::nano(1),
-            0,
+            0.into(),
             true,
             None,
         )

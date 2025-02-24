@@ -287,7 +287,7 @@ mod tests {
             let mut deserializer = create_deserializer();
 
             let mut publish = Publish::new_test_instance();
-            publish.block.set_work(0);
+            publish.block.set_work(0.into());
             let message = Message::Publish(publish);
 
             deserializer.push(&message_bytes(&message));

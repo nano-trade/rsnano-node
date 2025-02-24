@@ -14,7 +14,9 @@ fn work_get() {
 
     node.wallets.create(wallet);
 
-    node.wallets.work_set(&wallet, &account.into(), 1).unwrap();
+    node.wallets
+        .work_set(&wallet, &account.into(), 1.into())
+        .unwrap();
 
     let result = node
         .runtime

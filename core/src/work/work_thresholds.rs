@@ -1,5 +1,6 @@
 use crate::{
-    Block, BlockDetails, BlockType, Difficulty, DifficultyV1, Epoch, Networks, Root, StubDifficulty,
+    Block, BlockDetails, BlockType, Difficulty, DifficultyV1, Epoch, Networks, Root,
+    StubDifficulty, WorkNonce,
 };
 use std::{
     cmp::{max, min},
@@ -41,8 +42,8 @@ impl PartialEq for WorkThresholds {
             && self.epoch_2_receive == other.epoch_2_receive
             && self.base == other.base
             && self.entry == other.entry
-            && self.difficulty.get_difficulty(&Root::default(), 0)
-                == other.difficulty.get_difficulty(&Root::default(), 0)
+            && self.difficulty.get_difficulty(&Root::default(), 0.into())
+                == other.difficulty.get_difficulty(&Root::default(), 0.into())
     }
 }
 
@@ -240,7 +241,7 @@ impl WorkThresholds {
         }
     }
 
-    pub fn difficulty(&self, root: &Root, work: u64) -> u64 {
+    pub fn difficulty(&self, root: &Root, work: WorkNonce) -> u64 {
         self.difficulty.get_difficulty(root, work)
     }
 
@@ -248,7 +249,7 @@ impl WorkThresholds {
         self.difficulty(&block.root(), block.work())
     }
 
-    pub fn validate_entry(&self, root: &Root, work: u64) -> bool {
+    pub fn validate_entry(&self, root: &Root, work: WorkNonce) -> bool {
         self.difficulty(root, work) >= self.threshold_entry(BlockType::State)
     }
 

@@ -1,4 +1,4 @@
-use rsnano_core::{BlockHash, DifficultyV1};
+use rsnano_core::{BlockHash, DifficultyV1, WorkNonce};
 use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]
@@ -16,7 +16,7 @@ fn work_generate() {
 
     assert_eq!(hash, work_generate_dto.hash);
 
-    let work: u64 = work_generate_dto.work.into();
+    let work: WorkNonce = work_generate_dto.work.into();
     let result_difficulty = node.network_params.work.difficulty(&hash.into(), work);
 
     assert_eq!(result_difficulty, work_generate_dto.difficulty.inner());

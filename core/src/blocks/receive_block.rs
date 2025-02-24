@@ -8,7 +8,7 @@ use anyhow::Result;
 
 #[derive(Clone, Debug)]
 pub struct ReceiveBlock {
-    work: u64,
+    work: WorkNonce,
     signature: Signature,
     hashables: ReceiveHashables,
     hash: BlockHash,
@@ -21,7 +21,7 @@ impl ReceiveBlock {
             key: &key,
             previous: 123.into(),
             source: 456.into(),
-            work: 69420,
+            work: 69420.into(),
         }
         .into()
     }
@@ -43,7 +43,7 @@ impl ReceiveBlock {
         let signature = Signature::deserialize(stream)?;
         let mut work_bytes = [0u8; 8];
         stream.read_bytes(&mut work_bytes, 8)?;
-        let work = u64::from_le_bytes(work_bytes);
+        let work = u64::from_le_bytes(work_bytes).into();
         let hashables = ReceiveHashables { previous, source };
         let hash = hashables.hash();
         Ok(Self {
@@ -104,11 +104,11 @@ impl BlockBase for ReceiveBlock {
         self.signature = signature;
     }
 
-    fn set_work(&mut self, work: u64) {
+    fn set_work(&mut self, work: WorkNonce) {
         self.work = work;
     }
 
-    fn work(&self) -> u64 {
+    fn work(&self) -> WorkNonce {
         self.work
     }
 
@@ -120,7 +120,7 @@ impl BlockBase for ReceiveBlock {
         self.hashables.previous.serialize(writer);
         self.hashables.source.serialize(writer);
         self.signature.serialize(writer);
-        writer.write_bytes_safe(&self.work.to_le_bytes());
+        writer.write_bytes_safe(&self.work.0.to_le_bytes());
     }
 
     fn root(&self) -> Root {
@@ -180,7 +180,7 @@ pub struct ReceiveBlockArgs<'a> {
     pub key: &'a PrivateKey,
     pub previous: BlockHash,
     pub source: BlockHash,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl<'a> From<ReceiveBlockArgs<'a>> for ReceiveBlock {
@@ -245,7 +245,7 @@ mod tests {
             key: &key,
             previous,
             source: 2.into(),
-            work: 4,
+            work: 4.into(),
         }
         .into();
         assert_eq!(block.previous(), previous);
@@ -261,7 +261,7 @@ mod tests {
             key: &key1,
             previous: 0.into(),
             source: 1.into(),
-            work: 4,
+            work: 4.into(),
         }
         .into();
         let mut stream = MemoryStream::new();

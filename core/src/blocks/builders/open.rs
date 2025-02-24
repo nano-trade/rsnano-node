@@ -3,7 +3,7 @@ use crate::{
     utils::UnixTimestamp,
     work::{WorkPool, STUB_WORK_POOL},
     Account, Block, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey,
-    SavedBlock,
+    SavedBlock, WorkNonce,
 };
 
 pub struct TestLegacyOpenBlockBuilder {
@@ -11,7 +11,7 @@ pub struct TestLegacyOpenBlockBuilder {
     representative: Option<PublicKey>,
     source: Option<BlockHash>,
     prv_key: Option<PrivateKey>,
-    work: Option<u64>,
+    work: Option<WorkNonce>,
 }
 
 impl TestLegacyOpenBlockBuilder {
@@ -40,8 +40,8 @@ impl TestLegacyOpenBlockBuilder {
         self
     }
 
-    pub fn work(mut self, work: u64) -> Self {
-        self.work = Some(work);
+    pub fn work(mut self, work: impl Into<WorkNonce>) -> Self {
+        self.work = Some(work.into());
         self
     }
     pub fn build(self) -> Block {

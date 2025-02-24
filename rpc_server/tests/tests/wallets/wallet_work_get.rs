@@ -19,7 +19,9 @@ fn wallet_work_get() {
         .insert_adhoc2(&wallet, &private_key, false)
         .unwrap();
 
-    node.wallets.work_set(&wallet, &public_key, 1).unwrap();
+    node.wallets
+        .work_set(&wallet, &public_key, 1.into())
+        .unwrap();
 
     let result = node
         .runtime

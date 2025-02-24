@@ -2,6 +2,7 @@ use crate::{
     blocks::send_block::SendBlockArgs,
     work::{WorkPool, STUB_WORK_POOL},
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, SavedBlock,
+    WorkNonce,
 };
 
 pub struct TestLegacySendBlockBuilder {
@@ -9,7 +10,7 @@ pub struct TestLegacySendBlockBuilder {
     destination: Option<Account>,
     balance: Option<Amount>,
     previous_balance: Option<Amount>,
-    work: Option<u64>,
+    work: Option<WorkNonce>,
     priv_key: Option<PrivateKey>,
 }
 
@@ -58,8 +59,8 @@ impl TestLegacySendBlockBuilder {
         self
     }
 
-    pub fn work(mut self, work: u64) -> Self {
-        self.work = Some(work);
+    pub fn work(mut self, work: impl Into<WorkNonce>) -> Self {
+        self.work = Some(work.into());
         self
     }
 

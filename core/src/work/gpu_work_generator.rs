@@ -26,8 +26,8 @@ impl WorkGenerator for GpuWorkGenerator {
         root: &Root,
         min_difficulty: u64,
         work_ticket: &WorkTicket,
-    ) -> Option<u64> {
-        if let Err(e) = self.gpu.set_task(root.as_bytes(), min_difficulty) {
+    ) -> Option<WorkNonce> {
+        if let Err(e) = self.gpu.set_task(root, min_difficulty) {
             error!("Error setting task: {:?}", e);
             return None;
         }
@@ -38,7 +38,7 @@ impl WorkGenerator for GpuWorkGenerator {
             match self.gpu.run(&mut out, attempt) {
                 Ok(true) => {
                     let work = WorkNonce::from(u64::from_le_bytes(out));
-                    return Some(work.into());
+                    return Some(work);
                 }
                 Ok(false) => {}
                 Err(err) => {
@@ -67,7 +67,7 @@ mod tests {
     #[cfg_attr(not(feature = "opencl"), ignore)]
     fn gpu_work() {
         let mut work_generator = GpuWorkGenerator::new(OpenClConfig::default()).unwrap();
-        let min_difficulty = WorkThresholds::publish_full().threshold_base();
+        let min_difficulty = WorkThresholds::publish_dev().threshold_base();
         let work_ticket = WorkTicket::never_expires();
 
         let root = Root::from(123);

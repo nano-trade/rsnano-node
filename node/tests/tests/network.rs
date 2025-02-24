@@ -283,7 +283,7 @@ fn receive_weight_change() {
             *DEV_GENESIS_ACCOUNT,
             key2.public_key().as_account(),
             node1.config.receive_minimum,
-            0,
+            0.into(),
             true,
             None,
         )

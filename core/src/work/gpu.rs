@@ -6,6 +6,8 @@ use ocl::{
 };
 use tracing::info;
 
+use crate::Root;
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct OpenClConfig {
     pub platform: usize,
@@ -104,29 +106,23 @@ impl Gpu {
         Ok(())
     }
 
-    pub fn set_task(&mut self, root: &[u8], difficulty: u64) -> Result<()> {
+    pub fn set_task(&mut self, root: &Root, difficulty: u64) -> Result<()> {
         self.reset_bufs()?;
-        self.root.write(root).enq()?;
+        self.root.write(root.as_bytes().as_slice()).enq()?;
         self.kernel.set_arg("difficulty", difficulty)?;
         Ok(())
     }
 
-    pub fn run(&mut self, out: &mut [u8], attempt: u64) -> Result<bool> {
+    pub fn run(&mut self, out: &mut [u8; 8], attempt: u64) -> Result<bool> {
         let attempt_bytes = attempt.to_le_bytes();
         self.attempt.write(&attempt_bytes as &[u8]).enq()?;
-        debug_assert!(out.iter().all(|&b| b == 0));
-        debug_assert!({
-            let mut result = [0u8; 8];
-            self.result.read(&mut result as &mut [u8]).enq()?;
-            result.iter().all(|&b| b == 0)
-        });
 
         unsafe {
             self.kernel.enq()?;
         }
 
-        self.result.read(&mut *out).enq()?;
-        let success = !out.iter().all(|&b| b == 0);
+        self.result.read(out.as_mut_slice()).enq()?;
+        let success = *out != [0; 8];
         if success {
             self.reset_bufs()?;
         }

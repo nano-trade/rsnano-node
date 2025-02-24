@@ -29,7 +29,7 @@ fn successors() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(1),
-            0,
+            0.into(),
             true,
             None,
         )

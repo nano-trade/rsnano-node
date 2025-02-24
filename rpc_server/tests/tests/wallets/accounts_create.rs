@@ -1,8 +1,7 @@
 use rsnano_core::WalletId;
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::AccountsCreateArgs;
-use std::time::Duration;
-use test_helpers::{assert_timely, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 #[test]
 fn accounts_create() {
@@ -49,11 +48,12 @@ fn accounts_create_default_with_precomputed_work() {
 
     assert!(node.wallets.exists(&result.accounts[0].into()));
 
-    assert_timely(Duration::from_secs(5), || {
-        node.wallets
+    assert_timely2(|| {
+        !node
+            .wallets
             .work_get2(&wallet_id, &result.accounts[0].into())
             .unwrap()
-            != 0
+            .is_zero()
     });
 }
 
@@ -78,11 +78,11 @@ fn accounts_create_without_precomputed_work() {
 
     assert!(node.wallets.exists(&result.accounts[0].into()));
 
-    assert_timely(Duration::from_secs(5), || {
+    assert_timely2(|| {
         node.wallets
             .work_get2(&wallet_id, &result.accounts[0].into())
             .unwrap()
-            == 0
+            .is_zero()
     });
 }
 

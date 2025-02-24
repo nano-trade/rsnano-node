@@ -1,7 +1,7 @@
 use rsnano_core::{
     to_hex_string,
     work::{WorkPool, WorkPoolImpl},
-    Account, Block, Root,
+    Account, Block, Root, WorkNonce,
 };
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,7 @@ impl DistributedWorkFactory {
         }
     }
 
-    pub fn make_blocking_block(&self, block: &mut Block, difficulty: u64) -> Option<u64> {
+    pub fn make_blocking_block(&self, block: &mut Block, difficulty: u64) -> Option<WorkNonce> {
         let work = self.tokio.block_on(self.generate_work(WorkRequest {
             root: block.root(),
             difficulty,
@@ -87,7 +87,7 @@ impl DistributedWorkFactory {
         root: Root,
         difficulty: u64,
         account: Option<Account>,
-    ) -> Option<u64> {
+    ) -> Option<WorkNonce> {
         self.tokio.block_on(self.generate_work(WorkRequest {
             root,
             difficulty,
@@ -96,7 +96,12 @@ impl DistributedWorkFactory {
         }))
     }
 
-    pub async fn make(&self, root: Root, difficulty: u64, account: Option<Account>) -> Option<u64> {
+    pub async fn make(
+        &self,
+        root: Root,
+        difficulty: u64,
+        account: Option<Account>,
+    ) -> Option<WorkNonce> {
         self.generate_work(WorkRequest {
             root,
             difficulty,
@@ -106,13 +111,13 @@ impl DistributedWorkFactory {
         .await
     }
 
-    async fn generate_work(&self, request: WorkRequest) -> Option<u64> {
+    async fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
         self.generate_in_local_work_pool(request.root, request.difficulty)
             .await
     }
 
-    async fn generate_in_local_work_pool(&self, root: Root, difficulty: u64) -> Option<u64> {
-        let (tx, rx) = oneshot::channel::<Option<u64>>();
+    async fn generate_in_local_work_pool(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
+        let (tx, rx) = oneshot::channel::<Option<WorkNonce>>();
         self.work_pool.generate_async(
             root,
             difficulty,
@@ -149,7 +154,7 @@ mod tests {
 
     #[tokio::test]
     async fn use_local_work_factor_when_no_peers_given() {
-        let expected_work = 12345;
+        let expected_work = WorkNonce::from(12345);
         let work_pool = Arc::new(WorkPoolImpl::new_null(expected_work));
         let work_factory =
             DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
@@ -166,7 +171,7 @@ mod tests {
 
     #[tokio::test]
     async fn cancellations_can_be_tracked() {
-        let work_pool = Arc::new(WorkPoolImpl::new_null(1));
+        let work_pool = Arc::new(WorkPoolImpl::new_null(1.into()));
         let work_factory =
             DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
         let cancel_tracker = work_factory.track_cancellations();

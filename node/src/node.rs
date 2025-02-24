@@ -48,7 +48,7 @@ use rsnano_core::{
     utils::{ContainerInfo, Peer},
     work::{WorkPool, WorkPoolImpl},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
-    VoteSource,
+    VoteSource, WorkNonce,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache, Writer};
 use rsnano_messages::NetworkFilter;
@@ -160,7 +160,7 @@ impl NodeArgs {
             config,
             flags: Default::default(),
             callbacks: Default::default(),
-            work: Arc::new(WorkPoolImpl::new_null(123)),
+            work: Arc::new(WorkPoolImpl::new_null(WorkNonce::from(123))),
         }
     }
 }
@@ -1396,7 +1396,7 @@ impl Node {
         self.node_id.public_key().into()
     }
 
-    pub fn work_generate_dev(&self, root: impl Into<Root>) -> u64 {
+    pub fn work_generate_dev(&self, root: impl Into<Root>) -> WorkNonce {
         self.work.generate_dev(root.into()).unwrap()
     }
 

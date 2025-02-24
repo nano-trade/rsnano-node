@@ -354,6 +354,12 @@ impl Serialize for Frontier {
 #[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord, Default)]
 pub struct WorkNonce(u64);
 
+impl WorkNonce {
+    pub fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+}
+
 impl Display for WorkNonce {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:016X}", self.0)

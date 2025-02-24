@@ -29,7 +29,7 @@ fn chain() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(1),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -80,7 +80,7 @@ fn chain_limit() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(1),
-            0,
+            0.into(),
             true,
             None,
         )
@@ -130,7 +130,7 @@ fn chain_offset() {
             *DEV_GENESIS_ACCOUNT,
             key.account(),
             Amount::raw(1),
-            0,
+            0.into(),
             true,
             None,
         )

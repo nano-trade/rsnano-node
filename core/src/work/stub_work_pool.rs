@@ -1,5 +1,5 @@
 use super::WorkPool;
-use crate::Root;
+use crate::{Root, WorkNonce};
 
 /// The StubWorkPool assumes work == difficulty
 pub struct StubWorkPool {
@@ -23,18 +23,18 @@ impl WorkPool for StubWorkPool {
         &self,
         _root: Root,
         difficulty: u64,
-        done: Option<Box<dyn FnOnce(Option<u64>) + Send>>,
+        done: Option<Box<dyn FnOnce(Option<WorkNonce>) + Send>>,
     ) {
         if let Some(done) = done {
-            done(Some(difficulty))
+            done(Some(difficulty.into()))
         }
     }
 
-    fn generate_dev(&self, _root: Root) -> Option<u64> {
-        Some(self.base_difficulty)
+    fn generate_dev(&self, _root: Root) -> Option<WorkNonce> {
+        Some(self.base_difficulty.into())
     }
 
-    fn generate(&self, _root: Root, difficulty: u64) -> Option<u64> {
-        Some(difficulty)
+    fn generate(&self, _root: Root, difficulty: u64) -> Option<WorkNonce> {
+        Some(difficulty.into())
     }
 }

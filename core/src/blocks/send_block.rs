@@ -11,7 +11,7 @@ use serde::de::{Unexpected, Visitor};
 pub struct SendBlock {
     hashables: SendHashables,
     signature: Signature,
-    work: u64,
+    work: WorkNonce,
     hash: BlockHash,
 }
 
@@ -23,7 +23,7 @@ impl SendBlock {
             previous: 1.into(),
             destination: 2.into(),
             balance: 3.into(),
-            work: 424269420,
+            work: 424269420.into(),
         }
         .into()
     }
@@ -34,7 +34,7 @@ impl SendBlock {
 
         let mut buffer = [0u8; 8];
         stream.read_bytes(&mut buffer, 8)?;
-        let work = u64::from_le_bytes(buffer);
+        let work = u64::from_le_bytes(buffer).into();
         let hash = hashables.hash();
         Ok(SendBlock {
             hashables,
@@ -49,7 +49,7 @@ impl SendBlock {
     }
 
     pub fn zero(&mut self) {
-        self.work = 0;
+        self.work = 0.into();
         self.signature = Signature::new();
         self.hashables.clear();
     }
@@ -128,11 +128,11 @@ impl BlockBase for SendBlock {
         self.signature = signature;
     }
 
-    fn set_work(&mut self, work: u64) {
+    fn set_work(&mut self, work: WorkNonce) {
         self.work = work;
     }
 
-    fn work(&self) -> u64 {
+    fn work(&self) -> WorkNonce {
         self.work
     }
 
@@ -143,7 +143,7 @@ impl BlockBase for SendBlock {
     fn serialize_without_block_type(&self, writer: &mut dyn BufferWriter) {
         self.hashables.serialize(writer);
         self.signature.serialize(writer);
-        writer.write_bytes_safe(&self.work.to_le_bytes());
+        writer.write_bytes_safe(&self.work.0.to_le_bytes());
     }
 
     fn root(&self) -> Root {
@@ -260,7 +260,7 @@ pub struct SendBlockArgs<'a> {
     pub previous: BlockHash,
     pub destination: Account,
     pub balance: Amount,
-    pub work: u64,
+    pub work: WorkNonce,
 }
 
 impl<'a> From<SendBlockArgs<'a>> for SendBlock {
@@ -376,7 +376,7 @@ mod tests {
             previous: 0.into(),
             destination: 1.into(),
             balance: 13.into(),
-            work: 2,
+            work: 2.into(),
         }
         .into();
 
@@ -404,7 +404,7 @@ mod tests {
             previous: 0.into(),
             destination: 1.into(),
             balance: 2.into(),
-            work: 5,
+            work: 5.into(),
         }
         .into();
         let mut stream = MemoryStream::new();

@@ -1,4 +1,4 @@
-use crate::Root;
+use crate::{Root, WorkNonce};
 use blake2::{
     digest::{Update, VariableOutput},
     Blake2bVar,
@@ -34,7 +34,7 @@ impl TryFrom<u8> for WorkVersion {
 }
 
 pub trait Difficulty: Send + Sync {
-    fn get_difficulty(&self, root: &Root, work: u64) -> u64;
+    fn get_difficulty(&self, root: &Root, work: WorkNonce) -> u64;
     fn clone(&self) -> Box<dyn Difficulty>;
 }
 
@@ -61,10 +61,10 @@ impl DifficultyV1 {
 }
 
 impl Difficulty for DifficultyV1 {
-    fn get_difficulty(&self, root: &Root, work: u64) -> u64 {
+    fn get_difficulty(&self, root: &Root, work: WorkNonce) -> u64 {
         let mut buffer = [0; size_of::<u64>()];
         let mut hasher = Blake2bVar::new(buffer.len()).unwrap();
-        hasher.update(&work.to_le_bytes());
+        hasher.update(&work.0.to_le_bytes());
         hasher.update(root.as_bytes());
         hasher.finalize_variable(&mut buffer).unwrap();
         u64::from_le_bytes(buffer)
@@ -87,17 +87,18 @@ impl StubDifficulty {
         }
     }
 
-    pub fn set_difficulty(&mut self, root: Root, work: u64, difficulty: u64) {
-        self.preset_difficulties.insert((root, work), difficulty);
+    pub fn set_difficulty(&mut self, root: Root, work: WorkNonce, difficulty: u64) {
+        self.preset_difficulties
+            .insert((root, work.into()), difficulty);
     }
 }
 
 impl Difficulty for StubDifficulty {
-    fn get_difficulty(&self, root: &Root, work: u64) -> u64 {
+    fn get_difficulty(&self, root: &Root, work: WorkNonce) -> u64 {
         self.preset_difficulties
-            .get(&(*root, work))
+            .get(&(*root, work.0))
             .cloned()
-            .unwrap_or(work)
+            .unwrap_or(work.0)
     }
 
     fn clone(&self) -> Box<dyn Difficulty> {
@@ -115,16 +116,22 @@ mod tests {
     #[test]
     fn stub_difficulty() {
         let mut difficulty = StubDifficulty::new();
-        assert_eq!(difficulty.get_difficulty(&Root::from(1), 2), 2);
+        assert_eq!(
+            difficulty.get_difficulty(&Root::from(1), WorkNonce::from(2)),
+            2
+        );
 
-        difficulty.set_difficulty(Root::from(1), 2, 3);
-        assert_eq!(difficulty.get_difficulty(&Root::from(1), 2), 3);
+        difficulty.set_difficulty(Root::from(1), WorkNonce::from(2), 3);
+        assert_eq!(
+            difficulty.get_difficulty(&Root::from(1), WorkNonce::from(2)),
+            3
+        );
     }
 
     #[test]
     fn difficulty_for_root() {
         let difficulty = DifficultyV1::default();
-        let result = difficulty.get_difficulty(&Root::from(123), 456);
+        let result = difficulty.get_difficulty(&Root::from(123), WorkNonce::from(456));
         assert_eq!(result, 10978371542656683347);
     }
 
