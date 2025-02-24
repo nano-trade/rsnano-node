@@ -172,13 +172,15 @@ impl NodeBuilder {
 
         let flags = self.flags.unwrap_or_default();
         let work = self.work.unwrap_or_else(|| {
-            Arc::new(WorkPool::new(
-                network_params.work.clone(),
-                config.work_threads as usize,
-                Duration::from_nanos(config.pow_sleep_interval_ns as u64),
-                config.enable_opencl,
-                config.opencl.clone(),
-            ))
+            Arc::new(
+                WorkPool::builder()
+                    .thresholds(network_params.work.clone())
+                    .threads(config.work_threads as usize)
+                    .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
+                    .opencl_config(config.opencl.clone())
+                    .enable_gpu(config.enable_opencl)
+                    .finish(),
+            )
         });
 
         let callbacks = self.callbacks.unwrap_or_default();

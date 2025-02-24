@@ -15,7 +15,7 @@ use rsnano_node::{
 };
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
-use rsnano_work::{OpenClConfig, WorkPool};
+use rsnano_work::WorkPool;
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
@@ -41,13 +41,12 @@ impl System {
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
 
         Self {
-            work: Arc::new(WorkPool::new(
-                network_params.work.clone(),
-                1,
-                Duration::ZERO,
-                false,
-                OpenClConfig::default(),
-            )),
+            work: Arc::new(
+                WorkPool::builder()
+                    .network(Networks::NanoDevNetwork)
+                    .one_cpu_only()
+                    .finish(),
+            ),
             network_params,
             nodes: Vec::new(),
             initialization_blocks: Vec::new(),

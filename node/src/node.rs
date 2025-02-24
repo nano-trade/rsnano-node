@@ -1725,13 +1725,12 @@ mod tests {
             app_path.push(format!("rsnano-test-{}", Uuid::new_v4().simple()));
             let config = NodeConfig::new_test_instance();
             let network_params = NetworkParams::new(Networks::NanoDevNetwork);
-            let work = Arc::new(WorkPool::new(
-                network_params.work.clone(),
-                1,
-                Duration::ZERO,
-                false,
-                OpenClConfig::default(),
-            ));
+            let work = Arc::new(
+                WorkPool::builder()
+                    .network(Networks::NanoDevNetwork)
+                    .threads(1)
+                    .finish(),
+            );
 
             let node = NodeBuilder::new(Networks::NanoDevNetwork)
                 .data_path(app_path.clone())

@@ -5,7 +5,10 @@ use std::{
     time::Duration,
 };
 
-use rsnano_core::{utils::ContainerInfo, Root, WorkNonce};
+use rsnano_core::{
+    utils::{get_cpu_count, ContainerInfo},
+    Networks, Root, WorkNonce,
+};
 
 use tracing::warn;
 
@@ -13,6 +16,75 @@ use super::{
     gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, WorkItem,
     WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
 };
+
+pub struct WorkPoolBuilder {
+    thread_count: Option<usize>,
+    thresholds: Option<WorkThresholds>,
+    cpu_rate_limiter: Option<Duration>,
+    enable_gpu: bool,
+    opencl_config: Option<OpenClConfig>,
+}
+
+impl WorkPoolBuilder {
+    pub fn threads(mut self, count: usize) -> Self {
+        self.thread_count = Some(count);
+        self
+    }
+
+    pub fn gpu_only(mut self) -> Self {
+        self.enable_gpu = true;
+        self.thread_count = Some(1);
+        self
+    }
+
+    pub fn one_cpu_only(mut self) -> Self {
+        self.enable_gpu = false;
+        self.thread_count = Some(1);
+        self
+    }
+
+    pub fn network(mut self, network: Networks) -> Self {
+        self.thresholds = Some(WorkThresholds::default_for(network));
+        self
+    }
+
+    pub fn thresholds(mut self, thresholds: WorkThresholds) -> Self {
+        self.thresholds = Some(thresholds);
+        self
+    }
+
+    pub fn cpu_rate_limit(mut self, limit: Duration) -> Self {
+        self.cpu_rate_limiter = Some(limit);
+        self
+    }
+
+    pub fn opencl_config(mut self, config: OpenClConfig) -> Self {
+        self.opencl_config = Some(config);
+        self
+    }
+
+    pub fn enable_gpu(mut self, enable: bool) -> Self {
+        self.enable_gpu = enable;
+        self
+    }
+
+    pub fn finish(self) -> WorkPool {
+        let thread_count = self.thread_count.unwrap_or_else(|| get_cpu_count());
+        let thresholds = self
+            .thresholds
+            .unwrap_or_else(|| WorkThresholds::publish_full().clone());
+        let cpu_rate_limiter = self.cpu_rate_limiter.unwrap_or(Duration::ZERO);
+        let opencl_config = self.opencl_config.unwrap_or_default();
+
+        WorkPool::new(
+            thresholds,
+            thread_count,
+            cpu_rate_limiter,
+            self.enable_gpu,
+            opencl_config,
+        )
+    }
+}
 
 pub struct WorkPool {
     threads: Vec<JoinHandle<()>>,
@@ -23,7 +95,7 @@ pub struct WorkPool {
 }
 
 impl WorkPool {
-    pub fn new(
+    fn new(
         work_thresholds: WorkThresholds,
         thread_count: usize,
         cpu_rate_limiter: Duration,
@@ -40,6 +112,16 @@ impl WorkPool {
 
         pool.spawn_threads(thread_count, enable_open_cl, opencl_config);
         pool
+    }
+
+    pub fn builder() -> WorkPoolBuilder {
+        WorkPoolBuilder {
+            thread_count: None,
+            thresholds: None,
+            cpu_rate_limiter: None,
+            enable_gpu: false,
+            opencl_config: None,
+        }
     }
 
     pub fn new_dev() -> Self {

@@ -39,7 +39,6 @@ folder "nullables"{
 [websocket_server] --> [websocket_messages]
 [websocket_server] --> [node]
 [websocket_messages] --> [core]
-[messages] --> [core]
 [messages] --> [work]
 [network] --> [core]
 [ledger] --> [store_lmdb]
