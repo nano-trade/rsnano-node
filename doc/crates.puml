@@ -45,6 +45,7 @@ folder "nullables"{
 [ledger] --> [store_lmdb]
 [ledger] --> [work]
 [store_lmdb] --> [core]
+[work] --> [core]
 [core] --> "nullables"
 
 @enduml
