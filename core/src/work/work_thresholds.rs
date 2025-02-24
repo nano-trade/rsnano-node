@@ -5,6 +5,7 @@ use crate::{
 use std::{
     cmp::{max, min},
     sync::LazyLock,
+    u64,
 };
 
 pub static WORK_THRESHOLDS_STUB: LazyLock<WorkThresholds> = LazyLock::new(WorkThresholds::new_stub);
@@ -151,6 +152,16 @@ impl WorkThresholds {
             0xffc0000000000000, // 8x higher than epoch_1
             0xf000000000000000, // 8x lower than epoch_1
         )
+    }
+
+    /// All work is considered as valid
+    pub fn none() -> Self {
+        WorkThresholds::with_difficulty(Box::new(DifficultyV1 {}), 0, 0, 0)
+    }
+
+    /// All work is considered invalid
+    pub fn impossible() -> Self {
+        WorkThresholds::with_difficulty(Box::new(DifficultyV1 {}), u64::MAX, u64::MAX, u64::MAX)
     }
 
     pub fn with_difficulty(

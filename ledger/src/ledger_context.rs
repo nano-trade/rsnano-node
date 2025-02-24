@@ -1,5 +1,5 @@
-use crate::{ledger_constants::LEDGER_CONSTANTS_STUB, Ledger, LedgerConstants, RepWeightCache};
-use rsnano_core::{Account, Amount, ConfirmationHeightInfo};
+use crate::{Ledger, LedgerConstants, RepWeightCache};
+use rsnano_core::{work::WorkThresholds, Account, Amount, ConfirmationHeightInfo, Networks};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, TestDbFile};
 use std::sync::Arc;
 
@@ -13,7 +13,9 @@ pub struct LedgerContext {
 
 impl LedgerContext {
     pub fn empty() -> Self {
-        Self::with_constants(LEDGER_CONSTANTS_STUB.clone())
+        let work = WorkThresholds::none();
+        let ledger_constants = LedgerConstants::new(work, Networks::NanoDevNetwork);
+        Self::with_constants(ledger_constants)
     }
 
     pub fn empty_dev() -> Self {

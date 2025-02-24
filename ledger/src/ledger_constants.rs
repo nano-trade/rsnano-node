@@ -59,7 +59,10 @@ static TEST_GENESIS_DATA: LazyLock<String> = LazyLock::new(|| {
 });
 
 pub static LEDGER_CONSTANTS_STUB: LazyLock<LedgerConstants> =
-    LazyLock::new(|| LedgerConstants::new(WORK_THRESHOLDS_STUB.clone(), Networks::NanoDevNetwork));
+    LazyLock::new(|| LedgerConstants::new(WorkThresholds::none(), Networks::NanoDevNetwork));
+
+pub static IMPOSSIBLE_WORK: LazyLock<WorkThresholds> =
+    LazyLock::new(|| WorkThresholds::impossible());
 
 pub static DEV_GENESIS_BLOCK: LazyLock<SavedBlock> =
     LazyLock::new(|| LEDGER_CONSTANTS_STUB.genesis_block.clone());

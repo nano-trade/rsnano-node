@@ -1,10 +1,7 @@
 use crate::ledger_tests::helpers::upgrade_genesis_to_epoch_v1;
 use crate::ledger_tests::LedgerContext;
 use crate::{ledger_constants::LEDGER_CONSTANTS_STUB, DEV_GENESIS_HASH};
-use rsnano_core::{
-    work::{WorkPool, STUB_WORK_POOL},
-    Amount, Epoch, PendingKey, TestBlockBuilder,
-};
+use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
 
 #[test]
 fn pruning_action() {
@@ -54,7 +51,6 @@ fn pruning_action() {
         .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
         .link(send1.hash())
         .key(&genesis.key)
-        .work(STUB_WORK_POOL.generate_dev(send2.hash().into()).unwrap())
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
 
@@ -168,7 +164,6 @@ fn pruning_source_rollback() {
         .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
         .link(send1.hash())
         .key(&genesis.key)
-        .work(STUB_WORK_POOL.generate_dev(send2.hash().into()).unwrap())
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
 
@@ -234,7 +229,6 @@ fn pruning_source_rollback_legacy() {
         .previous(send3.hash())
         .source(send1.hash())
         .sign(&genesis.key)
-        .work(STUB_WORK_POOL.generate_dev(send3.hash().into()).unwrap())
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
 
@@ -266,11 +260,6 @@ fn pruning_source_rollback_legacy() {
     let mut open1 = TestBlockBuilder::legacy_open()
         .source(send2.hash())
         .sign(&destination.key)
-        .work(
-            STUB_WORK_POOL
-                .generate_dev(destination.account().into())
-                .unwrap(),
-        )
         .build();
     ctx.ledger.process(&mut txn, &mut open1).unwrap();
 

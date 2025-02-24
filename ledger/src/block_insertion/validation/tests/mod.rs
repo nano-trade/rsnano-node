@@ -10,11 +10,12 @@ mod validate_state_receive;
 mod validate_state_send;
 
 use crate::{
-    block_insertion::BlockInsertInstructions, ledger_constants::LEDGER_CONSTANTS_STUB, BlockStatus,
+    block_insertion::BlockInsertInstructions,
+    ledger_constants::{IMPOSSIBLE_WORK, LEDGER_CONSTANTS_STUB},
+    BlockStatus,
 };
 use rsnano_core::{
-    utils::UnixTimestamp, work::WORK_THRESHOLDS_STUB, Account, Amount, Block, Epoch, PendingInfo,
-    SavedAccountChain,
+    utils::UnixTimestamp, Account, Amount, Block, Epoch, PendingInfo, SavedAccountChain,
 };
 
 use super::BlockValidator;
@@ -27,6 +28,7 @@ pub(crate) struct BlockValidationTest {
     block_already_exists: bool,
     source_block_missing: bool,
     previous_block_missing: bool,
+    is_work_valid: bool,
 }
 impl BlockValidationTest {
     pub fn for_epoch0_account() -> Self {
@@ -61,11 +63,17 @@ impl BlockValidationTest {
             block_already_exists: false,
             source_block_missing: false,
             previous_block_missing: false,
+            is_work_valid: true,
         }
     }
 
     pub fn setup_account(mut self, mut setup: impl FnMut(&mut SavedAccountChain)) -> Self {
         setup(&mut self.chain);
+        self
+    }
+
+    pub fn invalid_work(mut self) -> Self {
+        self.is_work_valid = false;
         self
     }
 
@@ -115,7 +123,7 @@ impl BlockValidationTest {
 
     fn validate(&self) -> Result<BlockInsertInstructions, BlockStatus> {
         let block = self.block.as_ref().unwrap();
-        let mut validator = new_test_validator(block, self.chain.account());
+        let mut validator = new_test_validator(block, self.chain.account(), self.is_work_valid);
         if self.chain.height() > 0 {
             validator.old_account_info = Some(self.chain.account_info());
             if !self.previous_block_missing {
@@ -134,11 +142,19 @@ impl BlockValidationTest {
     }
 }
 
-fn new_test_validator<'a>(block: &'a Block, account: Account) -> BlockValidator<'a> {
+fn new_test_validator<'a>(
+    block: &'a Block,
+    account: Account,
+    is_work_valid: bool,
+) -> BlockValidator<'a> {
     BlockValidator {
         block,
         epochs: &LEDGER_CONSTANTS_STUB.epochs,
-        work: &WORK_THRESHOLDS_STUB,
+        work: if is_work_valid {
+            &LEDGER_CONSTANTS_STUB.work
+        } else {
+            &IMPOSSIBLE_WORK
+        },
         block_exists: false,
         account,
         old_account_info: None,

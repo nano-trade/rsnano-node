@@ -84,6 +84,7 @@ fn fails_if_sending_negative_amount() {
 fn send_fails_if_work_is_insufficient_for_epoch_0() {
     BlockValidationTest::for_epoch0_account()
         .block_to_validate(|chain| chain.new_legacy_send_block().work(0).build())
+        .invalid_work()
         .assert_validation_fails_with(BlockStatus::InsufficientWork);
 }
 
