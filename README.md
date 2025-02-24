@@ -71,6 +71,7 @@ The following diagram shows how the crates are organized. The crates will be spl
 * `store_lmdb`: LMDB implementation of the data stores.
 * `messages`: Message types that nodes use for communication.
 * `network`: Manage outbound/inbound TCP channels to/from other nodes.
+* `work`: Proof of work generation via CPU or GPU
 * `core`: Contains the basic types like `BlockHash`, `Account`, `KeyPair`,...
 * `nullables`: Nullable wrappers for infrastructure libraries.
 
