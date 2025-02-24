@@ -1,6 +1,5 @@
 use super::{
-    get_node_toml_config_path, read_toml_file, DaemonToml, NetworkParams, NodeConfig,
-    NodeRpcConfig, OpenclConfig,
+    get_node_toml_config_path, read_toml_file, DaemonToml, NetworkParams, NodeConfig, NodeRpcConfig,
 };
 use rsnano_core::Networks;
 use std::path::Path;
@@ -10,8 +9,6 @@ pub struct DaemonConfig {
     pub rpc_enable: bool,
     pub rpc: NodeRpcConfig,
     pub node: NodeConfig,
-    pub opencl: OpenclConfig,
-    pub opencl_enable: bool,
 }
 
 impl DaemonConfig {
@@ -23,8 +20,6 @@ impl DaemonConfig {
                 network_params,
                 parallelism,
             ),
-            opencl: OpenclConfig::new(),
-            opencl_enable: false,
             rpc: NodeRpcConfig::new(),
         }
     }
@@ -33,8 +28,6 @@ impl DaemonConfig {
         Self {
             rpc_enable: false,
             node: NodeConfig::default_for(network, parallelism),
-            opencl: OpenclConfig::new(),
-            opencl_enable: false,
             rpc: NodeRpcConfig::new(),
         }
     }

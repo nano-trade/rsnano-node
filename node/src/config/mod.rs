@@ -6,7 +6,6 @@ mod network_params;
 mod node_config;
 mod node_flags;
 mod node_rpc_config;
-mod opencl_config;
 mod toml;
 mod websocket_config;
 
@@ -17,7 +16,6 @@ pub use network_params::*;
 pub use node_config::*;
 pub use node_flags::*;
 pub use node_rpc_config::*;
-pub use opencl_config::*;
 pub use rsnano_core::Networks;
 use serde::de::DeserializeOwned;
 use std::path::{Path, PathBuf};

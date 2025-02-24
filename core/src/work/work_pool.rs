@@ -1,6 +1,8 @@
+use tracing::warn;
+
 use super::{
-    CpuWorkGenerator, StubWorkPool, WorkItem, WorkQueueCoordinator, WorkThread, WorkThresholds,
-    WorkTicket, WORK_THRESHOLDS_STUB,
+    gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, StubWorkPool, WorkItem,
+    WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
 };
 use crate::{utils::ContainerInfo, Root};
 use std::{
@@ -27,28 +29,38 @@ pub struct WorkPoolImpl {
     threads: Vec<JoinHandle<()>>,
     work_queue: Arc<WorkQueueCoordinator>,
     work_thresholds: WorkThresholds,
-    pow_rate_limiter: Duration,
+    cpu_rate_limiter: Duration,
+    has_open_cl: bool,
 }
 
 impl WorkPoolImpl {
     pub fn new(
         work_thresholds: WorkThresholds,
         thread_count: usize,
-        pow_rate_limiter: Duration,
+        cpu_rate_limiter: Duration,
+        enable_open_cl: bool,
+        opencl_config: OpenClConfig,
     ) -> Self {
         let mut pool = Self {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
             work_thresholds,
-            pow_rate_limiter,
+            cpu_rate_limiter,
+            has_open_cl: false,
         };
 
-        pool.spawn_threads(thread_count);
+        pool.spawn_threads(thread_count, enable_open_cl, opencl_config);
         pool
     }
 
     pub fn new_dev() -> Self {
-        Self::new(WorkThresholds::publish_dev().clone(), 1, Duration::ZERO)
+        Self::new(
+            WorkThresholds::publish_dev().clone(),
+            1,
+            Duration::ZERO,
+            false,
+            OpenClConfig::default(),
+        )
     }
 
     pub fn new_null(configured_work: u64) -> Self {
@@ -56,7 +68,8 @@ impl WorkPoolImpl {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
             work_thresholds: WORK_THRESHOLDS_STUB.clone(),
-            pow_rate_limiter: Duration::ZERO,
+            cpu_rate_limiter: Duration::ZERO,
+            has_open_cl: false,
         };
 
         pool.threads
@@ -69,18 +82,40 @@ impl WorkPoolImpl {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
             work_thresholds: WORK_THRESHOLDS_STUB.clone(),
-            pow_rate_limiter: Duration::ZERO,
+            cpu_rate_limiter: Duration::ZERO,
+            has_open_cl: false,
         }
     }
 
-    fn spawn_threads(&mut self, thread_count: usize) {
+    fn spawn_threads(
+        &mut self,
+        thread_count: usize,
+        enable_open_cl: bool,
+        opencl_config: OpenClConfig,
+    ) {
+        let mut gpu_work = if enable_open_cl {
+            match GpuWorkGenerator::new(opencl_config) {
+                Ok(gpu) => Some(gpu),
+                Err(e) => {
+                    warn!("Error initializing GPU: {:?}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         for _ in 0..thread_count {
+            if let Some(gpu) = gpu_work.take() {
+                self.threads.push(self.spawn_worker_thread(gpu));
+                continue;
+            }
             self.threads.push(self.spawn_cpu_worker_thread())
         }
     }
 
     fn spawn_cpu_worker_thread(&self) -> JoinHandle<()> {
-        self.spawn_worker_thread(CpuWorkGenerator::new(self.pow_rate_limiter))
+        self.spawn_worker_thread(CpuWorkGenerator::new(self.cpu_rate_limiter))
     }
 
     fn spawn_stub_worker_thread(&self, configured_work: u64) -> JoinHandle<()> {
@@ -89,7 +124,7 @@ impl WorkPoolImpl {
 
     fn spawn_worker_thread<T>(&self, work_generator: T) -> JoinHandle<()>
     where
-        T: WorkGenerator + Send + Sync + 'static,
+        T: WorkGenerator + Send + 'static,
     {
         let work_queue = Arc::clone(&self.work_queue);
         thread::Builder::new()
@@ -101,7 +136,7 @@ impl WorkPoolImpl {
     }
 
     pub fn has_opencl(&self) -> bool {
-        false
+        self.has_open_cl
     }
 
     pub fn work_generation_enabled(&self) -> bool {
@@ -263,12 +298,20 @@ mod tests {
             WorkThresholds::publish_dev().clone(),
             crate::utils::get_cpu_count(),
             Duration::ZERO,
+            false,
+            OpenClConfig::default(),
         )
     });
 
     #[test]
     fn work_disabled() {
-        let pool = WorkPoolImpl::new(WorkThresholds::publish_dev().clone(), 0, Duration::ZERO);
+        let pool = WorkPoolImpl::new(
+            WorkThresholds::publish_dev().clone(),
+            0,
+            Duration::ZERO,
+            false,
+            OpenClConfig::default(),
+        );
         let result = pool.generate_dev(Root::from(1));
         assert_eq!(result, None);
     }

@@ -10,13 +10,13 @@ pub struct GpuWorkGenerator {
 }
 
 impl GpuWorkGenerator {
-    pub fn new(config: OpenClConfig) -> Self {
-        let gpu = Gpu::new(config).expect("failed to create GPU");
+    pub fn new(config: OpenClConfig) -> ocl::Result<Self> {
+        let gpu = Gpu::new(config)?;
 
-        Self {
+        Ok(Self {
             gpu,
             rnd: XorShift1024Star::new(),
-        }
+        })
     }
 }
 
@@ -66,7 +66,7 @@ mod tests {
     #[test]
     #[cfg_attr(not(feature = "opencl"), ignore)]
     fn gpu_work() {
-        let mut work_generator = GpuWorkGenerator::new(OpenClConfig::default());
+        let mut work_generator = GpuWorkGenerator::new(OpenClConfig::default()).unwrap();
         let min_difficulty = WorkThresholds::publish_full().threshold_base();
         let work_ticket = WorkTicket::never_expires();
 

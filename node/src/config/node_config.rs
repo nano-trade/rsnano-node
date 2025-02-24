@@ -19,6 +19,7 @@ use once_cell::sync::Lazy;
 use rand::Rng;
 use rsnano_core::{
     utils::{get_env_or_default_string, Peer},
+    work::OpenClConfig,
     Account, Amount, PublicKey,
 };
 use rsnano_network::NetworkConfig;
@@ -42,6 +43,8 @@ pub struct NodeConfig {
     pub io_threads: usize,
     pub network_threads: u32,
     pub work_threads: u32,
+    pub enable_opencl: bool,
+    pub opencl: OpenClConfig,
     pub background_threads: u32,
     pub signature_checker_threads: u32,
     pub enable_voting: bool,
@@ -234,6 +237,8 @@ impl NodeConfig {
             io_threads: max(parallelism, 4),
             network_threads: max(parallelism, 4) as u32,
             work_threads: max(parallelism, 4) as u32,
+            enable_opencl: false,
+            opencl: Default::default(),
             background_threads: max(parallelism, 4) as u32,
             /* Use half available threads on the system for signature checking. The calling thread does checks as well, so these are extra worker threads */
             signature_checker_threads: (parallelism / 2) as u32,

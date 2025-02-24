@@ -16,9 +16,17 @@ impl DaemonConfig {
         }
         if let Some(opencl) = &toml.opencl {
             if let Some(enable) = opencl.enable {
-                self.opencl_enable = enable;
+                self.node.enable_opencl = enable;
             }
-            self.opencl.merge_toml(opencl);
+            if let Some(device) = opencl.device {
+                self.node.opencl.device = device;
+            }
+            if let Some(platform) = opencl.platform {
+                self.node.opencl.platform = platform;
+            }
+            if let Some(threads) = opencl.threads {
+                self.node.opencl.threads = threads;
+            }
         }
         if let Some(rpc) = &toml.rpc {
             if let Some(enable) = rpc.enable {
@@ -52,10 +60,10 @@ impl From<&DaemonConfig> for NodeRpcToml {
 impl From<&DaemonConfig> for OpenclToml {
     fn from(config: &DaemonConfig) -> Self {
         Self {
-            enable: Some(config.opencl_enable),
-            platform: Some(config.opencl.platform),
-            device: Some(config.opencl.device),
-            threads: Some(config.opencl.threads),
+            enable: Some(config.node.enable_opencl),
+            platform: Some(config.node.opencl.platform),
+            device: Some(config.node.opencl.device),
+            threads: Some(config.node.opencl.threads),
         }
     }
 }
@@ -804,10 +812,22 @@ mod tests {
         );
 
         // OpenCL section
-        assert_ne!(deserialized.opencl.device, default_cfg.opencl.device);
-        assert_ne!(deserialized.opencl_enable, default_cfg.opencl_enable);
-        assert_ne!(deserialized.opencl.platform, default_cfg.opencl.platform);
-        assert_ne!(deserialized.opencl.threads, default_cfg.opencl.threads);
+        assert_ne!(
+            deserialized.node.opencl.device,
+            default_cfg.node.opencl.device
+        );
+        assert_ne!(
+            deserialized.node.enable_opencl,
+            default_cfg.node.enable_opencl
+        );
+        assert_ne!(
+            deserialized.node.opencl.platform,
+            default_cfg.node.opencl.platform
+        );
+        assert_ne!(
+            deserialized.node.opencl.threads,
+            default_cfg.node.opencl.threads
+        );
 
         // RPC section
         assert_ne!(deserialized.rpc_enable, default_cfg.rpc_enable);

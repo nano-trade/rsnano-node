@@ -6,6 +6,7 @@ use ocl::{
 };
 use tracing::info;
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct OpenClConfig {
     pub platform: usize,
     pub device: usize,

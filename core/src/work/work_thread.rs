@@ -3,7 +3,7 @@ use std::sync::{Arc, MutexGuard};
 
 pub(crate) struct WorkThread<T>
 where
-    T: WorkGenerator + Send + Sync,
+    T: WorkGenerator + Send,
 {
     work_queue: Arc<WorkQueueCoordinator>,
     work_generator: T,
@@ -12,7 +12,7 @@ where
 /// A single thread to generate PoW
 impl<T> WorkThread<T>
 where
-    T: WorkGenerator + Send + Sync,
+    T: WorkGenerator + Send,
 {
     pub fn new(work_generator: T, work_queue: Arc<WorkQueueCoordinator>) -> Self {
         Self {

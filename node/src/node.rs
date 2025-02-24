@@ -1656,7 +1656,7 @@ mod tests {
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
-    use rsnano_core::Networks;
+    use rsnano_core::{work::OpenClConfig, Networks};
     use std::ops::{Deref, DerefMut};
     use uuid::Uuid;
 
@@ -1728,6 +1728,8 @@ mod tests {
                 network_params.work.clone(),
                 1,
                 Duration::ZERO,
+                false,
+                OpenClConfig::default(),
             ));
 
             let node = NodeBuilder::new(Networks::NanoDevNetwork)

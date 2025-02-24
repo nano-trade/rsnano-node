@@ -175,6 +175,8 @@ impl NodeBuilder {
                 network_params.work.clone(),
                 config.work_threads as usize,
                 Duration::from_nanos(config.pow_sleep_interval_ns as u64),
+                config.enable_opencl,
+                config.opencl.clone(),
             ))
         });
 
