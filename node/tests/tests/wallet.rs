@@ -2,7 +2,10 @@ use rsnano_core::{
     deterministic_key, Account, Amount, Block, BlockHash, Epoch, EpochBlockArgs,
     KeyDerivationFunction, PrivateKey, PublicKey, RawKey, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{
+    test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    DEV_GENESIS_PUB_KEY,
+};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags, DEV_NETWORK_PARAMS},
     consensus::ActiveElectionsExt,
@@ -17,7 +20,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use test_helpers::{assert_timely, assert_timely_eq, System, UnsavedBlockLatticeBuilder};
+use test_helpers::{assert_timely, assert_timely_eq, System};
 
 struct TestFixture {
     test_dir: PathBuf,

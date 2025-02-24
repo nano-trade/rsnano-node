@@ -4,7 +4,8 @@ use rsnano_core::{
     VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, Writer, DEV_GENESIS_ACCOUNT,
+    DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{ChannelId, TrafficType};
@@ -27,7 +28,7 @@ use std::{
 use test_helpers::{
     activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
     assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, get_available_port,
-    make_fake_channel, setup_chains, start_election, System, UnsavedBlockLatticeBuilder,
+    make_fake_channel, setup_chains, start_election, System,
 };
 
 #[test]

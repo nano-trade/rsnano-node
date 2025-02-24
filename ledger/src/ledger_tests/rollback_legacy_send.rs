@@ -4,13 +4,11 @@ use rsnano_store_lmdb::LmdbWriteTransaction;
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::setup_legacy_open_block,
+    test_helpers::{setup_legacy_send_block, LegacySendBlockResult},
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 
-use super::{
-    helpers::{setup_legacy_send_block, LegacySendBlockResult},
-    LedgerContext,
-};
+use super::LedgerContext;
 
 #[test]
 fn update_vote_weight() {

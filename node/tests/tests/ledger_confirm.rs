@@ -1,8 +1,10 @@
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{
+    test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
+};
 use rsnano_node::stats::{DetailType, Direction, StatType};
 use std::time::Duration;
-use test_helpers::{assert_timely_eq, System, UnsavedBlockLatticeBuilder};
+use test_helpers::{assert_timely_eq, System};
 
 #[test]
 fn single() {

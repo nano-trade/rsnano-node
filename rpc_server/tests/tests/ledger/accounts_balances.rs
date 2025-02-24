@@ -1,12 +1,10 @@
 use rsnano_core::{Amount, DEV_GENESIS_KEY};
-use rsnano_ledger::DEV_GENESIS_ACCOUNT;
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
 use rsnano_node::Node;
 use rsnano_rpc_messages::AccountsBalancesArgs;
 use std::sync::Arc;
 use std::time::Duration;
-use test_helpers::{
-    assert_timely_msg, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
-};
+use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
 fn send_block(node: Arc<Node>) {
     let mut lattice = UnsavedBlockLatticeBuilder::new();

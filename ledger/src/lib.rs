@@ -17,6 +17,7 @@ mod ledger_set_confirmed;
 mod rep_weight_cache;
 mod rep_weights_updater;
 mod representative_block_finder;
+pub mod test_helpers;
 mod write_queue;
 
 #[cfg(test)]

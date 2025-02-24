@@ -1,9 +1,9 @@
 use rsnano_core::{Amount, BlockHash, PrivateKey, WalletId};
-use rsnano_ledger::DEV_GENESIS_ACCOUNT;
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
 use rsnano_node::{wallets::WalletsExt, Node};
 use rsnano_rpc_messages::BlockTypeDto;
 use std::sync::Arc;
-use test_helpers::{setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder};
+use test_helpers::{setup_rpc_client_and_server, System};
 
 fn setup_test_environment(node: Arc<Node>, keys: PrivateKey, send_amount: Amount) -> BlockHash {
     let mut lattice = UnsavedBlockLatticeBuilder::new();

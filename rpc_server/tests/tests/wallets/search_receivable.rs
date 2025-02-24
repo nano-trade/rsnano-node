@@ -1,7 +1,7 @@
 use rsnano_core::{Amount, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::DEV_GENESIS_ACCOUNT;
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
 use rsnano_node::wallets::WalletsExt;
-use test_helpers::{setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder};
+use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]
 fn search_receivable() {

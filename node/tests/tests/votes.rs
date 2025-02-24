@@ -1,7 +1,10 @@
 use rsnano_core::{
     Amount, Epoch, PrivateKey, Signature, Vote, VoteCode, VoteSource, WalletId, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{
+    test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    DEV_GENESIS_PUB_KEY,
+};
 use rsnano_node::{
     config::NodeFlags,
     stats::{DetailType, Direction, StatType},
@@ -13,7 +16,6 @@ use std::{
 };
 use test_helpers::{
     assert_timely, assert_timely_eq2, make_fake_channel, start_election, upgrade_epoch, System,
-    UnsavedBlockLatticeBuilder,
 };
 
 #[test]

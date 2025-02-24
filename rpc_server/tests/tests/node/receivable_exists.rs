@@ -1,11 +1,10 @@
 use rsnano_core::{Block, BlockHash, DEV_GENESIS_KEY};
+use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
 use rsnano_node::Node;
 use rsnano_rpc_messages::ReceivableExistsArgs;
 use std::sync::Arc;
 use std::time::Duration;
-use test_helpers::{
-    assert_timely_msg, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
-};
+use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
 fn send_block(node: Arc<Node>) -> Block {
     let mut lattice = UnsavedBlockLatticeBuilder::new();

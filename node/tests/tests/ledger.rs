@@ -2,19 +2,18 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Epoch, PrivateKey, Signature, StateBlockArgs, Vote,
     VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{BlockStatus, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, DEV_GENESIS_PUB_KEY};
 use rsnano_network::ChannelId;
 use rsnano_node::{block_processing::BlockSource, config::NodeConfig};
 use std::{sync::Arc, time::Duration};
-use test_helpers::{
-    assert_timely, assert_timely_eq, start_elections, System, UnsavedBlockLatticeBuilder,
-};
+use test_helpers::{assert_timely, assert_timely_eq, start_elections, System};
 
 mod votes {
     use super::*;
+    use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
     use rsnano_node::consensus::ActiveElectionsExt;
     use std::time::SystemTime;
-    use test_helpers::{start_election, UnsavedBlockLatticeBuilder};
+    use test_helpers::start_election;
 
     #[test]
     fn add_one() {

@@ -1,6 +1,3 @@
-mod unsaved_block_lattice_builder;
-pub use unsaved_block_lattice_builder::*;
-
 use rsnano_core::{
     utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
     work::{OpenClConfig, WorkPool},

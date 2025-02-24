@@ -1,8 +1,6 @@
-use std::sync::{atomic::Ordering, Arc};
-pub mod helpers;
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    ledger_tests::helpers::{setup_legacy_open_block, setup_open_block, AccountBlockFactory},
+    test_helpers::{setup_legacy_open_block, setup_open_block, AccountBlockFactory},
     Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
@@ -10,6 +8,7 @@ use rsnano_core::{
     Account, Amount, BlockHash, PublicKey, QualifiedRoot, Root, SavedAccountChain,
     SavedBlockLatticeBuilder, TestBlockBuilder, DEV_GENESIS_KEY,
 };
+use std::sync::{atomic::Ordering, Arc};
 
 mod empty_ledger;
 mod pruning;

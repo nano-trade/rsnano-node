@@ -1,10 +1,7 @@
-use crate::{Ledger, LedgerConstants, RepWeightCache};
+use crate::{test_helpers::AccountBlockFactory, Ledger, LedgerConstants, RepWeightCache};
 use rsnano_core::{work::WorkThresholds, Account, Amount, ConfirmationHeightInfo, Networks};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, TestDbFile};
 use std::sync::Arc;
-
-#[cfg(test)]
-use crate::ledger_tests::helpers::AccountBlockFactory;
 
 pub struct LedgerContext {
     pub ledger: Arc<Ledger>,
@@ -35,12 +32,10 @@ impl LedgerContext {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn genesis_block_factory(&self) -> AccountBlockFactory {
         AccountBlockFactory::genesis(&self.ledger)
     }
 
-    #[cfg(test)]
     pub(crate) fn block_factory(&self) -> AccountBlockFactory {
         AccountBlockFactory::new(&self.ledger)
     }

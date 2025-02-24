@@ -5,9 +5,8 @@ use std::{
 };
 
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
-use test_helpers::{
-    assert_timely, assert_timely_eq, setup_independent_blocks, System, UnsavedBlockLatticeBuilder,
-};
+use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
+use test_helpers::{assert_timely, assert_timely_eq, setup_independent_blocks, System};
 
 /*
  * Ensures all not confirmed accounts get activated by backlog scan periodically

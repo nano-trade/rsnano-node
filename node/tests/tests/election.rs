@@ -1,4 +1,5 @@
 use rsnano_core::{Amount, PrivateKey, Vote, VoteSource, DEV_GENESIS_KEY};
+use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
 use rsnano_node::{
     config::NodeConfig,
     consensus::ElectionBehavior,
@@ -8,7 +9,6 @@ use rsnano_node::{
 use std::{sync::Arc, time::Duration};
 use test_helpers::{
     assert_timely, assert_timely_eq, get_available_port, setup_chain, start_election, System,
-    UnsavedBlockLatticeBuilder,
 };
 
 // FIXME: this test fails on rare occasions. It needs a review.

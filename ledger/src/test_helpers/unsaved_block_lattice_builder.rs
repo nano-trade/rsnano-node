@@ -1,6 +1,7 @@
-use rsnano_core::{SavedAccountChainBuilder, SavedBlockLatticeBuilder};
-
-use crate::{Account, Amount, Block, PrivateKey, PublicKey, DEV_GENESIS_KEY};
+use rsnano_core::{
+    Account, Amount, Block, PrivateKey, PublicKey, SavedAccountChainBuilder,
+    SavedBlockLatticeBuilder, DEV_GENESIS_KEY,
+};
 
 #[derive(Clone)]
 pub struct UnsavedBlockLatticeBuilder {
@@ -117,7 +118,7 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
 mod tests {
     use super::*;
     use rsnano_core::{
-        work::WorkThresholds, BlockDetails, BlockHash, StateBlockArgs, DEV_GENESIS_BLOCK,
+        work::WorkThresholds, BlockDetails, BlockHash, Epoch, StateBlockArgs, DEV_GENESIS_BLOCK,
     };
 
     #[test]
@@ -137,10 +138,8 @@ mod tests {
         }
         .into();
         assert_eq!(send, expected);
-        assert!(WorkThresholds::publish_dev().is_valid_pow(
-            &send,
-            &BlockDetails::new(crate::Epoch::Epoch2, true, false, false)
-        ))
+        assert!(WorkThresholds::publish_dev()
+            .is_valid_pow(&send, &BlockDetails::new(Epoch::Epoch2, true, false, false)))
     }
 
     #[test]
@@ -181,10 +180,8 @@ mod tests {
         }
         .into();
         assert_eq!(open, expected);
-        assert!(WorkThresholds::publish_dev().is_valid_pow(
-            &send,
-            &BlockDetails::new(crate::Epoch::Epoch2, false, true, false)
-        ))
+        assert!(WorkThresholds::publish_dev()
+            .is_valid_pow(&send, &BlockDetails::new(Epoch::Epoch2, false, true, false)))
     }
 
     #[test]

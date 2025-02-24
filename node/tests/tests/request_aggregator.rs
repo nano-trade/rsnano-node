@@ -1,4 +1,5 @@
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
+use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
 use rsnano_messages::ConfirmAck;
 use rsnano_node::{
     config::NodeFlags,
@@ -13,7 +14,6 @@ use std::{
 };
 use test_helpers::{
     assert_timely2, assert_timely_eq, assert_timely_msg, make_fake_channel, System,
-    UnsavedBlockLatticeBuilder,
 };
 
 #[test]

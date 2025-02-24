@@ -1,9 +1,13 @@
 use core::panic;
+use std::{sync::Arc, time::Duration};
+
 use futures_util::{SinkExt, StreamExt};
 use rsnano_core::{
     Amount, Block, JsonBlock, Networks, PrivateKey, SendBlockArgs, Vote, VoteCode, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{
+    test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+};
 use rsnano_messages::{Message, Publish};
 use rsnano_node::{
     config::{NetworkConstants, NodeConfig, WebsocketConfig},
@@ -14,10 +18,7 @@ use rsnano_websocket_server::{
     create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
     WebsocketListener, WebsocketListenerExt,
 };
-use std::{sync::Arc, time::Duration};
-use test_helpers::{
-    assert_timely, get_available_port, make_fake_channel, System, UnsavedBlockLatticeBuilder,
-};
+use test_helpers::{assert_timely, get_available_port, make_fake_channel, System};
 use tokio::{net::TcpStream, task::spawn_blocking, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 

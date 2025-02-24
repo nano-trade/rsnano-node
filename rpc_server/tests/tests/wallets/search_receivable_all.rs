@@ -1,10 +1,8 @@
 use rsnano_core::{Amount, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::BlockStatus;
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, BlockStatus};
 use rsnano_node::{wallets::WalletsExt, Node};
 use std::{sync::Arc, time::Duration};
-use test_helpers::{
-    assert_timely_eq, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
-};
+use test_helpers::{assert_timely_eq, setup_rpc_client_and_server, System};
 
 #[test]
 fn search_receivable_all() {
