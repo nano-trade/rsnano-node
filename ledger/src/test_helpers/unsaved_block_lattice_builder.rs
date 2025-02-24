@@ -1,7 +1,6 @@
-use rsnano_core::{
-    Account, Amount, Block, PrivateKey, PublicKey, SavedAccountChainBuilder,
-    SavedBlockLatticeBuilder, DEV_GENESIS_KEY,
-};
+use rsnano_core::{Account, Amount, Block, PrivateKey, PublicKey, DEV_GENESIS_KEY};
+
+use super::{SavedAccountChainBuilder, SavedBlockLatticeBuilder};
 
 #[derive(Clone)]
 pub struct UnsavedBlockLatticeBuilder {

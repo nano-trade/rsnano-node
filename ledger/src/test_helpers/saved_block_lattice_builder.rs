@@ -1,16 +1,11 @@
-use crate::{
-    blocks::{
-        open_block::OpenBlockArgs, receive_block::ReceiveBlockArgs, send_block::SendBlockArgs,
-        state_block::EpochBlockArgs,
-    },
-    dev_epoch1_signer, epoch_v1_link,
-    utils::UnixTimestamp,
-    work::WorkPool,
-    Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, ChangeBlockArgs, Epoch, Link,
-    PendingInfo, PendingKey, PrivateKey, PublicKey, Root, SavedBlock, StateBlockArgs,
-    DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
-};
 use std::collections::HashMap;
+
+use rsnano_core::{
+    dev_epoch1_signer, epoch_v1_link, utils::UnixTimestamp, work::WorkPool, Account, Amount, Block,
+    BlockDetails, BlockHash, BlockSideband, ChangeBlockArgs, Epoch, EpochBlockArgs, Link,
+    OpenBlockArgs, PendingInfo, PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root,
+    SavedBlock, SendBlockArgs, StateBlockArgs, DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
+};
 
 pub struct SavedBlockLatticeBuilder {
     accounts: HashMap<Account, Frontier>,

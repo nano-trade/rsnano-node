@@ -1,10 +1,12 @@
 mod account_block_factory;
+mod saved_block_lattice_builder;
 mod unsaved_block_lattice_builder;
 
 use crate::LedgerContext;
 pub(crate) use account_block_factory::AccountBlockFactory;
 use rsnano_core::{Amount, Block, SavedBlock};
 use rsnano_store_lmdb::LmdbWriteTransaction;
+pub use saved_block_lattice_builder::*;
 pub use unsaved_block_lattice_builder::*;
 
 pub(crate) fn upgrade_genesis_to_epoch_v1(

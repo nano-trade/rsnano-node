@@ -1,12 +1,14 @@
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    test_helpers::{setup_legacy_open_block, setup_open_block, AccountBlockFactory},
+    test_helpers::{
+        setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
+    },
     Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
     Account, Amount, BlockHash, PublicKey, QualifiedRoot, Root, SavedAccountChain,
-    SavedBlockLatticeBuilder, TestBlockBuilder, DEV_GENESIS_KEY,
+    TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use std::sync::{atomic::Ordering, Arc};
 
