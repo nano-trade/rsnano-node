@@ -9,6 +9,7 @@ pub use fair_queue::*;
 pub use peer::*;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
+    ops::Add,
     sync::{Arc, Condvar, Mutex},
     thread::available_parallelism,
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
@@ -135,6 +136,10 @@ impl UnixTimestamp {
         Self(seconds_since_epoch)
     }
 
+    pub const fn new_test_instance() -> Self {
+        Self::new(1740000000)
+    }
+
     pub fn now() -> Self {
         Self(Self::seconds_since_unix_epoch())
     }
@@ -172,6 +177,14 @@ impl UnixTimestamp {
 impl From<u64> for UnixTimestamp {
     fn from(value: u64) -> Self {
         Self::new(value)
+    }
+}
+
+impl Add<Duration> for UnixTimestamp {
+    type Output = UnixTimestamp;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self(self.0 + rhs.as_secs())
     }
 }
 

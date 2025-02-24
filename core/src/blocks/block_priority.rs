@@ -33,16 +33,14 @@ pub fn block_priority(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
-    use crate::{PrivateKey, SavedBlockLatticeBuilder};
+    use crate::{BlockSideband, StateBlockArgs};
 
     #[test]
     fn open_block() {
-        let mut lattice = SavedBlockLatticeBuilder::new();
-        let key = PrivateKey::from(42);
-        let send = lattice.genesis().send(&key, 1);
-        lattice.advance_time();
-        let open = lattice.account(&key).receive(&send);
+        let open = SavedBlock::new_test_open_block();
 
         let (prio_balance, prio_time) = block_priority(&open, None);
 
@@ -52,58 +50,87 @@ mod tests {
 
     #[test]
     fn receive_block() {
-        let mut lattice = SavedBlockLatticeBuilder::new();
-        let key = PrivateKey::from(42);
-        let send1 = lattice.genesis().send(&key, 1);
-        lattice.advance_time();
-        let send2 = lattice.genesis().send(&key, 1);
-        lattice.advance_time();
-        let open = lattice.account(&key).receive(&send1);
-        lattice.advance_time();
-        let receive = lattice.account(&key).receive(&send2);
+        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let receive_balance = Amount::nano(2000);
 
-        let (prio_balance, prio_time) = block_priority(&receive, Some(&open));
+        let (prio_balance, prio_time) = test_block_priority(
+            receive_balance,
+            prev_timestamp + Duration::from_secs(1),
+            Some((Amount::nano(1000), prev_timestamp)),
+        );
 
-        assert_eq!(prio_balance, receive.balance());
-        assert_eq!(prio_time, open.timestamp());
+        assert_eq!(prio_balance, receive_balance);
+        assert_eq!(prio_time, prev_timestamp);
     }
 
     #[test]
     fn send_block() {
-        let mut lattice = SavedBlockLatticeBuilder::new();
-        let send1 = lattice.genesis().send(42, Amount::nano(100));
-        lattice.advance_time();
-        let send2 = lattice.genesis().send(42, Amount::nano(50));
+        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_balance = Amount::nano(100);
 
-        let (prio_balance, prio_time) = block_priority(&send2, Some(&send1));
+        let (prio_balance, prio_time) = test_block_priority(
+            Amount::nano(50),
+            prev_timestamp + Duration::from_secs(1),
+            Some((prev_balance, prev_timestamp)),
+        );
 
-        assert_eq!(prio_balance, send1.balance());
-        assert_eq!(prio_time, send1.timestamp());
+        assert_eq!(prio_balance, prev_balance);
+        assert_eq!(prio_time, prev_timestamp);
     }
 
     #[test]
     fn full_send() {
-        let mut lattice = SavedBlockLatticeBuilder::new();
-        let send1 = lattice.genesis().send(42, Amount::nano(100));
-        lattice.advance_time();
-        let send2 = lattice.genesis().send_max(42);
+        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_balance = Amount::nano(100);
 
-        let (prio_balance, prio_time) = block_priority(&send2, Some(&send1));
+        let (prio_balance, prio_time) = test_block_priority(
+            Amount::zero(),
+            prev_timestamp + Duration::from_secs(1),
+            Some((prev_balance, prev_timestamp)),
+        );
 
-        assert_eq!(prio_balance, send1.balance());
-        assert_eq!(prio_time, send1.timestamp());
+        assert_eq!(prio_balance, prev_balance);
+        assert_eq!(prio_time, prev_timestamp);
     }
 
     #[test]
     fn change_block() {
-        let mut lattice = SavedBlockLatticeBuilder::new();
-        let send = lattice.genesis().send(42, Amount::nano(100));
-        lattice.advance_time();
-        let change = lattice.genesis().change(12345);
+        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_balance = Amount::nano(100);
 
-        let (prio_balance, prio_time) = block_priority(&change, Some(&send));
+        let (prio_balance, prio_time) = test_block_priority(
+            prev_balance,
+            prev_timestamp + Duration::from_secs(1),
+            Some((prev_balance, prev_timestamp)),
+        );
 
-        assert_eq!(prio_balance, change.balance());
-        assert_eq!(prio_time, send.timestamp());
+        assert_eq!(prio_balance, prev_balance);
+        assert_eq!(prio_time, prev_timestamp);
+    }
+
+    fn test_block_priority(
+        balance: Amount,
+        timestamp: UnixTimestamp,
+        previous: Option<(Amount, UnixTimestamp)>,
+    ) -> (Amount, UnixTimestamp) {
+        let previous = previous
+            .map(|(prev_balance, prev_timestamp)| create_block(prev_balance, prev_timestamp));
+
+        let block = create_block(balance, timestamp);
+        block_priority(&block, previous.as_ref())
+    }
+
+    fn create_block(balance: Amount, timestamp: UnixTimestamp) -> SavedBlock {
+        SavedBlock::new(
+            StateBlockArgs {
+                balance,
+                ..StateBlockArgs::new_test_instance()
+            }
+            .into(),
+            BlockSideband {
+                timestamp,
+                ..BlockSideband::new_test_instance()
+            },
+        )
     }
 }

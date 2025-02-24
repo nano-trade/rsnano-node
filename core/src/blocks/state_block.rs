@@ -1,5 +1,6 @@
 use super::{Block, BlockBase, BlockType};
 use crate::{
+    private_key::TEST_KEY,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream},
     Account, Amount, BlockHash, BlockHashBuilder, JsonBlock, Link, PrivateKey, PublicKey, Root,
     Signature, WorkNonce,
@@ -226,6 +227,19 @@ pub struct StateBlockArgs<'a> {
     pub balance: Amount,
     pub link: Link,
     pub work: WorkNonce,
+}
+
+impl<'a> StateBlockArgs<'a> {
+    pub fn new_test_instance() -> Self {
+        Self {
+            key: &TEST_KEY,
+            previous: 1.into(),
+            representative: 2.into(),
+            balance: 3.into(),
+            link: 4.into(),
+            work: 5.into(),
+        }
+    }
 }
 
 impl<'a> From<StateBlockArgs<'a>> for Block {
