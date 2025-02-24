@@ -52,7 +52,7 @@ impl TestLegacyChangeBlockBuilder {
         let representative = self.representative.unwrap_or(PublicKey::from(2));
         let work = self
             .work
-            .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
+            .unwrap_or_else(|| STUB_WORK_POOL.generate_dev(previous.into()).unwrap());
 
         ChangeBlockArgs {
             key: &prv_key,

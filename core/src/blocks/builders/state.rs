@@ -149,7 +149,7 @@ impl TestStateBlockBuilder {
             } else {
                 self.previous.into()
             };
-            STUB_WORK_POOL.generate_dev2(root).unwrap()
+            STUB_WORK_POOL.generate_dev(root).unwrap()
         });
 
         let mut block: Block = match self.account {

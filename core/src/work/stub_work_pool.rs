@@ -30,11 +30,7 @@ impl WorkPool for StubWorkPool {
         }
     }
 
-    fn generate_dev(&self, _root: Root, difficulty: u64) -> Option<u64> {
-        Some(difficulty)
-    }
-
-    fn generate_dev2(&self, _root: Root) -> Option<u64> {
+    fn generate_dev(&self, _root: Root) -> Option<u64> {
         Some(self.base_difficulty)
     }
 

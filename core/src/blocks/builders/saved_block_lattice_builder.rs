@@ -79,7 +79,7 @@ impl SavedBlockLatticeBuilder {
             representative: PublicKey::zero(),
             balance: Amount::zero(),
             link: epoch_v1_link(),
-            work: self.work_pool.generate_dev2(account.into()).unwrap(),
+            work: self.work_pool.generate_dev(account.into()).unwrap(),
         }
         .into();
 
@@ -177,7 +177,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
             work: self
                 .lattice
                 .work_pool
-                .generate_dev2(old_frontier.hash.into())
+                .generate_dev(old_frontier.hash.into())
                 .unwrap(),
         }
         .into();
@@ -219,7 +219,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
         let work = self
             .lattice
             .work_pool
-            .generate_dev2(old_frontier.hash.into())
+            .generate_dev(old_frontier.hash.into())
             .unwrap();
 
         let send: Block = SendBlockArgs {
@@ -275,7 +275,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
 
         let root: Root = self.key.account().into();
 
-        let work = self.lattice.work_pool.generate_dev2(root).unwrap();
+        let work = self.lattice.work_pool.generate_dev(root).unwrap();
         let receive: Block = OpenBlockArgs {
             key: &self.key,
             source: corresponding_send.hash(),
@@ -321,7 +321,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
         let old_frontier = self.get_frontier();
         let root: Root = old_frontier.hash.into();
         let new_balance = old_frontier.balance + amount;
-        let work = self.lattice.work_pool.generate_dev2(root).unwrap();
+        let work = self.lattice.work_pool.generate_dev(root).unwrap();
 
         let receive: Block = ReceiveBlockArgs {
             key: self.key,
@@ -379,7 +379,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
             representative: new_representative.into(),
             balance: new_balance,
             link: corresponding_send.hash().into(),
-            work: self.lattice.work_pool.generate_dev2(root).unwrap(),
+            work: self.lattice.work_pool.generate_dev(root).unwrap(),
         }
         .into();
 
@@ -405,7 +405,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
         let work = self
             .lattice
             .work_pool
-            .generate_dev2(old_frontier.hash.into())
+            .generate_dev(old_frontier.hash.into())
             .unwrap();
 
         let change: Block = ChangeBlockArgs {
@@ -444,7 +444,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
             work: self
                 .lattice
                 .work_pool
-                .generate_dev2(old_frontier.hash.into())
+                .generate_dev(old_frontier.hash.into())
                 .unwrap(),
         }
         .into();
@@ -475,7 +475,7 @@ impl<'a> SavedAccountChainBuilder<'a> {
             work: self
                 .lattice
                 .work_pool
-                .generate_dev2(old_frontier.hash.into())
+                .generate_dev(old_frontier.hash.into())
                 .unwrap(),
         }
         .into();

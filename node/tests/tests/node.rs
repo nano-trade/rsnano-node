@@ -2722,7 +2722,7 @@ fn unconfirmed_send() {
         representative: *DEV_GENESIS_PUB_KEY,
         balance: Amount::nano(1),
         link: (*DEV_GENESIS_ACCOUNT).into(),
-        work: system.work.generate_dev2(recv1.hash().into()).unwrap(),
+        work: system.work.generate_dev(recv1.hash().into()).unwrap(),
     }
     .into();
 

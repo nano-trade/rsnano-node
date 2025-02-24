@@ -47,7 +47,7 @@ impl TestLegacyReceiveBlockBuilder {
         let source = self.source.unwrap_or(BlockHash::from(2));
         let work = self
             .work
-            .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
+            .unwrap_or_else(|| STUB_WORK_POOL.generate_dev(previous.into()).unwrap());
 
         ReceiveBlockArgs {
             key: &key,

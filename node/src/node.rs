@@ -1397,7 +1397,7 @@ impl Node {
     }
 
     pub fn work_generate_dev(&self, root: impl Into<Root>) -> u64 {
-        self.work.generate_dev2(root.into()).unwrap()
+        self.work.generate_dev(root.into()).unwrap()
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> bool {

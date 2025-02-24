@@ -54,7 +54,7 @@ fn pruning_action() {
         .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
         .link(send1.hash())
         .key(&genesis.key)
-        .work(STUB_WORK_POOL.generate_dev2(send2.hash().into()).unwrap())
+        .work(STUB_WORK_POOL.generate_dev(send2.hash().into()).unwrap())
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
 
@@ -168,7 +168,7 @@ fn pruning_source_rollback() {
         .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
         .link(send1.hash())
         .key(&genesis.key)
-        .work(STUB_WORK_POOL.generate_dev2(send2.hash().into()).unwrap())
+        .work(STUB_WORK_POOL.generate_dev(send2.hash().into()).unwrap())
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
 
@@ -234,7 +234,7 @@ fn pruning_source_rollback_legacy() {
         .previous(send3.hash())
         .source(send1.hash())
         .sign(&genesis.key)
-        .work(STUB_WORK_POOL.generate_dev2(send3.hash().into()).unwrap())
+        .work(STUB_WORK_POOL.generate_dev(send3.hash().into()).unwrap())
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
 
@@ -268,7 +268,7 @@ fn pruning_source_rollback_legacy() {
         .sign(&destination.key)
         .work(
             STUB_WORK_POOL
-                .generate_dev2(destination.account().into())
+                .generate_dev(destination.account().into())
                 .unwrap(),
         )
         .build();

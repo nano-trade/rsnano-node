@@ -18,9 +18,7 @@ pub trait WorkPool: Send + Sync {
         done: Option<Box<dyn FnOnce(Option<u64>) + Send>>,
     );
 
-    fn generate_dev(&self, root: Root, difficulty: u64) -> Option<u64>;
-
-    fn generate_dev2(&self, root: Root) -> Option<u64>;
+    fn generate_dev(&self, root: Root) -> Option<u64>;
 
     fn generate(&self, root: Root, difficulty: u64) -> Option<u64>;
 }
@@ -162,11 +160,7 @@ impl WorkPool for WorkPoolImpl {
         }
     }
 
-    fn generate_dev(&self, root: Root, difficulty: u64) -> Option<u64> {
-        self.generate(root, difficulty)
-    }
-
-    fn generate_dev2(&self, root: Root) -> Option<u64> {
+    fn generate_dev(&self, root: Root) -> Option<u64> {
         self.generate(root, self.work_thresholds.base)
     }
 
@@ -275,7 +269,7 @@ mod tests {
     #[test]
     fn work_disabled() {
         let pool = WorkPoolImpl::new(WorkThresholds::publish_dev().clone(), 0, Duration::ZERO);
-        let result = pool.generate_dev2(Root::from(1));
+        let result = pool.generate_dev(Root::from(1));
         assert_eq!(result, None);
     }
 
@@ -284,7 +278,7 @@ mod tests {
         let pool = &WORK_POOL;
         let mut block = TestBlockBuilder::state().build();
         let root = block.root();
-        block.set_work(pool.generate_dev2(root).unwrap());
+        block.set_work(pool.generate_dev(root).unwrap());
         assert!(pool.threshold_base() < difficulty(&block));
     }
 
@@ -296,7 +290,7 @@ mod tests {
         let root = block.root();
         block
             .as_block_mut()
-            .set_work(pool.generate_dev2(root).unwrap());
+            .set_work(pool.generate_dev(root).unwrap());
         assert!(difficulty(&block) > pool.threshold_base());
     }
 

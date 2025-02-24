@@ -51,7 +51,7 @@ impl TestLegacyOpenBlockBuilder {
         let representative = self.representative.unwrap_or(PublicKey::from(2));
         let work = self
             .work
-            .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(account.into()).unwrap());
+            .unwrap_or_else(|| STUB_WORK_POOL.generate_dev(account.into()).unwrap());
 
         OpenBlockArgs {
             key: &prv_key,
