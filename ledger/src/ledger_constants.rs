@@ -1,11 +1,12 @@
+use std::sync::LazyLock;
+
 use rsnano_core::{
     epoch_v1_link, epoch_v2_link,
     utils::{get_env_or_default_string, UnixTimestamp},
-    work::{WorkThresholds, WORK_THRESHOLDS_STUB},
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, Epochs, Networks,
     PublicKey, SavedBlock, DEV_GENESIS_KEY,
 };
-use std::sync::LazyLock;
+use rsnano_work::{WorkThresholds, WORK_THRESHOLDS_STUB};
 
 static BETA_PUBLIC_KEY_DATA: &str =
     "259A438A8F9F9226130C84D902C237AF3E57C0981C7D709C288046B110D8C8AC";

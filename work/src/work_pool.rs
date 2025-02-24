@@ -1,15 +1,17 @@
-use tracing::warn;
-
-use super::{
-    gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, WorkItem,
-    WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
-};
-use crate::{utils::ContainerInfo, Root, WorkNonce};
 use std::{
     mem::size_of,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
     time::Duration,
+};
+
+use rsnano_core::{utils::ContainerInfo, Root, WorkNonce};
+
+use tracing::warn;
+
+use super::{
+    gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, WorkItem,
+    WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
 };
 
 pub struct WorkPool {
@@ -60,7 +62,7 @@ impl WorkPool {
         };
 
         pool.threads
-            .push(pool.spawn_stub_worker_thread(configured_work.0));
+            .push(pool.spawn_stub_worker_thread(configured_work.into()));
         pool
     }
 
@@ -276,13 +278,13 @@ impl WorkGenerator for StubWorkGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Block, TestBlockBuilder};
+    use rsnano_core::{Block, TestBlockBuilder};
     use std::sync::{mpsc, LazyLock};
 
     pub static WORK_POOL: LazyLock<WorkPool> = LazyLock::new(|| {
         WorkPool::new(
             WorkThresholds::publish_dev().clone(),
-            crate::utils::get_cpu_count(),
+            rsnano_core::utils::get_cpu_count(),
             Duration::ZERO,
             false,
             OpenClConfig::default(),

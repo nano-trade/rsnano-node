@@ -7,11 +7,12 @@ use crate::{
     working_path_for, Node, NodeArgs,
 };
 use rsnano_core::{
-    utils::get_cpu_count, work::WorkPool, Account, Amount, Networks, SavedBlock, Vote, VoteCode,
-    VoteSource, VoteWithWeightInfo,
+    utils::get_cpu_count, Account, Amount, Networks, SavedBlock, Vote, VoteCode, VoteSource,
+    VoteWithWeightInfo,
 };
 use rsnano_messages::Message;
 use rsnano_network::{Channel, ChannelId};
+use rsnano_work::WorkPool;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 #[derive(Default)]

@@ -1,4 +1,4 @@
-use crate::WorkNonce;
+use rsnano_core::WorkNonce;
 
 use super::{work_queue::WorkQueue, WorkGenerator, WorkQueueCoordinator, WorkTicket};
 use std::sync::{Arc, MutexGuard};

@@ -1,12 +1,10 @@
-use crate::{
-    difficulty::{Difficulty, DifficultyV1},
-    Root, WorkNonce,
-};
-
-use super::{WorkGenerator, WorkRng, WorkTicket, XorShift1024Star};
 #[cfg(test)]
 use std::sync::{Arc, Mutex};
 use std::{thread, time::Duration};
+
+use rsnano_core::{Difficulty, DifficultyV1, Root, WorkNonce};
+
+use super::{WorkGenerator, WorkRng, WorkTicket, XorShift1024Star};
 
 pub(crate) trait Sleeper {
     fn sleep(&mut self, duration: Duration);
@@ -199,7 +197,7 @@ impl WorkRng for StubWorkRng {
 
 #[cfg(test)]
 mod tests {
-    use crate::StubDifficulty;
+    use rsnano_core::StubDifficulty;
 
     use super::*;
 

@@ -1,6 +1,7 @@
 use crate::{test_helpers::AccountBlockFactory, Ledger, LedgerConstants, RepWeightCache};
-use rsnano_core::{work::WorkThresholds, Account, Amount, ConfirmationHeightInfo, Networks};
+use rsnano_core::{Account, Amount, ConfirmationHeightInfo, Networks};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, TestDbFile};
+use rsnano_work::WorkThresholds;
 use std::sync::Arc;
 
 pub struct LedgerContext {

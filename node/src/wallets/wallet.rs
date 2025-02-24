@@ -1,9 +1,8 @@
 use anyhow::Context;
-use rsnano_core::{
-    work::WorkThresholds, KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce,
-};
+use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbWalletStore, LmdbWriteTransaction, Transaction};
+use rsnano_work::WorkThresholds;
 use std::{
     collections::HashSet,
     path::Path,

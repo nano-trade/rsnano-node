@@ -4,9 +4,8 @@ use ocl::{
     flags::MemFlags,
     Buffer, Platform, ProQue, Result,
 };
+use rsnano_core::Root;
 use tracing::info;
-
-use crate::Root;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct OpenClConfig {

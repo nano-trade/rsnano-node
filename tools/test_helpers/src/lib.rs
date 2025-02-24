@@ -1,6 +1,5 @@
 use rsnano_core::{
     utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
-    work::{OpenClConfig, WorkPool},
     Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
@@ -16,6 +15,7 @@ use rsnano_node::{
 };
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
+use rsnano_work::{OpenClConfig, WorkPool};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{

@@ -1,7 +1,8 @@
 use tracing::error;
 
+use rsnano_core::{Root, WorkNonce};
+
 use super::{gpu::Gpu, OpenClConfig, WorkGenerator, WorkRng, WorkTicket, XorShift1024Star};
-use crate::{Root, WorkNonce};
 
 /// Generates the proof of work using a GPU with OpenCL
 pub struct GpuWorkGenerator {
@@ -59,7 +60,9 @@ impl WorkGenerator for GpuWorkGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::{work::WorkThresholds, Difficulty, DifficultyV1};
+    use rsnano_core::{Difficulty, DifficultyV1};
+
+    use crate::WorkThresholds;
 
     use super::*;
 

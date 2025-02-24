@@ -1,7 +1,8 @@
 use crate::bootstrap::BootstrapConfig;
 use anyhow::Result;
-use rsnano_core::{utils::get_env_or_default, work::WorkThresholds, Networks, ACTIVE_NETWORK};
+use rsnano_core::{utils::get_env_or_default, Networks, ACTIVE_NETWORK};
 use rsnano_messages::ProtocolInfo;
+use rsnano_work::WorkThresholds;
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq)]

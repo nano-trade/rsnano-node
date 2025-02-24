@@ -46,7 +46,6 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
-    work::WorkPool,
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, WorkNonce,
 };
@@ -62,6 +61,7 @@ use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
 };
+use rsnano_work::WorkPool;
 use std::{
     collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
@@ -1656,7 +1656,8 @@ mod tests {
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
-    use rsnano_core::{work::OpenClConfig, Networks};
+    use rsnano_core::Networks;
+    use rsnano_work::OpenClConfig;
     use std::ops::{Deref, DerefMut};
     use uuid::Uuid;
 

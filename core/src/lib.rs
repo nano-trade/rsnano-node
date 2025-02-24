@@ -65,8 +65,6 @@ pub use difficulty::{Difficulty, DifficultyV1, StubDifficulty, WorkVersion};
 mod blocks;
 pub use blocks::*;
 
-pub mod work;
-
 mod unchecked_info;
 pub use unchecked_info::{UncheckedInfo, UncheckedKey};
 

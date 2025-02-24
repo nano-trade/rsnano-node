@@ -116,9 +116,8 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{
-        work::WorkThresholds, BlockDetails, BlockHash, Epoch, StateBlockArgs, DEV_GENESIS_BLOCK,
-    };
+    use rsnano_core::{BlockDetails, BlockHash, Epoch, StateBlockArgs, DEV_GENESIS_BLOCK};
+    use rsnano_work::WorkThresholds;
 
     #[test]
     fn state_send() {

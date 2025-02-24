@@ -12,7 +12,6 @@ use crate::{
 use rand::Rng;
 use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo},
-    work::{WorkPool, WorkThresholds},
     Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, Networks,
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
@@ -24,6 +23,7 @@ use rsnano_store_lmdb::{
     create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, LmdbWriteTransaction,
     Transaction,
 };
+use rsnano_work::{WorkPool, WorkThresholds};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},

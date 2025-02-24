@@ -2,9 +2,9 @@
 extern crate num_derive;
 
 use rsnano_core::{
-    utils::milliseconds_since_epoch, work::WorkThresholds, BlockHash, DifficultyV1, SavedBlock,
-    WorkNonce, WorkVersion,
+    utils::milliseconds_since_epoch, BlockHash, DifficultyV1, SavedBlock, WorkNonce, WorkVersion,
 };
+use rsnano_work::WorkThresholds;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt::Debug, hash::Hash, time::Duration};

@@ -3734,7 +3734,6 @@ dependencies = [
  "num-derive",
  "num-format",
  "num-traits 0.2.19",
- "ocl",
  "primitive-types",
  "rand 0.9.0",
  "rsnano_nullable_random",
@@ -3742,7 +3741,6 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "tracing",
 ]
 
 [[package]]
@@ -3769,6 +3767,7 @@ dependencies = [
  "rand 0.9.0",
  "rsnano_core",
  "rsnano_store_lmdb",
+ "rsnano_work",
  "serde_json",
 ]
 
@@ -3783,6 +3782,7 @@ dependencies = [
  "num-traits 0.2.19",
  "rand 0.9.0",
  "rsnano_core",
+ "rsnano_work",
  "serde",
  "serde_derive",
  "serde_json",
@@ -3845,6 +3845,7 @@ dependencies = [
  "rsnano_output_tracker",
  "rsnano_store_lmdb",
  "rsnano_websocket_messages",
+ "rsnano_work",
  "scoped_threadpool",
  "serde",
  "serde_derive",
@@ -4024,6 +4025,7 @@ dependencies = [
  "num-derive",
  "num-traits 0.2.19",
  "rsnano_core",
+ "rsnano_work",
  "serde",
  "serde_json",
 ]
@@ -4046,6 +4048,17 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
+]
+
+[[package]]
+name = "rsnano_work"
+version = "0.1.0"
+dependencies = [
+ "ocl",
+ "rand 0.9.0",
+ "rsnano_core",
+ "serde_json",
  "tracing",
 ]
 
@@ -4580,6 +4593,7 @@ dependencies = [
  "rsnano_rpc_client",
  "rsnano_rpc_server",
  "rsnano_websocket_server",
+ "rsnano_work",
  "tokio",
  "tracing-subscriber",
  "tracing-test",

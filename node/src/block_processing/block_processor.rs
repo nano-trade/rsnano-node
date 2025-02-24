@@ -4,12 +4,12 @@ use super::{
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{
     utils::{ContainerInfo, FairQueue, FairQueueInfo},
-    work::WorkThresholds,
     Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use rsnano_store_lmdb::LmdbWriteTransaction;
+use rsnano_work::WorkThresholds;
 use std::{
     collections::VecDeque,
     mem::size_of,

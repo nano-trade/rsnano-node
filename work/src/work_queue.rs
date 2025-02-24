@@ -1,8 +1,9 @@
-use crate::{Root, WorkNonce};
 use std::sync::{
     atomic::{AtomicBool, AtomicI32, Ordering},
     Condvar, Mutex, MutexGuard,
 };
+
+use rsnano_core::{Root, WorkNonce};
 
 static NEVER_EXPIRES: AtomicI32 = AtomicI32::new(0);
 

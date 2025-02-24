@@ -19,12 +19,12 @@ use once_cell::sync::Lazy;
 use rand::Rng;
 use rsnano_core::{
     utils::{get_env_or_default_string, Peer},
-    work::OpenClConfig,
     Account, Amount, PublicKey,
 };
 use rsnano_network::NetworkConfig;
 use rsnano_nullable_http_client::Url;
 use rsnano_store_lmdb::LmdbConfig;
+use rsnano_work::OpenClConfig;
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
 
 #[derive(Clone, Debug, PartialEq)]

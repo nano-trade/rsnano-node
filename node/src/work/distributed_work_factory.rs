@@ -1,5 +1,6 @@
-use rsnano_core::{to_hex_string, work::WorkPool, Account, Block, Root, WorkNonce};
+use rsnano_core::{to_hex_string, Account, Block, Root, WorkNonce};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use rsnano_work::WorkPool;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -145,7 +146,6 @@ impl DistributedWorkFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::work::WorkPool;
     use std::sync::Arc;
 
     #[tokio::test]
