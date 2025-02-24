@@ -1,6 +1,5 @@
 use crate::blocks::state_block::EpochBlockArgs;
-use crate::work::WorkPool;
-use crate::{work::STUB_WORK_POOL, StateBlock};
+use crate::StateBlock;
 use crate::{
     Account, Amount, Block, BlockBase, BlockDetails, BlockHash, BlockSideband, Epoch, Link,
     PrivateKey, PublicKey, SavedBlock, Signature, StateBlockArgs, WorkNonce,
@@ -142,15 +141,7 @@ impl TestStateBlockBuilder {
     }
 
     pub fn build(self) -> Block {
-        let account = self.account.unwrap_or_else(|| self.priv_key.account());
-        let work = self.work.unwrap_or_else(|| {
-            let root = if self.previous.is_zero() {
-                account.into()
-            } else {
-                self.previous.into()
-            };
-            STUB_WORK_POOL.generate_dev(root).unwrap()
-        });
+        let work = self.work.unwrap_or(42.into());
 
         let mut block: Block = match self.account {
             Some(account) => {

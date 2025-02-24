@@ -355,6 +355,10 @@ impl Serialize for Frontier {
 pub struct WorkNonce(u64);
 
 impl WorkNonce {
+    pub fn new(value: u64) -> Self {
+        Self(value)
+    }
+
     pub fn is_zero(&self) -> bool {
         self.0 == 0
     }

@@ -1,13 +1,13 @@
 use tracing::warn;
 
 use super::{
-    gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, StubWorkPool, WorkItem,
+    gpu_work_generator::GpuWorkGenerator, CpuWorkGenerator, OpenClConfig, WorkItem,
     WorkQueueCoordinator, WorkThread, WorkThresholds, WorkTicket, WORK_THRESHOLDS_STUB,
 };
 use crate::{utils::ContainerInfo, Root, WorkNonce};
 use std::{
     mem::size_of,
-    sync::{Arc, Condvar, LazyLock, Mutex},
+    sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -288,14 +288,11 @@ impl WorkGenerator for StubWorkGenerator {
     }
 }
 
-pub static STUB_WORK_POOL: LazyLock<StubWorkPool> =
-    LazyLock::new(|| StubWorkPool::new(WorkThresholds::publish_dev().base));
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{Block, TestBlockBuilder};
-    use std::sync::mpsc;
+    use std::sync::{mpsc, LazyLock};
 
     pub static WORK_POOL: LazyLock<WorkPoolImpl> = LazyLock::new(|| {
         WorkPoolImpl::new(
