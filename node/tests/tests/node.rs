@@ -1,7 +1,7 @@
 use rsnano_core::{
     utils::milliseconds_since_epoch, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
-    PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo,
-    UnsavedBlockLatticeBuilder, Vote, VoteSource, VoteWithWeightInfo, DEV_GENESIS_KEY,
+    PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource,
+    VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
@@ -27,7 +27,7 @@ use std::{
 use test_helpers::{
     activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
     assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, get_available_port,
-    make_fake_channel, setup_chains, start_election, System,
+    make_fake_channel, setup_chains, start_election, System, UnsavedBlockLatticeBuilder,
 };
 
 #[test]

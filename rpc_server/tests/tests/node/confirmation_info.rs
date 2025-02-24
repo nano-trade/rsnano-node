@@ -1,8 +1,10 @@
-use rsnano_core::{Account, Amount, JsonBlock, UnsavedBlockLatticeBuilder};
+use rsnano_core::{Account, Amount, JsonBlock};
 use rsnano_ledger::DEV_GENESIS_HASH;
 use rsnano_rpc_messages::ConfirmationInfoArgs;
 use std::time::Duration;
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{
+    assert_timely_msg, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
+};
 
 #[test]
 fn confirmation_info() {

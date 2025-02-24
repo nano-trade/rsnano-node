@@ -1,8 +1,10 @@
-use rsnano_core::{Amount, BlockSideband, PrivateKey, SavedBlock, UnsavedBlockLatticeBuilder};
+use rsnano_core::{Amount, BlockSideband, PrivateKey, SavedBlock};
 use rsnano_network::ChannelId;
 use rsnano_node::block_processing::BlockSource;
 use std::time::Duration;
-use test_helpers::{assert_timely, start_election, start_elections, System};
+use test_helpers::{
+    assert_timely, start_election, start_elections, System, UnsavedBlockLatticeBuilder,
+};
 
 #[test]
 fn start_stop() {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rsnano_core::{Account, Amount, PublicKey, UnsavedBlockLatticeBuilder};
+use rsnano_core::{Account, Amount, PublicKey};
 use rsnano_ledger::DEV_GENESIS_PUB_KEY;
 use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
@@ -10,7 +10,7 @@ use rsnano_node::{
     representatives::PeeredRepInfo,
     stats::{DetailType, Direction, StatType},
 };
-use test_helpers::System;
+use test_helpers::{System, UnsavedBlockLatticeBuilder};
 
 #[test]
 fn batches() {

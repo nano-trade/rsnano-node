@@ -1,9 +1,11 @@
-use rsnano_core::{BlockHash, UnsavedBlockLatticeBuilder};
+use rsnano_core::BlockHash;
 use rsnano_ledger::DEV_GENESIS_HASH;
 use rsnano_node::Node;
 use rsnano_rpc_messages::RepublishArgs;
 use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{
+    assert_timely_msg, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
+};
 
 fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     let mut lattice = UnsavedBlockLatticeBuilder::new();

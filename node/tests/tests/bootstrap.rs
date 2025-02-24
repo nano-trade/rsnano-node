@@ -1,10 +1,12 @@
-use rsnano_core::{Account, PrivateKey, UnsavedBlockLatticeBuilder};
+use rsnano_core::{Account, PrivateKey};
 use rsnano_node::{
     bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
 };
 use std::time::Duration;
-use test_helpers::{assert_always_eq, assert_timely, get_available_port, System};
+use test_helpers::{
+    assert_always_eq, assert_timely, get_available_port, System, UnsavedBlockLatticeBuilder,
+};
 
 /**
  * Tests the base case for returning

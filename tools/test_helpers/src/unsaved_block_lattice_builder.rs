@@ -1,4 +1,5 @@
-use super::saved_block_lattice_builder::{SavedAccountChainBuilder, SavedBlockLatticeBuilder};
+use rsnano_core::{SavedAccountChainBuilder, SavedBlockLatticeBuilder};
+
 use crate::{Account, Amount, Block, PrivateKey, PublicKey, DEV_GENESIS_KEY};
 
 #[derive(Clone)]
@@ -24,7 +25,7 @@ impl UnsavedBlockLatticeBuilder {
     }
 
     pub fn epoch_open(&mut self, account: impl Into<Account>) -> Block {
-        self.inner.epoch_open(account).block
+        self.inner.epoch_open(account).into()
     }
 }
 
@@ -34,7 +35,7 @@ pub struct UnsavedAccountChainBuilder<'a> {
 
 impl<'a> UnsavedAccountChainBuilder<'a> {
     pub fn send_max(&mut self, destination: impl Into<Account>) -> Block {
-        self.inner.send_max(destination).block
+        self.inner.send_max(destination).into()
     }
 
     pub fn send_all_except(
@@ -42,11 +43,11 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         destination: impl Into<Account>,
         keep: impl Into<Amount>,
     ) -> Block {
-        self.inner.send_all_except(destination, keep).block
+        self.inner.send_all_except(destination, keep).into()
     }
 
     pub fn send(&mut self, destination: impl Into<Account>, amount: impl Into<Amount>) -> Block {
-        self.inner.send(destination, amount).block
+        self.inner.send(destination, amount).into()
     }
 
     pub fn legacy_send(
@@ -54,11 +55,11 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         destination: impl Into<Account>,
         amount: impl Into<Amount>,
     ) -> Block {
-        self.inner.legacy_send(destination, amount).block
+        self.inner.legacy_send(destination, amount).into()
     }
 
     pub fn legacy_open(&mut self, corresponding_send: &Block) -> Block {
-        self.inner.legacy_open(corresponding_send).block
+        self.inner.legacy_open(corresponding_send).into()
     }
 
     pub fn legacy_open_with_rep(
@@ -68,11 +69,11 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
     ) -> Block {
         self.inner
             .legacy_open_with_rep(corresponding_send, new_representative)
-            .block
+            .into()
     }
 
     pub fn legacy_receive(&mut self, corresponding_send: &Block) -> Block {
-        self.inner.legacy_receive(corresponding_send).block
+        self.inner.legacy_receive(corresponding_send).into()
     }
 
     pub fn legacy_receive_with_rep(
@@ -82,11 +83,11 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
     ) -> Block {
         self.inner
             .legacy_open_with_rep(corresponding_send, new_representative)
-            .block
+            .into()
     }
 
     pub fn receive(&mut self, corresponding_send: &Block) -> Block {
-        self.inner.receive(corresponding_send).block
+        self.inner.receive(corresponding_send).into()
     }
 
     pub fn receive_and_change(
@@ -96,26 +97,28 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
     ) -> Block {
         self.inner
             .receive_and_change(corresponding_send, new_representative)
-            .block
+            .into()
     }
 
     pub fn legacy_change(&mut self, new_representative: impl Into<PublicKey>) -> Block {
-        self.inner.legacy_change(new_representative).block
+        self.inner.legacy_change(new_representative).into()
     }
 
     pub fn change(&mut self, new_representative: impl Into<PublicKey>) -> Block {
-        self.inner.change(new_representative).block
+        self.inner.change(new_representative).into()
     }
 
     pub fn epoch1(&mut self) -> Block {
-        self.inner.epoch1().block
+        self.inner.epoch1().into()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{work::WorkThresholds, BlockDetails, BlockHash, StateBlockArgs, DEV_GENESIS_BLOCK};
+    use rsnano_core::{
+        work::WorkThresholds, BlockDetails, BlockHash, StateBlockArgs, DEV_GENESIS_BLOCK,
+    };
 
     #[test]
     fn state_send() {

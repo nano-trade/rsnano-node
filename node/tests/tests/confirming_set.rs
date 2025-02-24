@@ -1,11 +1,14 @@
-use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, DEV_GENESIS_KEY};
+use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::Writer;
 use rsnano_node::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, Direction, StatType},
 };
 use std::time::Duration;
-use test_helpers::{assert_always_eq, assert_timely, assert_timely_eq, start_election, System};
+use test_helpers::{
+    assert_always_eq, assert_timely, assert_timely_eq, start_election, System,
+    UnsavedBlockLatticeBuilder,
+};
 
 #[test]
 fn observer_callbacks() {

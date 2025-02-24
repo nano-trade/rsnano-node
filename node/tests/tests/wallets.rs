@@ -1,4 +1,4 @@
-use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, WalletId, DEV_GENESIS_KEY};
+use rsnano_core::{Amount, PrivateKey, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
@@ -6,7 +6,7 @@ use rsnano_node::{
     wallets::WalletsExt,
 };
 use std::time::Duration;
-use test_helpers::{assert_timely, assert_timely_eq, System};
+use test_helpers::{assert_timely, assert_timely_eq, System, UnsavedBlockLatticeBuilder};
 
 #[test]
 fn open_create() {

@@ -1,8 +1,10 @@
-use rsnano_core::{Account, Amount, PublicKey, RawKey, UnsavedBlockLatticeBuilder, WalletId};
+use rsnano_core::{Account, Amount, PublicKey, RawKey, WalletId};
 use rsnano_node::{wallets::WalletsExt, Node};
 use rsnano_rpc_messages::{AccountBalanceResponse, AccountsBalancesResponse, WalletBalancesArgs};
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{
+    assert_timely_msg, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
+};
 
 fn send_block(node: Arc<Node>, account: Account) {
     let mut lattice = UnsavedBlockLatticeBuilder::new();

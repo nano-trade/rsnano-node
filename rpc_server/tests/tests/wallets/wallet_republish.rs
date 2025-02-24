@@ -1,7 +1,9 @@
-use rsnano_core::{Block, UnsavedBlockLatticeBuilder, WalletId, DEV_GENESIS_KEY};
+use rsnano_core::{Block, WalletId, DEV_GENESIS_KEY};
 use rsnano_node::{wallets::WalletsExt, Node};
 use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{
+    assert_timely_msg, setup_rpc_client_and_server, System, UnsavedBlockLatticeBuilder,
+};
 
 fn send_block(node: Arc<Node>) -> Block {
     let mut lattice = UnsavedBlockLatticeBuilder::new();

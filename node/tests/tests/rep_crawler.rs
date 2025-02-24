@@ -1,9 +1,12 @@
-use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, Vote, DEV_GENESIS_KEY};
+use rsnano_core::{Amount, PrivateKey, Vote, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelMode, TrafficType};
 use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, assert_timely_eq2, System};
+use test_helpers::{
+    assert_always_eq, assert_never, assert_timely_eq, assert_timely_eq2, System,
+    UnsavedBlockLatticeBuilder,
+};
 
 #[test]
 fn ignore_rebroadcast() {

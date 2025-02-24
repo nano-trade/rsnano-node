@@ -1,6 +1,5 @@
 use rsnano_core::{
-    utils::MemoryStream, Account, Amount, PrivateKey, UnsavedBlockLatticeBuilder, Vote, VoteCode,
-    VoteSource, DEV_GENESIS_KEY,
+    utils::MemoryStream, Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{
@@ -21,6 +20,7 @@ use test_helpers::{
     assert_always_eq, assert_never, assert_timely, assert_timely2, assert_timely_eq,
     assert_timely_eq2, assert_timely_msg, get_available_port, process_open_block,
     process_send_block, setup_independent_blocks, start_election, start_elections, System,
+    UnsavedBlockLatticeBuilder,
 };
 
 /// What this test is doing:

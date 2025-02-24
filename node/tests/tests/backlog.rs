@@ -4,8 +4,10 @@ use std::{
     time::Duration,
 };
 
-use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, DEV_GENESIS_KEY};
-use test_helpers::{assert_timely, assert_timely_eq, setup_independent_blocks, System};
+use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
+use test_helpers::{
+    assert_timely, assert_timely_eq, setup_independent_blocks, System, UnsavedBlockLatticeBuilder,
+};
 
 /*
  * Ensures all not confirmed accounts get activated by backlog scan periodically

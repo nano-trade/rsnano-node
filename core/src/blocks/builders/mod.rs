@@ -5,7 +5,6 @@ mod saved_account_chain;
 mod saved_block_lattice_builder;
 mod send;
 mod state;
-mod unsaved_block_lattice_builder;
 
 pub use change::TestLegacyChangeBlockBuilder;
 pub use open::TestLegacyOpenBlockBuilder;
@@ -14,7 +13,6 @@ pub use saved_account_chain::SavedAccountChain;
 pub use saved_block_lattice_builder::*;
 pub use send::TestLegacySendBlockBuilder;
 pub use state::TestStateBlockBuilder;
-pub use unsaved_block_lattice_builder::*;
 
 pub struct TestBlockBuilder {}
 

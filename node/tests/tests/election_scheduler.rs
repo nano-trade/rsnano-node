@@ -119,14 +119,14 @@ mod election_scheduler {
     use std::time::Duration;
 
     use super::*;
-    use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, DEV_GENESIS_KEY};
+    use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
     use rsnano_ledger::DEV_GENESIS_ACCOUNT;
     use rsnano_node::{
         config::NodeConfig,
         consensus::{ActiveElectionsExt, ElectionBehavior, OptimisticSchedulerConfig},
         stats::{DetailType, Direction, StatType},
     };
-    use test_helpers::{setup_chains, setup_rep};
+    use test_helpers::{setup_chains, setup_rep, UnsavedBlockLatticeBuilder};
 
     #[test]
     fn activate_one_timely() {
