@@ -31,19 +31,13 @@ impl Default for BacklogScanConfig {
     }
 }
 
-struct BacklogScanFlags {
-    stopped: bool,
-    /** This is a manual trigger, the ongoing backlog population does not use this.
-     *  It can be triggered even when backlog population (frontiers confirmation) is disabled. */
-    triggered: bool,
-}
-
+/// Continuously scan the ledger for unconfirmed blocks and activate them
 pub struct BacklogScan {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     /// Callback called for each backlogged account
-    activated_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
-    scanned_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
+    unconfirmed_observers: Arc<RwLock<Vec<Box<dyn Fn(&[UnconfirmedInfo]) + Send + Sync>>>>,
+    up_to_date_observers: Arc<RwLock<Vec<Box<dyn Fn(&[Account]) + Send + Sync>>>>,
 
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
@@ -59,8 +53,8 @@ impl BacklogScan {
             config,
             ledger,
             stats,
-            activated_observers: Arc::new(RwLock::new(Vec::new())),
-            scanned_observers: Arc::new(RwLock::new(Vec::new())),
+            unconfirmed_observers: Arc::new(RwLock::new(Vec::new())),
+            up_to_date_observers: Arc::new(RwLock::new(Vec::new())),
             mutex: Arc::new(Mutex::new(BacklogScanFlags {
                 stopped: false,
                 triggered: false,
@@ -70,17 +64,19 @@ impl BacklogScan {
         }
     }
 
-    /// Accounts activated
-    pub fn on_batch_activated(&self, callback: impl Fn(&[ActivatedInfo]) + Send + Sync + 'static) {
-        self.activated_observers
+    pub fn on_unconfirmed_found(
+        &self,
+        callback: impl Fn(&[UnconfirmedInfo]) + Send + Sync + 'static,
+    ) {
+        self.unconfirmed_observers
             .write()
             .unwrap()
             .push(Box::new(callback));
     }
 
     /// Accounts scanned but not activated
-    pub fn on_batch_scanned(&self, callback: impl Fn(&[ActivatedInfo]) + Send + Sync + 'static) {
-        self.scanned_observers
+    pub fn on_up_to_date(&self, callback: impl Fn(&[Account]) + Send + Sync + 'static) {
+        self.up_to_date_observers
             .write()
             .unwrap()
             .push(Box::new(callback));
@@ -92,8 +88,8 @@ impl BacklogScan {
         let thread = BacklogScanThread {
             ledger: self.ledger.clone(),
             stats: self.stats.clone(),
-            activated_observers: self.activated_observers.clone(),
-            scanned_observers: self.scanned_observers.clone(),
+            unconfirmed_observers: self.unconfirmed_observers.clone(),
+            up_to_date_observers: self.up_to_date_observers.clone(),
             config: self.config.clone(),
             mutex: self.mutex.clone(),
             condition: self.condition.clone(),
@@ -142,11 +138,18 @@ impl Drop for BacklogScan {
     }
 }
 
+struct BacklogScanFlags {
+    stopped: bool,
+    /** This is a manual trigger, the ongoing backlog population does not use this.
+     *  It can be triggered even when backlog population (frontiers confirmation) is disabled. */
+    triggered: bool,
+}
+
 struct BacklogScanThread {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
-    activated_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
-    scanned_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
+    unconfirmed_observers: Arc<RwLock<Vec<Box<dyn Fn(&[UnconfirmedInfo]) + Send + Sync>>>>,
+    up_to_date_observers: Arc<RwLock<Vec<Box<dyn Fn(&[Account]) + Send + Sync>>>>,
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
@@ -203,8 +206,9 @@ impl BacklogScanThread {
 
             drop(lock);
 
-            let mut scanned = Vec::new();
-            let mut activated = Vec::new();
+            let mut scanned = 0;
+            let mut up_to_date = Vec::new();
+            let mut unconfirmed = Vec::new();
             {
                 let tx = self.ledger.store.tx_begin_read();
                 let mut count = 0;
@@ -223,18 +227,19 @@ impl BacklogScanThread {
                         .get(&tx, &account)
                         .unwrap_or_default();
 
-                    let info = ActivatedInfo {
+                    let info = UnconfirmedInfo {
                         account,
                         account_info,
                         conf_info: conf_info.clone(),
                     };
 
-                    scanned.push(info.clone());
-
                     if conf_info.height < info.account_info.block_count {
-                        activated.push(info);
+                        unconfirmed.push(info);
+                    } else {
+                        up_to_date.push(account);
                     }
 
+                    scanned += 1;
                     next = account.inc_or_max();
                     count += 1;
                 }
@@ -246,28 +251,25 @@ impl BacklogScanThread {
                     .is_none();
             }
 
-            self.stats.add(
-                StatType::BacklogScan,
-                DetailType::Scanned,
-                scanned.len() as u64,
-            );
+            self.stats
+                .add(StatType::BacklogScan, DetailType::Scanned, scanned as u64);
             self.stats.add(
                 StatType::BacklogScan,
                 DetailType::Activated,
-                activated.len() as u64,
+                unconfirmed.len() as u64,
             );
 
             // Notify about scanned and activated accounts without holding database transaction
             {
-                let observers = self.scanned_observers.read().unwrap();
+                let observers = self.up_to_date_observers.read().unwrap();
                 for observer in &*observers {
-                    observer(&scanned);
+                    observer(&up_to_date);
                 }
             }
             {
-                let observers = self.activated_observers.read().unwrap();
+                let observers = self.unconfirmed_observers.read().unwrap();
                 for observer in &*observers {
-                    observer(&activated);
+                    observer(&unconfirmed);
                 }
             }
 
@@ -278,7 +280,7 @@ impl BacklogScanThread {
 }
 
 #[derive(Clone)]
-pub struct ActivatedInfo {
+pub struct UnconfirmedInfo {
     pub account: Account,
     pub account_info: AccountInfo,
     pub conf_info: ConfirmationHeightInfo,

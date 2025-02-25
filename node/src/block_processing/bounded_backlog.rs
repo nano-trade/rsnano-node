@@ -1,6 +1,6 @@
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
-    backlog_scan::ActivatedInfo,
+    backlog_scan::UnconfirmedInfo,
     BlockContext, BlockProcessor,
 };
 use crate::{
@@ -115,7 +115,7 @@ impl BoundedBacklog {
         *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
     }
 
-    pub fn activate_batch(&self, batch: &[ActivatedInfo]) {
+    pub fn activate_batch(&self, batch: &[UnconfirmedInfo]) {
         let mut tx = self.backlog_impl.ledger.read_txn();
         for info in batch {
             self.activate(&mut tx, &info.account, &info.account_info, &info.conf_info);
@@ -133,10 +133,10 @@ impl BoundedBacklog {
         }
     }
 
-    pub fn erase_accounts(&self, accounts: impl IntoIterator<Item = Account>) {
+    pub fn erase_accounts(&self, accounts: &[Account]) {
         let mut guard = self.backlog_impl.mutex.lock().unwrap();
-        for account in accounts.into_iter() {
-            guard.index.erase_account(&account);
+        for account in accounts {
+            guard.index.erase_account(account);
         }
     }
 

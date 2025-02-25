@@ -708,7 +708,7 @@ impl Node {
         //  TODO: Hook this direclty in the schedulers
         let schedulers_w = Arc::downgrade(&election_schedulers);
         let ledger_l = ledger.clone();
-        backlog_scan.on_batch_activated(move |batch| {
+        backlog_scan.on_unconfirmed_found(move |batch| {
             if let Some(schedulers) = schedulers_w.upgrade() {
                 let tx = ledger_l.read_txn();
                 for info in batch {
@@ -732,7 +732,7 @@ impl Node {
 
         // Activate accounts with unconfirmed blocks
         let backlog_w = Arc::downgrade(&bounded_backlog);
-        backlog_scan.on_batch_activated(move |batch| {
+        backlog_scan.on_unconfirmed_found(move |batch| {
             if let Some(backlog) = backlog_w.upgrade() {
                 backlog.activate_batch(batch);
             }
@@ -740,9 +740,9 @@ impl Node {
 
         // Erase accounts with all confirmed blocks
         let backlog_w = Arc::downgrade(&bounded_backlog);
-        backlog_scan.on_batch_scanned(move |batch| {
+        backlog_scan.on_up_to_date(move |batch| {
             if let Some(backlog) = backlog_w.upgrade() {
-                backlog.erase_accounts(batch.iter().map(|i| i.account));
+                backlog.erase_accounts(batch);
             }
         });
 
