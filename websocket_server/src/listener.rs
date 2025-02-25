@@ -138,15 +138,52 @@ impl WebsocketListener {
 
                     let include_block = conf_opts.include_block;
 
-                    let message = block_confirmed_message(
-                        block,
-                        account,
-                        amount,
-                        subtype.to_string(),
-                        include_block,
-                        election_status,
-                        election_votes,
-                        conf_opts,
+                    let subtype = subtype.to_string();
+                    let election_info = if conf_opts.include_election_info
+                        || conf_opts.include_election_info_with_votes
+                    {
+                        let mut info = ElectionInfo::from(election_status);
+                        if conf_opts.include_election_info_with_votes {
+                            info.votes = Some(election_votes.iter().map(|v| v.into()).collect());
+                        }
+                        Some(info)
+                    } else {
+                        None
+                    };
+
+                    let block_json = if include_block {
+                        let mut block_value: serde_json::Value = (**block).clone().into();
+                        if !subtype.is_empty() {
+                            if let serde_json::Value::Object(o) = &mut block_value {
+                                o.insert("subtype".to_string(), Value::String(subtype));
+                            }
+                        }
+                        Some(block_value)
+                    } else {
+                        None
+                    };
+
+                    let sideband = if conf_opts.include_sideband_info {
+                        Some(block.sideband().into())
+                    } else {
+                        None
+                    };
+
+                    let message = OutgoingMessageEnvelope::new(
+                        Topic::Confirmation,
+                        BlockConfirmed {
+                            account: account.encode_account(),
+                            amount: amount.to_string_dec(),
+                            hash: block.hash().to_string(),
+                            confirmation_type: election_status
+                                .election_status_type
+                                .as_str()
+                                .to_string(),
+                            election_info,
+                            block: block_json,
+                            sideband,
+                            linked_account: None,
+                        },
                     );
                     drop(subs);
                     let _ = session.blocking_write(&message);
@@ -241,60 +278,6 @@ async fn accept_connection(
     };
 
     Ok(())
-}
-
-fn block_confirmed_message(
-    block: &SavedBlock,
-    account: &Account,
-    amount: &Amount,
-    subtype: String,
-    include_block: bool,
-    election_status: &ElectionStatus,
-    election_votes: &[VoteWithWeightInfo],
-    options: &ConfirmationOptions,
-) -> OutgoingMessageEnvelope {
-    let election_info = if options.include_election_info || options.include_election_info_with_votes
-    {
-        let mut info = ElectionInfo::from(election_status);
-        if options.include_election_info_with_votes {
-            info.votes = Some(election_votes.iter().map(|v| v.into()).collect());
-        }
-        Some(info)
-    } else {
-        None
-    };
-
-    let block_json = if include_block {
-        let mut block_value: serde_json::Value = (**block).clone().into();
-        if !subtype.is_empty() {
-            if let serde_json::Value::Object(o) = &mut block_value {
-                o.insert("subtype".to_string(), Value::String(subtype));
-            }
-        }
-        Some(block_value)
-    } else {
-        None
-    };
-
-    let sideband = if options.include_sideband_info {
-        Some(block.sideband().into())
-    } else {
-        None
-    };
-
-    OutgoingMessageEnvelope::new(
-        Topic::Confirmation,
-        BlockConfirmed {
-            account: account.encode_account(),
-            amount: amount.to_string_dec(),
-            hash: block.hash().to_string(),
-            confirmation_type: election_status.election_status_type.as_str().to_string(),
-            election_info,
-            block: block_json,
-            sideband,
-            linked_account: None,
-        },
-    )
 }
 
 #[derive(Serialize, Deserialize)]

@@ -1657,7 +1657,6 @@ mod tests {
         NodeBuilder,
     };
     use rsnano_core::Networks;
-    use rsnano_work::OpenClConfig;
     use std::ops::{Deref, DerefMut};
     use uuid::Uuid;
 

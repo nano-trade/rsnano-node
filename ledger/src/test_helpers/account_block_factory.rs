@@ -10,11 +10,13 @@ use rsnano_core::{
 use rsnano_store_lmdb::Transaction;
 
 /// Test helper that creates blocks for a single account
+#[allow(dead_code)]
 pub struct AccountBlockFactory<'a> {
     pub key: PrivateKey,
     ledger: &'a Ledger,
 }
 
+#[allow(dead_code)]
 impl<'a> AccountBlockFactory<'a> {
     pub(crate) fn new(ledger: &'a Ledger) -> Self {
         Self {

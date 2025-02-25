@@ -1,6 +1,6 @@
 use crate::{
-    blocks::open_block::OpenBlockArgs, utils::UnixTimestamp, Account, Block, BlockDetails,
-    BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock, WorkNonce,
+    blocks::open_block::OpenBlockArgs, utils::UnixTimestamp, Block, BlockDetails, BlockHash,
+    BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock, WorkNonce,
 };
 
 pub struct TestLegacyOpenBlockBuilder {
@@ -81,7 +81,7 @@ impl TestLegacyOpenBlockBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Amount, BlockBase, Signature, TestBlockBuilder};
+    use crate::{Account, Amount, BlockBase, Signature, TestBlockBuilder};
 
     #[test]
     fn create_open_block() {

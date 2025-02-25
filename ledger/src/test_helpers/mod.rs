@@ -9,21 +9,18 @@ use rsnano_store_lmdb::LmdbWriteTransaction;
 pub use saved_block_lattice_builder::*;
 pub use unsaved_block_lattice_builder::*;
 
-pub(crate) fn upgrade_genesis_to_epoch_v1(
-    ctx: &LedgerContext,
-    txn: &mut LmdbWriteTransaction,
-) -> Block {
+pub fn upgrade_genesis_to_epoch_v1(ctx: &LedgerContext, txn: &mut LmdbWriteTransaction) -> Block {
     let mut epoch = ctx.genesis_block_factory().epoch_v1(txn).build();
     ctx.ledger.process(txn, &mut epoch).unwrap();
     epoch
 }
 
-pub(crate) struct LegacySendBlockResult<'a> {
+pub struct LegacySendBlockResult<'a> {
     pub destination: AccountBlockFactory<'a>,
     pub send_block: SavedBlock,
     pub amount_sent: Amount,
 }
-pub(crate) fn setup_legacy_send_block<'a>(
+pub fn setup_legacy_send_block<'a>(
     ctx: &'a LedgerContext,
     txn: &mut LmdbWriteTransaction,
 ) -> LegacySendBlockResult<'a> {
@@ -44,14 +41,14 @@ pub(crate) fn setup_legacy_send_block<'a>(
     }
 }
 
-pub(crate) struct LegacyOpenBlockResult<'a> {
+pub struct LegacyOpenBlockResult<'a> {
     pub destination: AccountBlockFactory<'a>,
     pub send_block: SavedBlock,
     pub open_block: SavedBlock,
     pub expected_balance: Amount,
 }
 
-pub(crate) fn setup_legacy_open_block<'a>(
+pub fn setup_legacy_open_block<'a>(
     ctx: &'a LedgerContext,
     txn: &mut LmdbWriteTransaction,
 ) -> LegacyOpenBlockResult<'a> {
@@ -68,7 +65,7 @@ pub(crate) fn setup_legacy_open_block<'a>(
     }
 }
 
-pub(crate) struct LegacyReceiveBlockResult<'a> {
+pub struct LegacyReceiveBlockResult<'a> {
     pub destination: AccountBlockFactory<'a>,
     pub open_block: SavedBlock,
     pub send_block: Block,
@@ -76,7 +73,8 @@ pub(crate) struct LegacyReceiveBlockResult<'a> {
     pub expected_balance: Amount,
     pub amount_received: Amount,
 }
-pub(crate) fn setup_legacy_receive_block<'a>(
+
+pub fn setup_legacy_receive_block<'a>(
     ctx: &'a LedgerContext,
     txn: &mut LmdbWriteTransaction,
 ) -> LegacyReceiveBlockResult<'a> {
@@ -105,11 +103,12 @@ pub(crate) fn setup_legacy_receive_block<'a>(
     }
 }
 
-pub(crate) struct SendBlockResult<'a> {
+pub struct SendBlockResult<'a> {
     pub destination: AccountBlockFactory<'a>,
     pub send_block: SavedBlock,
 }
-pub(crate) fn setup_send_block<'a>(
+
+pub fn setup_send_block<'a>(
     ctx: &'a LedgerContext,
     txn: &mut LmdbWriteTransaction,
 ) -> SendBlockResult<'a> {
@@ -130,14 +129,11 @@ pub(crate) fn setup_send_block<'a>(
     }
 }
 
-pub(crate) struct OpenBlockResult {
+pub struct OpenBlockResult {
     pub send_block: SavedBlock,
     pub open_block: SavedBlock,
 }
-pub(crate) fn setup_open_block(
-    ctx: &LedgerContext,
-    txn: &mut LmdbWriteTransaction,
-) -> OpenBlockResult {
+pub fn setup_open_block(ctx: &LedgerContext, txn: &mut LmdbWriteTransaction) -> OpenBlockResult {
     let send = setup_send_block(ctx, txn);
 
     let mut open_block = send.destination.open(txn, send.send_block.hash()).build();

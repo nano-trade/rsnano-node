@@ -10,8 +10,6 @@ use rsnano_core::{
     Networks, Root, WorkNonce,
 };
 
-use tracing::warn;
-
 #[cfg(feature = "opencl")]
 use super::gpu_work_generator::GpuWorkGenerator;
 use super::{
@@ -160,6 +158,7 @@ impl WorkPool {
         }
     }
 
+    #[allow(unused_variables)]
     fn spawn_threads(
         &mut self,
         thread_count: usize,
@@ -171,7 +170,7 @@ impl WorkPool {
             match GpuWorkGenerator::new(opencl_config) {
                 Ok(gpu) => Some(gpu),
                 Err(e) => {
-                    warn!("Error initializing GPU: {:?}", e);
+                    tracing::warn!("Error initializing GPU: {:?}", e);
                     None
                 }
             }
