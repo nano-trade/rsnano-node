@@ -93,3 +93,67 @@ impl<'a> ConfirmationMessageFactory<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::ConfirmationJsonOptions;
+
+    use super::*;
+
+    #[test]
+    fn default_options() {
+        let ledger = Ledger::new_null();
+        let options = ConfirmationOptions::new(ConfirmationJsonOptions::default());
+        let block = SavedBlock::new_test_instance();
+        let amount = Amount::nano(123);
+        let factory = ConfirmationMessageFactory {
+            ledger: &ledger,
+            options: &options,
+            block: &block,
+            amount: &amount,
+            election_status: &ElectionStatus::default(),
+            election_votes: &Vec::new(),
+        };
+
+        let message = factory.create_message();
+
+        assert_eq!(message.topic, Some(Topic::Confirmation));
+        let payload: BlockConfirmed = serde_json::from_value(message.message.unwrap()).unwrap();
+        assert_eq!(payload.amount, amount.to_string_dec());
+        assert_eq!(payload.hash, block.hash().to_string());
+        assert_eq!(payload.confirmation_type, "inactive");
+        assert!(payload.election_info.is_none());
+        assert!(payload.block.is_some());
+        assert!(payload.sideband.is_none());
+        assert!(payload.linked_account.is_none());
+    }
+
+    #[test]
+    fn linked_account() {
+        let ledger = Ledger::new_null();
+        let options = ConfirmationOptions::new(ConfirmationJsonOptions {
+            include_block: Some(true),
+            include_linked_account: Some(true),
+            ..Default::default()
+        });
+        let block = SavedBlock::new_test_send_block();
+        let amount = Amount::nano(123);
+        let factory = ConfirmationMessageFactory {
+            ledger: &ledger,
+            options: &options,
+            block: &block,
+            amount: &amount,
+            election_status: &ElectionStatus::default(),
+            election_votes: &Vec::new(),
+        };
+
+        let message = factory.create_message();
+
+        let payload: BlockConfirmed = serde_json::from_value(message.message.unwrap()).unwrap();
+
+        assert_eq!(
+            payload.linked_account,
+            Some(block.destination_or_link().encode_account())
+        );
+    }
+}
