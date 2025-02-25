@@ -123,7 +123,6 @@ impl WebsocketListener {
     pub fn broadcast_confirmation(
         &self,
         block: &SavedBlock,
-        account: &Account,
         amount: &Amount,
         subtype: &str,
         election_status: &ElectionStatus,
@@ -193,7 +192,7 @@ impl WebsocketListener {
                     let message = OutgoingMessageEnvelope::new(
                         Topic::Confirmation,
                         BlockConfirmed {
-                            account: account.encode_account(),
+                            account: block.account().encode_account(),
                             amount: amount.to_string_dec(),
                             hash: block.hash().to_string(),
                             confirmation_type: election_status

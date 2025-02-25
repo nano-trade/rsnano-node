@@ -39,7 +39,7 @@ use tracing::{debug, trace};
 const ELECTION_MAX_BLOCKS: usize = 10;
 
 pub type ElectionEndCallback = Box<
-    dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, &SavedBlock, Amount, bool, bool)
+    dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount, bool, bool)
         + Send
         + Sync,
 >;
@@ -234,7 +234,6 @@ impl ActiveElections {
             .push_back(status.clone());
 
         // Trigger callback for confirmed block
-        let account = block.account();
         let amount = {
             let txn = self.ledger.read_txn();
             self.ledger.any().block_amount_for(&txn, &block)
@@ -253,7 +252,6 @@ impl ActiveElections {
             (callback)(
                 &status,
                 &Vec::new(),
-                account,
                 block,
                 amount.unwrap_or_default(),
                 is_state_send,
@@ -278,7 +276,6 @@ impl ActiveElections {
         let MaybeSavedBlock::Saved(block) = block else {
             return;
         };
-        let account = block.account();
 
         match status.election_status_type {
             ElectionStatusType::ActiveConfirmedQuorum => self.stats.inc_dir(
@@ -318,15 +315,7 @@ impl ActiveElections {
         }
 
         for callback in ended_callbacks.iter() {
-            (callback)(
-                status,
-                votes,
-                account,
-                block,
-                amount,
-                is_state_send,
-                is_state_epoch,
-            );
+            (callback)(status, votes, block, amount, is_state_send, is_state_epoch);
         }
     }
 

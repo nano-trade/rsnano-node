@@ -44,7 +44,6 @@ pub fn create_websocket_server(
     node.active.on_election_ended(Box::new(
         move |status: &ElectionStatus,
               votes: &Vec<VoteWithWeightInfo>,
-              account: Account,
               block: &SavedBlock,
               amount: Amount,
               is_state_send: bool,
@@ -67,7 +66,7 @@ pub fn create_websocket_server(
                         ""
                     };
 
-                    server.broadcast_confirmation(block, &account, &amount, subtype, status, votes);
+                    server.broadcast_confirmation(block, &amount, subtype, status, votes);
                 }
             }
         },

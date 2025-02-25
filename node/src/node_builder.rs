@@ -7,7 +7,7 @@ use crate::{
     working_path_for, Node, NodeArgs,
 };
 use rsnano_core::{
-    utils::get_cpu_count, Account, Amount, Networks, SavedBlock, Vote, VoteCode, VoteSource,
+    utils::get_cpu_count, Amount, Networks, SavedBlock, Vote, VoteCode, VoteSource,
     VoteWithWeightInfo,
 };
 use rsnano_messages::Message;
@@ -39,7 +39,7 @@ impl NodeCallbacksBuilder {
 
     pub fn on_election_end(
         mut self,
-        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, &SavedBlock, Amount, bool, bool)
+        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount, bool, bool)
             + Send
             + Sync
             + 'static,

@@ -2,7 +2,7 @@ use crate::{
     consensus::{ElectionStatus, ElectionStatusType},
     stats::{DetailType, Direction, StatType, Stats},
 };
-use rsnano_core::{Account, Amount, BlockType, SavedBlock};
+use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_nullable_http_client::{HttpClient, Url};
 use serde::Serialize;
 use std::sync::Arc;
@@ -20,7 +20,6 @@ impl HttpCallbacks {
     pub fn execute(
         &self,
         status: &ElectionStatus,
-        account: Account,
         block: &SavedBlock,
         amount: Amount,
         is_state_send: bool,
@@ -38,7 +37,7 @@ impl HttpCallbacks {
             // TODO warn if backlog is large (see nano_node)
             self.runtime.spawn(async move {
                 let message = RpcCallbackMessage {
-                    account: account.encode_account(),
+                    account: block.account().encode_account(),
                     hash: block.hash().encode_hex(),
                     block: (*block).clone().into(),
                     amount: amount.to_string_dec(),

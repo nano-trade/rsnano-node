@@ -1112,15 +1112,8 @@ impl Node {
                 callback_url,
             };
             active_elections.on_election_ended(Box::new(
-                move |status, _weights, account, block, amount, is_state_send, is_state_epoch| {
-                    http_callbacks.execute(
-                        status,
-                        account,
-                        block,
-                        amount,
-                        is_state_send,
-                        is_state_epoch,
-                    );
+                move |status, _weights, block, amount, is_state_send, is_state_epoch| {
+                    http_callbacks.execute(status, block, amount, is_state_send, is_state_epoch);
                 },
             ))
         }
