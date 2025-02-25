@@ -17,8 +17,7 @@ use crate::{
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
-    Account, Amount, Block, BlockHash, BlockType, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote,
-    VoteWithWeightInfo,
+    Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
@@ -38,11 +37,8 @@ use tracing::{debug, trace};
 
 const ELECTION_MAX_BLOCKS: usize = 10;
 
-pub type ElectionEndCallback = Box<
-    dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount, bool, bool)
-        + Send
-        + Sync,
->;
+pub type ElectionEndCallback =
+    Box<dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -238,25 +234,10 @@ impl ActiveElections {
             let txn = self.ledger.read_txn();
             self.ledger.any().block_amount_for(&txn, &block)
         };
-        let mut is_state_send = false;
-        let mut is_state_epoch = false;
-        if amount.is_some() {
-            if block.block_type() == BlockType::State {
-                is_state_send = block.is_send();
-                is_state_epoch = block.is_epoch();
-            }
-        }
 
         let callbacks = self.election_ended_observers.read().unwrap();
         for callback in callbacks.iter() {
-            (callback)(
-                &status,
-                &Vec::new(),
-                block,
-                amount.unwrap_or_default(),
-                is_state_send,
-                is_state_epoch,
-            );
+            (callback)(&status, &Vec::new(), block, amount.unwrap_or_default());
         }
     }
 
@@ -307,15 +288,8 @@ impl ActiveElections {
             .block_amount_for(tx, &block)
             .unwrap_or_default();
 
-        let mut is_state_send = false;
-        let mut is_state_epoch = false;
-        if block.block_type() == BlockType::State {
-            is_state_send = block.block_type() == BlockType::State && block.is_send();
-            is_state_epoch = block.block_type() == BlockType::State && block.is_epoch();
-        }
-
         for callback in ended_callbacks.iter() {
-            (callback)(status, votes, block, amount, is_state_send, is_state_epoch);
+            (callback)(status, votes, block, amount);
         }
     }
 

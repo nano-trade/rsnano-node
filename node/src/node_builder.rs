@@ -39,7 +39,7 @@ impl NodeCallbacksBuilder {
 
     pub fn on_election_end(
         mut self,
-        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount, bool, bool)
+        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount)
             + Send
             + Sync
             + 'static,

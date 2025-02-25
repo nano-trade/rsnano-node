@@ -17,14 +17,7 @@ pub(crate) struct HttpCallbacks {
 }
 
 impl HttpCallbacks {
-    pub fn execute(
-        &self,
-        status: &ElectionStatus,
-        block: &SavedBlock,
-        amount: Amount,
-        is_state_send: bool,
-        is_state_epoch: bool,
-    ) {
+    pub fn execute(&self, status: &ElectionStatus, block: &SavedBlock, amount: Amount) {
         let block = block.clone();
         if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
             || status.election_status_type == ElectionStatusType::ActiveConfirmationHeight
@@ -41,20 +34,16 @@ impl HttpCallbacks {
                     hash: block.hash().encode_hex(),
                     block: (*block).clone().into(),
                     amount: amount.to_string_dec(),
-                    sub_type: if is_state_send {
-                        Some("send")
-                    } else if block.block_type() == BlockType::State {
-                        if block.is_change() {
-                            Some("change")
-                        } else if is_state_epoch {
-                            Some("epoch")
-                        } else {
-                            Some("receive")
-                        }
+                    sub_type: if block.block_type() == BlockType::State {
+                        Some(block.subtype().as_str())
                     } else {
                         None
                     },
-                    is_send: if is_state_send { Some("true") } else { None },
+                    is_send: if block.block_type() == BlockType::State && block.is_send() {
+                        Some("true")
+                    } else {
+                        None
+                    },
                 };
 
                 let http_client = HttpClient::new();

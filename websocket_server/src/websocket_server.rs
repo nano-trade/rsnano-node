@@ -45,23 +45,13 @@ pub fn create_websocket_server(
         move |status: &ElectionStatus,
               votes: &Vec<VoteWithWeightInfo>,
               block: &SavedBlock,
-              amount: Amount,
-              is_state_send: bool,
-              is_state_epoch: bool| {
+              amount: Amount| {
             if let Some(server) = server_w.upgrade() {
                 debug_assert!(status.election_status_type != ElectionStatusType::Ongoing);
 
                 if server.any_subscriber(Topic::Confirmation) {
-                    let subtype = if is_state_send {
-                        "send"
-                    } else if block.block_type() == BlockType::State {
-                        if block.is_change() {
-                            "change"
-                        } else if is_state_epoch {
-                            "epoch"
-                        } else {
-                            "receive"
-                        }
+                    let subtype = if block.block_type() == BlockType::State {
+                        block.subtype().as_str()
                     } else {
                         ""
                     };

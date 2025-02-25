@@ -1111,11 +1111,9 @@ impl Node {
                 stats: stats.clone(),
                 callback_url,
             };
-            active_elections.on_election_ended(Box::new(
-                move |status, _weights, block, amount, is_state_send, is_state_epoch| {
-                    http_callbacks.execute(status, block, amount, is_state_send, is_state_epoch);
-                },
-            ))
+            active_elections.on_election_ended(Box::new(move |status, _weights, block, amount| {
+                http_callbacks.execute(status, block, amount);
+            }))
         }
 
         let time_factory = SystemTimeFactory::default();
