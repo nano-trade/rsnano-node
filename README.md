@@ -48,6 +48,16 @@ To install and run the rsnano_node executable:
     cargo install --path main
     rsnano_node node run --network=beta
 
+## Running it with a GUI
+
+You can even run an RsNano node with a GUI that looks like this:
+![RsNano Insight App](https://raw.githubusercontent.com/rsnano-node/rsnano-node/refs/heads/develop/doc/insight_app.png)
+
+Run these commands:
+
+    cd rsnano-node/tools/insight
+    cargo run --release
+
 ### Contact us
 
 We want to hear about any trouble, success, delight, or pain you experience when
