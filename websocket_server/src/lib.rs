@@ -1,3 +1,4 @@
+mod confirmation_message_factory;
 mod confirmation_options;
 mod listener;
 mod options;

@@ -45,7 +45,6 @@ pub fn create_websocket_server(
               block: &SavedBlock,
               amount: Amount| {
             if let Some(server) = server_w.upgrade() {
-                debug_assert!(status.election_status_type != ElectionStatusType::Ongoing);
                 server.broadcast_confirmation(block, &amount, status, votes);
             }
         },

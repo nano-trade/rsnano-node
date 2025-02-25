@@ -1,6 +1,6 @@
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
-use crate::WebsocketSession;
-use rsnano_core::{Account, Amount, BlockSideband, BlockType, SavedBlock, VoteWithWeightInfo};
+use crate::{confirmation_message_factory::ConfirmationMessageFactory, WebsocketSession};
+use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
 use rsnano_ledger::Ledger;
 use rsnano_node::{
     consensus::{ElectionStatus, ElectionStatusType},
@@ -148,73 +148,16 @@ impl WebsocketListener {
                         &default_opts
                     };
 
-                    let include_block = conf_opts.include_block;
-
-                    let subtype = if block.block_type() == BlockType::State {
-                        block.subtype().as_str().to_string()
-                    } else {
-                        String::new()
-                    };
-
-                    let election_info = if conf_opts.include_election_info
-                        || conf_opts.include_election_info_with_votes
-                    {
-                        let mut info = ElectionInfo::from(election_status);
-                        if conf_opts.include_election_info_with_votes {
-                            info.votes = Some(election_votes.iter().map(|v| v.into()).collect());
-                        }
-                        Some(info)
-                    } else {
-                        None
-                    };
-
-                    let block_json;
-                    let linked_account;
-
-                    if include_block {
-                        let mut block_value: serde_json::Value = (**block).clone().into();
-                        if !subtype.is_empty() {
-                            if let serde_json::Value::Object(o) = &mut block_value {
-                                o.insert("subtype".to_string(), Value::String(subtype));
-                            }
-                        }
-                        block_json = Some(block_value);
-                        if conf_opts.include_linked_account {
-                            let tx = self.ledger.read_txn();
-                            linked_account = match self.ledger.linked_account(&tx, block) {
-                                Some(linked) => Some(linked.encode_account()),
-                                None => Some("0".to_owned()),
-                            }
-                        } else {
-                            linked_account = None;
-                        }
-                    } else {
-                        block_json = None;
-                        linked_account = None;
+                    let message = ConfirmationMessageFactory {
+                        ledger: &self.ledger,
+                        options: conf_opts,
+                        block,
+                        amount,
+                        election_status,
+                        election_votes,
                     }
+                    .create_message();
 
-                    let sideband = if conf_opts.include_sideband_info {
-                        Some(block.sideband().into())
-                    } else {
-                        None
-                    };
-
-                    let message = OutgoingMessageEnvelope::new(
-                        Topic::Confirmation,
-                        BlockConfirmed {
-                            account: block.account().encode_account(),
-                            amount: amount.to_string_dec(),
-                            hash: block.hash().to_string(),
-                            confirmation_type: election_status
-                                .election_status_type
-                                .as_str()
-                                .to_string(),
-                            election_info,
-                            block: block_json,
-                            sideband,
-                            linked_account,
-                        },
-                    );
                     drop(subs);
                     let _ = session.blocking_write(&message);
                 }
