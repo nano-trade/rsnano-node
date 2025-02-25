@@ -16,7 +16,6 @@ pub struct ConfirmationOptions {
     pub all_local_accounts: bool,
     pub confirmation_types: u8,
     pub accounts: HashSet<String>,
-    wallets: Arc<Wallets>,
 }
 
 #[derive(Deserialize, Default)]
@@ -38,7 +37,7 @@ impl ConfirmationOptions {
     const TYPE_ALL_ACTIVE: u8 = Self::TYPE_ACTIVE_QUORUM | Self::TYPE_ACTIVE_CONFIRMATION_HEIGHT;
     const TYPE_ALL: u8 = Self::TYPE_ALL_ACTIVE | Self::TYPE_INACTIVE;
 
-    pub fn new(wallets: Arc<Wallets>, options: ConfirmationJsonOptions) -> Self {
+    pub fn new(options: ConfirmationJsonOptions) -> Self {
         let mut result = Self {
             include_election_info: false,
             include_election_info_with_votes: false,
@@ -49,7 +48,6 @@ impl ConfirmationOptions {
             all_local_accounts: false,
             confirmation_types: Self::TYPE_ALL,
             accounts: HashSet::new(),
-            wallets,
         };
         // Non-account filtering options
         result.include_block = options.include_block.unwrap_or(true);
@@ -118,7 +116,7 @@ impl ConfirmationOptions {
      * @param message_a the message to be checked
      * @return false if the message should be broadcasted, true if it should be filtered
      */
-    pub fn should_filter(&self, message_content: &Value) -> bool {
+    pub fn should_filter(&self, message_content: &Value, wallets: &Wallets) -> bool {
         let mut should_filter_conf_type = true;
 
         if let Some(serde_json::Value::String(type_text)) = message_content.get("confirmation_type")
@@ -147,9 +145,7 @@ impl ConfirmationOptions {
                     let source = Account::decode_account(source_text).unwrap_or_default();
                     let destination =
                         Account::decode_account(&destination_text).unwrap_or_default();
-                    if self.wallets.exists(&source.into())
-                        || self.wallets.exists(&destination.into())
-                    {
+                    if wallets.exists(&source.into()) || wallets.exists(&destination.into()) {
                         should_filter_account = false;
                     }
                 }

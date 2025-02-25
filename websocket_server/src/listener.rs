@@ -1,8 +1,11 @@
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
 use crate::WebsocketSession;
-use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
+use rsnano_core::{Account, Amount, BlockSideband, BlockType, SavedBlock, VoteWithWeightInfo};
 use rsnano_ledger::Ledger;
-use rsnano_node::{consensus::ElectionStatus, wallets::Wallets};
+use rsnano_node::{
+    consensus::{ElectionStatus, ElectionStatusType},
+    wallets::Wallets,
+};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -124,19 +127,21 @@ impl WebsocketListener {
         &self,
         block: &SavedBlock,
         amount: &Amount,
-        subtype: &str,
         election_status: &ElectionStatus,
         election_votes: &Vec<VoteWithWeightInfo>,
     ) {
+        debug_assert!(election_status.election_status_type != ElectionStatusType::Ongoing);
+
+        if !self.any_subscriber(Topic::Confirmation) {
+            return;
+        }
+
         let sessions = self.sessions.lock().unwrap();
         for session in sessions.iter() {
             if let Some(session) = session.upgrade() {
                 let subs = session.subscriptions.lock().unwrap();
                 if let Some(options) = subs.get(&Topic::Confirmation) {
-                    let default_opts = ConfirmationOptions::new(
-                        Arc::clone(&self.wallets),
-                        ConfirmationJsonOptions::default(),
-                    );
+                    let default_opts = ConfirmationOptions::new(ConfirmationJsonOptions::default());
                     let conf_opts = if let Options::Confirmation(i) = options {
                         i
                     } else {
@@ -145,7 +150,12 @@ impl WebsocketListener {
 
                     let include_block = conf_opts.include_block;
 
-                    let subtype = subtype.to_string();
+                    let subtype = if block.block_type() == BlockType::State {
+                        block.subtype().as_str().to_string()
+                    } else {
+                        String::new()
+                    };
+
                     let election_info = if conf_opts.include_election_info
                         || conf_opts.include_election_info_with_votes
                     {
@@ -273,7 +283,7 @@ async fn accept_connection(
     let mut ws_stream = tokio_tungstenite::accept_async(stream).await?;
 
     let (tx_close, rx_close) = oneshot::channel::<()>();
-    let entry = Arc::new(WebsocketSessionEntry::new(tx_send, tx_close));
+    let entry = Arc::new(WebsocketSessionEntry::new(tx_send, tx_close, wallets));
 
     {
         let mut sessions = sessions.lock().unwrap();
@@ -281,7 +291,7 @@ async fn accept_connection(
         sessions.push(Arc::downgrade(&entry));
     }
 
-    let session = WebsocketSession::new(wallets, topic_subscriber_count, peer_addr, entry);
+    let session = WebsocketSession::new(topic_subscriber_count, peer_addr, entry);
 
     tokio::select! {
         _ = rx_close =>{

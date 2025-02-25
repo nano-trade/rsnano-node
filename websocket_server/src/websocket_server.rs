@@ -1,7 +1,5 @@
 use super::WebsocketListener;
-use rsnano_core::{
-    Account, Amount, BlockHash, BlockType, SavedBlock, Vote, VoteCode, VoteWithWeightInfo,
-};
+use rsnano_core::{Account, Amount, BlockHash, SavedBlock, Vote, VoteCode, VoteWithWeightInfo};
 use rsnano_ledger::BlockStatus;
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
@@ -48,16 +46,7 @@ pub fn create_websocket_server(
               amount: Amount| {
             if let Some(server) = server_w.upgrade() {
                 debug_assert!(status.election_status_type != ElectionStatusType::Ongoing);
-
-                if server.any_subscriber(Topic::Confirmation) {
-                    let subtype = if block.block_type() == BlockType::State {
-                        block.subtype().as_str()
-                    } else {
-                        ""
-                    };
-
-                    server.broadcast_confirmation(block, &amount, subtype, status, votes);
-                }
+                server.broadcast_confirmation(block, &amount, status, votes);
             }
         },
     ));

@@ -18,17 +18,20 @@ pub struct WebsocketSessionEntry {
     pub subscriptions: Mutex<HashMap<Topic, Options>>,
     send_queue_tx: mpsc::Sender<OutgoingMessageEnvelope>,
     tx_close: Mutex<Option<oneshot::Sender<()>>>,
+    wallets: Arc<Wallets>,
 }
 
 impl WebsocketSessionEntry {
     pub fn new(
         send_queue_tx: mpsc::Sender<OutgoingMessageEnvelope>,
         tx_close: oneshot::Sender<()>,
+        wallets: Arc<Wallets>,
     ) -> Self {
         Self {
             subscriptions: Mutex::new(HashMap::new()),
             send_queue_tx,
             tx_close: Mutex::new(Some(tx_close)),
+            wallets,
         }
     }
 
@@ -65,7 +68,7 @@ impl WebsocketSessionEntry {
         let subs = self.subscriptions.lock().unwrap();
         if let Some(options) = subs.get(&topic) {
             if let Some(msg) = &envelope.message {
-                options.should_filter(msg)
+                self.should_filter_options(options, msg)
             } else {
                 true
             }
@@ -73,18 +76,27 @@ impl WebsocketSessionEntry {
             true
         }
     }
+
+    ///  Checks if a message should be filtered for default options (no options given).
+    ///  param message: the message to be checked
+    ///  return false - the message should always be broadcasted
+    pub fn should_filter_options(&self, options: &Options, message: &serde_json::Value) -> bool {
+        match options {
+            Options::Confirmation(i) => i.should_filter(message, &self.wallets),
+            Options::Vote(i) => i.should_filter(message),
+            Options::Other => false,
+        }
+    }
 }
 
 pub struct WebsocketSession {
     entry: Arc<WebsocketSessionEntry>,
-    wallets: Arc<Wallets>,
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
     peer_addr: SocketAddr,
 }
 
 impl WebsocketSession {
     pub fn new(
-        wallets: Arc<Wallets>,
         topic_subscriber_count: Arc<[AtomicUsize; 11]>,
         peer_addr: SocketAddr,
         entry: Arc<WebsocketSessionEntry>,
@@ -92,7 +104,6 @@ impl WebsocketSession {
         trace!(remote = %peer_addr, "new websocket session created");
         Self {
             entry,
-            wallets,
             topic_subscriber_count,
             peer_addr,
         }
@@ -176,10 +187,11 @@ impl WebsocketSession {
             let options = match topic {
                 Topic::Confirmation => {
                     if let Some(options_value) = message.options {
-                        Options::Confirmation(ConfirmationOptions::new(
-                            Arc::clone(&self.wallets),
-                            serde_json::from_value::<ConfirmationJsonOptions>(options_value)?,
-                        ))
+                        Options::Confirmation(ConfirmationOptions::new(serde_json::from_value::<
+                            ConfirmationJsonOptions,
+                        >(
+                            options_value
+                        )?))
                     } else {
                         Options::Other
                     }
