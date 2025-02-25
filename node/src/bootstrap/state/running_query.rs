@@ -483,4 +483,167 @@ mod tests {
             }
         }
     }
+
+    mod verify_blocks {
+        use std::collections::VecDeque;
+
+        use rsnano_core::{Block, TestBlockBuilder};
+
+        use super::*;
+
+        #[test]
+        fn happy_path_by_hash() {
+            let block1 = TestBlockBuilder::state().build();
+            let block2 = TestBlockBuilder::state().previous(block1.hash()).build();
+
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByHash,
+                start: block1.hash().into(),
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(block1);
+            blocks.push_back(block2);
+
+            let response = BlocksAckPayload::new(blocks);
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Ok);
+        }
+
+        #[test]
+        fn happy_path_by_account() {
+            let block1 = TestBlockBuilder::state().build();
+            let block2 = TestBlockBuilder::state().previous(block1.hash()).build();
+
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByAccount,
+                start: block1.account_field().unwrap().into(),
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(block1);
+            blocks.push_back(block2);
+
+            let response = BlocksAckPayload::new(blocks);
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Ok);
+        }
+
+        #[test]
+        fn invalid_query_type() {
+            let query = RunningQuery {
+                query_type: QueryType::Frontiers,
+                ..RunningQuery::new_test_instance()
+            };
+
+            let response = BlocksAckPayload::new_test_instance();
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Invalid);
+        }
+
+        #[test]
+        fn response_contains_too_many_blocks() {
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByHash,
+                count: 2,
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(Block::new_test_instance());
+            blocks.push_back(Block::new_test_instance());
+            blocks.push_back(Block::new_test_instance());
+
+            let response = BlocksAckPayload::new(blocks);
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Invalid);
+        }
+
+        #[test]
+        fn nothing_new() {
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByHash,
+                ..RunningQuery::new_test_instance()
+            };
+
+            let blocks = VecDeque::new();
+            let response = BlocksAckPayload::new(blocks);
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::NothingNew);
+        }
+
+        #[test]
+        fn invalid_when_received_block_is_for_another_account() {
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByAccount,
+                account: Account::from(1),
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(Block::new_test_open());
+            let response = BlocksAckPayload::new(blocks);
+
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Invalid);
+        }
+
+        #[test]
+        fn invalid_when_first_received_block_hash_does_match_query() {
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByHash,
+                hash: BlockHash::from(1),
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(Block::new_test_open());
+            let response = BlocksAckPayload::new(blocks);
+
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Invalid);
+        }
+
+        #[test]
+        fn nothing_new_when_response_contains_only_one_block() {
+            let block = Block::new_test_instance();
+
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByHash,
+                start: block.hash().into(),
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(block);
+            let response = BlocksAckPayload::new(blocks);
+
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::NothingNew);
+        }
+
+        #[test]
+        fn invalid_when_response_blocks_are_not_a_chain() {
+            let block1 = TestBlockBuilder::state().build();
+            let block2 = TestBlockBuilder::state().previous(block1.hash()).build();
+            let block3 = TestBlockBuilder::state().previous(1234).build();
+
+            let query = RunningQuery {
+                query_type: QueryType::BlocksByHash,
+                start: block1.hash().into(),
+                ..RunningQuery::new_test_instance()
+            };
+
+            let mut blocks = VecDeque::new();
+            blocks.push_back(block1);
+            blocks.push_back(block2);
+            blocks.push_back(block3);
+            let response = BlocksAckPayload::new(blocks);
+
+            let result = query.verify_blocks(&response);
+            assert_eq!(result, VerifyResult::Invalid);
+        }
+    }
 }
