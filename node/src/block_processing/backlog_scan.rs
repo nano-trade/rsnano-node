@@ -227,14 +227,13 @@ impl BacklogScanThread {
                         .get(&tx, &account)
                         .unwrap_or_default();
 
-                    let info = UnconfirmedInfo {
-                        account,
-                        account_info,
-                        conf_info: conf_info.clone(),
-                    };
-
-                    if conf_info.height < info.account_info.block_count {
-                        unconfirmed.push(info);
+                    let is_unconfirmed = conf_info.height < account_info.block_count;
+                    if is_unconfirmed {
+                        unconfirmed.push(UnconfirmedInfo {
+                            account,
+                            account_info,
+                            conf_info,
+                        });
                     } else {
                         up_to_date.push(account);
                     }
