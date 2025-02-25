@@ -215,11 +215,6 @@ impl ActiveElections {
         self.recently_confirmed.back()
     }
 
-    pub fn insert_recently_confirmed(&self, block: &Block) {
-        self.recently_confirmed
-            .put(block.qualified_root(), block.hash());
-    }
-
     pub fn insert_recently_cemented(&self, status: ElectionStatus) {
         let MaybeSavedBlock::Saved(block) = status.winner.as_ref().unwrap() else {
             return;
