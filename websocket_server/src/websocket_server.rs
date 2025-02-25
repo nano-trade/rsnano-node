@@ -36,6 +36,7 @@ pub fn create_websocket_server(
     let server = Arc::new(WebsocketListener::new(
         endpoint,
         node.wallets.clone(),
+        node.ledger.clone(),
         node.runtime.clone(),
     ));
 

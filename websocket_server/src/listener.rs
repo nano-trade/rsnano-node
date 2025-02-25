@@ -1,6 +1,7 @@
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
 use crate::WebsocketSession;
 use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
+use rsnano_ledger::Ledger;
 use rsnano_node::{consensus::ElectionStatus, wallets::Wallets};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,7 @@ pub struct WebsocketListener {
     endpoint: Mutex<SocketAddr>,
     tx_stop: Mutex<Option<oneshot::Sender<()>>>,
     wallets: Arc<Wallets>,
+    ledger: Arc<Ledger>,
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
     sessions: Arc<Mutex<Vec<Weak<WebsocketSessionEntry>>>>,
     tokio: tokio::runtime::Handle,
@@ -32,11 +34,17 @@ pub struct WebsocketListener {
 }
 
 impl WebsocketListener {
-    pub fn new(endpoint: SocketAddr, wallets: Arc<Wallets>, tokio: tokio::runtime::Handle) -> Self {
+    pub fn new(
+        endpoint: SocketAddr,
+        wallets: Arc<Wallets>,
+        ledger: Arc<Ledger>,
+        tokio: tokio::runtime::Handle,
+    ) -> Self {
         Self {
             endpoint: Mutex::new(endpoint),
             tx_stop: Mutex::new(None),
             wallets,
+            ledger,
             topic_subscriber_count: Arc::new(std::array::from_fn(|_| AtomicUsize::new(0))),
             sessions: Arc::new(Mutex::new(Vec::new())),
             tokio,
@@ -151,17 +159,30 @@ impl WebsocketListener {
                         None
                     };
 
-                    let block_json = if include_block {
+                    let block_json;
+                    let linked_account;
+
+                    if include_block {
                         let mut block_value: serde_json::Value = (**block).clone().into();
                         if !subtype.is_empty() {
                             if let serde_json::Value::Object(o) = &mut block_value {
                                 o.insert("subtype".to_string(), Value::String(subtype));
                             }
                         }
-                        Some(block_value)
+                        block_json = Some(block_value);
+                        if conf_opts.include_linked_account {
+                            let tx = self.ledger.read_txn();
+                            linked_account = match self.ledger.linked_account(&tx, block) {
+                                Some(linked) => Some(linked.encode_account()),
+                                None => Some("0".to_owned()),
+                            }
+                        } else {
+                            linked_account = None;
+                        }
                     } else {
-                        None
-                    };
+                        block_json = None;
+                        linked_account = None;
+                    }
 
                     let sideband = if conf_opts.include_sideband_info {
                         Some(block.sideband().into())
@@ -182,7 +203,7 @@ impl WebsocketListener {
                             election_info,
                             block: block_json,
                             sideband,
-                            linked_account: None,
+                            linked_account,
                         },
                     );
                     drop(subs);
