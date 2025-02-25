@@ -114,15 +114,13 @@ impl WebsocketListener {
     /// Broadcast block confirmation. The content of the message depends on subscription options (such as "include_block")
     pub fn broadcast_confirmation(
         &self,
-        block_a: &SavedBlock,
-        account_a: &Account,
-        amount_a: &Amount,
+        block: &SavedBlock,
+        account: &Account,
+        amount: &Amount,
         subtype: &str,
-        election_status_a: &ElectionStatus,
-        election_votes_a: &Vec<VoteWithWeightInfo>,
+        election_status: &ElectionStatus,
+        election_votes: &Vec<VoteWithWeightInfo>,
     ) {
-        let mut msg_with_block = None;
-        let mut msg_without_block = None;
         let sessions = self.sessions.lock().unwrap();
         for session in sessions.iter() {
             if let Some(session) = session.upgrade() {
@@ -140,35 +138,18 @@ impl WebsocketListener {
 
                     let include_block = conf_opts.include_block;
 
-                    if include_block && msg_with_block.is_none() {
-                        msg_with_block = Some(block_confirmed_message(
-                            block_a,
-                            account_a,
-                            amount_a,
-                            subtype.to_string(),
-                            include_block,
-                            election_status_a,
-                            election_votes_a,
-                            conf_opts,
-                        ));
-                    } else if !include_block && msg_without_block.is_none() {
-                        msg_without_block = Some(block_confirmed_message(
-                            block_a,
-                            account_a,
-                            amount_a,
-                            subtype.to_string(),
-                            include_block,
-                            election_status_a,
-                            election_votes_a,
-                            conf_opts,
-                        ));
-                    }
+                    let message = block_confirmed_message(
+                        block,
+                        account,
+                        amount,
+                        subtype.to_string(),
+                        include_block,
+                        election_status,
+                        election_votes,
+                        conf_opts,
+                    );
                     drop(subs);
-                    let _ = session.blocking_write(if include_block {
-                        msg_with_block.as_ref().unwrap()
-                    } else {
-                        msg_without_block.as_ref().unwrap()
-                    });
+                    let _ = session.blocking_write(&message);
                 }
             }
         }
@@ -284,13 +265,13 @@ fn block_confirmed_message(
     };
 
     let block_json = if include_block {
-        let mut block_node_l: serde_json::Value = (**block).clone().into();
+        let mut block_value: serde_json::Value = (**block).clone().into();
         if !subtype.is_empty() {
-            if let serde_json::Value::Object(o) = &mut block_node_l {
+            if let serde_json::Value::Object(o) = &mut block_value {
                 o.insert("subtype".to_string(), Value::String(subtype));
             }
         }
-        Some(block_node_l)
+        Some(block_value)
     } else {
         None
     };
@@ -311,6 +292,7 @@ fn block_confirmed_message(
             election_info,
             block: block_json,
             sideband,
+            linked_account: None,
         },
     )
 }
@@ -342,6 +324,8 @@ pub struct BlockConfirmed {
     pub block: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sideband: Option<JsonSideband>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_account: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]

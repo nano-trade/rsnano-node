@@ -9,6 +9,7 @@ use tracing::warn;
 pub struct ConfirmationOptions {
     pub include_election_info: bool,
     pub include_election_info_with_votes: bool,
+    pub include_linked_account: bool,
     pub include_sideband_info: bool,
     pub include_block: bool,
     pub has_account_filtering_options: bool,
@@ -23,6 +24,7 @@ pub struct ConfirmationJsonOptions {
     pub include_block: Option<bool>,
     pub include_election_info: Option<bool>,
     pub include_election_info_with_votes: Option<bool>,
+    pub include_linked_account: Option<bool>,
     pub include_sideband_info: Option<bool>,
     pub confirmation_type: Option<String>,
     pub all_local_accounts: Option<bool>,
@@ -36,12 +38,13 @@ impl ConfirmationOptions {
     const TYPE_ALL_ACTIVE: u8 = Self::TYPE_ACTIVE_QUORUM | Self::TYPE_ACTIVE_CONFIRMATION_HEIGHT;
     const TYPE_ALL: u8 = Self::TYPE_ALL_ACTIVE | Self::TYPE_INACTIVE;
 
-    pub fn new(wallets: Arc<Wallets>, options_a: ConfirmationJsonOptions) -> Self {
+    pub fn new(wallets: Arc<Wallets>, options: ConfirmationJsonOptions) -> Self {
         let mut result = Self {
             include_election_info: false,
             include_election_info_with_votes: false,
             include_sideband_info: false,
             include_block: true,
+            include_linked_account: false,
             has_account_filtering_options: false,
             all_local_accounts: false,
             confirmation_types: Self::TYPE_ALL,
@@ -49,50 +52,48 @@ impl ConfirmationOptions {
             wallets,
         };
         // Non-account filtering options
-        result.include_block = options_a.include_block.unwrap_or(true);
-        result.include_election_info = options_a.include_election_info.unwrap_or(false);
+        result.include_block = options.include_block.unwrap_or(true);
+        result.include_election_info = options.include_election_info.unwrap_or(false);
         result.include_election_info_with_votes =
-            options_a.include_election_info_with_votes.unwrap_or(false);
-        result.include_sideband_info = options_a.include_sideband_info.unwrap_or(false);
+            options.include_election_info_with_votes.unwrap_or(false);
+        result.include_linked_account = options.include_linked_account.unwrap_or(false);
+        result.include_sideband_info = options.include_sideband_info.unwrap_or(false);
 
-        let type_l = options_a
+        let conf_type = options
             .confirmation_type
             .unwrap_or_else(|| "all".to_string());
 
-        if type_l.eq_ignore_ascii_case("active") {
+        if conf_type.eq_ignore_ascii_case("active") {
             result.confirmation_types = Self::TYPE_ALL_ACTIVE;
-        } else if type_l.eq_ignore_ascii_case("active_quorum") {
+        } else if conf_type.eq_ignore_ascii_case("active_quorum") {
             result.confirmation_types = Self::TYPE_ACTIVE_QUORUM;
-        } else if type_l.eq_ignore_ascii_case("active_confirmation_height") {
+        } else if conf_type.eq_ignore_ascii_case("active_confirmation_height") {
             result.confirmation_types = Self::TYPE_ACTIVE_CONFIRMATION_HEIGHT;
-        } else if type_l.eq_ignore_ascii_case("inactive") {
+        } else if conf_type.eq_ignore_ascii_case("inactive") {
             result.confirmation_types = Self::TYPE_INACTIVE;
         } else {
             result.confirmation_types = Self::TYPE_ALL;
         }
 
         // Account filtering options
-        let all_local_accounts_l = options_a.all_local_accounts.unwrap_or(false);
-        if all_local_accounts_l {
+        let all_local_accounts = options.all_local_accounts.unwrap_or(false);
+        if all_local_accounts {
             result.all_local_accounts = true;
             result.has_account_filtering_options = true;
             if !result.include_block {
                 warn!("Websocket: Filtering option \"all_local_accounts\" requires that \"include_block\" is set to true to be effective");
             }
         }
-        if let Some(accounts_l) = options_a.accounts {
+        if let Some(accounts) = options.accounts {
             result.has_account_filtering_options = true;
-            for account_l in accounts_l {
-                match Account::decode_account(&account_l) {
+            for account in accounts {
+                match Account::decode_account(&account) {
                     Ok(result_l) => {
                         // Do not insert the given raw data to keep old prefix support
                         result.accounts.insert(result_l.encode_account());
                     }
                     Err(_) => {
-                        warn!(
-                            "Invalid account provided for filtering blocks: {}",
-                            account_l
-                        );
+                        warn!("Invalid account provided for filtering blocks: {}", account);
                     }
                 }
             }
@@ -102,6 +103,12 @@ impl ConfirmationOptions {
             }
         }
         result.check_filter_empty();
+
+        if result.include_linked_account {
+            if !result.include_block {
+                warn!("The option \"include_linked_account\" requires \"include_block\" to be set to true, as linked accounts are only retrieved when block content is included")
+            }
+        }
 
         result
     }
