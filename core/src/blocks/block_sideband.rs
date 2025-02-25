@@ -4,6 +4,8 @@ use crate::{
 };
 use num::FromPrimitive;
 
+use super::Block;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockSideband {
     pub height: u64,
@@ -17,6 +19,18 @@ pub struct BlockSideband {
 }
 
 impl BlockSideband {
+    pub fn new_test_instance_for(block: &Block) -> Self {
+        BlockSideband {
+            height: 2,
+            timestamp: 222222.into(),
+            successor: BlockHash::zero(),
+            account: block.account_field().unwrap(),
+            balance: block.balance_field().unwrap(),
+            details: BlockDetails::new(Epoch::Epoch2, false, false, false),
+            source_epoch: Epoch::Epoch0,
+        }
+    }
+
     pub fn serialized_size(block_type: BlockType) -> usize {
         let mut size = BlockHash::serialized_size(); // successor
 

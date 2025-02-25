@@ -710,6 +710,14 @@ impl Ledger {
         }
     }
 
+    pub fn linked_account(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<Account> {
+        if block.is_send() {
+            Some(block.destination_or_link())
+        } else {
+            None
+        }
+    }
+
     pub fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
             .node("rep_weights", self.rep_weights.container_info())

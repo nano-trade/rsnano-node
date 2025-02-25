@@ -376,12 +376,29 @@ impl SavedBlock {
         let block = Block::new_test_open();
         let sideband = BlockSideband {
             height: 1,
-            timestamp: 222222.into(),
-            successor: BlockHash::zero(),
-            account: block.account_field().unwrap(),
-            balance: block.balance_field().unwrap(),
             details: BlockDetails::new(Epoch::Epoch2, false, true, false),
-            source_epoch: Epoch::Epoch0,
+            ..BlockSideband::new_test_instance_for(&block)
+        };
+        Self::new(block, sideband)
+    }
+
+    pub fn new_test_change_block() -> Self {
+        Self::new_test_block_with_details(BlockDetails::new(Epoch::Epoch2, false, false, false))
+    }
+
+    pub fn new_test_send_block() -> Self {
+        Self::new_test_block_with_details(BlockDetails::new(Epoch::Epoch2, true, false, false))
+    }
+
+    pub fn new_test_receive_block() -> Self {
+        Self::new_test_block_with_details(BlockDetails::new(Epoch::Epoch2, false, true, false))
+    }
+
+    fn new_test_block_with_details(details: BlockDetails) -> Self {
+        let block = Block::new_test_instance();
+        let sideband = BlockSideband {
+            details,
+            ..BlockSideband::new_test_instance_for(&block)
         };
         Self::new(block, sideband)
     }

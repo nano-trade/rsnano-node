@@ -7,8 +7,8 @@ use crate::{
 };
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
-    Account, Amount, BlockHash, PublicKey, QualifiedRoot, Root, SavedAccountChain,
-    TestBlockBuilder, DEV_GENESIS_KEY,
+    Account, Amount, BlockHash, PrivateKey, PublicKey, QualifiedRoot, Root, SavedAccountChain,
+    SavedBlock, TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use std::sync::{atomic::Ordering, Arc};
 
@@ -784,4 +784,39 @@ fn block_priority() {
 
     assert_eq!(prio_amount, receive.balance());
     assert_eq!(prio_time, send.timestamp());
+}
+
+#[test]
+fn linked_account_for_change_block() {
+    let ledger = Ledger::new_null();
+    let tx = ledger.read_txn();
+    let block = SavedBlock::new_test_change_block();
+    assert_eq!(ledger.linked_account(&tx, &block), None);
+}
+
+#[test]
+fn linked_account_for_send_block() {
+    let ledger = Ledger::new_null();
+    let tx = ledger.read_txn();
+    let block = SavedBlock::new_test_send_block();
+    assert_eq!(
+        ledger.linked_account(&tx, &block),
+        Some(block.destination_or_link())
+    );
+}
+
+#[test]
+fn linked_account_for_receive_block() {
+    //let sender = PrivateKey::from(1);
+    //let receiver = PrivateKey::from(2);
+    //let send_block = TestSavedBlockBuilder::new().key(sender).link()
+    //let send_block = SavedBlock::new_test_instance_with_key(55555);
+    //let receive_block = SavedBlock::new_test_receive_block();
+
+    //let ledger = Ledger::new_null_builder().block(&send_block).finish();
+    //let tx = ledger.read_txn();
+    //assert_eq!(
+    //    ledger.linked_account(&tx, &block),
+    //    Some(block.destination_or_link())
+    //);
 }
