@@ -713,6 +713,8 @@ impl Ledger {
     pub fn linked_account(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<Account> {
         if block.is_send() {
             Some(block.destination_or_link())
+        } else if block.is_receive() {
+            self.any().block_account(tx, &block.source_or_link())
         } else {
             None
         }

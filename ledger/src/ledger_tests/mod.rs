@@ -807,16 +807,25 @@ fn linked_account_for_send_block() {
 
 #[test]
 fn linked_account_for_receive_block() {
-    //let sender = PrivateKey::from(1);
-    //let receiver = PrivateKey::from(2);
-    //let send_block = TestSavedBlockBuilder::new().key(sender).link()
-    //let send_block = SavedBlock::new_test_instance_with_key(55555);
-    //let receive_block = SavedBlock::new_test_receive_block();
+    let sender = PrivateKey::from(1);
+    let receiver = PrivateKey::from(2);
 
-    //let ledger = Ledger::new_null_builder().block(&send_block).finish();
-    //let tx = ledger.read_txn();
-    //assert_eq!(
-    //    ledger.linked_account(&tx, &block),
-    //    Some(block.destination_or_link())
-    //);
+    let send_block = TestBlockBuilder::state()
+        .key(&sender)
+        .link(&receiver)
+        .is_send()
+        .build_saved();
+
+    let receive_block = TestBlockBuilder::state()
+        .key(&receiver)
+        .link(send_block.hash())
+        .is_receive()
+        .build_saved();
+
+    let ledger = Ledger::new_null_builder().block(&send_block).finish();
+    let tx = ledger.read_txn();
+    assert_eq!(
+        ledger.linked_account(&tx, &receive_block),
+        Some(sender.account())
+    );
 }

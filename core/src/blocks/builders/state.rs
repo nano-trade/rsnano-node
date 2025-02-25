@@ -16,6 +16,8 @@ pub struct TestStateBlockBuilder {
     work: Option<WorkNonce>,
     signature: Option<Signature>,
     previous_balance: Option<Amount>,
+    is_send: bool,
+    is_receive: bool,
 }
 
 impl TestStateBlockBuilder {
@@ -31,6 +33,8 @@ impl TestStateBlockBuilder {
             previous_balance: None,
             work: None,
             signature: None,
+            is_send: true,
+            is_receive: false,
         }
     }
 
@@ -140,6 +144,18 @@ impl TestStateBlockBuilder {
         self
     }
 
+    pub fn is_send(mut self) -> Self {
+        self.is_send = true;
+        self.is_receive = false;
+        self
+    }
+
+    pub fn is_receive(mut self) -> Self {
+        self.is_send = false;
+        self.is_receive = true;
+        self
+    }
+
     pub fn build(self) -> Block {
         let work = self.work.unwrap_or(42.into());
 
@@ -177,9 +193,9 @@ impl TestStateBlockBuilder {
     }
 
     pub fn build_saved(self) -> SavedBlock {
+        let details = BlockDetails::new(Epoch::Epoch0, self.is_send, self.is_receive, false);
         let block = self.build();
 
-        let details = BlockDetails::new(Epoch::Epoch0, true, false, false);
         let sideband = BlockSideband {
             height: 5,
             timestamp: 6.into(),
@@ -331,5 +347,23 @@ mod tests {
 
         assert_eq!(block1.hash(), block2.hash());
         assert_eq!(block1.work(), block2.work());
+    }
+
+    #[test]
+    fn is_receive() {
+        let block = TestBlockBuilder::state().is_receive().build_saved();
+        assert_eq!(block.is_send(), false);
+        assert_eq!(block.is_open(), false);
+        assert_eq!(block.is_receive(), true);
+        assert_eq!(block.is_epoch(), false);
+    }
+
+    #[test]
+    fn is_send() {
+        let block = TestBlockBuilder::state().is_send().build_saved();
+        assert_eq!(block.is_send(), true);
+        assert_eq!(block.is_open(), false);
+        assert_eq!(block.is_receive(), false);
+        assert_eq!(block.is_epoch(), false);
     }
 }
