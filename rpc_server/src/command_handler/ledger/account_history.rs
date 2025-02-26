@@ -29,6 +29,7 @@ pub(crate) struct AccountHistoryHelper<'a> {
     pub count: u64,
     pub current_block_hash: BlockHash,
     pub account: Account,
+    pub include_linked_account: bool,
 }
 
 impl<'a> AccountHistoryHelper<'a> {
@@ -44,6 +45,7 @@ impl<'a> AccountHistoryHelper<'a> {
             count: args.count.into(),
             current_block_hash: BlockHash::zero(),
             account: Account::zero(),
+            include_linked_account: unwrap_bool_or_false(args.include_linked_account),
         }
     }
 
@@ -294,6 +296,13 @@ impl<'a> AccountHistoryHelper<'a> {
             entry.work = Some(block.work().into());
             entry.signature = Some(block.signature().clone());
         }
+        if self.include_linked_account {
+            let linked_account = match self.ledger.linked_account(tx, block) {
+                Some(a) => a.encode_account(),
+                None => "0".to_owned(),
+            };
+            entry.linked_account = Some(linked_account);
+        }
     }
 
     fn create_response(&self, history: Vec<HistoryEntry>) -> AccountHistoryResponse {
@@ -320,6 +329,7 @@ fn empty_entry() -> HistoryEntry {
         block_type: None,
         amount: None,
         account: None,
+        linked_account: None,
         block_account: None,
         local_timestamp: 0.into(),
         height: 0.into(),

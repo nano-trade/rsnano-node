@@ -32,6 +32,7 @@ impl RpcCommandHandler {
                             count: u64::MAX,
                             current_block_hash: BlockHash::zero(),
                             account: Account::zero(),
+                            include_linked_account: false,
                         };
 
                         let entry = helper.entry_for(&block, &tx);

@@ -12,6 +12,7 @@ impl RpcCommandHandler {
         let receive_hash = unwrap_bool_or_false(args.receive_hash);
         let source = unwrap_bool_or_false(args.source);
         let include_not_found = unwrap_bool_or_false(args.include_not_found);
+        let include_linked_account = unwrap_bool_or_false(args.include_linked_account);
 
         let txn = self.node.ledger.read_txn();
         let mut blocks: HashMap<BlockHash, BlockInfoResponse> = HashMap::new();
@@ -38,6 +39,15 @@ impl RpcCommandHandler {
                     None
                 };
 
+                let linked_account = if include_linked_account {
+                    match self.node.ledger.linked_account(&txn, &block) {
+                        Some(a) => Some(a.encode_account()),
+                        None => Some("0".to_owned()),
+                    }
+                } else {
+                    None
+                };
+
                 let mut block_info = BlockInfoResponse {
                     block_account,
                     amount,
@@ -51,6 +61,7 @@ impl RpcCommandHandler {
                     receivable: None,
                     receive_hash: None,
                     source_account: None,
+                    linked_account,
                 };
 
                 if receivable || receive_hash {

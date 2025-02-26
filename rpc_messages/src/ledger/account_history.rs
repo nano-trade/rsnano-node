@@ -23,6 +23,8 @@ pub struct AccountHistoryArgs {
     pub reverse: Option<RpcBool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_filter: Option<Vec<Account>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_linked_account: Option<RpcBool>,
 }
 
 impl AccountHistoryArgs {
@@ -35,6 +37,7 @@ impl AccountHistoryArgs {
             offset: None,
             reverse: None,
             account_filter: None,
+            include_linked_account: None,
         }
     }
 
@@ -62,6 +65,7 @@ impl AccountHistoryArgsBuilder {
                 offset: None,
                 reverse: None,
                 account_filter: None,
+                include_linked_account: None,
             },
         }
     }
@@ -119,6 +123,8 @@ pub struct HistoryEntry {
     pub subtype: Option<BlockSubTypeDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account: Option<Account>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_account: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_account: Option<Account>,
     #[serde(skip_serializing_if = "Option::is_none")]

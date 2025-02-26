@@ -1,11 +1,20 @@
-use crate::{common::HashRpcMessage, BlockSubTypeDto, RpcBool, RpcCommand, RpcU64};
+use crate::{BlockSubTypeDto, RpcBool, RpcCommand, RpcU64};
 use rsnano_core::{Account, Amount, BlockHash, JsonBlock};
 use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
     pub fn block_info(hash: BlockHash) -> Self {
-        Self::BlockInfo(HashRpcMessage::new(hash))
+        Self::BlockInfo(BlockInfoArgs {
+            hash,
+            include_linked_account: None,
+        })
     }
+}
+
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct BlockInfoArgs {
+    pub hash: BlockHash,
+    pub include_linked_account: Option<RpcBool>,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -27,6 +36,8 @@ pub struct BlockInfoResponse {
     pub receive_hash: Option<BlockHash>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_account: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_account: Option<String>,
 }
 
 #[cfg(test)]
@@ -56,6 +67,7 @@ mod tests {
             receivable: None,
             receive_hash: None,
             source_account: None,
+            linked_account: None,
         };
 
         let serialized = serde_json::to_value(&block_info).unwrap();
@@ -107,7 +119,8 @@ mod tests {
                 "signature": "F26EC6180795C63CFEC46F929DCF6269445208B6C1C837FA64925F1D61C218D4D263F9A73A4B76E3174888C6B842FC1380AC15183FA67E92B2091FEBCCBDB308",
                 "work": "0000000000010F2C"
               },
-            "subtype": "send"
+            "subtype": "send",
+            "linked_account": "0"
         });
 
         let deserialized: BlockInfoResponse = serde_json::from_value(json).unwrap();
@@ -139,5 +152,6 @@ mod tests {
             deserialized.contents,
             Block::new_test_instance().json_representation()
         );
+        assert_eq!(deserialized.linked_account, Some("0".to_owned()));
     }
 }

@@ -86,7 +86,7 @@ pub enum RpcCommand {
     DelegatorsCount(AccountArg),
     BlockHash(BlockHashArgs),
     AccountsBalances(AccountsBalancesArgs),
-    BlockInfo(HashRpcMessage),
+    BlockInfo(BlockInfoArgs),
     Blocks(HashesArgs),
     BlocksInfo(BlocksInfoArgs),
     Chain(ChainArgs),

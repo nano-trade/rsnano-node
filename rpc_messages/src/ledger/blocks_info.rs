@@ -36,6 +36,8 @@ pub struct BlocksInfoArgs {
     pub source: Option<RpcBool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_not_found: Option<RpcBool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_linked_account: Option<RpcBool>,
     pub hashes: Vec<BlockHash>,
 }
 
@@ -46,6 +48,7 @@ impl From<Vec<BlockHash>> for BlocksInfoArgs {
             receive_hash: None,
             source: None,
             include_not_found: None,
+            include_linked_account: None,
             hashes: value,
         }
     }
