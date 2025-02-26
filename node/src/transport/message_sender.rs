@@ -1,9 +1,13 @@
-use crate::stats::{Direction, StatType, Stats};
-use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
+use std::sync::Arc;
+
+use tracing::trace;
+
+use rsnano_core::ProtocolInfo;
+use rsnano_messages::{Message, MessageSerializer};
 use rsnano_network::{Channel, ChannelId, TrafficType};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::sync::Arc;
-use tracing::trace;
+
+use crate::stats::{Direction, StatType, Stats};
 
 pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 

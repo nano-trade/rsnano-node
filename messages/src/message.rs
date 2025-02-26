@@ -1,7 +1,12 @@
-use super::*;
-use bitvec::prelude::BitArray;
-use rsnano_core::utils::{BufferReader, BufferWriter, Serialize};
 use std::fmt::Display;
+
+use bitvec::prelude::BitArray;
+use rsnano_core::{
+    utils::{BufferReader, BufferWriter, Serialize},
+    ProtocolInfo,
+};
+
+use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {

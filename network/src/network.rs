@@ -8,7 +8,7 @@ use crate::{
     NullDataReceiverFactory, NullNetworkObserver,
 };
 use rand::seq::SliceRandom;
-use rsnano_core::{utils::ContainerInfo, Networks, NodeId};
+use rsnano_core::{utils::ContainerInfo, Networks, NodeId, ProtocolInfo};
 use rsnano_nullable_clock::Timestamp;
 use std::{
     cmp::max,
@@ -38,7 +38,7 @@ pub struct NetworkConfig {
     pub max_attempts_per_ip: usize,
 
     pub allow_local_peers: bool,
-    pub min_protocol_version: u8,
+    pub protocol_info: ProtocolInfo,
     pub listening_port: u16,
     pub limiter: BandwidthLimiterConfig,
     pub minimum_fanout: usize,
@@ -66,7 +66,7 @@ impl NetworkConfig {
                 _ => 16,
             },
             max_attempts_per_ip: if is_dev { 128 } else { 1 },
-            min_protocol_version: 0x14, //TODO don't hard code
+            protocol_info: ProtocolInfo::default_for(network),
             listening_port: match network {
                 Networks::NanoDevNetwork => 44000,
                 Networks::NanoBetaNetwork => 54000,
@@ -98,7 +98,7 @@ pub struct Network {
     stopped: bool,
     new_realtime_channel_observers: Vec<Arc<dyn Fn(Arc<Channel>) + Send + Sync>>,
     attempts: AttemptContainer,
-    network_config: NetworkConfig,
+    config: NetworkConfig,
     excluded_peers: PeerExclusion,
     bandwidth_limiter: Arc<BandwidthLimiter>,
     observer: Arc<dyn NetworkObserver>,
@@ -106,7 +106,7 @@ pub struct Network {
 }
 
 impl Network {
-    pub fn new(network_config: NetworkConfig) -> Self {
+    pub fn new(config: NetworkConfig) -> Self {
         Self {
             next_channel_id: 1,
             channels: HashMap::new(),
@@ -114,9 +114,9 @@ impl Network {
             new_realtime_channel_observers: Vec::new(),
             attempts: Default::default(),
             excluded_peers: PeerExclusion::new(),
-            bandwidth_limiter: Arc::new(BandwidthLimiter::new(network_config.limiter.clone())),
+            bandwidth_limiter: Arc::new(BandwidthLimiter::new(config.limiter.clone())),
             observer: Arc::new(NullNetworkObserver::new()),
-            network_config,
+            config,
             data_receiver_factory: Box::new(NullDataReceiverFactory::new()),
         }
     }
@@ -124,6 +124,14 @@ impl Network {
     #[allow(dead_code)]
     pub fn new_test_instance() -> Self {
         Self::new(NetworkConfig::default_for(Networks::NanoDevNetwork))
+    }
+
+    pub fn protocol_info(&self) -> ProtocolInfo {
+        self.config.protocol_info.clone()
+    }
+
+    pub fn bandwidth_limit(&self) -> usize {
+        self.config.limiter.generic_limit
     }
 
     pub fn set_observer(&mut self, observer: Arc<dyn NetworkObserver>) {
@@ -146,8 +154,7 @@ impl Network {
     }
 
     pub fn is_inbound_slot_available(&self) -> bool {
-        self.count_by_direction(ChannelDirection::Inbound)
-            < self.network_config.max_inbound_connections
+        self.count_by_direction(ChannelDirection::Inbound) < self.config.max_inbound_connections
     }
 
     /// Perma bans are used for prohibiting a node to connect to itself.
@@ -232,7 +239,7 @@ impl Network {
             local_addr,
             peer_addr,
             direction,
-            self.network_config.min_protocol_version,
+            self.config.protocol_info.version_min,
             now,
             self.bandwidth_limiter.clone(),
             self.observer.clone(),
@@ -249,11 +256,11 @@ impl Network {
     }
 
     pub fn listening_port(&self) -> u16 {
-        self.network_config.listening_port
+        self.config.listening_port
     }
 
     pub fn set_listening_port(&mut self, port: u16) {
-        self.network_config.listening_port = port
+        self.config.listening_port = port
     }
 
     pub fn get(&self, channel_id: ChannelId) -> Option<&Arc<Channel>> {
@@ -326,7 +333,7 @@ impl Network {
         self.close_idle_channels(now, cutoff_period);
 
         // Check if any tcp channels belonging to old protocol versions which may still be alive due to async operations
-        self.close_old_protocol_versions(self.network_config.min_protocol_version);
+        self.close_old_protocol_versions(self.config.protocol_info.version_min);
 
         // Remove channels with dead underlying sockets
         let purged_channels = self.remove_dead_channels();
@@ -382,7 +389,7 @@ impl Network {
     /// Desired fanout for a given scale
     /// Simulating with sqrt_broadcast_simulate shows we only need to broadcast to sqrt(total_peers) random peers in order to successfully publish to everyone with high probability
     pub fn fanout(&self, scale: f32) -> usize {
-        let fanout = (self.network_config.minimum_fanout as f32).max(self.size_ln());
+        let fanout = (self.config.minimum_fanout as f32).max(self.size_ln());
         (scale * fanout).ceil() as usize
     }
 
@@ -419,7 +426,7 @@ impl Network {
         let mut channel = None;
         for i in self.iter_by_last_bootstrap_attempt() {
             if i.mode() == ChannelMode::Realtime
-                && i.protocol_version() >= self.network_config.min_protocol_version
+                && i.protocol_version() >= self.config.protocol_info.version_min
             {
                 if let Some(peering) = i.peering_addr() {
                     channel = Some(i);
@@ -468,7 +475,7 @@ impl Network {
     fn max_ip_connections(&self, endpoint: &SocketAddrV6) -> bool {
         let count =
             self.count_by_ip(&endpoint.ip()) + self.attempts.count_by_address(&endpoint.ip());
-        count >= self.network_config.max_peers_per_ip as usize
+        count >= self.config.max_peers_per_ip as usize
     }
 
     fn max_subnetwork_connections(&self, peer: &SocketAddrV6) -> bool {
@@ -481,7 +488,7 @@ impl Network {
         let subnet_count =
             self.count_by_subnet(&subnet) + self.attempts.count_by_subnetwork(&subnet);
 
-        subnet_count >= self.network_config.max_peers_per_subnetwork as usize
+        subnet_count >= self.config.max_peers_per_subnetwork as usize
     }
 
     pub fn validate_new_connection(
@@ -500,7 +507,7 @@ impl Network {
         }
 
         let count = self.count_by_ip(peer.ip());
-        if count >= self.network_config.max_peers_per_ip as usize {
+        if count >= self.config.max_peers_per_ip as usize {
             return Err(NetworkError::MaxConnectionsPerIp);
         }
 
@@ -514,7 +521,7 @@ impl Network {
         }
 
         // Don't contact invalid IPs
-        if self.not_a_peer(peer, self.network_config.allow_local_peers) {
+        if self.not_a_peer(peer, self.config.allow_local_peers) {
             return Err(NetworkError::InvalidIp);
         }
 
@@ -533,8 +540,8 @@ impl Network {
 
     fn max_connections(&self, direction: ChannelDirection) -> usize {
         match direction {
-            ChannelDirection::Inbound => self.network_config.max_inbound_connections,
-            ChannelDirection::Outbound => self.network_config.max_outbound_connections,
+            ChannelDirection::Inbound => self.config.max_inbound_connections,
+            ChannelDirection::Outbound => self.config.max_outbound_connections,
         }
     }
 

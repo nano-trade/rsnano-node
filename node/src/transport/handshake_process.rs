@@ -1,9 +1,8 @@
 use super::SynCookies;
 use crate::stats::{DetailType, Direction, StatType, Stats};
-use rsnano_core::{BlockHash, NodeId, PrivateKey};
+use rsnano_core::{BlockHash, NodeId, PrivateKey, ProtocolInfo};
 use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
-    ProtocolInfo,
 };
 use rsnano_network::{Channel, TrafficType};
 use std::{

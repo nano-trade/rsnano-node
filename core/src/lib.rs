@@ -300,6 +300,34 @@ impl Networks {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub struct ProtocolInfo {
+    pub version_using: u8,
+    pub version_max: u8,
+    pub version_min: u8,
+    pub network: Networks,
+}
+
+impl Default for ProtocolInfo {
+    fn default() -> Self {
+        Self {
+            version_using: 0x15,
+            version_max: 0x15,
+            version_min: 0x14,
+            network: Networks::NanoLiveNetwork,
+        }
+    }
+}
+
+impl ProtocolInfo {
+    pub fn default_for(network: Networks) -> Self {
+        Self {
+            network,
+            ..Default::default()
+        }
+    }
+}
+
 impl FromStr for Networks {
     type Err = &'static str;
 

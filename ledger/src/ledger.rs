@@ -21,6 +21,7 @@ use rsnano_store_lmdb::{
     LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction,
     LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, Transaction,
 };
+use rsnano_work::WorkThresholds;
 use std::{
     collections::HashMap,
     net::SocketAddrV6,
@@ -718,6 +719,14 @@ impl Ledger {
         } else {
             None
         }
+    }
+
+    pub fn genesis_hash(&self) -> BlockHash {
+        self.constants.genesis_block.hash()
+    }
+
+    pub fn work_thresholds(&self) -> &WorkThresholds {
+        &self.constants.work
     }
 
     pub fn container_info(&self) -> ContainerInfo {

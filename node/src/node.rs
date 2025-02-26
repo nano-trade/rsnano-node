@@ -348,7 +348,6 @@ impl Node {
 
         let telemetry = Arc::new(Telemetry::new(
             telemetry_config,
-            config.clone(),
             stats.clone(),
             ledger.clone(),
             unchecked.clone(),

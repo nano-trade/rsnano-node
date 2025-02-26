@@ -1,9 +1,10 @@
-use crate::bootstrap::BootstrapConfig;
-use anyhow::Result;
-use rsnano_core::{utils::get_env_or_default, Networks, ACTIVE_NETWORK};
-use rsnano_messages::ProtocolInfo;
-use rsnano_work::WorkThresholds;
 use std::time::Duration;
+
+use anyhow::Result;
+use rsnano_core::{utils::get_env_or_default, Networks, ProtocolInfo, ACTIVE_NETWORK};
+use rsnano_work::WorkThresholds;
+
+use crate::bootstrap::BootstrapConfig;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NetworkConstants {

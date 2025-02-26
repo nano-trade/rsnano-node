@@ -1,10 +1,11 @@
 use std::{collections::VecDeque, io::Read, sync::Arc};
 
+use rsnano_core::ProtocolInfo;
 use rsnano_work::WorkThresholds;
 
 use crate::{
     validate_header, DeserializedMessage, Message, MessageHeader, MessageType, NetworkFilter,
-    ParseMessageError, ProtocolInfo,
+    ParseMessageError,
 };
 
 pub struct MessageDeserializer {

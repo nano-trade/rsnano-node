@@ -1,12 +1,13 @@
+use std::{ops::Deref, sync::Arc, thread::sleep, time::Duration};
+
 use rsnano_core::{
-    Account, Amount, Block, Networks, PrivateKey, Root, StateBlockArgs, Vote, DEV_GENESIS_KEY,
+    Account, Amount, Block, Networks, PrivateKey, ProtocolInfo, Root, StateBlockArgs, Vote,
+    DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
-use rsnano_messages::{
-    ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer, ProtocolInfo,
-};
+use rsnano_messages::{ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer};
 use rsnano_network::{ChannelMode, TrafficType};
 use rsnano_node::{
     config::NodeConfig,
@@ -14,7 +15,7 @@ use rsnano_node::{
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
-use std::{ops::Deref, sync::Arc, thread::sleep, time::Duration};
+
 use test_helpers::{
     assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2,
     assert_timely_msg, establish_tcp, make_fake_channel, start_election, System,

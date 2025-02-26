@@ -1,5 +1,5 @@
 mod telemetry_factory;
-use rsnano_core::{utils::ContainerInfo, PrivateKey};
+use rsnano_core::{utils::ContainerInfo, BlockHash, PrivateKey};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{Message, TelemetryAck, TelemetryData};
 use rsnano_nullable_clock::SteadyClock;
@@ -44,6 +44,7 @@ pub struct Telemetry {
     telemetry_processed_callbacks:
         Mutex<Vec<Box<dyn Fn(&TelemetryData, &SocketAddrV6) + Send + Sync>>>,
     clock: Arc<SteadyClock>,
+    genesis_hash: BlockHash,
 }
 
 impl Telemetry {
@@ -51,7 +52,6 @@ impl Telemetry {
 
     pub(crate) fn new(
         config: TelementryConfig,
-        node_config: NodeConfig,
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
         unchecked: Arc<UncheckedMap>,
@@ -61,12 +61,12 @@ impl Telemetry {
         node_id_key: PrivateKey,
         clock: Arc<SteadyClock>,
     ) -> Self {
+        let genesis_hash = ledger.genesis_hash();
+
         let telemetry_factory = TelemetryFactory {
             ledger,
             network: network.clone(),
             node_id_key,
-            node_config,
-            network_params: network_params.clone(),
             unchecked,
             startup_time: Instant::now(),
         };
@@ -90,6 +90,7 @@ impl Telemetry {
             telemetry_processed_callbacks: Mutex::new(Vec::new()),
             startup_time: Instant::now(),
             clock,
+            genesis_hash,
         }
     }
 
@@ -130,7 +131,7 @@ impl Telemetry {
             return false;
         }
 
-        if data.genesis_block != self.network_params.ledger.genesis_block.hash() {
+        if data.genesis_block != self.genesis_hash {
             self.network
                 .write()
                 .unwrap()
