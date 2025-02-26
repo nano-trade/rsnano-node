@@ -11,8 +11,7 @@ impl RpcCommandHandler {
             .network
             .read()
             .unwrap()
-            .shuffled_channels()
-            .iter()
+            .channels()
             .for_each(|channel| {
                 peers.insert(
                     channel.peer_addr(),

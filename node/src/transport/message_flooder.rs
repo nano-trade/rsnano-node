@@ -87,11 +87,8 @@ impl MessageFlooder {
         }
 
         let buffer = self.message_serializer.serialize(message);
-        let channels;
-        {
-            let network = self.network.read().unwrap();
-            channels = network.random_fanout(scale);
-        }
+        let network = self.network.read().unwrap();
+        let channels = Self::random_fanout(&network, scale);
 
         for channel in channels {
             try_send_serialized_message(&channel, &self.stats, buffer, message, traffic_type);
@@ -100,6 +97,12 @@ impl MessageFlooder {
 
     pub fn track_floods(&self) -> Arc<OutputTrackerMt<FloodEvent>> {
         self.flood_listener.track()
+    }
+
+    fn random_fanout(network: &Network, scale: f32) -> Vec<Arc<Channel>> {
+        let mut channels = network.shuffled_channels();
+        channels.truncate(network.fanout(scale));
+        channels
     }
 }
 

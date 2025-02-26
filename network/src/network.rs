@@ -296,12 +296,6 @@ impl Network {
         })
     }
 
-    pub fn random_fanout(&self, scale: f32) -> Vec<Arc<Channel>> {
-        let mut channels = self.shuffled_channels();
-        channels.truncate(self.fanout(scale));
-        channels
-    }
-
     pub fn shuffled_channels(&self) -> Vec<Arc<Channel>> {
         let mut channels: Vec<_> = self.channels().cloned().collect();
         let mut rng = rand::rng();
