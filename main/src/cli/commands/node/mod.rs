@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use generate_config::GenerateConfigArgs;
 use initialize::InitializeArgs;
-use rsnano_node::{BUILD_INFO, VERSION_STRING};
+use rsnano_node::telemetry::{BUILD_INFO, VERSION_STRING};
 use run_daemon::RunDaemonArgs;
 
 pub(crate) mod generate_config;

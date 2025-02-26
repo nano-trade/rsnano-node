@@ -1,5 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
-use rsnano_node::{BUILD_INFO, VERSION_STRING};
+use rsnano_node::telemetry::{BUILD_INFO, VERSION_STRING};
 use rsnano_rpc_messages::VersionResponse;
 
 impl RpcCommandHandler {

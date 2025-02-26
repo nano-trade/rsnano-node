@@ -3,10 +3,7 @@ use rsnano_core::{Account, Amount, BlockHash, SavedBlock, Vote, VoteCode, VoteWi
 use rsnano_ledger::BlockStatus;
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    block_processing::BlockContext,
-    config::WebsocketConfig,
-    consensus::{ElectionStatus, ElectionStatusType},
-    Node,
+    block_processing::BlockContext, config::WebsocketConfig, consensus::ElectionStatus, Node,
 };
 use rsnano_websocket_messages::{new_block_arrived_message, OutgoingMessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};

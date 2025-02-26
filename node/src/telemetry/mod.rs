@@ -195,13 +195,6 @@ impl Telemetry {
         if data.triggered {
             return true;
         }
-        if self.config.enable_ongoing_requests {
-            return data.last_request.is_none()
-                || data.last_request.unwrap().elapsed()
-                    >= Duration::from_millis(
-                        self.network_params.network.telemetry_request_interval_ms as u64,
-                    );
-        }
 
         return false;
     }
@@ -387,7 +380,6 @@ impl Drop for Telemetry {
 }
 
 pub struct TelementryConfig {
-    pub enable_ongoing_requests: bool, // TODO: No longer used, remove
     pub enable_ongoing_broadcasts: bool,
 }
 

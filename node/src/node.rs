@@ -28,6 +28,7 @@ use crate::{
         adapters::{LedgerStats, NetworkStats},
         Stats,
     },
+    telemetry::{TelementryConfig, TelementryExt, Telemetry, BUILD_INFO, VERSION_STRING},
     tokio_runner::TokioRunner,
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
@@ -41,8 +42,7 @@ use crate::{
     },
     wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
     work::DistributedWorkFactory,
-    NodeCallbacks, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry, BUILD_INFO,
-    VERSION_STRING,
+    NodeCallbacks, OnlineWeightSampler,
 };
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
@@ -307,7 +307,6 @@ impl Node {
         ));
 
         let telemetry_config = TelementryConfig {
-            enable_ongoing_requests: false,
             enable_ongoing_broadcasts: !flags.disable_providing_telemetry_metrics,
         };
 

@@ -4,8 +4,8 @@ use crate::{
     config::NodeConfig,
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     stats::{DetailType, Direction, StatType, Stats},
+    telemetry::Telemetry,
     wallets::Wallets,
-    Telemetry,
 };
 use rsnano_core::VoteSource;
 use rsnano_messages::{Message, NetworkFilter};
