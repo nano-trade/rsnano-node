@@ -35,8 +35,7 @@ impl ChannelWaiter {
 
     fn candidate_channels(network: &Network) -> Vec<ChannelId> {
         network
-            .channels()
-            .filter(|c| !c.should_drop(TrafficType::BootstrapRequests))
+            .available_channels(TrafficType::BootstrapRequests)
             .map(|c| c.channel_id())
             .collect()
     }

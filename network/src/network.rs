@@ -303,8 +303,8 @@ impl Network {
         })
     }
 
-    pub fn shuffled_channels(&self) -> Vec<Arc<Channel>> {
-        let mut channels: Vec<_> = self.channels().cloned().collect();
+    pub fn shuffled_channels(&self, traffic_type: TrafficType) -> Vec<Arc<Channel>> {
+        let mut channels: Vec<_> = self.available_channels(traffic_type).cloned().collect();
         let mut rng = rand::rng();
         channels.shuffle(&mut rng);
         channels

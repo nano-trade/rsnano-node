@@ -280,7 +280,11 @@ impl RepCrawler {
                     AGGRESSIVE_COUNT
                 };
 
-                let mut random_peers = self.network.read().unwrap().shuffled_channels();
+                let mut random_peers = self
+                    .network
+                    .read()
+                    .unwrap()
+                    .shuffled_channels(TrafficType::RepCrawler);
                 random_peers.truncate(required_peer_count);
 
                 guard = self.rep_crawler_impl.lock().unwrap();

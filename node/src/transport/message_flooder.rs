@@ -60,7 +60,7 @@ impl MessageFlooder {
         {
             let network = self.network.read().unwrap();
             fanout = network.fanout(scale);
-            channels = network.shuffled_channels()
+            channels = network.shuffled_channels(traffic_type)
         }
 
         self.remove_no_pr(&mut channels, fanout);
@@ -88,7 +88,7 @@ impl MessageFlooder {
 
         let buffer = self.message_serializer.serialize(message);
         let network = self.network.read().unwrap();
-        let channels = Self::random_fanout(&network, scale);
+        let channels = Self::random_fanout(&network, traffic_type, scale);
 
         for channel in channels {
             try_send_serialized_message(&channel, &self.stats, buffer, message, traffic_type);
@@ -99,8 +99,12 @@ impl MessageFlooder {
         self.flood_listener.track()
     }
 
-    fn random_fanout(network: &Network, scale: f32) -> Vec<Arc<Channel>> {
-        let mut channels = network.shuffled_channels();
+    fn random_fanout(
+        network: &Network,
+        traffic_type: TrafficType,
+        scale: f32,
+    ) -> Vec<Arc<Channel>> {
+        let mut channels = network.shuffled_channels(traffic_type);
         channels.truncate(network.fanout(scale));
         channels
     }
