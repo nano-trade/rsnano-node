@@ -114,7 +114,7 @@ impl OnlineReps {
     }
 
     /// Query if a peer manages a principle representative
-    pub fn is_pr(&self, channel_id: ChannelId) -> bool {
+    pub fn is_principal_rep(&self, channel_id: ChannelId) -> bool {
         let min_weight = self.minimum_principal_weight();
         self.peered_reps
             .accounts_by_channel(channel_id)
@@ -399,15 +399,15 @@ mod tests {
         weights.set(rep_account, Amount::nano(50_000));
 
         // unknown channel
-        assert_eq!(online_reps.is_pr(channel_id), false);
+        assert_eq!(online_reps.is_principal_rep(channel_id), false);
 
         // below PR limit
         online_reps.vote_observed_directly(rep_account, channel, clock.now());
-        assert_eq!(online_reps.is_pr(channel_id), false);
+        assert_eq!(online_reps.is_principal_rep(channel_id), false);
 
         // above PR limit
         weights.set(rep_account, Amount::nano(100_000));
-        assert_eq!(online_reps.is_pr(channel_id), true);
+        assert_eq!(online_reps.is_principal_rep(channel_id), true);
     }
 
     #[test]

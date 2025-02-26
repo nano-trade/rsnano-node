@@ -474,6 +474,7 @@ impl Node {
         let vote_broadcaster = Arc::new(VoteBroadcaster::new(
             vote_processor_queue.clone(),
             message_flooder.clone(),
+            stats.clone(),
         ));
 
         let vote_generators = Arc::new(VoteGenerators::new(

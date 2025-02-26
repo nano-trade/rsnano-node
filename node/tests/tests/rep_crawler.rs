@@ -124,21 +124,21 @@ fn rep_weight() {
         node.online_reps
             .lock()
             .unwrap()
-            .is_pr(channel1.channel_id()),
+            .is_principal_rep(channel1.channel_id()),
         true
     );
     assert_eq!(
         node.online_reps
             .lock()
             .unwrap()
-            .is_pr(channel2.channel_id()),
+            .is_principal_rep(channel2.channel_id()),
         false
     );
     assert_eq!(
         node.online_reps
             .lock()
             .unwrap()
-            .is_pr(channel3.channel_id()),
+            .is_principal_rep(channel3.channel_id()),
         true
     );
 }

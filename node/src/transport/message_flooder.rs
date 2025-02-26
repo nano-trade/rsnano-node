@@ -49,10 +49,13 @@ impl MessageFlooder {
         message: &Message,
         traffic_type: TrafficType,
         scale: f32,
-    ) {
+    ) -> FloodCount {
+        let mut flood_count = FloodCount::default();
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
         for rep in peered_prs {
-            self.sender.try_send(&rep.channel, &message, traffic_type);
+            if self.sender.try_send(&rep.channel, &message, traffic_type) {
+                flood_count.principal_reps += 1;
+            }
         }
 
         let mut channels;
@@ -63,16 +66,20 @@ impl MessageFlooder {
             channels = network.shuffled_channels(traffic_type)
         }
 
-        self.remove_no_pr(&mut channels, fanout);
+        self.remove_principal_reps(&mut channels, fanout);
         for peer in channels {
-            self.sender.try_send(&peer, &message, traffic_type);
+            if self.sender.try_send(&peer, &message, traffic_type) {
+                flood_count.non_principal_reps += 1;
+            }
         }
+
+        flood_count
     }
 
-    fn remove_no_pr(&self, channels: &mut Vec<Arc<Channel>>, count: usize) {
+    fn remove_principal_reps(&self, channels: &mut Vec<Arc<Channel>>, count: usize) {
         {
             let reps = self.online_reps.lock().unwrap();
-            channels.retain(|c| !reps.is_pr(c.channel_id()));
+            channels.retain(|c| !reps.is_principal_rep(c.channel_id()));
         }
         channels.truncate(count);
     }
@@ -143,6 +150,12 @@ impl DerefMut for MessageFlooder {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.sender
     }
+}
+
+#[derive(Default)]
+pub struct FloodCount {
+    pub principal_reps: usize,
+    pub non_principal_reps: usize,
 }
 
 #[cfg(test)]

@@ -403,6 +403,8 @@ pub enum DetailType {
     GeneratorReplies,
     GeneratorRepliesDiscarded,
     GeneratorSpacing,
+    SentPr,
+    SentNonPr,
 
     // hinting
     MissingBlock,
