@@ -3,8 +3,9 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     ledger_set_confirmed::LedgerSetConfirmed,
-    BlockRollbackPerformer, GenerateCacheFlags, LedgerConstants, LedgerSetAny, RepWeightCache,
-    RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
+    BlockRollbackPerformer, GenerateCacheFlags, LedgerConstants, LedgerSetAny,
+    LedgerSetUnconfirmed, RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard,
+    WriteQueue,
 };
 use rsnano_core::{
     block_priority,
@@ -365,6 +366,11 @@ impl Ledger {
         LedgerSetConfirmed::new(&self.store)
     }
 
+    pub fn unconfirmed(&self) -> LedgerSetUnconfirmed {
+        let tx = self.read_txn();
+        LedgerSetUnconfirmed::new(&self.store, tx)
+    }
+
     pub fn pruning_enabled(&self) -> bool {
         self.pruning.load(Ordering::SeqCst)
     }
@@ -375,10 +381,6 @@ impl Ledger {
 
     pub fn bootstrap_weight_max_blocks(&self) -> u64 {
         self.rep_weights.bootstrap_weight_max_blocks()
-    }
-
-    pub fn unconfirmed_exists(&self, tx: &dyn Transaction, hash: &BlockHash) -> bool {
-        self.any().block_exists(tx, hash) && !self.confirmed().block_exists(tx, hash)
     }
 
     pub fn account_receivable(

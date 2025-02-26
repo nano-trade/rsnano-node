@@ -119,16 +119,6 @@ impl LmdbBlockStore {
         })
     }
 
-    pub fn get_no_sideband(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<Block> {
-        match self.block_raw_get(txn, hash) {
-            None => None,
-            Some(bytes) => {
-                let mut stream = BufferReader::new(bytes);
-                Some(Block::deserialize(&mut stream).unwrap())
-            }
-        }
-    }
-
     pub fn del(&self, txn: &mut LmdbWriteTransaction, hash: &BlockHash) {
         txn.delete(self.database, hash.as_bytes(), None).unwrap();
     }

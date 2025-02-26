@@ -73,8 +73,8 @@ impl PeerCacheUpdater {
     }
 
     fn get_old_peers(&self, tx: &LmdbWriteTransaction) -> Vec<SocketAddrV6> {
-        let cutoff = self.time_factory.now() - self.erase_cutoff;
         let now = self.time_factory.now();
+        let cutoff = now - self.erase_cutoff;
         self.ledger
             .store
             .peer
