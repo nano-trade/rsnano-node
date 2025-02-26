@@ -280,7 +280,6 @@ impl RepCrawler {
                     AGGRESSIVE_COUNT
                 };
 
-                /* include channels with ephemeral remote ports */
                 let mut random_peers = self.network.read().unwrap().shuffled_channels();
                 random_peers.truncate(required_peer_count);
 

@@ -5,7 +5,7 @@ use crate::{
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
     Channel, ChannelId, ChannelMode, DataReceiver, DataReceiverFactory, NetworkObserver,
-    NullDataReceiverFactory, NullNetworkObserver,
+    NullDataReceiverFactory, NullNetworkObserver, TrafficType,
 };
 use rand::seq::SliceRandom;
 use rsnano_core::{utils::ContainerInfo, Networks, NodeId, ProtocolInfo};
@@ -314,6 +314,14 @@ impl Network {
         let mut result: Vec<_> = self.channels().cloned().collect();
         result.sort_by_key(|i| i.peer_addr());
         result
+    }
+
+    pub fn available_channels(
+        &self,
+        traffic_type: TrafficType,
+    ) -> impl Iterator<Item = &Arc<Channel>> {
+        self.channels()
+            .filter(move |c| !c.should_drop(traffic_type))
     }
 
     pub fn channels(&self) -> impl Iterator<Item = &Arc<Channel>> {
@@ -705,6 +713,8 @@ pub struct ChannelsInfo {
 
 #[cfg(test)]
 mod tests {
+    use crate::TrafficType;
+
     use super::*;
     use rsnano_core::utils::{NULL_ENDPOINT, TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3};
 
@@ -795,6 +805,26 @@ mod tests {
         assert!(endpoints.contains(&TEST_ENDPOINT_1));
         assert!(endpoints.contains(&TEST_ENDPOINT_2));
         assert!(endpoints.contains(&TEST_ENDPOINT_3));
+    }
+
+    #[test]
+    fn available_channels() {
+        let mut network = Network::new_test_instance();
+        add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_1);
+        add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_2);
+        add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_3);
+
+        let full_channel = network
+            .find_realtime_channel_by_remote_addr(&TEST_ENDPOINT_2)
+            .unwrap();
+
+        let traffic_type = TrafficType::Telemetry;
+        for _ in 0..Channel::MAX_QUEUE_SIZE {
+            full_channel.send(&[1], traffic_type);
+        }
+
+        assert_eq!(network.available_channels(traffic_type).count(), 2);
+        assert_eq!(network.available_channels(TrafficType::Vote).count(), 3);
     }
 
     fn add_realtime_channel_with_peering_addr(network: &mut Network, peering_addr: SocketAddrV6) {
