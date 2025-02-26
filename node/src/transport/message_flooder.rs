@@ -84,7 +84,7 @@ impl MessageFlooder {
         channels.truncate(count);
     }
 
-    pub fn flood(&mut self, message: &Message, traffic_type: TrafficType, scale: f32) {
+    pub fn flood(&mut self, message: &Message, traffic_type: TrafficType, scale: f32) -> usize {
         if self.flood_listener.is_tracked() {
             self.flood_listener.emit(FloodEvent {
                 message: message.clone(),
@@ -96,10 +96,14 @@ impl MessageFlooder {
         let buffer = self.message_serializer.serialize(message);
         let network = self.network.read().unwrap();
         let channels = Self::random_fanout(&network, traffic_type, scale);
+        let mut sent = 0;
 
         for channel in channels {
-            try_send_serialized_message(&channel, &self.stats, buffer, message, traffic_type);
+            if try_send_serialized_message(&channel, &self.stats, buffer, message, traffic_type) {
+                sent += 1;
+            }
         }
+        sent
     }
 
     pub fn track_floods(&self) -> Arc<OutputTrackerMt<FloodEvent>> {

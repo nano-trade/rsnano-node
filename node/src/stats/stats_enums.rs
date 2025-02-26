@@ -149,6 +149,7 @@ pub enum DetailType {
     Sync,
     Requeued,
     Evicted,
+    Sent,
 
     // processing queue
     Queue,

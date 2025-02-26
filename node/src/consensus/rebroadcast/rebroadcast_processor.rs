@@ -55,8 +55,12 @@ impl RebroadcastProcessor {
         self.update_stats(vote);
         let message = self.create_ack_message(vote);
 
-        self.message_flooder
+        let sent = self
+            .message_flooder
             .flood(&message, TrafficType::VoteRebroadcast, 0.5);
+
+        self.stats
+            .add(StatType::VoteRebroadcaster, DetailType::Sent, sent as u64);
     }
 
     fn create_ack_message(&self, vote: &Vote) -> Message {
