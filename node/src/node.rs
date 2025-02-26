@@ -28,7 +28,9 @@ use crate::{
         adapters::{LedgerStats, NetworkStats},
         Stats,
     },
-    telemetry::{TelementryConfig, TelementryExt, Telemetry, BUILD_INFO, VERSION_STRING},
+    telemetry::{
+        TelementryConfig, TelementryExt, Telemetry, TelemetryFactory, BUILD_INFO, VERSION_STRING,
+    },
     tokio_runner::TokioRunner,
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
@@ -69,7 +71,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tracing::{debug, error, info, warn};
 
@@ -346,15 +348,22 @@ impl Node {
             message_sender.clone(),
         );
 
+        let telemetry_factory = TelemetryFactory {
+            ledger: ledger.clone(),
+            network: network.clone(),
+            node_id_key: node_id.clone(),
+            unchecked: unchecked.clone(),
+            startup_time: Instant::now(),
+        };
+
         let telemetry = Arc::new(Telemetry::new(
+            telemetry_factory,
             telemetry_config,
             stats.clone(),
-            ledger.clone(),
-            unchecked.clone(),
+            ledger.genesis_hash(),
             network_params.clone(),
             network.clone(),
             message_sender.clone(),
-            node_id.clone(),
             steady_clock.clone(),
         ));
 

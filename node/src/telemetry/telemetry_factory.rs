@@ -13,7 +13,7 @@ use crate::block_processing::UncheckedMap;
 use super::{MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION, PRE_RELEASE_VERSION};
 
 /// Creates the telemetry data for this node
-pub(super) struct TelemetryFactory {
+pub struct TelemetryFactory {
     pub ledger: Arc<Ledger>,
     pub network: Arc<RwLock<Network>>,
     pub node_id_key: PrivateKey,

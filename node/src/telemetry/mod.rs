@@ -1,8 +1,7 @@
 mod telemetry_factory;
-use rsnano_core::{utils::ContainerInfo, BlockHash, PrivateKey};
-use rsnano_ledger::Ledger;
-use rsnano_messages::{Message, TelemetryAck, TelemetryData};
-use rsnano_nullable_clock::SteadyClock;
+
+pub use telemetry_factory::TelemetryFactory;
+
 use std::{
     cmp::min,
     collections::{HashMap, VecDeque},
@@ -12,11 +11,13 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
-use telemetry_factory::TelemetryFactory;
+
+use rsnano_core::{utils::ContainerInfo, BlockHash};
+use rsnano_messages::{Message, TelemetryAck, TelemetryData};
+use rsnano_nullable_clock::SteadyClock;
 
 use crate::{
-    block_processing::UncheckedMap,
-    config::{NetworkParams, NodeConfig},
+    config::NetworkParams,
     stats::{DetailType, StatType, Stats},
     transport::MessageSender,
 };
@@ -51,26 +52,15 @@ impl Telemetry {
     const MAX_SIZE: usize = 1024;
 
     pub(crate) fn new(
+        telemetry_factory: TelemetryFactory,
         config: TelementryConfig,
         stats: Arc<Stats>,
-        ledger: Arc<Ledger>,
-        unchecked: Arc<UncheckedMap>,
+        genesis_hash: BlockHash,
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
         message_sender: MessageSender,
-        node_id_key: PrivateKey,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        let genesis_hash = ledger.genesis_hash();
-
-        let telemetry_factory = TelemetryFactory {
-            ledger,
-            network: network.clone(),
-            node_id_key,
-            unchecked,
-            startup_time: Instant::now(),
-        };
-
         Self {
             telemetry_factory,
             config,
