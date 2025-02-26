@@ -1,6 +1,7 @@
-use rsnano_core::{utils::ContainerInfo, PrivateKey, Signature};
+mod telemetry_factory;
+use rsnano_core::{utils::ContainerInfo, PrivateKey};
 use rsnano_ledger::Ledger;
-use rsnano_messages::{Message, TelemetryAck, TelemetryData, TelemetryMaker};
+use rsnano_messages::{Message, TelemetryAck, TelemetryData};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     cmp::min,
@@ -9,8 +10,9 @@ use std::{
     net::SocketAddrV6,
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
+use telemetry_factory::TelemetryFactory;
 
 use crate::{
     block_processing::UncheckedMap,
@@ -18,9 +20,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
     transport::MessageSender,
 };
-use rsnano_network::{
-    Channel, ChannelId, ChannelMode, DeadChannelCleanupStep, Network, TrafficType,
-};
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, Network, TrafficType};
 
 /**
  * This class periodically broadcasts and requests telemetry from peers.
@@ -31,18 +31,15 @@ use rsnano_network::{
  *
  */
 pub struct Telemetry {
+    telemetry_factory: TelemetryFactory,
     config: TelementryConfig,
-    node_config: NodeConfig,
     stats: Arc<Stats>,
-    ledger: Arc<Ledger>,
-    unchecked: Arc<UncheckedMap>,
     thread: Mutex<Option<JoinHandle<()>>>,
     condition: Condvar,
     mutex: Mutex<TelemetryImpl>,
     network_params: NetworkParams,
     network: Arc<RwLock<Network>>,
     message_sender: Mutex<MessageSender>,
-    node_id: PrivateKey,
     pub startup_time: Instant,
     telemetry_processed_callbacks:
         Mutex<Vec<Box<dyn Fn(&TelemetryData, &SocketAddrV6) + Send + Sync>>>,
@@ -61,15 +58,23 @@ impl Telemetry {
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
         message_sender: MessageSender,
-        node_id: PrivateKey,
+        node_id_key: PrivateKey,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        Self {
-            config,
-            node_config,
-            stats,
+        let telemetry_factory = TelemetryFactory {
             ledger,
+            network: network.clone(),
+            node_id_key,
+            node_config,
+            network_params: network_params.clone(),
             unchecked,
+            startup_time: Instant::now(),
+        };
+
+        Self {
+            telemetry_factory,
+            config,
+            stats,
             network_params,
             network,
             message_sender: Mutex::new(message_sender),
@@ -83,7 +88,6 @@ impl Telemetry {
                 last_request: None,
             }),
             telemetry_processed_callbacks: Mutex::new(Vec::new()),
-            node_id,
             startup_time: Instant::now(),
             clock,
         }
@@ -332,36 +336,7 @@ impl Telemetry {
     }
 
     pub fn local_telemetry(&self) -> TelemetryData {
-        let peer_count = self
-            .network
-            .read()
-            .unwrap()
-            .count_by_mode(ChannelMode::Realtime) as u32;
-
-        let mut telemetry_data = TelemetryData {
-            node_id: self.node_id.public_key().into(),
-            block_count: self.ledger.block_count(),
-            cemented_count: self.ledger.cemented_count(),
-            bandwidth_cap: self.node_config.bandwidth_limit as u64,
-            protocol_version: self.network_params.network.protocol_version,
-            uptime: self.startup_time.elapsed().as_secs(),
-            unchecked_count: self.unchecked.len() as u64,
-            genesis_block: self.network_params.ledger.genesis_block.hash(),
-            peer_count,
-            account_count: self.ledger.account_count(),
-            major_version: MAJOR_VERSION,
-            minor_version: MINOR_VERSION,
-            patch_version: PATCH_VERSION,
-            pre_release_version: PRE_RELEASE_VERSION,
-            maker: TelemetryMaker::RsNano as u8,
-            timestamp: SystemTime::now(),
-            active_difficulty: self.network_params.work.threshold_base(),
-            unknown_data: Vec::new(),
-            signature: Signature::default(),
-        };
-        // Make sure this is the final operation!
-        telemetry_data.sign(&self.node_id).unwrap();
-        telemetry_data
+        self.telemetry_factory.get_telemetry()
     }
 }
 
