@@ -29,14 +29,13 @@ pub fn activate_one() {
 
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
-    assert_timely2(|| node.vote_router.active(&block.hash()));
-    assert_eq!(
-        node.active
-            .election(&block.qualified_root())
-            .unwrap()
-            .behavior(),
-        ElectionBehavior::Optimistic
-    );
+    let mut election = None;
+    assert_timely2(|| {
+        election = node.active.election(&block.qualified_root());
+        election.is_some()
+    });
+
+    assert_eq!(election.unwrap().behavior(), ElectionBehavior::Optimistic);
 }
 
 /*
@@ -63,15 +62,13 @@ pub fn activate_one_zero_conf() {
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
 
-    assert_timely2(|| node.vote_router.active(&block.hash()));
+    let mut election = None;
+    assert_timely2(|| {
+        election = node.active.election(&block.qualified_root());
+        election.is_some()
+    });
 
-    assert_eq!(
-        node.active
-            .election(&block.qualified_root())
-            .unwrap()
-            .behavior(),
-        ElectionBehavior::Optimistic
-    );
+    assert_eq!(election.unwrap().behavior(), ElectionBehavior::Optimistic);
 }
 
 /*
@@ -98,13 +95,11 @@ pub fn activate_many() {
     assert_timely(Duration::from_secs(20), || {
         chains.iter().all(|(_, blocks)| {
             let block = blocks.last().unwrap();
-            node.vote_router.active(&block.hash())
-                && node
-                    .active
-                    .election(&block.qualified_root())
-                    .unwrap()
-                    .behavior()
-                    == ElectionBehavior::Optimistic
+            let Some(election) = node.active.election(&block.qualified_root()) else {
+                return false;
+            };
+
+            election.behavior() == ElectionBehavior::Optimistic
         })
     });
 }
