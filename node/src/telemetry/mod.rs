@@ -72,10 +72,8 @@ impl Telemetry {
             condition: Condvar::new(),
             mutex: Mutex::new(TelemetryImpl {
                 stopped: false,
-                triggered: false,
                 telemetries: Default::default(),
                 last_broadcast: None,
-                last_request: None,
             }),
             telemetry_processed_callbacks: Mutex::new(Vec::new()),
             startup_time: Instant::now(),
@@ -176,22 +174,8 @@ impl Telemetry {
         self.stats.inc(StatType::Telemetry, DetailType::Process);
     }
 
-    /// Trigger manual telemetry request to all peers
-    pub fn trigger(&self) {
-        self.mutex.lock().unwrap().triggered = true;
-        self.condition.notify_all();
-    }
-
     pub fn len(&self) -> usize {
         self.mutex.lock().unwrap().telemetries.len()
-    }
-
-    fn request_predicate(&self, data: &TelemetryImpl) -> bool {
-        if data.triggered {
-            return true;
-        }
-
-        return false;
     }
 
     fn broadcast_predicate(&self, data: &TelemetryImpl) -> bool {
@@ -212,16 +196,6 @@ impl Telemetry {
             self.stats.inc(StatType::Telemetry, DetailType::Loop);
             self.cleanup(&mut guard);
 
-            if self.request_predicate(&guard) {
-                guard.triggered = false;
-                drop(guard);
-
-                self.run_requests();
-
-                guard = self.mutex.lock().unwrap();
-                guard.last_request = Some(Instant::now());
-            }
-
             if self.broadcast_predicate(&guard) {
                 drop(guard);
 
@@ -241,22 +215,6 @@ impl Telemetry {
                 .unwrap()
                 .0
         }
-    }
-
-    fn run_requests(&self) {
-        let channels = self.network.read().unwrap().shuffled_channels();
-        for channel in channels {
-            self.request(&channel);
-        }
-    }
-
-    fn request(&self, channel: &Channel) {
-        self.stats.inc(StatType::Telemetry, DetailType::Request);
-        self.message_sender.lock().unwrap().try_send(
-            channel,
-            &Message::TelemetryReq,
-            TrafficType::Telemetry,
-        );
     }
 
     fn run_broadcasts(&self) {
@@ -355,9 +313,7 @@ pub trait TelementryExt {
 
 struct TelemetryImpl {
     stopped: bool,
-    triggered: bool,
     telemetries: OrderedTelemetries,
-    last_request: Option<Instant>,
     last_broadcast: Option<Instant>,
 }
 

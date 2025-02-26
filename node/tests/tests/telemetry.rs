@@ -1,8 +1,5 @@
 use rsnano_messages::{Message, TelemetryAck};
-use rsnano_node::{
-    config::NodeFlags,
-    stats::{DetailType, Direction, StatType},
-};
+use rsnano_node::stats::{DetailType, Direction, StatType};
 use std::{net::SocketAddrV6, thread::sleep, time::Duration};
 use test_helpers::{
     assert_always_eq, assert_never, assert_timely, assert_timely2, make_fake_channel, System,
@@ -129,53 +126,6 @@ fn disconnected() {
 }
 
 #[test]
-fn disable_metrics() {
-    let mut system = System::new();
-    let node_client = system.make_node();
-    let node_server = system
-        .build_node()
-        .flags(NodeFlags {
-            disable_providing_telemetry_metrics: true,
-            ..Default::default()
-        })
-        .finish();
-
-    // Try and request metrics from a node which is turned off but a channel is not closed yet
-    let channel = node_client
-        .network
-        .read()
-        .unwrap()
-        .find_node_id(&node_server.get_node_id())
-        .unwrap()
-        .clone();
-
-    node_client.telemetry.trigger();
-
-    assert_never(Duration::from_secs(1), || {
-        node_client
-            .telemetry
-            .get_telemetry(&channel.peer_addr())
-            .is_some()
-    });
-
-    // It should still be able to receive metrics though
-    let channel1 = node_server
-        .network
-        .read()
-        .unwrap()
-        .find_node_id(&node_client.get_node_id())
-        .unwrap()
-        .clone();
-
-    assert_timely(Duration::from_secs(5), || {
-        node_server
-            .telemetry
-            .get_telemetry(&channel1.peer_addr())
-            .is_some()
-    });
-}
-
-#[test]
 fn mismatched_node_id() {
     let mut system = System::new();
     let node = system.make_node();
@@ -214,15 +164,9 @@ fn no_peers() {
 #[test]
 fn invalid_endpoint() {
     let mut system = System::new();
-    let node_client = system.make_node();
-    let _node_server = system.make_node();
-    node_client.telemetry.trigger();
-
-    // Give some time for nodes to exchange telemetry
-    sleep(Duration::from_secs(1));
-
+    let node = system.make_node();
     let endpoint: SocketAddrV6 = "[::ffff:240.0.0.0]:12345".parse().unwrap();
-    assert!(node_client.telemetry.get_telemetry(&endpoint).is_none());
+    assert!(node.telemetry.get_telemetry(&endpoint).is_none());
 }
 
 #[test]
