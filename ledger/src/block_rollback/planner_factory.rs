@@ -4,11 +4,9 @@ use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
     PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
-use rsnano_store_lmdb::Transaction;
 
 pub(crate) struct RollbackPlannerFactory<'a> {
     ledger: &'a Ledger,
-    txn: &'a dyn Transaction,
     any: &'a dyn AnySet2,
     head_block: &'a SavedBlock,
 }
@@ -16,13 +14,11 @@ pub(crate) struct RollbackPlannerFactory<'a> {
 impl<'a> RollbackPlannerFactory<'a> {
     pub(crate) fn new(
         ledger: &'a Ledger,
-        txn: &'a dyn Transaction,
         any: &'a dyn AnySet2,
         head_block: &'a SavedBlock,
     ) -> Self {
         Self {
             ledger,
-            txn,
             any,
             head_block,
         }
@@ -99,7 +95,7 @@ impl<'a> RollbackPlannerFactory<'a> {
     fn get_previous_representative(&self) -> anyhow::Result<Option<PublicKey>> {
         let previous = self.head_block.previous();
         let rep_block_hash = if !previous.is_zero() {
-            self.ledger.representative_block_hash(self.txn, &previous)
+            self.any.representative_block_hash(&previous)
         } else {
             BlockHash::zero()
         };

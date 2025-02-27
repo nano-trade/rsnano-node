@@ -3,7 +3,7 @@ use std::time::Instant;
 use rsnano_core::{AccountInfo, BlockHash, SavedBlock};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
-use crate::{BorrowingAnySet, Ledger};
+use crate::{AnySet2, BorrowingAnySet, Ledger, LedgerSet};
 
 use super::{
     instructions_executor::RollbackInstructionsExecutor, planner_factory::RollbackPlannerFactory,
@@ -12,6 +12,7 @@ use super::{
 
 pub(crate) struct BlockRollbackPerformer<'a> {
     ledger: &'a Ledger,
+    started: Instant,
     pub txn: &'a mut LmdbWriteTransaction,
     pub rolled_back: Vec<SavedBlock>,
 }
@@ -20,6 +21,7 @@ impl<'a> BlockRollbackPerformer<'a> {
     pub(crate) fn new(ledger: &'a Ledger, txn: &'a mut LmdbWriteTransaction) -> Self {
         Self {
             ledger,
+            started: Instant::now(),
             txn,
             rolled_back: Vec::new(),
         }
@@ -32,7 +34,7 @@ impl<'a> BlockRollbackPerformer<'a> {
 
     fn roll_back_block_and_successors(&mut self, block_hash: &BlockHash) -> anyhow::Result<()> {
         let block = self.load_block(block_hash)?;
-        while self.block_exists(block_hash) {
+        while self.any().block_exists(block_hash) {
             let head_block = self.load_account_head(&block)?;
             self.roll_back_head_block(head_block)?;
         }
@@ -40,19 +42,21 @@ impl<'a> BlockRollbackPerformer<'a> {
     }
 
     fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), anyhow::Error> {
-        let started = Instant::now();
-        let any = BorrowingAnySet {
-            constants: &self.ledger.constants,
-            store: &self.ledger.store,
-            tx: self.txn,
-            started: &started,
-        };
-
-        let planner = RollbackPlannerFactory::new(self.ledger, self.txn, &any, &head_block)
-            .create_planner()?;
+        let any = self.any();
+        let planner =
+            RollbackPlannerFactory::new(self.ledger, &any, &head_block).create_planner()?;
         let step = planner.roll_back_head_block()?;
         self.execute(step, head_block)?;
         Ok(())
+    }
+
+    fn any(&self) -> BorrowingAnySet {
+        BorrowingAnySet {
+            constants: &self.ledger.constants,
+            store: &self.ledger.store,
+            tx: self.txn,
+            started: &self.started,
+        }
     }
 
     fn execute(&mut self, step: RollbackStep, head_block: SavedBlock) -> Result<(), anyhow::Error> {
@@ -68,25 +72,18 @@ impl<'a> BlockRollbackPerformer<'a> {
         }
     }
 
-    fn block_exists(&self, block_hash: &BlockHash) -> bool {
-        self.ledger.any().block_exists(self.txn, block_hash)
-    }
-
     fn load_account_head(&self, block: &SavedBlock) -> anyhow::Result<SavedBlock> {
         let account_info = self.get_account_info(block);
         self.load_block(&account_info.head)
     }
 
     fn get_account_info(&self, block: &SavedBlock) -> AccountInfo {
-        self.ledger
-            .account_info(self.txn, &block.account())
-            .unwrap()
+        self.any().get_account(&block.account()).unwrap()
     }
 
     fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {
-        self.ledger
-            .any()
-            .get_block(self.txn, block_hash)
+        self.any()
+            .get_block(block_hash)
             .ok_or_else(|| anyhow!("block not found"))
     }
 }
