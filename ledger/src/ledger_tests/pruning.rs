@@ -2,7 +2,7 @@ use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
 
 use crate::{
     ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext,
-    test_helpers::upgrade_genesis_to_epoch_v1, DEV_GENESIS_HASH,
+    test_helpers::upgrade_genesis_to_epoch_v1, AnySet2, LedgerSet, DEV_GENESIS_HASH,
 };
 
 #[test]
@@ -31,21 +31,18 @@ fn pruning_action() {
     // Prune...
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &DEV_GENESIS_HASH, 1), 0);
-    assert!(ctx
-        .ledger
-        .any()
-        .get_pending(&txn, &PendingKey::new(genesis.account(), send1.hash()))
+    txn.commit();
+    let mut any = ctx.ledger.any2();
+    assert!(any
+        .get_pending(&PendingKey::new(genesis.account(), send1.hash()))
         .is_some());
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send1.hash()), false);
+    assert_eq!(any.block_exists(&send1.hash()), false);
+    assert!(any.block_exists_or_pruned(&send1.hash()),);
+    assert!(any.block_exists(&DEV_GENESIS_HASH));
+    assert!(any.block_exists(&send2.hash()));
 
-    assert!(ctx.ledger.any().block_exists_or_pruned(&txn, &send1.hash()),);
-
-    assert!(ctx.ledger.store.pruned.exists(&txn, &send1.hash()),);
-
-    assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
-    assert!(ctx.ledger.store.block.exists(&txn, &send2.hash()));
-
+    txn = ctx.ledger.rw_txn();
     // Receiving pruned block
     let mut receive1 = TestBlockBuilder::state()
         .account(genesis.account())
@@ -55,38 +52,31 @@ fn pruning_action() {
         .key(&genesis.key)
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
+    txn.commit();
 
-    assert!(ctx.ledger.store.block.exists(&txn, &receive1.hash()));
+    any = ctx.ledger.any2();
+    assert!(any.block_exists(&receive1.hash()));
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(genesis.account(), send1.hash())),
+        any.get_pending(&PendingKey::new(genesis.account(), send1.hash())),
         None
     );
-    let receive1_stored = ctx.ledger.any().get_block(&txn, &receive1.hash()).unwrap();
+    let receive1_stored = any.get_block(&receive1.hash()).unwrap();
     assert_eq!(&receive1, &*receive1_stored);
     assert_eq!(receive1_stored.height(), 4);
     assert!(receive1_stored.is_receive());
 
     // Middle block pruning
-    assert!(ctx.ledger.store.block.exists(&txn, &send2.hash()));
+    assert!(any.block_exists(&send2.hash()));
+    txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send2.hash(), 1), 1);
-    assert!(ctx.ledger.store.pruned.exists(&txn, &send2.hash()));
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send2.hash()), false);
-    assert_eq!(
-        ctx.ledger.store.account.count(&txn),
-        ctx.ledger.account_count()
-    );
-    assert_eq!(
-        ctx.ledger.store.pruned.count(&txn),
-        ctx.ledger.pruned_count()
-    );
-    assert_eq!(
-        ctx.ledger.store.block.count(&txn),
-        ctx.ledger.block_count() - ctx.ledger.pruned_count()
-    );
+    txn.commit();
+
+    any = ctx.ledger.any2();
+    assert_eq!(any.block_exists(&send2.hash()), false);
+    assert!(any.block_exists_or_pruned(&send2.hash()));
 }
+
 #[test]
 fn pruning_large_chain() {
     let ctx = LedgerContext::empty();
@@ -171,22 +161,24 @@ fn pruning_source_rollback() {
 
     // Rollback receive block
     ctx.ledger.rollback(&mut txn, &receive1.hash()).unwrap();
-    let info2 = ctx
-        .ledger
-        .any()
-        .get_pending(&txn, &PendingKey::new(genesis.account(), send1.hash()))
+    txn.commit();
+
+    let any = ctx.ledger.any2();
+    let info2 = any
+        .get_pending(&PendingKey::new(genesis.account(), send1.hash()))
         .unwrap();
     assert_ne!(info2.source, genesis.account()); // Tradeoff to not store pruned blocks accounts
     assert_eq!(info2.amount, Amount::raw(100));
     assert_eq!(info2.epoch, Epoch::Epoch1);
 
+    txn = ctx.ledger.rw_txn();
     // Process receive block again
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
+    txn.commit();
 
+    let any = ctx.ledger.any2();
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(genesis.account(), send1.hash())),
+        any.get_pending(&PendingKey::new(genesis.account(), send1.hash())),
         None
     );
     assert_eq!(ctx.ledger.pruned_count(), 2);
@@ -236,29 +228,31 @@ fn pruning_source_rollback_legacy() {
 
     // Rollback receive block
     ctx.ledger.rollback(&mut txn, &receive1.hash()).unwrap();
+    txn.commit();
 
-    let info3 = ctx
-        .ledger
-        .any()
-        .get_pending(&txn, &PendingKey::new(genesis.account(), send1.hash()))
+    let mut any = ctx.ledger.any2();
+    let info3 = any
+        .get_pending(&PendingKey::new(genesis.account(), send1.hash()))
         .unwrap();
     assert_ne!(info3.source, genesis.account()); // Tradeoff to not store pruned blocks accounts
     assert_eq!(info3.amount, Amount::raw(100));
     assert_eq!(info3.epoch, Epoch::Epoch0);
 
+    txn = ctx.ledger.rw_txn();
     // Process receive block again
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
+    txn.commit();
 
+    any = ctx.ledger.any2();
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(genesis.account(), send1.hash())),
+        any.get_pending(&PendingKey::new(genesis.account(), send1.hash())),
         None
     );
     assert_eq!(ctx.ledger.pruned_count(), 2);
     assert_eq!(ctx.ledger.block_count(), 5);
 
     // Receiving pruned block (open)
+    txn = ctx.ledger.rw_txn();
     let mut open1 = TestBlockBuilder::legacy_open()
         .source(send2.hash())
         .sign(&destination.key)
@@ -267,22 +261,24 @@ fn pruning_source_rollback_legacy() {
 
     // Rollback open block
     ctx.ledger.rollback(&mut txn, &open1.hash()).unwrap();
+    txn.commit();
 
-    let info4 = ctx
-        .ledger
-        .any()
-        .get_pending(&txn, &PendingKey::new(destination.account(), send2.hash()))
+    any = ctx.ledger.any2();
+    let info4 = any
+        .get_pending(&PendingKey::new(destination.account(), send2.hash()))
         .unwrap();
     assert_ne!(info4.source, genesis.account()); // Tradeoff to not store pruned blocks accounts
     assert_eq!(info4.amount, Amount::raw(100));
     assert_eq!(info4.epoch, Epoch::Epoch0);
 
     // Process open block again
+    txn = ctx.ledger.rw_txn();
     ctx.ledger.process(&mut txn, &mut open1).unwrap();
+    txn.commit();
+
+    any = ctx.ledger.any2();
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(destination.account(), send2.hash())),
+        any.get_pending(&PendingKey::new(destination.account(), send2.hash())),
         None
     );
     assert_eq!(ctx.ledger.pruned_count(), 2);
@@ -367,24 +363,19 @@ fn pruning_safe_functions() {
 
     // Pruning action
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
+    txn.commit();
+    let any = ctx.ledger.any2();
 
     // Safe ledger actions
-    assert!(ctx
-        .ledger
-        .any()
-        .block_balance(&txn, &send1.hash())
-        .is_none());
+    assert!(any.block_balance(&send1.hash()).is_none());
     assert_eq!(
-        ctx.ledger.any().block_balance(&txn, &send2.hash()).unwrap(),
+        any.block_balance(&send2.hash()).unwrap(),
         send2.balance_field().unwrap()
     );
 
-    assert_eq!(ctx.ledger.any().block_amount(&txn, &send2.hash()), None);
-    assert_eq!(ctx.ledger.any().block_account(&txn, &send1.hash()), None);
-    assert_eq!(
-        ctx.ledger.any().block_account(&txn, &send2.hash()),
-        Some(genesis.account())
-    );
+    assert_eq!(any.block_amount(&send2.hash()), None);
+    assert_eq!(any.block_account(&send1.hash()), None);
+    assert_eq!(any.block_account(&send2.hash()), Some(genesis.account()));
 }
 
 #[test]

@@ -66,6 +66,9 @@ pub trait AnySet2: LedgerSet {
 
     /// Returns the next receivable entry for an account greater than 'account'
     fn receivable_upper_bound(&self, account: Account) -> AnyReceivableIterator;
+
+    /// Returns the next receivable entry for an account greater than or equal to 'account'
+    fn receivable_lower_bound(&self, account: Account) -> AnyReceivableIterator;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -226,6 +229,16 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
                 Some(BlockHash::zero()),
             ),
         }
+    }
+
+    fn receivable_lower_bound(&self, account: Account) -> AnyReceivableIterator {
+        AnyReceivableIterator::new(
+            &self.tx,
+            &self.store.pending,
+            account,
+            None,
+            Some(BlockHash::zero()),
+        )
     }
 }
 
@@ -468,6 +481,16 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
             ),
         }
     }
+
+    fn receivable_lower_bound(&self, account: Account) -> AnyReceivableIterator {
+        AnyReceivableIterator::new(
+            self.tx,
+            &self.store.pending,
+            account,
+            None,
+            Some(BlockHash::zero()),
+        )
+    }
 }
 
 pub struct AnySet<'a> {
@@ -631,7 +654,7 @@ impl<'a> AnySet<'a> {
         }
     }
 
-    /// Returns the next receivable entry for an account greater than or equal to 'account'
+    /// Retrns the next receivable entry for an account greater than or equal to 'account'
     pub fn receivable_lower_bound<'txn>(
         &'a self,
         txn: &'a dyn Transaction,
@@ -801,10 +824,9 @@ mod tests {
         expected_result: &[PendingKey],
     ) {
         let ledger = ledger_with_pending_entries(existing_keys);
-        let tx = ledger.read_txn();
         let result: Vec<_> = ledger
-            .any()
-            .receivable_upper_bound(&tx, queried_account)
+            .any2()
+            .receivable_upper_bound(queried_account)
             .map(|(k, _)| k)
             .collect();
 
@@ -817,10 +839,9 @@ mod tests {
         expected_result: &[PendingKey],
     ) {
         let ledger = ledger_with_pending_entries(existing_keys);
-        let tx = ledger.read_txn();
         let result: Vec<_> = ledger
-            .any()
-            .receivable_lower_bound(&tx, queried_account)
+            .any2()
+            .receivable_lower_bound(queried_account)
             .map(|(k, _)| k)
             .collect();
 

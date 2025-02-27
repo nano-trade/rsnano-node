@@ -28,13 +28,11 @@ fn ledger_successor() {
         .blocks(chain.blocks())
         .account_info(&chain.account(), &chain.account_info())
         .finish();
-    let txn = ledger.read_txn();
 
     assert_eq!(
-        ledger.any().block_successor_by_qualified_root(
-            &txn,
-            &QualifiedRoot::new(Root::zero(), chain.open())
-        ),
+        ledger
+            .any2()
+            .block_successor_by_qualified_root(&QualifiedRoot::new(Root::zero(), chain.open())),
         Some(send.hash())
     );
 }
@@ -47,13 +45,14 @@ fn ledger_successor_genesis() {
         .blocks(genesis.blocks())
         .account_info(&genesis.account(), &genesis.account_info())
         .finish();
-    let txn = ledger.read_txn();
 
     assert_eq!(
-        ledger.any().block_successor_by_qualified_root(
-            &txn,
-            &QualifiedRoot::new(genesis.account().into(), BlockHash::zero())
-        ),
+        ledger
+            .any2()
+            .block_successor_by_qualified_root(&QualifiedRoot::new(
+                genesis.account().into(),
+                BlockHash::zero()
+            )),
         Some(genesis.block(1).hash())
     );
 }
@@ -224,6 +223,7 @@ fn block_destination_source() {
 
     let mut receive2 = genesis.receive(&txn, send_to_self_2.hash()).build();
     let receive2 = ctx.ledger.process(&mut txn, &mut receive2).unwrap();
+    txn.commit();
 
     let block1 = send_to_dest;
     let block2 = send_to_self;
@@ -233,7 +233,7 @@ fn block_destination_source() {
     let block6 = receive2;
 
     assert_eq!(
-        ledger.any().block_balance(&txn, &block6.hash()),
+        ledger.any2().block_balance(&block6.hash()),
         Some(block6.balance_field().unwrap())
     );
     assert_eq!(block1.destination(), Some(dest_account));
@@ -267,8 +267,9 @@ fn state_account() {
         .key(&DEV_GENESIS_KEY)
         .build();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
+    txn.commit();
     assert_eq!(
-        ctx.ledger.any().block_account(&txn, &send.hash()),
+        ctx.ledger.any2().block_account(&send.hash()),
         Some(*DEV_GENESIS_ACCOUNT)
     );
 }
@@ -753,9 +754,10 @@ fn sideband_height() {
 
     let mut open = dest3.legacy_open(state_send3.hash()).build();
     ctx.ledger.process(&mut txn, &mut open).unwrap();
+    txn.commit();
 
     let assert_sideband_height = |hash: &BlockHash, expected_height: u64| {
-        let block = ctx.ledger.any().get_block(&txn, hash).unwrap();
+        let block = ctx.ledger.any2().get_block(hash).unwrap();
         assert_eq!(block.height(), expected_height);
     };
 

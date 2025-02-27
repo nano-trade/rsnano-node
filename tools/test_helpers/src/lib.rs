@@ -3,7 +3,9 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{
+    AnySet2, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+};
 use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
@@ -663,19 +665,16 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
 }
 
 pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let transaction = node.ledger.read_txn();
+    let any = node.ledger.any2();
 
-    let previous = node
-        .ledger
-        .any()
-        .account_head(&transaction, &*DEV_GENESIS_ACCOUNT)
+    let previous = any
+        .account_head(&*DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let balance = node
-        .ledger
-        .any()
-        .account_balance(&transaction, &*DEV_GENESIS_ACCOUNT)
-        .unwrap_or(Amount::MAX);
+    let mut balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
+    if balance == Amount::zero() {
+        balance = Amount::MAX
+    }
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -693,19 +692,16 @@ pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) ->
 }
 
 pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let transaction = node.ledger.read_txn();
+    let any = node.ledger.any2();
 
-    let previous = node
-        .ledger
-        .any()
-        .account_head(&transaction, &*DEV_GENESIS_ACCOUNT)
+    let previous = any
+        .account_head(&*DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let balance = node
-        .ledger
-        .any()
-        .account_balance(&transaction, &*DEV_GENESIS_ACCOUNT)
-        .unwrap_or(Amount::MAX);
+    let mut balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
+    if balance == Amount::zero() {
+        balance = Amount::MAX;
+    }
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -753,18 +749,10 @@ pub fn upgrade_epoch(
     //pool: &mut WorkPoolImpl,
     epoch: Epoch,
 ) -> Block {
-    let transaction = node.ledger.read_txn();
+    let any = node.ledger.any2();
     let account = *DEV_GENESIS_ACCOUNT;
-    let latest = node
-        .ledger
-        .any()
-        .account_head(&transaction, &account)
-        .unwrap();
-    let balance = node
-        .ledger
-        .any()
-        .account_balance(&transaction, &account)
-        .unwrap_or(Amount::zero());
+    let latest = any.account_head(&account).unwrap();
+    let balance = any.account_balance(&account);
 
     let epoch_block: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
