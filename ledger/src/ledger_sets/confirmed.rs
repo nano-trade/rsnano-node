@@ -1,6 +1,7 @@
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, Transaction};
 
+/// Only blocks that are confirmed
 pub struct ConfirmedSet<'a> {
     store: &'a LmdbStore,
 }

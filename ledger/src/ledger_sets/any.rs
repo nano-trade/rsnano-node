@@ -4,11 +4,12 @@ use rsnano_core::{
 use rsnano_store_lmdb::{LmdbPendingStore, LmdbRangeIterator, LmdbStore, Transaction};
 use std::ops::{Deref, RangeBounds, RangeFrom};
 
-pub struct Any<'a> {
+pub struct AnySet<'a> {
     store: &'a LmdbStore,
 }
 
-impl<'a> Any<'a> {
+/// All blocks - either confirmed or unconfirmed
+impl<'a> AnySet<'a> {
     pub fn new(store: &'a LmdbStore) -> Self {
         Self { store }
     }

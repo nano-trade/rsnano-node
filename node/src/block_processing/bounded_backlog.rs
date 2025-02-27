@@ -349,7 +349,7 @@ impl BoundedBacklogImpl {
         }
     }
 
-    fn update(&self, unconfirmed: &UnconfirmedSet, hash: &BlockHash) {
+    fn update(&self, unconfirmed: &impl UnconfirmedSet, hash: &BlockHash) {
         // Erase if the block is either confirmed or missing
         if !unconfirmed.block_exists(hash) {
             self.mutex.lock().unwrap().index.erase_hash(hash);
