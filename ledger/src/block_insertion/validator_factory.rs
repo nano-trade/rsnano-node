@@ -1,19 +1,26 @@
 use rsnano_core::{utils::UnixTimestamp, Account, Block, PendingKey, SavedBlock};
-use rsnano_store_lmdb::Transaction;
 
-use crate::Ledger;
+use crate::{AnySet2, LedgerConstants};
 
 use super::BlockValidator;
 
 pub(crate) struct BlockValidatorFactory<'a> {
-    ledger: &'a Ledger,
-    txn: &'a dyn Transaction,
+    any: &'a dyn AnySet2,
+    constants: &'a LedgerConstants,
     block: &'a Block,
 }
 
 impl<'a> BlockValidatorFactory<'a> {
-    pub(crate) fn new(ledger: &'a Ledger, txn: &'a dyn Transaction, block: &'a Block) -> Self {
-        Self { ledger, txn, block }
+    pub(crate) fn new(
+        any: &'a dyn AnySet2,
+        constants: &'a LedgerConstants,
+        block: &'a Block,
+    ) -> Self {
+        Self {
+            any,
+            constants,
+            block,
+        }
     }
 
     pub(crate) fn create_validator(&self) -> BlockValidator<'a> {
@@ -21,32 +28,25 @@ impl<'a> BlockValidatorFactory<'a> {
         let account = self.get_account(&previous_block);
         let account = account.unwrap_or_default();
         let source_block = self.block.source_or_link();
-        let source_block_exists = !source_block.is_zero()
-            && self
-                .ledger
-                .any()
-                .block_exists_or_pruned(self.txn, &source_block);
+        let source_block_exists =
+            !source_block.is_zero() && self.any.block_exists_or_pruned(&source_block);
 
         let pending_receive_info = if source_block.is_zero() {
             None
         } else {
-            self.ledger
-                .any()
-                .get_pending(self.txn, &PendingKey::new(account, source_block))
+            self.any
+                .get_pending(&PendingKey::new(account, source_block))
         };
 
         BlockValidator {
             block: self.block,
-            epochs: &self.ledger.constants.epochs,
-            work: &self.ledger.constants.work,
+            epochs: &self.constants.epochs,
+            work: &self.constants.work,
             account,
-            block_exists: self
-                .ledger
-                .any()
-                .block_exists_or_pruned(self.txn, &self.block.hash()),
-            old_account_info: self.ledger.account_info(self.txn, &account),
+            block_exists: self.any.block_exists_or_pruned(&self.block.hash()),
+            old_account_info: self.any.get_account(&account),
             pending_receive_info,
-            any_pending_exists: self.ledger.any().receivable_exists(self.txn, account),
+            any_pending_exists: self.any.receivable_exists(account),
             source_block_exists,
             previous_block,
             now: UnixTimestamp::now(),
@@ -65,9 +65,7 @@ impl<'a> BlockValidatorFactory<'a> {
 
     fn load_previous_block(&self) -> Option<SavedBlock> {
         if !self.block.previous().is_zero() {
-            self.ledger
-                .any()
-                .get_block(self.txn, &self.block.previous())
+            self.any.get_block(&self.block.previous())
         } else {
             None
         }
@@ -76,6 +74,8 @@ impl<'a> BlockValidatorFactory<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Ledger;
+
     use super::*;
     use rsnano_core::{AccountInfo, BlockHash, Link, PendingInfo, TestBlockBuilder};
 
@@ -83,8 +83,9 @@ mod tests {
     fn block_for_unknown_account() {
         let block = TestBlockBuilder::state().build();
         let ledger = Ledger::new_null_builder().finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
 
         assert_eq!(validator.block.hash(), block.hash());
         assert_eq!(validator.epochs, &ledger.constants.epochs);
@@ -105,8 +106,9 @@ mod tests {
             .previous(previous.hash())
             .build();
         let ledger = Ledger::new_null_builder().block(&previous).finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
 
         assert_eq!(validator.account, previous.account());
     }
@@ -115,8 +117,9 @@ mod tests {
     fn block_exists() {
         let block = TestBlockBuilder::state().build_saved();
         let ledger = Ledger::new_null_builder().block(&block).finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.block_exists, true);
     }
 
@@ -124,8 +127,9 @@ mod tests {
     fn pruned_block_exists() {
         let block = TestBlockBuilder::state().build();
         let ledger = Ledger::new_null_builder().pruned(&block.hash()).finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.block_exists, true);
     }
 
@@ -136,8 +140,9 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&block.account_field().unwrap(), &account_info)
             .finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.old_account_info, Some(account_info));
     }
 
@@ -151,8 +156,9 @@ mod tests {
                 &pending_info,
             )
             .finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.pending_receive_info, Some(pending_info));
     }
 
@@ -172,8 +178,9 @@ mod tests {
                 &pending_info,
             )
             .finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.pending_receive_info, Some(pending_info));
     }
 
@@ -187,8 +194,9 @@ mod tests {
                 &pending_info,
             )
             .finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.any_pending_exists, true);
     }
 
@@ -197,8 +205,9 @@ mod tests {
         let source = TestBlockBuilder::state().build_saved();
         let block = TestBlockBuilder::state().link(source.hash()).build();
         let ledger = Ledger::new_null_builder().block(&source).finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.source_block_exists, true);
     }
 
@@ -208,8 +217,9 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .pruned(&BlockHash::from(42))
             .finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.source_block_exists, true);
     }
 
@@ -220,8 +230,9 @@ mod tests {
             .previous(previous.hash())
             .build_saved();
         let ledger = Ledger::new_null_builder().block(&previous).finish();
-        let txn = ledger.read_txn();
-        let validator = BlockValidatorFactory::new(&ledger, &txn, &block).create_validator();
+        let any = ledger.any2();
+        let validator =
+            BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.previous_block, Some(previous));
     }
 }

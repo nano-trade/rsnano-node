@@ -1,9 +1,10 @@
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
-    AnySet, AnySet2, BlockRollbackPerformer, ConfirmedSet, ConfirmedSet2, GenerateCacheFlags,
-    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
+    AnySet, AnySet2, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, ConfirmedSet2,
+    GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
+    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard,
+    WriteQueue,
 };
 use rsnano_core::{
     block_priority,
@@ -27,7 +28,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
@@ -565,7 +566,14 @@ impl Ledger {
         txn: &mut LmdbWriteTransaction,
         block: &Block,
     ) -> Result<SavedBlock, BlockStatus> {
-        let validator = BlockValidatorFactory::new(self, txn, block).create_validator();
+        let started = Instant::now();
+        let any = BorrowingAnySet {
+            constants: &self.constants,
+            store: &self.store,
+            tx: txn,
+            started: &started,
+        };
+        let validator = BlockValidatorFactory::new(&any, &self.constants, block).create_validator();
         let instructions = validator.validate()?;
         let inserted = BlockInserter::new(self, txn, block, &instructions).insert();
         Ok(inserted)

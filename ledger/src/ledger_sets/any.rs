@@ -16,7 +16,9 @@ use super::{BorrowingConfirmedSet, ConfirmedSet2, LedgerSet};
 
 pub trait AnySet2: LedgerSet {
     fn should_refresh(&self) -> bool;
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool;
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
+    fn receivable_exists(&self, account: Account) -> bool;
     fn confirmed(&self) -> BorrowingConfirmedSet;
 
     fn block_balance(&self, hash: &BlockHash) -> Option<Amount> {
@@ -40,6 +42,7 @@ pub trait AnySet2: LedgerSet {
     fn block_priority(&self, block: &SavedBlock) -> (Amount, UnixTimestamp);
 
     fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock>;
+    fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo>;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -94,16 +97,19 @@ impl<'a> LedgerSet for OwningAnySet<'a> {
 }
 
 impl<'a> AnySet2 for OwningAnySet<'a> {
-    fn confirmed(&self) -> BorrowingConfirmedSet {
-        BorrowingConfirmedSet::new(self.store, &self.tx)
+    fn should_refresh(&self) -> bool {
+        self.borrowing_set().should_refresh()
     }
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool {
+        self.borrowing_set().block_exists_or_pruned(hash)
+    }
+
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         self.borrowing_set().get_block(hash)
     }
 
-    fn dependents_confirmed_for_unsaved_block(&self, block: &Block) -> bool {
-        self.borrowing_set()
-            .dependents_confirmed_for_unsaved_block(block)
+    fn confirmed(&self) -> BorrowingConfirmedSet {
+        BorrowingConfirmedSet::new(self.store, &self.tx)
     }
 
     fn dependent_blocks(&self, block: &SavedBlock) -> DependentBlocks {
@@ -114,8 +120,9 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
         self.borrowing_set().dependents_confirmed(block)
     }
 
-    fn should_refresh(&self) -> bool {
-        self.borrowing_set().should_refresh()
+    fn dependents_confirmed_for_unsaved_block(&self, block: &Block) -> bool {
+        self.borrowing_set()
+            .dependents_confirmed_for_unsaved_block(block)
     }
 
     fn block_successor(&self, hash: &BlockHash) -> Option<BlockHash> {
@@ -133,13 +140,21 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
     fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock> {
         self.borrowing_set().previous_block(block)
     }
+
+    fn receivable_exists(&self, account: Account) -> bool {
+        self.borrowing_set().receivable_exists(account)
+    }
+
+    fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo> {
+        self.borrowing_set().get_pending(key)
+    }
 }
 
 pub(crate) struct BorrowingAnySet<'a> {
-    constants: &'a LedgerConstants,
-    store: &'a LmdbStore,
-    tx: &'a LmdbReadTransaction,
-    started: &'a Instant,
+    pub constants: &'a LedgerConstants,
+    pub store: &'a LmdbStore,
+    pub tx: &'a dyn Transaction,
+    pub started: &'a Instant,
 }
 
 impl<'a> BorrowingAnySet<'a> {
@@ -159,10 +174,6 @@ impl<'a> BorrowingAnySet<'a> {
             Some(account),
             hash.inc(),
         )
-    }
-
-    fn get_account(&self, account: &Account) -> Option<AccountInfo> {
-        self.store.account.get(self.tx, account)
     }
 
     fn account_head(&self, account: &Account) -> Option<BlockHash> {
@@ -216,6 +227,23 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
         self.store.block.get(self.tx, hash)
     }
 
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
+        if self.store.pruned.exists(self.tx, hash) {
+            true
+        } else {
+            self.block_exists(hash)
+        }
+    }
+
+    fn receivable_exists(&self, account: Account) -> bool {
+        self.account_receivable_upper_bound(account, BlockHash::zero())
+            .next()
+            .is_some()
+    }
+
     fn confirmed(&self) -> BorrowingConfirmedSet {
         BorrowingConfirmedSet::new(self.store, self.tx)
     }
@@ -263,6 +291,10 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
         } else {
             self.get_block(&block.previous())
         }
+    }
+
+    fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo> {
+        self.store.pending.get(self.tx, key)
     }
 }
 

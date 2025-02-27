@@ -70,11 +70,11 @@ impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
 /// It borrows the DB transaction
 pub struct BorrowingConfirmedSet<'a> {
     store: &'a LmdbStore,
-    tx: &'a LmdbReadTransaction,
+    tx: &'a dyn Transaction,
 }
 
 impl<'a> BorrowingConfirmedSet<'a> {
-    pub fn new(store: &'a LmdbStore, tx: &'a LmdbReadTransaction) -> Self {
+    pub fn new(store: &'a LmdbStore, tx: &'a dyn Transaction) -> Self {
         Self { store, tx }
     }
 
