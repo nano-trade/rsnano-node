@@ -2708,13 +2708,11 @@ fn unconfirmed_send() {
 
     assert_eq!(node2.balance(&key2.account()), Amount::nano(2));
 
-    let recv1 = {
-        let tx = node2.store.tx_begin_read();
-        node2
-            .ledger
-            .find_receive_block_by_send_hash(&tx, &key2.account(), &send1.hash())
-            .unwrap()
-    };
+    let recv1 = node2
+        .ledger
+        .any2()
+        .find_receive_block_by_send_hash(&key2.account(), &send1.hash())
+        .unwrap();
 
     // create send2 to send from node2 to node1 and save it to node2's ledger without triggering an election (node1 does not hear about it)
     let send2: Block = StateBlockArgs {

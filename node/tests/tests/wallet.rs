@@ -3,7 +3,7 @@ use rsnano_core::{
     KeyDerivationFunction, PrivateKey, PublicKey, RawKey, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
@@ -1238,8 +1238,14 @@ fn epoch_2_receive_propagation() {
                 DEV_NETWORK_PARAMS.work.difficulty_block(&receive2)
                     >= DEV_NETWORK_PARAMS.work.epoch_2_receive
             );
-            let tx = node.ledger.read_txn();
-            assert_eq!(node.ledger.version(&tx, &receive2.hash()), Epoch::Epoch2);
+            assert_eq!(
+                node.ledger
+                    .any2()
+                    .get_block(&receive2.hash())
+                    .unwrap()
+                    .epoch(),
+                Epoch::Epoch2
+            );
             assert_eq!(receive2.source_epoch(), Epoch::Epoch2);
             break;
         }
@@ -1328,8 +1334,14 @@ fn epoch_2_receive_unopened() {
                 DEV_NETWORK_PARAMS.work.difficulty_block(&receive1)
                     >= DEV_NETWORK_PARAMS.work.epoch_2_receive
             );
-            let tx = node.ledger.read_txn();
-            assert_eq!(node.ledger.version(&tx, &receive1.hash()), Epoch::Epoch2);
+            assert_eq!(
+                node.ledger
+                    .any2()
+                    .get_block(&receive1.hash())
+                    .unwrap()
+                    .epoch(),
+                Epoch::Epoch2
+            );
             assert_eq!(receive1.source_epoch(), Epoch::Epoch1);
             break;
         }

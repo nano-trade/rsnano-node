@@ -48,6 +48,20 @@ pub trait AnySet2: LedgerSet {
 
     /// Returns the latest block with representative information
     fn representative_block_hash(&self, hash: &BlockHash) -> BlockHash;
+
+    /// Given the block hash of a send block, find the associated receive block that receives that send.
+    /// The send block hash is not checked in any way, it is assumed to be correct.
+    /// Return the receive block on success and None on failure
+    fn find_receive_block_by_send_hash(
+        &self,
+        destination: &Account,
+        send_block_hash: &BlockHash,
+    ) -> Option<SavedBlock>;
+
+    fn linked_account(&self, block: &SavedBlock) -> Option<Account>;
+
+    fn block_amount(&self, hash: &BlockHash) -> Option<Amount>;
+    fn block_amount_for(&self, block: &SavedBlock) -> Option<Amount>;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -164,6 +178,27 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
 
     fn representative_block_hash(&self, hash: &BlockHash) -> BlockHash {
         self.borrowing_set().representative_block_hash(hash)
+    }
+
+    fn find_receive_block_by_send_hash(
+        &self,
+        destination: &Account,
+        send_block_hash: &BlockHash,
+    ) -> Option<SavedBlock> {
+        self.borrowing_set()
+            .find_receive_block_by_send_hash(destination, send_block_hash)
+    }
+
+    fn linked_account(&self, block: &SavedBlock) -> Option<Account> {
+        self.borrowing_set().linked_account(block)
+    }
+
+    fn block_amount(&self, hash: &BlockHash) -> Option<Amount> {
+        self.borrowing_set().block_amount(hash)
+    }
+
+    fn block_amount_for(&self, block: &SavedBlock) -> Option<Amount> {
+        self.borrowing_set().block_amount_for(block)
     }
 }
 
@@ -323,6 +358,57 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
         let hash = RepresentativeBlockFinder::new(self.tx, self.store).find_rep_block(*hash);
         debug_assert!(hash.is_zero() || self.store.block.exists(self.tx, &hash));
         hash
+    }
+
+    fn find_receive_block_by_send_hash(
+        &self,
+        destination: &Account,
+        send_block_hash: &BlockHash,
+    ) -> Option<SavedBlock> {
+        // get the cemented frontier
+        let info = self.confirmed().get_conf_info(destination)?;
+        let mut possible_receive_block = self.get_block(&info.frontier);
+
+        // walk down the chain until the source field of a receive block matches the send block hash
+        while let Some(current) = possible_receive_block {
+            if current.is_receive() && Some(*send_block_hash) == current.source() {
+                // we have a match
+                return Some(current);
+            }
+
+            possible_receive_block = self.get_block(&current.previous());
+        }
+
+        None
+    }
+
+    fn linked_account(&self, block: &SavedBlock) -> Option<Account> {
+        if block.is_send() {
+            Some(block.destination_or_link())
+        } else if block.is_receive() {
+            self.block_account(&block.source_or_link())
+        } else {
+            None
+        }
+    }
+
+    fn block_amount(&self, hash: &BlockHash) -> Option<Amount> {
+        let block = self.get_block(hash)?;
+        self.block_amount_for(&block)
+    }
+
+    fn block_amount_for(&self, block: &SavedBlock) -> Option<Amount> {
+        let block_balance = block.balance();
+        if block.previous().is_zero() {
+            Some(block_balance)
+        } else {
+            let previous_balance = self.block_balance(&block.previous())?;
+            if block_balance > previous_balance {
+                Some(block_balance - previous_balance)
+            } else {
+                Some(previous_balance - block_balance)
+            }
+        }
     }
 }
 

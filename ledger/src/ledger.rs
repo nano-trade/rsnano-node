@@ -433,45 +433,12 @@ impl Ledger {
         }
     }
 
-    pub fn version(&self, txn: &dyn Transaction, hash: &BlockHash) -> Epoch {
-        self.any()
-            .get_block(txn, hash)
-            .map(|block| block.epoch())
-            .unwrap_or(Epoch::Epoch0)
-    }
-
     pub fn is_epoch_link(&self, link: &Link) -> bool {
         self.constants.epochs.is_epoch_link(link)
     }
 
     pub fn epoch_signer(&self, link: &Link) -> Option<Account> {
         self.constants.epochs.epoch_signer(link)
-    }
-
-    /// Given the block hash of a send block, find the associated receive block that receives that send.
-    /// The send block hash is not checked in any way, it is assumed to be correct.
-    /// Return the receive block on success and None on failure
-    pub fn find_receive_block_by_send_hash(
-        &self,
-        txn: &dyn Transaction,
-        destination: &Account,
-        send_block_hash: &BlockHash,
-    ) -> Option<SavedBlock> {
-        // get the cemented frontier
-        let info = self.store.confirmation_height.get(txn, destination)?;
-        let mut possible_receive_block = self.any().get_block(txn, &info.frontier);
-
-        // walk down the chain until the source field of a receive block matches the send block hash
-        while let Some(current) = possible_receive_block {
-            if current.is_receive() && Some(*send_block_hash) == current.source() {
-                // we have a match
-                return Some(current);
-            }
-
-            possible_receive_block = self.any().get_block(txn, &current.previous());
-        }
-
-        None
     }
 
     pub fn epoch_link(&self, epoch: Epoch) -> Option<Link> {
