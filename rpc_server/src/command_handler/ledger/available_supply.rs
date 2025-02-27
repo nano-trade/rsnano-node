@@ -1,10 +1,10 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Account, Amount};
+use rsnano_ledger::LedgerSet;
 use rsnano_rpc_messages::AvailableSupplyReponse;
 
 impl RpcCommandHandler {
     pub(crate) fn available_supply(&self) -> AvailableSupplyReponse {
-        let tx = self.node.store.env.tx_begin_read();
         // Cold storage genesis
         let genesis_balance = self
             .node
@@ -27,13 +27,11 @@ impl RpcCommandHandler {
         );
 
         // Burning 0 account
-        let burned_balance = self.node.ledger.account_receivable(
-            &tx,
+        let burned_balance = self.node.ledger.any2().account_receivable(
             &Account::decode_account(
                 "nano_1111111111111111111111111111111111111111111111111111hifc8npp",
             )
             .unwrap(),
-            false,
         );
 
         let available =

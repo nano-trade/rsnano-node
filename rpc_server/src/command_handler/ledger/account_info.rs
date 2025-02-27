@@ -1,5 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Amount, Epoch};
+use rsnano_ledger::{AnySet2, LedgerSet};
 use rsnano_rpc_messages::{unwrap_bool_or_false, AccountInfoArgs, AccountInfoResponse};
 
 impl RpcCommandHandler {
@@ -8,6 +9,7 @@ impl RpcCommandHandler {
         args: AccountInfoArgs,
     ) -> anyhow::Result<AccountInfoResponse> {
         let txn = self.node.ledger.read_txn();
+        let any = self.node.ledger.any2();
         let include_confirmed = unwrap_bool_or_false(args.include_confirmed);
         let info = self.load_account(&txn, &args.account)?;
 
@@ -66,11 +68,8 @@ impl RpcCommandHandler {
             account_info.representative = Some(info.representative.into());
             if include_confirmed {
                 let confirmed_representative = if confirmation_height_info.height > 0 {
-                    if let Some(confirmed_frontier_block) = self
-                        .node
-                        .ledger
-                        .any()
-                        .get_block(&txn, &confirmation_height_info.frontier)
+                    if let Some(confirmed_frontier_block) =
+                        any.get_block(&confirmation_height_info.frontier)
                     {
                         confirmed_frontier_block
                             .representative_field()
@@ -79,10 +78,7 @@ impl RpcCommandHandler {
                                     &txn,
                                     &confirmation_height_info.frontier,
                                 );
-                                self.node
-                                    .ledger
-                                    .any()
-                                    .get_block(&txn, &rep_block_hash)
+                                any.get_block(&rep_block_hash)
                                     .unwrap()
                                     .representative_field()
                                     .unwrap()
@@ -103,18 +99,12 @@ impl RpcCommandHandler {
 
         let receivable = unwrap_bool_or_false(args.receivable);
         if receivable {
-            let account_receivable =
-                self.node
-                    .ledger
-                    .account_receivable(&txn, &args.account, false);
+            let account_receivable = any.account_receivable(&args.account);
             account_info.pending = Some(account_receivable);
             account_info.receivable = Some(account_receivable);
 
             if include_confirmed {
-                let confirmed_receivable =
-                    self.node
-                        .ledger
-                        .account_receivable(&txn, &args.account, true);
+                let confirmed_receivable = any.confirmed().account_receivable(&args.account);
                 account_info.confirmed_pending = Some(confirmed_receivable);
                 account_info.confirmed_receivable = Some(confirmed_receivable);
             }

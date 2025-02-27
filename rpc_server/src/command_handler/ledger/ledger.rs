@@ -1,5 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{utils::UnixTimestamp, Account, Amount};
+use rsnano_ledger::LedgerSet;
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_max, unwrap_u64_or_zero, LedgerAccountInfo, LedgerArgs,
     LedgerResponse,
@@ -19,14 +20,14 @@ impl RpcCommandHandler {
 
         let mut accounts: HashMap<Account, LedgerAccountInfo> = HashMap::new();
         let tx = self.node.store.tx_begin_read();
+        let any = self.node.ledger.any2();
 
         if !sorting {
             // Simple
             for (account, info) in self.node.store.account.iter_range(&tx, start..) {
                 if info.modified >= modified_since && (receivable || info.balance >= threshold) {
                     let receivable = if receivable {
-                        let account_receivable =
-                            self.node.ledger.account_receivable(&tx, &account, false);
+                        let account_receivable = any.account_receivable(&account);
                         if info.balance + account_receivable < threshold {
                             continue;
                         }
@@ -71,8 +72,7 @@ impl RpcCommandHandler {
                 if let Some(info) = self.node.store.account.get(&tx, &account) {
                     if receivable || info.balance >= threshold {
                         let pending = if receivable {
-                            let account_receivable =
-                                self.node.ledger.account_receivable(&tx, &account, false);
+                            let account_receivable = any.account_receivable(&account);
                             if info.balance + account_receivable < threshold {
                                 continue;
                             }

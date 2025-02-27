@@ -392,30 +392,6 @@ impl Ledger {
         self.rep_weights.bootstrap_weight_max_blocks()
     }
 
-    pub fn account_receivable(
-        &self,
-        txn: &dyn Transaction,
-        account: &Account,
-        only_confirmed: bool,
-    ) -> Amount {
-        let mut result = Amount::zero();
-
-        for (key, info) in
-            self.any()
-                .account_receivable_upper_bound(txn, *account, BlockHash::zero())
-        {
-            if !only_confirmed
-                || self
-                    .confirmed()
-                    .block_exists_or_pruned(txn, &key.send_block_hash)
-            {
-                result += info.amount;
-            }
-        }
-
-        result
-    }
-
     pub fn random_blocks(&self, tx: &dyn Transaction, count: usize) -> Vec<SavedBlock> {
         let mut result = Vec::with_capacity(count);
         let starting_hash = BlockHash::random();

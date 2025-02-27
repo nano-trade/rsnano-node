@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
+use rsnano_core::{Account, AccountInfo, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore, Transaction};
 
 use super::{AnyReceivableIterator, LedgerSet};
@@ -41,6 +41,10 @@ impl<'a> LedgerSet for OwningConfirmedSet<'a> {
     fn account_balance(&self, account: &Account) -> Amount {
         self.borrowing_set().account_balance(account)
     }
+
+    fn get_account(&self, account: &Account) -> Option<AccountInfo> {
+        self.borrowing_set().get_account(account)
+    }
 }
 
 impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
@@ -51,12 +55,16 @@ impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
 
 /// Only blocks that are confirmed.
 /// It borrows the DB transaction
-pub(crate) struct BorrowingConfirmedSet<'a> {
+pub struct BorrowingConfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: &'a LmdbReadTransaction,
 }
 
 impl<'a> BorrowingConfirmedSet<'a> {
+    pub fn new(store: &'a LmdbStore, tx: &'a LmdbReadTransaction) -> Self {
+        Self { store, tx }
+    }
+
     /// Returns the next receivable entry for the account 'account' with hash greater than 'hash'
     fn account_receivable_upper_bound<'txn>(
         &self,
@@ -117,6 +125,10 @@ impl<'a> LedgerSet for BorrowingConfirmedSet<'a> {
         self.get_block(&head)
             .map(|b| b.balance())
             .unwrap_or_default()
+    }
+
+    fn get_account(&self, _account: &Account) -> Option<AccountInfo> {
+        unimplemented!()
     }
 }
 

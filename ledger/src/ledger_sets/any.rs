@@ -6,10 +6,11 @@ use rsnano_store_lmdb::{
 };
 use std::ops::{Deref, RangeBounds, RangeFrom};
 
-use super::LedgerSet;
+use super::{BorrowingConfirmedSet, LedgerSet};
 
 pub trait AnySet2: LedgerSet {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
+    fn confirmed(&self) -> BorrowingConfirmedSet;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -44,11 +45,19 @@ impl<'a> LedgerSet for OwningAnySet<'a> {
     fn account_balance(&self, account: &Account) -> Amount {
         self.borrowing_set().account_balance(account)
     }
+
+    fn get_account(&self, account: &Account) -> Option<AccountInfo> {
+        self.borrowing_set().get_account(account)
+    }
 }
 
 impl<'a> AnySet2 for OwningAnySet<'a> {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         self.borrowing_set().get_block(hash)
+    }
+
+    fn confirmed(&self) -> BorrowingConfirmedSet {
+        BorrowingConfirmedSet::new(self.store, &self.tx)
     }
 }
 
@@ -112,6 +121,10 @@ impl<'a> LedgerSet for BorrowingAnySet<'a> {
             .map(|b| b.balance())
             .unwrap_or_default()
     }
+
+    fn get_account(&self, account: &Account) -> Option<AccountInfo> {
+        self.store.account.get(self.tx, account)
+    }
 }
 
 impl<'a> AnySet2 for BorrowingAnySet<'a> {
@@ -120,6 +133,10 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
             return None;
         }
         self.store.block.get(self.tx, hash)
+    }
+
+    fn confirmed(&self) -> BorrowingConfirmedSet {
+        BorrowingConfirmedSet::new(self.store, self.tx)
     }
 }
 
