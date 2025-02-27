@@ -1,5 +1,76 @@
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
-use rsnano_store_lmdb::{LmdbStore, Transaction};
+use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore, Transaction};
+
+use super::LedgerSet;
+
+pub trait ConfirmedSet2: LedgerSet {
+    fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
+}
+
+/// Only blocks that are confirmed.
+/// It owns the DB transaction
+pub struct OwningConfirmedSet<'a> {
+    store: &'a LmdbStore,
+    tx: LmdbReadTransaction,
+}
+
+impl<'a> OwningConfirmedSet<'a> {
+    pub fn new(store: &'a LmdbStore, tx: LmdbReadTransaction) -> Self {
+        Self { store, tx }
+    }
+
+    fn borrowing_set(&'a self) -> BorrowingConfirmedSet<'a> {
+        BorrowingConfirmedSet {
+            store: self.store,
+            tx: &self.tx,
+        }
+    }
+}
+
+impl<'a> LedgerSet for OwningConfirmedSet<'a> {
+    fn block_exists(&self, hash: &BlockHash) -> bool {
+        self.borrowing_set().block_exists(hash)
+    }
+}
+
+impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
+    fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
+        self.borrowing_set().get_block(hash)
+    }
+}
+
+/// Only blocks that are confirmed.
+/// It borrows the DB transaction
+pub struct BorrowingConfirmedSet<'a> {
+    store: &'a LmdbStore,
+    tx: &'a LmdbReadTransaction,
+}
+
+impl<'a> LedgerSet for BorrowingConfirmedSet<'a> {
+    fn block_exists(&self, hash: &BlockHash) -> bool {
+        self.get_block(hash).is_some()
+    }
+}
+
+impl<'a> ConfirmedSet2 for BorrowingConfirmedSet<'a> {
+    fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
+        if hash.is_zero() {
+            return None;
+        }
+        let block = self.store.block.get(self.tx, hash)?;
+
+        let conf_info = self
+            .store
+            .confirmation_height
+            .get(self.tx, &block.account())?;
+
+        if block.height() <= conf_info.height {
+            Some(block)
+        } else {
+            None
+        }
+    }
+}
 
 /// Only blocks that are confirmed
 pub struct ConfirmedSet<'a> {
