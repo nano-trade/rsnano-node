@@ -3,8 +3,8 @@ use rsnano_core::{
     KeyDerivationFunction, PrivateKey, PublicKey, RawKey, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
-    DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT,
+    DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
     config::{NodeConfig, NodeFlags, DEV_NETWORK_PARAMS},
@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use test_helpers::{assert_timely, assert_timely_eq, System};
+use test_helpers::{assert_timely, assert_timely_eq, assert_timely_eq2, System};
 
 struct TestFixture {
     test_dir: PathBuf,
@@ -222,14 +222,10 @@ fn spend_all_one() {
         )
         .unwrap();
 
-    let tx = node.ledger.read_txn();
-    let info2 = node
-        .ledger
-        .any()
-        .get_account(&tx, &DEV_GENESIS_ACCOUNT)
-        .unwrap();
+    let any = node.ledger.any2();
+    let info2 = any.get_account(&DEV_GENESIS_ACCOUNT).unwrap();
     assert_ne!(info2.head, *DEV_GENESIS_HASH);
-    let block = node.ledger.any().get_block(&tx, &info2.head).unwrap();
+    let block = any.get_block(&info2.head).unwrap();
     assert_eq!(block.previous(), *DEV_GENESIS_HASH);
     assert_eq!(block.balance(), Amount::zero());
 }
@@ -715,13 +711,7 @@ fn work_generate() {
         )
         .unwrap();
     assert_timely(Duration::from_secs(10), || {
-        let tx = node1.ledger.read_txn();
-        node1
-            .ledger
-            .any()
-            .account_balance(&tx, &DEV_GENESIS_ACCOUNT)
-            .unwrap()
-            != Amount::MAX
+        node1.ledger.any2().account_balance(&DEV_GENESIS_ACCOUNT) != Amount::MAX
     });
 
     let start = Instant::now();
@@ -1441,8 +1431,8 @@ fn search_receivable() {
     );
     let receive_hash = node
         .ledger
-        .any()
-        .account_head(&node.ledger.read_txn(), &DEV_GENESIS_ACCOUNT)
+        .any2()
+        .account_head(&DEV_GENESIS_ACCOUNT)
         .unwrap();
     let receive = node.block(&receive_hash).unwrap();
     assert_eq!(receive.height(), 3);
@@ -1535,27 +1525,17 @@ fn receive_pruned() {
         .unwrap();
 
     assert_eq!(
-        node2
-            .ledger
-            .any()
-            .block_balance(&node2.ledger.read_txn(), &open1.hash()),
+        node2.ledger.any2().block_balance(&open1.hash()),
         Some(amount)
     );
-    assert_timely_eq(Duration::from_secs(5), || node2.ledger.cemented_count(), 4);
+    assert_timely_eq2(|| node2.ledger.cemented_count(), 4);
 }
 
 fn upgrade_genesis_epoch(node: &Node, epoch: Epoch) {
     let mut tx = node.ledger.rw_txn();
-    let latest = node
-        .ledger
-        .any()
-        .account_head(&tx, &DEV_GENESIS_ACCOUNT)
-        .unwrap();
-    let balance = node
-        .ledger
-        .any()
-        .account_balance(&tx, &DEV_GENESIS_ACCOUNT)
-        .unwrap();
+    let any = node.ledger.any2();
+    let latest = any.account_head(&DEV_GENESIS_ACCOUNT).unwrap();
+    let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
 
     let mut epoch: Block = EpochBlockArgs {
         epoch_signer: &DEV_GENESIS_KEY,

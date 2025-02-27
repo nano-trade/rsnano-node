@@ -4,8 +4,8 @@ use rsnano_core::{
     VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, BlockStatus, Writer, DEV_GENESIS_ACCOUNT,
-    DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, BlockStatus, LedgerSet, Writer,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{ChannelId, TrafficType};
@@ -80,21 +80,12 @@ fn pruning_depth_max_depth() {
     assert_eq!(node1.ledger.pruned_count(), 1);
     assert_eq!(node1.ledger.block_count(), 3);
 
-    let tx = node1.ledger.read_txn();
+    let any = node1.ledger.any2();
 
     // Ensure that the genesis block, send1, and send2 either exist or are pruned
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&tx, &*DEV_GENESIS_HASH));
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&tx, &send1.hash()));
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&tx, &send2.hash()));
+    assert!(any.block_exists_or_pruned(&*DEV_GENESIS_HASH));
+    assert!(any.block_exists_or_pruned(&send1.hash()));
+    assert!(any.block_exists_or_pruned(&send2.hash()));
 }
 
 // Test that a node configured with `enable_pruning` and `max_pruning_age = 1s` will automatically
@@ -144,20 +135,10 @@ fn pruning_automatic() {
     assert_eq!(node1.ledger.pruned_count(), 1);
     assert_eq!(node1.ledger.block_count(), 3);
 
-    let tx = node1.ledger.read_txn();
-
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&tx, &*DEV_GENESIS_HASH));
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&tx, &send1.hash()));
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&tx, &send2.hash()));
+    let any = node1.ledger.any2();
+    assert!(any.block_exists_or_pruned(&*DEV_GENESIS_HASH));
+    assert!(any.block_exists_or_pruned(&send1.hash()));
+    assert!(any.block_exists_or_pruned(&send2.hash()));
 }
 
 #[test]
@@ -820,20 +801,9 @@ fn fork_multi_flip() {
     });
 
     node1.confirm(send1.hash());
-    assert_timely2(|| {
-        node2
-            .ledger
-            .any()
-            .block_exists_or_pruned(&node2.ledger.read_txn(), &send1.hash())
-    });
-    assert!(!node2
-        .ledger
-        .any()
-        .block_exists(&node2.ledger.read_txn(), &send2.hash()));
-    assert!(!node2
-        .ledger
-        .any()
-        .block_exists_or_pruned(&node2.ledger.read_txn(), &send3.hash()));
+    assert_timely2(|| node2.ledger.any2().block_exists_or_pruned(&send1.hash()));
+    assert!(!node2.ledger.any2().block_exists(&send2.hash()));
+    assert!(!node2.ledger.any2().block_exists_or_pruned(&send3.hash()));
 
     let winner = election.winner_hash().unwrap();
     assert_eq!(send1.hash(), winner);
@@ -1127,10 +1097,7 @@ fn search_receivable_pruned() {
         );
     }
     assert_eq!(1, node2.ledger.pruned_count());
-    assert!(node2
-        .ledger
-        .any()
-        .block_exists_or_pruned(&node2.ledger.read_txn(), &send1.hash())); // true for pruned
+    assert!(node2.ledger.any2().block_exists_or_pruned(&send1.hash())); // true for pruned
 
     // Receive pruned block
     node2
@@ -2858,25 +2825,13 @@ fn block_confirm() {
         true
     );
 
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .ledger
-            .any()
-            .block_exists_or_pruned(&node1.store.tx_begin_read(), &hash1)
-            && node2
-                .ledger
-                .any()
-                .block_exists_or_pruned(&node2.store.tx_begin_read(), &hash1)
+    assert_timely2(|| {
+        node1.ledger.any2().block_exists_or_pruned(&hash1)
+            && node2.ledger.any2().block_exists_or_pruned(&hash1)
     });
 
-    assert!(node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&node1.ledger.read_txn(), &hash1));
-    assert!(node2
-        .ledger
-        .any()
-        .block_exists_or_pruned(&node2.ledger.read_txn(), &hash1));
+    assert!(node1.ledger.any2().block_exists_or_pruned(&hash1));
+    assert!(node2.ledger.any2().block_exists_or_pruned(&hash1));
 
     // Confirm send1 on node2 so it can vote for send2
     start_election(&node2, &hash1);

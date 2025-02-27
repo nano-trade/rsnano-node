@@ -1,15 +1,16 @@
 use crate::command_handler::RpcCommandHandler;
+use rsnano_ledger::AnySet2;
 use rsnano_rpc_messages::{AccountsRpcMessage, FrontiersResponse};
 use std::collections::HashMap;
 
 impl RpcCommandHandler {
     pub(crate) fn accounts_frontiers(&self, args: AccountsRpcMessage) -> FrontiersResponse {
-        let tx = self.node.ledger.read_txn();
+        let any = self.node.ledger.any2();
         let mut frontiers = HashMap::new();
         let mut errors = HashMap::new();
 
         for account in args.accounts {
-            if let Some(block_hash) = self.node.ledger.any().account_head(&tx, &account) {
+            if let Some(block_hash) = any.account_head(&account) {
                 frontiers.insert(account, block_hash);
             } else {
                 errors.insert(account, "Account not found".to_string());

@@ -16,7 +16,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
 };
-use rsnano_ledger::{Ledger, RepWeightCache};
+use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
@@ -619,21 +619,17 @@ impl Wallets {
         amount: Amount,
         mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
-        let block_tx = self.ledger.read_txn();
+        let any = self.ledger.any2();
         if !wallet.store.valid_password(tx) {
             bail!("invalid password");
         }
-        let balance = self
-            .ledger
-            .any()
-            .account_balance(&block_tx, &source)
-            .unwrap_or_default();
+        let balance = any.account_balance(&source);
 
         if balance.is_zero() || balance < amount {
             bail!("insufficient balance");
         }
 
-        let info = self.ledger.account_info(&block_tx, &source).unwrap();
+        let info = any.get_account(&source).unwrap();
         let prv_key_raw = wallet.store.fetch(tx, &source.into()).unwrap();
         if work.is_zero() {
             work = wallet
@@ -665,10 +661,10 @@ impl Wallets {
         amount: Amount,
         mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
-        let block_tx = self.ledger.read_txn();
+        let any = self.ledger.any2();
 
         let block = match self.get_block_hash(tx, id)? {
-            Some(hash) => Some(self.ledger.any().get_block(&block_tx, &hash).unwrap()),
+            Some(hash) => Some(any.get_block(&hash).unwrap()),
             None => None,
         };
 
@@ -685,17 +681,13 @@ impl Wallets {
                 bail!("invalid password");
             }
 
-            let balance = self
-                .ledger
-                .any()
-                .account_balance(&block_tx, &source)
-                .unwrap_or_default();
+            let balance = any.account_balance(&source);
 
             if balance.is_zero() || balance < amount {
                 bail!("insufficient balance");
             }
 
-            let info = self.ledger.account_info(&block_tx, &source).unwrap();
+            let info = any.get_account(&source).unwrap();
             let prv_key_raw = wallet.store.fetch(tx, &source.into()).unwrap();
             if work.is_zero() {
                 work = wallet
@@ -1480,7 +1472,7 @@ impl WalletsExt for Arc<Wallets> {
         let mut block = None;
         {
             let wallet_tx = self.env.tx_begin_read();
-            let block_tx = self.ledger.read_txn();
+            let any = self.ledger.any2();
             if !wallet.store.valid_password(&wallet_tx) {
                 warn!(
                     "Changing representative for account {} failed, wallet locked",
@@ -1490,13 +1482,13 @@ impl WalletsExt for Arc<Wallets> {
             }
 
             let existing = wallet.store.find(&wallet_tx, &source.into());
-            if existing.is_some() && self.ledger.any().account_head(&block_tx, &source).is_some() {
+            if existing.is_some() && any.account_head(&source).is_some() {
                 info!(
                     "Changing representative for account {} to {}",
                     source.encode_account(),
                     representative.as_account().encode_account()
                 );
-                let info = self.ledger.account_info(&block_tx, &source).unwrap();
+                let info = any.get_account(&source).unwrap();
                 let prv = wallet.store.fetch(&wallet_tx, &source.into()).unwrap();
                 if work.is_zero() {
                     work = wallet
@@ -1563,18 +1555,10 @@ impl WalletsExt for Arc<Wallets> {
 
         let mut block = None;
         let mut epoch = Epoch::Epoch0;
-        let block_tx = self.ledger.read_txn();
+        let any = self.ledger.any2();
         let wallet_tx = self.env.tx_begin_read();
-        if self
-            .ledger
-            .any()
-            .block_exists_or_pruned(&block_tx, &send_hash)
-        {
-            if let Some(pending_info) = self
-                .ledger
-                .any()
-                .get_pending(&block_tx, &PendingKey::new(account, send_hash))
-            {
+        if any.block_exists_or_pruned(&send_hash) {
+            if let Some(pending_info) = any.get_pending(&PendingKey::new(account, send_hash)) {
                 if let Ok(prv) = wallet.store.fetch(&wallet_tx, &account.into()) {
                     info!(
                         "Receiving block {} from account {}, amount {}",
@@ -1589,7 +1573,7 @@ impl WalletsExt for Arc<Wallets> {
                             .unwrap_or_default();
                     }
                     let priv_key = PrivateKey::from(prv);
-                    if let Some(info) = self.ledger.account_info(&block_tx, &account) {
+                    if let Some(info) = any.get_account(&account) {
                         block = Some(
                             StateBlockArgs {
                                 key: &priv_key,
@@ -1862,14 +1846,12 @@ impl WalletsExt for Arc<Wallets> {
         info!("Beginning receivable block search");
 
         for (account, wallet_value) in wallet.store.iter(wallet_tx) {
-            let block_tx = self.ledger.read_txn();
+            let any = self.ledger.any2();
             // Don't search pending for watch-only accounts
             if !wallet_value.key.is_zero() {
-                for (key, info) in self.ledger.any().account_receivable_upper_bound(
-                    &block_tx,
-                    account.into(),
-                    BlockHash::zero(),
-                ) {
+                for (key, info) in
+                    any.account_receivable_upper_bound(account.into(), BlockHash::zero())
+                {
                     let hash = key.send_block_hash;
                     let amount = info.amount;
                     if self.node_config.receive_minimum <= amount {
@@ -1878,11 +1860,7 @@ impl WalletsExt for Arc<Wallets> {
                             hash,
                             info.source.encode_account()
                         );
-                        if self
-                            .ledger
-                            .confirmed()
-                            .block_exists_or_pruned(&block_tx, &hash)
-                        {
+                        if any.confirmed().block_exists_or_pruned(&hash) {
                             let representative = wallet.store.representative(wallet_tx);
                             // Receive confirmed block
                             self.receive_async_wallet(
@@ -1896,7 +1874,7 @@ impl WalletsExt for Arc<Wallets> {
                                 true,
                             );
                         } else if !self.confirming_set.contains(&hash) {
-                            let block = self.ledger.any().get_block(&block_tx, &hash);
+                            let block = any.get_block(&hash);
                             if let Some(block) = block {
                                 // Request confirmation for block which is not being processed yet
                                 let guard = self.start_election.lock().unwrap();
@@ -1926,8 +1904,8 @@ impl WalletsExt for Arc<Wallets> {
                 let representative = wallet.store.representative(&wallet_tx);
                 let pending = self
                     .ledger
-                    .any()
-                    .get_pending(&self.ledger.read_txn(), &PendingKey::new(destination, hash));
+                    .any2()
+                    .get_pending(&PendingKey::new(destination, hash));
                 if let Some(pending) = pending {
                     let amount = pending.amount;
                     self.receive_async_wallet(
@@ -1941,11 +1919,7 @@ impl WalletsExt for Arc<Wallets> {
                         true,
                     );
                 } else {
-                    if !self
-                        .ledger
-                        .any()
-                        .block_exists_or_pruned(&self.ledger.read_txn(), &hash)
-                    {
+                    if !self.ledger.any2().block_exists_or_pruned(&hash) {
                         warn!("Confirmed block is missing:  {}", hash);
                         debug_assert!(false);
                     } else {

@@ -2,11 +2,13 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Epoch, PrivateKey, Signature, StateBlockArgs, Vote,
     VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{
+    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, DEV_GENESIS_PUB_KEY,
+};
 use rsnano_network::ChannelId;
 use rsnano_node::{block_processing::BlockSource, config::NodeConfig};
 use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_timely, assert_timely_eq, start_elections, System};
+use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, start_elections, System};
 
 mod votes {
     use super::*;
@@ -323,19 +325,14 @@ fn unchecked_epoch() {
     node1
         .block_processor
         .add(open1.into(), BlockSource::Live, ChannelId::LOOPBACK);
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .ledger
-            .any()
-            .block_exists(&node1.ledger.read_txn(), &epoch1.hash())
-    });
+    assert_timely2(|| node1.ledger.any2().block_exists(&epoch1.hash()));
 
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
     assert_timely_eq(Duration::from_secs(10), || node1.unchecked.len(), 0);
     let info = node1
         .ledger
-        .any()
-        .get_account(&node1.ledger.read_txn(), &destination.account())
+        .any2()
+        .get_account(&destination.account())
         .unwrap();
     assert_eq!(info.epoch, Epoch::Epoch1);
 }
@@ -398,20 +395,13 @@ fn unchecked_epoch_invalid() {
 
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
     assert_timely(Duration::from_secs(10), || {
-        node1
-            .ledger
-            .any()
-            .block_exists(&node1.ledger.read_txn(), &epoch2.hash())
+        node1.ledger.any2().block_exists(&epoch2.hash())
     });
 
-    let tx = node1.ledger.read_txn();
-    assert_eq!(node1.ledger.any().block_exists(&tx, &epoch1.hash()), false);
+    let any = node1.ledger.any2();
+    assert_eq!(any.block_exists(&epoch1.hash()), false);
     assert_eq!(node1.unchecked.len(), 0);
-    let info = node1
-        .ledger
-        .any()
-        .get_account(&tx, &destination.account())
-        .unwrap();
+    let info = any.get_account(&destination.account()).unwrap();
     assert_eq!(info.epoch, Epoch::Epoch0);
     let epoch2_store = node1.block(&epoch2.hash()).unwrap();
     assert_eq!(epoch2_store.epoch(), Epoch::Epoch0);
