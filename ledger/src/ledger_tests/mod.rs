@@ -806,18 +806,16 @@ fn block_priority() {
 #[test]
 fn linked_account_for_change_block() {
     let ledger = Ledger::new_null();
-    let tx = ledger.read_txn();
     let block = SavedBlock::new_test_change_block();
-    assert_eq!(ledger.linked_account(&tx, &block), None);
+    assert_eq!(ledger.any2().linked_account(&block), None);
 }
 
 #[test]
 fn linked_account_for_send_block() {
     let ledger = Ledger::new_null();
-    let tx = ledger.read_txn();
     let block = SavedBlock::new_test_send_block();
     assert_eq!(
-        ledger.linked_account(&tx, &block),
+        ledger.any2().linked_account(&block),
         Some(block.destination_or_link())
     );
 }
@@ -840,9 +838,8 @@ fn linked_account_for_receive_block() {
         .build_saved();
 
     let ledger = Ledger::new_null_builder().block(&send_block).finish();
-    let tx = ledger.read_txn();
     assert_eq!(
-        ledger.linked_account(&tx, &receive_block),
+        ledger.any2().linked_account(&receive_block),
         Some(sender.account())
     );
 }

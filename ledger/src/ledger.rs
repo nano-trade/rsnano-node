@@ -7,10 +7,9 @@ use crate::{
     WriteQueue,
 };
 use rsnano_core::{
-    block_priority,
     utils::{ContainerInfo, UnixTimestamp},
-    Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo,
-    DetailedBlock, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
+    Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo, Epoch,
+    Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
@@ -598,38 +597,6 @@ impl Ledger {
         )
     }
 
-    /// Returned priority balance is maximum of block balance and previous block balance
-    /// to handle full account balance send cases.
-    /// Returned timestamp is the previous block timestamp or the current timestamp
-    /// if there's no previous block.
-    pub fn block_priority(
-        &self,
-        tx: &dyn Transaction,
-        block: &SavedBlock,
-    ) -> (Amount, UnixTimestamp) {
-        let previous_block = self.previous_block(tx, block);
-        block_priority(block, previous_block.as_ref())
-    }
-
-    pub fn previous_block(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<SavedBlock> {
-        if block.previous().is_zero() {
-            None
-        } else {
-            self.any().get_block(tx, &block.previous())
-        }
-    }
-
-    pub fn detailed_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<DetailedBlock> {
-        let block = self.any().get_block(tx, hash)?;
-        let amount = self.any().block_amount_for(tx, &block);
-        let confirmed = self.confirmed().block_exists_or_pruned(tx, hash);
-        Some(DetailedBlock {
-            block,
-            amount,
-            confirmed,
-        })
-    }
-
     pub fn cemented_count(&self) -> u64 {
         self.store.cache.cemented_count.load(Ordering::SeqCst)
     }
@@ -653,16 +620,6 @@ impl Ledger {
             blocks - cemented
         } else {
             0
-        }
-    }
-
-    pub fn linked_account(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<Account> {
-        if block.is_send() {
-            Some(block.destination_or_link())
-        } else if block.is_receive() {
-            self.any().block_account(tx, &block.source_or_link())
-        } else {
-            None
         }
     }
 

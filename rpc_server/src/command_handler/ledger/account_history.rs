@@ -1,12 +1,11 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use rsnano_core::{Account, Block, BlockBase, BlockHash, SavedBlock};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_zero, AccountHistoryArgs, AccountHistoryResponse,
     BlockSubTypeDto, BlockTypeDto, HistoryEntry,
 };
-use rsnano_store_lmdb::LmdbReadTransaction;
 
 impl RpcCommandHandler {
     pub(crate) fn account_history(
@@ -49,17 +48,15 @@ impl<'a> AccountHistoryHelper<'a> {
         }
     }
 
-    fn initialize(&mut self, tx: &LmdbReadTransaction) -> anyhow::Result<()> {
-        self.current_block_hash = self.hash_of_first_block(tx)?;
-        self.account = self
-            .ledger
-            .any()
-            .block_account(tx, &self.current_block_hash)
+    fn initialize(&mut self, any: &impl AnySet2) -> anyhow::Result<()> {
+        self.current_block_hash = self.hash_of_first_block(any)?;
+        self.account = any
+            .block_account(&self.current_block_hash)
             .ok_or_else(|| anyhow!(RpcCommandHandler::BLOCK_NOT_FOUND))?;
         Ok(())
     }
 
-    fn hash_of_first_block(&self, tx: &LmdbReadTransaction) -> anyhow::Result<BlockHash> {
+    fn hash_of_first_block(&self, any: &impl AnySet2) -> anyhow::Result<BlockHash> {
         let hash = if let Some(head) = &self.head {
             *head
         } else {
@@ -68,15 +65,11 @@ impl<'a> AccountHistoryHelper<'a> {
                 .ok_or_else(|| anyhow!("account argument missing"))?;
 
             if self.reverse {
-                self.ledger
-                    .any()
-                    .get_account(tx, &account)
+                any.get_account(&account)
                     .ok_or_else(|| anyhow!("Account not found"))?
                     .open_block
             } else {
-                self.ledger
-                    .any()
-                    .account_head(tx, &account)
+                any.account_head(&account)
                     .ok_or_else(|| anyhow!("Account not found"))?
             }
         };
@@ -85,10 +78,10 @@ impl<'a> AccountHistoryHelper<'a> {
     }
 
     pub(crate) fn account_history(mut self) -> anyhow::Result<AccountHistoryResponse> {
-        let tx = self.ledger.read_txn();
-        self.initialize(&tx)?;
+        let any = self.ledger.any2();
+        self.initialize(&any)?;
         let mut history = Vec::new();
-        let mut next_block = self.ledger.any().get_block(&tx, &self.current_block_hash);
+        let mut next_block = any.get_block(&self.current_block_hash);
         while let Some(block) = next_block {
             if self.count == 0 {
                 break;
@@ -97,28 +90,26 @@ impl<'a> AccountHistoryHelper<'a> {
             if self.offset > 0 {
                 self.offset -= 1;
             } else {
-                if let Some(entry) = self.entry_for(&block, &tx) {
+                if let Some(entry) = self.entry_for(&block, &any) {
                     history.push(entry);
                     self.count -= 1;
                 }
             }
 
-            next_block = self.go_to_next_block(&tx, &block);
+            next_block = self.go_to_next_block(&any, &block);
         }
 
         Ok(self.create_response(history))
     }
 
-    fn go_to_next_block(&mut self, tx: &LmdbReadTransaction, block: &Block) -> Option<SavedBlock> {
+    fn go_to_next_block(&mut self, any: &impl AnySet2, block: &Block) -> Option<SavedBlock> {
         self.current_block_hash = if self.reverse {
-            self.ledger
-                .any()
-                .block_successor(tx, &self.current_block_hash)
+            any.block_successor(&self.current_block_hash)
                 .unwrap_or_default()
         } else {
             block.previous()
         };
-        self.ledger.any().get_block(tx, &self.current_block_hash)
+        any.get_block(&self.current_block_hash)
     }
 
     fn should_ignore_account(&self, account: &Account) -> bool {
@@ -128,17 +119,13 @@ impl<'a> AccountHistoryHelper<'a> {
         !self.accounts_to_filter.contains(account)
     }
 
-    pub(crate) fn entry_for(
-        &self,
-        block: &SavedBlock,
-        tx: &LmdbReadTransaction,
-    ) -> Option<HistoryEntry> {
+    pub(crate) fn entry_for(&self, block: &SavedBlock, any: &impl AnySet2) -> Option<HistoryEntry> {
         let mut entry = match &**block {
             Block::LegacySend(b) => {
                 let mut entry = empty_entry();
                 entry.block_type = Some(BlockTypeDto::Send);
                 entry.account = Some(self.account);
-                if let Some(amount) = self.ledger.any().block_amount_for(tx, block) {
+                if let Some(amount) = any.block_amount_for(block) {
                     entry.amount = Some(amount);
                 } else {
                     entry.destination = Some(self.account);
@@ -150,8 +137,8 @@ impl<'a> AccountHistoryHelper<'a> {
             Block::LegacyReceive(b) => {
                 let mut entry = empty_entry();
                 entry.block_type = Some(BlockTypeDto::Receive);
-                if let Some(amount) = self.ledger.any().block_amount_for(tx, block) {
-                    if let Some(source_account) = self.ledger.any().block_account(tx, &b.source()) {
+                if let Some(amount) = any.block_amount_for(block) {
+                    if let Some(source_account) = any.block_account(&b.source()) {
                         entry.account = Some(source_account);
                     }
                     entry.amount = Some(amount);
@@ -175,8 +162,8 @@ impl<'a> AccountHistoryHelper<'a> {
                 }
 
                 if b.source() != self.ledger.constants.genesis_account.into() {
-                    if let Some(amount) = self.ledger.any().block_amount_for(tx, block) {
-                        entry.account = self.ledger.any().block_account(tx, &b.source());
+                    if let Some(amount) = any.block_amount_for(block) {
+                        entry.account = any.block_account(&b.source());
                         entry.amount = Some(amount);
                     }
                 } else {
@@ -207,7 +194,7 @@ impl<'a> AccountHistoryHelper<'a> {
                 }
 
                 let balance = b.balance();
-                let previous_balance_raw = self.ledger.any().block_balance(tx, &b.previous());
+                let previous_balance_raw = any.block_balance(&b.previous());
                 let previous_balance = previous_balance_raw.unwrap_or_default();
                 if !b.previous().is_zero() && previous_balance_raw.is_none() {
                     // If previous hash is non-zero and we can't query the balance, e.g. it's pruned, we can't determine the block type
@@ -247,8 +234,7 @@ impl<'a> AccountHistoryHelper<'a> {
                             None
                         }
                     } else {
-                        let source_account_opt =
-                            self.ledger.any().block_account(tx, &b.link().into());
+                        let source_account_opt = any.block_account(&b.link().into());
                         let source_account = source_account_opt.unwrap_or_default();
 
                         if source_account_opt.is_some()
@@ -273,31 +259,22 @@ impl<'a> AccountHistoryHelper<'a> {
         };
 
         if let Some(entry) = &mut entry {
-            self.set_common_fields(entry, block, tx);
+            self.set_common_fields(entry, block, any);
         }
         entry
     }
 
-    fn set_common_fields(
-        &self,
-        entry: &mut HistoryEntry,
-        block: &SavedBlock,
-        tx: &LmdbReadTransaction,
-    ) {
+    fn set_common_fields(&self, entry: &mut HistoryEntry, block: &SavedBlock, any: &impl AnySet2) {
         entry.local_timestamp = block.timestamp().as_u64().into();
         entry.height = block.height().into();
         entry.hash = block.hash();
-        entry.confirmed = self
-            .ledger
-            .confirmed()
-            .block_exists_or_pruned(tx, &block.hash())
-            .into();
+        entry.confirmed = any.confirmed().block_exists_or_pruned(&block.hash()).into();
         if self.output_raw {
             entry.work = Some(block.work().into());
             entry.signature = Some(block.signature().clone());
         }
         if self.include_linked_account {
-            let linked_account = match self.ledger.linked_account(tx, block) {
+            let linked_account = match any.linked_account(block) {
                 Some(a) => a.encode_account(),
                 None => "0".to_owned(),
             };

@@ -1,6 +1,6 @@
 use rsnano_core::{
     block_priority, utils::UnixTimestamp, Account, AccountInfo, Amount, Block, BlockHash,
-    DependentBlocks, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
+    DependentBlocks, DetailedBlock, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
 };
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
@@ -62,6 +62,10 @@ pub trait AnySet2: LedgerSet {
 
     fn block_amount(&self, hash: &BlockHash) -> Option<Amount>;
     fn block_amount_for(&self, block: &SavedBlock) -> Option<Amount>;
+    fn detailed_block(&self, hash: &BlockHash) -> Option<DetailedBlock>;
+
+    /// Returns the next receivable entry for an account greater than 'account'
+    fn receivable_upper_bound(&self, account: Account) -> AnyReceivableIterator;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -199,6 +203,29 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
 
     fn block_amount_for(&self, block: &SavedBlock) -> Option<Amount> {
         self.borrowing_set().block_amount_for(block)
+    }
+
+    fn detailed_block(&self, hash: &BlockHash) -> Option<DetailedBlock> {
+        self.borrowing_set().detailed_block(hash)
+    }
+
+    fn receivable_upper_bound(&self, account: Account) -> AnyReceivableIterator {
+        match account.inc() {
+            None => AnyReceivableIterator::new(
+                &self.tx,
+                &self.store.pending,
+                Default::default(),
+                None,
+                None,
+            ),
+            Some(account) => AnyReceivableIterator::new(
+                &self.tx,
+                &self.store.pending,
+                account,
+                None,
+                Some(BlockHash::zero()),
+            ),
+        }
     }
 }
 
@@ -408,6 +435,37 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
             } else {
                 Some(previous_balance - block_balance)
             }
+        }
+    }
+
+    fn detailed_block(&self, hash: &BlockHash) -> Option<DetailedBlock> {
+        let block = self.get_block(hash)?;
+        let amount = self.block_amount_for(&block);
+        let confirmed = self.confirmed().block_exists_or_pruned(hash);
+        Some(DetailedBlock {
+            block,
+            amount,
+            confirmed,
+        })
+    }
+
+    /// Returns the next receivable entry for an account greater than 'account'
+    fn receivable_upper_bound(&self, account: Account) -> AnyReceivableIterator {
+        match account.inc() {
+            None => AnyReceivableIterator::new(
+                self.tx,
+                &self.store.pending,
+                Default::default(),
+                None,
+                None,
+            ),
+            Some(account) => AnyReceivableIterator::new(
+                self.tx,
+                &self.store.pending,
+                account,
+                None,
+                Some(BlockHash::zero()),
+            ),
         }
     }
 }
