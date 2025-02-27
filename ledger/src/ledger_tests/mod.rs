@@ -275,16 +275,16 @@ fn state_account() {
 
 mod dependents_confirmed {
     use super::*;
-    use crate::ledger_constants::DEV_GENESIS_BLOCK;
+    use crate::{ledger_constants::DEV_GENESIS_BLOCK, AnySet2};
 
     #[test]
     fn genesis_is_confirmed() {
         let ctx = LedgerContext::empty();
-        let txn = ctx.ledger.read_txn();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &DEV_GENESIS_BLOCK),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&DEV_GENESIS_BLOCK),
             true
         );
     }
@@ -301,10 +301,12 @@ mod dependents_confirmed {
             .link(destination.account())
             .build();
         ctx.ledger.process(&mut txn, &mut send).unwrap();
+        txn.commit();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &send),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&send),
             true
         );
     }
@@ -320,9 +322,12 @@ mod dependents_confirmed {
         let mut send2 = ctx.genesis_block_factory().send(&txn).build();
         ctx.ledger.process(&mut txn, &mut send2).unwrap();
 
+        txn.commit();
+
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &send2),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&send2),
             false
         );
     }
@@ -342,10 +347,12 @@ mod dependents_confirmed {
 
         let mut open = destination.open(&txn, send.hash()).build();
         ctx.ledger.process(&mut txn, &mut open).unwrap();
+        txn.commit();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &open),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&open),
             false
         );
     }
@@ -366,10 +373,12 @@ mod dependents_confirmed {
 
         let mut open = destination.open(&txn, send.hash()).build();
         ctx.ledger.process(&mut txn, &mut open).unwrap();
+        txn.commit();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &open),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&open),
             true
         );
     }
@@ -402,10 +411,12 @@ mod dependents_confirmed {
 
         let mut receive = destination.receive(&txn, send2.hash()).build();
         ctx.ledger.process(&mut txn, &mut receive).unwrap();
+        txn.commit();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &receive),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&receive),
             false
         );
     }
@@ -438,10 +449,12 @@ mod dependents_confirmed {
 
         let mut receive = destination.receive(&txn, send2.hash()).build();
         ctx.ledger.process(&mut txn, &mut receive).unwrap();
+        txn.commit();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &receive),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&receive),
             false
         );
     }
@@ -475,10 +488,12 @@ mod dependents_confirmed {
 
         let mut receive = destination.receive(&txn, send2.hash()).build();
         ctx.ledger.process(&mut txn, &mut receive).unwrap();
+        txn.commit();
 
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &receive),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&receive),
             true
         );
     }
@@ -516,9 +531,12 @@ mod dependents_confirmed {
             .link(send1.hash())
             .key(&destination.key)
             .build();
+
+        txn.commit();
         assert_eq!(
             ctx.ledger
-                .dependents_confirmed_for_unsaved_block(&txn, &receive1),
+                .any2()
+                .dependents_confirmed_for_unsaved_block(&receive1),
             true
         );
     }

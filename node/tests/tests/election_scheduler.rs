@@ -144,7 +144,7 @@ mod election_scheduler {
 
         node.election_schedulers
             .priority
-            .activate(&node.store.tx_begin_read(), &*DEV_GENESIS_ACCOUNT);
+            .activate(&node.ledger.any2(), &*DEV_GENESIS_ACCOUNT);
 
         assert_timely2(|| node.active.election(&send1.qualified_root()).is_some());
     }
@@ -168,7 +168,7 @@ mod election_scheduler {
         // Activate the account
         node.election_schedulers
             .priority
-            .activate(&node.store.tx_begin_read(), &*DEV_GENESIS_ACCOUNT);
+            .activate(&node.ledger.any2(), &*DEV_GENESIS_ACCOUNT);
 
         // Assert that the election is created within 5 seconds
         assert_timely2(|| node.active.election(&send1.qualified_root()).is_some());
@@ -228,7 +228,7 @@ mod election_scheduler {
         // There is vacancy so it should be inserted
         node.election_schedulers
             .priority
-            .activate(&node.ledger.read_txn(), &DEV_GENESIS_ACCOUNT);
+            .activate(&node.ledger.any2(), &DEV_GENESIS_ACCOUNT);
         let mut election = None;
         assert_timely2(|| match node.active.election(&block1.qualified_root()) {
             Some(el) => {
@@ -244,7 +244,7 @@ mod election_scheduler {
         // There is no vacancy so it should stay queued
         node.election_schedulers
             .priority
-            .activate(&node.ledger.read_txn(), &key.account());
+            .activate(&node.ledger.any2(), &key.account());
         assert_timely_eq2(|| node.election_schedulers.priority.len(), 1);
         assert!(node.active.election(&block2.qualified_root()).is_none());
 

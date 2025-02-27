@@ -573,7 +573,7 @@ impl Node {
                 return;
             };
 
-            let tx = ledger_l.read_txn();
+            let any = ledger_l.any2();
             for (status, context) in batch {
                 if *status == BlockStatus::Progress {
                     let account = context
@@ -583,7 +583,7 @@ impl Node {
                         .as_ref()
                         .unwrap()
                         .account();
-                    schedulers.activate(&tx, &account);
+                    schedulers.activate(&any, &account);
                 }
             }
         }));
@@ -603,9 +603,9 @@ impl Node {
                 let Some(schedulers) = schedulers_w.upgrade() else {
                     return;
                 };
-                let tx = ledger_l.read_txn();
+                let any = ledger_l.any2();
                 for context in batch {
-                    schedulers.activate_successors(&tx, &context.block);
+                    schedulers.activate_successors(&any, &context.block);
                 }
             }));
         }
@@ -718,10 +718,10 @@ impl Node {
         let ledger_l = ledger.clone();
         backlog_scan.on_unconfirmed_found(move |batch| {
             if let Some(schedulers) = schedulers_w.upgrade() {
-                let tx = ledger_l.read_txn();
+                let any = ledger_l.any2();
                 for info in batch {
                     schedulers.activate_backlog(
-                        &tx,
+                        &any,
                         &info.account,
                         &info.account_info,
                         &info.conf_info,

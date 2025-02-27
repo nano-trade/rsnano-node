@@ -1,4 +1,3 @@
-use super::DependentBlocksFinder;
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
@@ -10,8 +9,7 @@ use rsnano_core::{
     block_priority,
     utils::{ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo,
-    DependentBlocks, DetailedBlock, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root,
-    SavedBlock,
+    DetailedBlock, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
@@ -363,7 +361,7 @@ impl Ledger {
 
     pub fn any2(&self) -> impl AnySet2 + use<'_> {
         let tx = self.read_txn();
-        OwningAnySet::new(&self.store, tx)
+        OwningAnySet::new(&self.store, tx, &self.constants)
     }
 
     pub fn confirmed(&self) -> ConfirmedSet {
@@ -539,34 +537,6 @@ impl Ledger {
         }
 
         pruned_count
-    }
-
-    pub fn dependents_confirmed(&self, txn: &dyn Transaction, block: &SavedBlock) -> bool {
-        self.dependent_blocks(txn, block)
-            .iter()
-            .all(|hash| self.confirmed().block_exists_or_pruned(txn, hash))
-    }
-
-    pub fn dependent_blocks(&self, txn: &dyn Transaction, block: &SavedBlock) -> DependentBlocks {
-        DependentBlocksFinder::new(self, txn).find_dependent_blocks(block)
-    }
-
-    pub fn dependents_confirmed_for_unsaved_block(
-        &self,
-        txn: &dyn Transaction,
-        block: &Block,
-    ) -> bool {
-        self.dependent_blocks_for_unsaved_block(txn, block)
-            .iter()
-            .all(|hash| self.confirmed().block_exists_or_pruned(txn, hash))
-    }
-
-    fn dependent_blocks_for_unsaved_block(
-        &self,
-        txn: &dyn Transaction,
-        block: &Block,
-    ) -> DependentBlocks {
-        DependentBlocksFinder::new(self, txn).find_dependent_blocks_for_unsaved_block(block)
     }
 
     ///

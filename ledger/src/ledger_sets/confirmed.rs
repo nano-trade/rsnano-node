@@ -1,12 +1,17 @@
 use std::ops::Deref;
 
-use rsnano_core::{Account, AccountInfo, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
+use rsnano_core::{
+    Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, PendingInfo, PendingKey,
+    SavedBlock,
+};
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore, Transaction};
 
 use super::{AnyReceivableIterator, LedgerSet};
 
 pub trait ConfirmedSet2: LedgerSet {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool;
+    fn get_conf_info(&self, account: &Account) -> Option<ConfirmationHeightInfo>;
 }
 
 /// Only blocks that are confirmed.
@@ -51,6 +56,14 @@ impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         self.borrowing_set().get_block(hash)
     }
+
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool {
+        self.borrowing_set().block_exists_or_pruned(hash)
+    }
+
+    fn get_conf_info(&self, account: &Account) -> Option<ConfirmationHeightInfo> {
+        self.borrowing_set().get_conf_info(account)
+    }
 }
 
 /// Only blocks that are confirmed.
@@ -81,17 +94,6 @@ impl<'a> BorrowingConfirmedSet<'a> {
             Some(account),
             hash.inc(),
         )
-    }
-
-    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool {
-        if hash.is_zero() {
-            return false;
-        }
-        if self.store.pruned.exists(self.tx, hash) {
-            true
-        } else {
-            self.block_exists(hash)
-        }
     }
 
     fn account_head(&self, account: &Account) -> Option<BlockHash> {
@@ -149,6 +151,21 @@ impl<'a> ConfirmedSet2 for BorrowingConfirmedSet<'a> {
         } else {
             None
         }
+    }
+
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
+        if self.store.pruned.exists(self.tx, hash) {
+            true
+        } else {
+            self.block_exists(hash)
+        }
+    }
+
+    fn get_conf_info(&self, account: &Account) -> Option<ConfirmationHeightInfo> {
+        self.store.confirmation_height.get(self.tx, account)
     }
 }
 

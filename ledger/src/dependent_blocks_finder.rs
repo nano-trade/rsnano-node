@@ -1,24 +1,26 @@
-use crate::ledger::Ledger;
+use crate::{AnySet2, LedgerConstants};
 use rsnano_core::{Block, BlockBase, BlockHash, DependentBlocks, SavedBlock, StateBlock};
-use rsnano_store_lmdb::Transaction;
 
 /// Finds all dependent blocks for a given block.
 /// There can be at most two dependencies per block, namely "previous" and "link/source".
-pub struct DependentBlocksFinder<'a> {
-    ledger: &'a Ledger,
-    txn: &'a dyn Transaction,
+pub struct DependentBlocksFinder<'a, T>
+where
+    T: AnySet2,
+{
+    any: &'a T,
+    constants: &'a LedgerConstants,
 }
 
-impl<'a> DependentBlocksFinder<'a> {
-    pub fn new(ledger: &'a Ledger, txn: &'a dyn Transaction) -> Self {
-        Self { ledger, txn }
+impl<'a, T> DependentBlocksFinder<'a, T>
+where
+    T: AnySet2,
+{
+    pub fn new(any: &'a T, constants: &'a LedgerConstants) -> Self {
+        Self { any, constants }
     }
 
     pub fn find_dependent_blocks(&self, block: &SavedBlock) -> DependentBlocks {
-        block.dependent_blocks(
-            &self.ledger.constants.epochs,
-            &self.ledger.constants.genesis_account,
-        )
+        block.dependent_blocks(&self.constants.epochs, &self.constants.genesis_account)
     }
 
     pub fn find_dependent_blocks_for_unsaved_block(&self, block: &Block) -> DependentBlocks {
@@ -26,7 +28,7 @@ impl<'a> DependentBlocksFinder<'a> {
             Block::LegacySend(b) => b.dependent_blocks(),
             Block::LegacyChange(b) => b.dependent_blocks(),
             Block::LegacyReceive(b) => b.dependent_blocks(),
-            Block::LegacyOpen(b) => b.dependent_blocks(&self.ledger.constants.genesis_account),
+            Block::LegacyOpen(b) => b.dependent_blocks(&self.constants.genesis_account),
             // a ledger lookup is needed if it is a state block!
             Block::State(state) => {
                 let linked_block = if self.is_receive_or_change(state) {
@@ -40,7 +42,7 @@ impl<'a> DependentBlocksFinder<'a> {
     }
 
     fn is_receive_or_change(&self, state: &StateBlock) -> bool {
-        !self.ledger.is_epoch_link(&state.link()) && !self.is_send(state)
+        !self.constants.epochs.is_epoch_link(&state.link()) && !self.is_send(state)
     }
 
     // This function is used in place of block.is_send() as it is tolerant to the block not having the sideband information loaded
@@ -51,11 +53,9 @@ impl<'a> DependentBlocksFinder<'a> {
         }
 
         let previous_balance = self
-            .ledger
-            .any()
-            .block_balance(self.txn, &block.previous())
+            .any
+            .block_balance(&block.previous())
             .unwrap_or_default();
-
         block.balance() < previous_balance
     }
 }

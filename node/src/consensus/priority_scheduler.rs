@@ -4,8 +4,7 @@ use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
     SavedBlock,
 };
-use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
+use rsnano_ledger::{AnySet2, ConfirmedSet2};
 use std::{
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
@@ -16,7 +15,6 @@ use tracing::trace;
 pub struct PriorityScheduler {
     mutex: Mutex<PrioritySchedulerImpl>,
     condition: Condvar,
-    ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     bucketing: Bucketing,
     buckets: Vec<Arc<Bucket>>,
@@ -27,7 +25,6 @@ pub struct PriorityScheduler {
 impl PriorityScheduler {
     pub(crate) fn new(
         config: PriorityBucketConfig,
-        ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         active: Arc<ActiveElections>,
     ) -> Self {
@@ -48,7 +45,6 @@ impl PriorityScheduler {
             condition: Condvar::new(),
             buckets,
             bucketing,
-            ledger,
             stats,
         }
     }
@@ -78,17 +74,12 @@ impl PriorityScheduler {
         self.buckets.iter().any(|b| b.contains(hash))
     }
 
-    pub fn activate(&self, tx: &dyn Transaction, account: &Account) -> bool {
+    pub fn activate(&self, any: &impl AnySet2, account: &Account) -> bool {
         debug_assert!(!account.is_zero());
-        if let Some(account_info) = self.ledger.any().get_account(tx, account) {
-            let conf_info = self
-                .ledger
-                .store
-                .confirmation_height
-                .get(tx, account)
-                .unwrap_or_default();
+        if let Some(account_info) = any.get_account(account) {
+            let conf_info = any.confirmed().get_conf_info(account).unwrap_or_default();
             if conf_info.height < account_info.block_count {
-                return self.activate_with_info(tx, account, &account_info, &conf_info);
+                return self.activate_with_info(any, account, &account_info, &conf_info);
             }
         };
 
@@ -99,7 +90,7 @@ impl PriorityScheduler {
 
     pub fn activate_with_info(
         &self,
-        tx: &dyn Transaction,
+        any: &impl AnySet2,
         account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
@@ -108,25 +99,21 @@ impl PriorityScheduler {
 
         let hash = match conf_info.height {
             0 => account_info.open_block,
-            _ => self
-                .ledger
-                .any()
-                .block_successor(tx, &conf_info.frontier)
-                .unwrap(),
+            _ => any.block_successor(&conf_info.frontier).unwrap(),
         };
 
-        let Some(block) = self.ledger.any().get_block(tx, &hash) else {
+        let Some(block) = any.get_block(&hash) else {
             // Not activated
             return false;
         };
 
-        if !self.ledger.dependents_confirmed(tx, &block) {
+        if !any.dependents_confirmed(&block) {
             self.stats
                 .inc(StatType::ElectionScheduler, DetailType::ActivateFailed);
             return false; // Not activated
         }
 
-        let (priority_balance, priority_timestamp) = self.ledger.block_priority(tx, &block);
+        let (priority_balance, priority_timestamp) = any.block_priority(&block);
 
         let added = self
             .find_bucket(priority_balance)
@@ -213,13 +200,13 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &SavedBlock) -> bool {
-        let mut result = self.activate(tx, &block.account());
+    pub fn activate_successors(&self, any: &impl AnySet2, block: &SavedBlock) -> bool {
+        let mut result = self.activate(any, &block.account());
 
         // Start or vote for the next unconfirmed block in the destination account
         if let Some(destination) = block.destination() {
             if block.is_send() && !destination.is_zero() && destination != block.account() {
-                result |= self.activate(tx, &destination);
+                result |= self.activate(any, &destination);
             }
         }
         result

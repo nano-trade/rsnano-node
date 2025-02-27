@@ -6,8 +6,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
-use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
+use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
@@ -125,7 +124,7 @@ impl HintedScheduler {
         self.active.vacancy(ElectionBehavior::Hinted) > 0
     }
 
-    fn activate(&self, tx: &mut LmdbReadTransaction, hash: BlockHash, check_dependents: bool) {
+    fn activate(&self, any: &impl AnySet2, hash: BlockHash, check_dependents: bool) {
         const MAX_ITERATIONS: usize = 64;
         let mut visited = HashSet::new();
         let mut stack = Vec::new();
@@ -136,16 +135,12 @@ impl HintedScheduler {
                 break;
             }
             iterations += 1;
-            tx.refresh_if_needed();
 
             // Check if block exists
-            if let Some(block) = self.ledger.any().get_block(tx, &current_hash) {
+            if let Some(block) = any.get_block(&current_hash) {
                 // Ensure block is not already confirmed
                 if self.confirming_set.contains(&current_hash)
-                    || self
-                        .ledger
-                        .confirmed()
-                        .block_exists_or_pruned(tx, &current_hash)
+                    || any.confirmed().block_exists_or_pruned(&current_hash)
                 {
                     self.stats
                         .inc(StatType::Hinting, DetailType::AlreadyConfirmed);
@@ -155,10 +150,10 @@ impl HintedScheduler {
 
                 if check_dependents {
                     // Perform a depth-first search of the dependency graph
-                    if !self.ledger.dependents_confirmed(tx, &block) {
+                    if !any.dependents_confirmed(&block) {
                         self.stats
                             .inc(StatType::Hinting, DetailType::DependentUnconfirmed);
-                        let dependents = self.ledger.dependent_blocks(tx, &block);
+                        let dependents = any.dependent_blocks(&block);
                         for dependent_hash in dependents.iter() {
                             // Avoid visiting the same block twice
                             if !dependent_hash.is_zero() && visited.insert(*dependent_hash) {
@@ -194,7 +189,7 @@ impl HintedScheduler {
         // Get the list before db transaction starts to avoid unnecessary slowdowns
         let tops = self.vote_cache.lock().unwrap().top(minimum_tally);
 
-        let mut tx = self.ledger.read_txn();
+        let mut any = self.ledger.any2();
 
         for entry in tops {
             if self.stopped.load(Ordering::SeqCst) {
@@ -209,16 +204,20 @@ impl HintedScheduler {
                 continue;
             }
 
+            if any.should_refresh() {
+                any = self.ledger.any2();
+            }
+
             // Check dependents only if cached tally is lower than quorum
             if entry.final_tally < minimum_final_tally {
                 // Ensure all dependent blocks are already confirmed before activating
                 self.stats.inc(StatType::Hinting, DetailType::Activate);
-                self.activate(&mut tx, entry.hash, /* activate dependents */ true);
+                self.activate(&any, entry.hash, /* activate dependents */ true);
             } else {
                 // Blocks with a vote tally higher than quorum, can be activated and confirmed immediately
                 self.stats
                     .inc(StatType::Hinting, DetailType::ActivateImmediate);
-                self.activate(&mut tx, entry.hash, false);
+                self.activate(&any, entry.hash, false);
             }
         }
     }

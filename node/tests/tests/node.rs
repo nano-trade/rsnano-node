@@ -4,7 +4,7 @@ use rsnano_core::{
     VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, Writer, DEV_GENESIS_ACCOUNT,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, BlockStatus, Writer, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
@@ -264,7 +264,8 @@ fn deferred_dependent_elections() {
     });
     assert!(!node1
         .ledger
-        .dependents_confirmed_for_unsaved_block(&node1.store.tx_begin_read(), &receive));
+        .any2()
+        .dependents_confirmed_for_unsaved_block(&receive));
 
     assert_never(std::time::Duration::from_millis(500), || {
         node1.active.election(&receive.qualified_root()).is_some()

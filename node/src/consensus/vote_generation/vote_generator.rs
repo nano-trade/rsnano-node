@@ -10,11 +10,11 @@ use rsnano_core::{
     utils::{milliseconds_since_epoch, ContainerInfo},
     BlockHash, Root, SavedBlock, Vote,
 };
-use rsnano_ledger::{Ledger, Writer};
+use rsnano_ledger::{AnySet2, Ledger, Writer};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{Channel, ChannelId, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_store_lmdb::{LmdbReadTransaction, LmdbWriteTransaction, Transaction};
+use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
     collections::VecDeque,
     mem::size_of,
@@ -135,11 +135,11 @@ impl VoteGenerator {
     /// Queue blocks for vote generation, returning the number of successful candidates.
     pub(crate) fn generate(&self, blocks: &[SavedBlock], channel: &Arc<Channel>) -> usize {
         let req_candidates = {
-            let txn = self.ledger.read_txn();
+            let any = self.ledger.any2();
             blocks
                 .iter()
                 .filter_map(|i| {
-                    if self.ledger.dependents_confirmed(&txn, i) {
+                    if any.dependents_confirmed(i) {
                         Some((i.root(), i.hash()))
                     } else {
                         None
@@ -382,17 +382,23 @@ impl SharedState {
         if self.is_final {
             let mut write_guard = self.ledger.write_queue.wait(Writer::VotingFinal);
             let mut tx = self.ledger.rw_txn();
+            let mut any = self.ledger.any2();
             for (root, hash) in &batch {
                 (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
-                if self.should_vote_final(&mut tx, root, hash) {
+                if any.should_refresh() {
+                    any = self.ledger.any2();
+                }
+                if self.should_vote_final(&mut tx, &any, root, hash) {
                     verified.push_back((*root, *hash));
                 }
             }
         } else {
-            let mut tx = self.ledger.read_txn();
+            let mut any = self.ledger.any2();
             for (root, hash) in &batch {
-                tx.refresh_if_needed();
-                if self.should_vote_non_final(&tx, root, hash) {
+                if any.should_refresh() {
+                    any = self.ledger.any2();
+                }
+                if self.should_vote_non_final(&any, root, hash) {
                     verified.push_back((*root, *hash));
                 }
             }
@@ -412,30 +418,26 @@ impl SharedState {
         }
     }
 
-    fn should_vote_non_final(
-        &self,
-        txn: &LmdbReadTransaction,
-        root: &Root,
-        hash: &BlockHash,
-    ) -> bool {
-        let Some(block) = self.ledger.any().get_block(txn, hash) else {
+    fn should_vote_non_final(&self, any: &impl AnySet2, root: &Root, hash: &BlockHash) -> bool {
+        let Some(block) = any.get_block(hash) else {
             return false;
         };
         debug_assert!(block.root() == *root);
-        self.ledger.dependents_confirmed(txn, &block)
+        any.dependents_confirmed(&block)
     }
 
     fn should_vote_final(
         &self,
         txn: &mut LmdbWriteTransaction,
+        any: &impl AnySet2,
         root: &Root,
         hash: &BlockHash,
     ) -> bool {
-        let Some(block) = self.ledger.any().get_block(txn, hash) else {
+        let Some(block) = any.get_block(hash) else {
             return false;
         };
         debug_assert!(block.root() == *root);
-        self.ledger.dependents_confirmed(txn, &block)
+        any.dependents_confirmed(&block)
             && self
                 .ledger
                 .store

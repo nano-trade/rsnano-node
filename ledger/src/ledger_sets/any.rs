@@ -1,16 +1,45 @@
 use rsnano_core::{
-    Account, AccountInfo, Amount, BlockHash, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
+    block_priority, utils::UnixTimestamp, Account, AccountInfo, Amount, Block, BlockHash,
+    DependentBlocks, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
 };
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
 };
-use std::ops::{Deref, RangeBounds, RangeFrom};
+use std::{
+    ops::{Deref, RangeBounds, RangeFrom},
+    time::{Duration, Instant},
+};
 
-use super::{BorrowingConfirmedSet, LedgerSet};
+use crate::{DependentBlocksFinder, LedgerConstants};
+
+use super::{BorrowingConfirmedSet, ConfirmedSet2, LedgerSet};
 
 pub trait AnySet2: LedgerSet {
+    fn should_refresh(&self) -> bool;
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
     fn confirmed(&self) -> BorrowingConfirmedSet;
+
+    fn block_balance(&self, hash: &BlockHash) -> Option<Amount> {
+        if hash.is_zero() {
+            return None;
+        }
+
+        self.get_block(hash).map(|b| b.balance())
+    }
+
+    fn dependent_blocks(&self, block: &SavedBlock) -> DependentBlocks;
+    fn dependents_confirmed(&self, block: &SavedBlock) -> bool;
+    fn dependents_confirmed_for_unsaved_block(&self, block: &Block) -> bool;
+    fn block_successor(&self, hash: &BlockHash) -> Option<BlockHash>;
+    fn block_successor_by_qualified_root(&self, root: &QualifiedRoot) -> Option<BlockHash>;
+
+    /// Returned priority balance is maximum of block balance and previous block balance
+    /// to handle full account balance send cases.
+    /// Returned timestamp is the previous block timestamp or the current timestamp
+    /// if there's no previous block.
+    fn block_priority(&self, block: &SavedBlock) -> (Amount, UnixTimestamp);
+
+    fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock>;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -18,17 +47,30 @@ pub trait AnySet2: LedgerSet {
 pub(crate) struct OwningAnySet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
+    constants: &'a LedgerConstants,
+    started: Instant,
 }
 
 impl<'a> OwningAnySet<'a> {
-    pub(crate) fn new(store: &'a LmdbStore, tx: LmdbReadTransaction) -> Self {
-        Self { store, tx }
+    pub(crate) fn new(
+        store: &'a LmdbStore,
+        tx: LmdbReadTransaction,
+        constants: &'a LedgerConstants,
+    ) -> Self {
+        Self {
+            store,
+            tx,
+            constants,
+            started: Instant::now(),
+        }
     }
 
     fn borrowing_set(&'a self) -> BorrowingAnySet<'a> {
         BorrowingAnySet {
             store: self.store,
             tx: &self.tx,
+            constants: self.constants,
+            started: &self.started,
         }
     }
 }
@@ -52,18 +94,52 @@ impl<'a> LedgerSet for OwningAnySet<'a> {
 }
 
 impl<'a> AnySet2 for OwningAnySet<'a> {
+    fn confirmed(&self) -> BorrowingConfirmedSet {
+        BorrowingConfirmedSet::new(self.store, &self.tx)
+    }
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         self.borrowing_set().get_block(hash)
     }
 
-    fn confirmed(&self) -> BorrowingConfirmedSet {
-        BorrowingConfirmedSet::new(self.store, &self.tx)
+    fn dependents_confirmed_for_unsaved_block(&self, block: &Block) -> bool {
+        self.borrowing_set()
+            .dependents_confirmed_for_unsaved_block(block)
+    }
+
+    fn dependent_blocks(&self, block: &SavedBlock) -> DependentBlocks {
+        self.borrowing_set().dependent_blocks(block)
+    }
+
+    fn dependents_confirmed(&self, block: &SavedBlock) -> bool {
+        self.borrowing_set().dependents_confirmed(block)
+    }
+
+    fn should_refresh(&self) -> bool {
+        self.borrowing_set().should_refresh()
+    }
+
+    fn block_successor(&self, hash: &BlockHash) -> Option<BlockHash> {
+        self.borrowing_set().block_successor(hash)
+    }
+
+    fn block_successor_by_qualified_root(&self, root: &QualifiedRoot) -> Option<BlockHash> {
+        self.borrowing_set().block_successor_by_qualified_root(root)
+    }
+
+    fn block_priority(&self, block: &SavedBlock) -> (Amount, UnixTimestamp) {
+        self.borrowing_set().block_priority(block)
+    }
+
+    fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock> {
+        self.borrowing_set().previous_block(block)
     }
 }
 
 pub(crate) struct BorrowingAnySet<'a> {
+    constants: &'a LedgerConstants,
     store: &'a LmdbStore,
     tx: &'a LmdbReadTransaction,
+    started: &'a Instant,
 }
 
 impl<'a> BorrowingAnySet<'a> {
@@ -91,6 +167,11 @@ impl<'a> BorrowingAnySet<'a> {
 
     fn account_head(&self, account: &Account) -> Option<BlockHash> {
         self.get_account(account).map(|i| i.head)
+    }
+
+    fn dependent_blocks_for_unsaved_block(&self, block: &Block) -> DependentBlocks {
+        DependentBlocksFinder::new(self, &self.constants)
+            .find_dependent_blocks_for_unsaved_block(block)
     }
 }
 
@@ -137,6 +218,51 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
 
     fn confirmed(&self) -> BorrowingConfirmedSet {
         BorrowingConfirmedSet::new(self.store, self.tx)
+    }
+
+    fn dependents_confirmed_for_unsaved_block(&self, block: &Block) -> bool {
+        self.dependent_blocks_for_unsaved_block(block)
+            .iter()
+            .all(|hash| self.confirmed().block_exists_or_pruned(hash))
+    }
+
+    fn dependents_confirmed(&self, block: &SavedBlock) -> bool {
+        self.dependent_blocks(block)
+            .iter()
+            .all(|hash| self.confirmed().block_exists_or_pruned(hash))
+    }
+
+    fn dependent_blocks(&self, block: &SavedBlock) -> DependentBlocks {
+        DependentBlocksFinder::new(self, self.constants).find_dependent_blocks(block)
+    }
+
+    fn should_refresh(&self) -> bool {
+        self.started.elapsed() > Duration::from_millis(500)
+    }
+
+    fn block_successor(&self, hash: &BlockHash) -> Option<BlockHash> {
+        self.block_successor_by_qualified_root(&QualifiedRoot::new(hash.into(), *hash))
+    }
+
+    fn block_successor_by_qualified_root(&self, root: &QualifiedRoot) -> Option<BlockHash> {
+        if !root.previous.is_zero() {
+            self.store.block.successor(self.tx, &root.previous)
+        } else {
+            self.get_account(&root.root.into()).map(|i| i.open_block)
+        }
+    }
+
+    fn block_priority(&self, block: &SavedBlock) -> (Amount, UnixTimestamp) {
+        let previous_block = self.previous_block(block);
+        block_priority(block, previous_block.as_ref())
+    }
+
+    fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock> {
+        if block.previous().is_zero() {
+            None
+        } else {
+            self.get_block(&block.previous())
+        }
     }
 }
 
