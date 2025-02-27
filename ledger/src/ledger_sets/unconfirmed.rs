@@ -1,4 +1,4 @@
-use rsnano_core::BlockHash;
+use rsnano_core::{Account, Amount, BlockHash};
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore};
 
 use super::LedgerSet;
@@ -27,6 +27,10 @@ impl<'a> LedgerSet for OwningUnconfirmedSet<'a> {
     fn block_exists(&self, hash: &BlockHash) -> bool {
         self.borrowing_set().block_exists(hash)
     }
+
+    fn account_receivable(&self, account: &Account) -> Amount {
+        self.borrowing_set().account_receivable(account)
+    }
 }
 
 /// Unconfirmed Blocks of the ledger
@@ -53,5 +57,9 @@ impl<'a> LedgerSet for BorrowingUnconfirmedSet<'a> {
             .unwrap_or_default();
 
         block.height() > conf_info.height
+    }
+
+    fn account_receivable(&self, _account: &Account) -> Amount {
+        unimplemented!()
     }
 }

@@ -1,7 +1,9 @@
+use std::ops::Deref;
+
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore, Transaction};
 
-use super::LedgerSet;
+use super::{AnyReceivableIterator, LedgerSet};
 
 pub trait ConfirmedSet2: LedgerSet {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
@@ -31,6 +33,10 @@ impl<'a> LedgerSet for OwningConfirmedSet<'a> {
     fn block_exists(&self, hash: &BlockHash) -> bool {
         self.borrowing_set().block_exists(hash)
     }
+
+    fn account_receivable(&self, account: &Account) -> Amount {
+        self.borrowing_set().account_receivable(account)
+    }
 }
 
 impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
@@ -46,9 +52,52 @@ pub(crate) struct BorrowingConfirmedSet<'a> {
     tx: &'a LmdbReadTransaction,
 }
 
+impl<'a> BorrowingConfirmedSet<'a> {
+    /// Returns the next receivable entry for the account 'account' with hash greater than 'hash'
+    fn account_receivable_upper_bound<'txn>(
+        &self,
+        account: Account,
+        hash: BlockHash,
+    ) -> AnyReceivableIterator<'txn>
+    where
+        'a: 'txn,
+    {
+        AnyReceivableIterator::<'txn>::new(
+            self.tx,
+            self.store.pending.deref(),
+            account,
+            Some(account),
+            hash.inc(),
+        )
+    }
+
+    fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
+        if self.store.pruned.exists(self.tx, hash) {
+            true
+        } else {
+            self.block_exists(hash)
+        }
+    }
+}
+
 impl<'a> LedgerSet for BorrowingConfirmedSet<'a> {
     fn block_exists(&self, hash: &BlockHash) -> bool {
         self.get_block(hash).is_some()
+    }
+
+    fn account_receivable(&self, account: &Account) -> Amount {
+        let mut result = Amount::zero();
+
+        for (key, info) in self.account_receivable_upper_bound(*account, BlockHash::zero()) {
+            if self.block_exists_or_pruned(&key.send_block_hash) {
+                result += info.amount;
+            }
+        }
+
+        result
     }
 }
 
