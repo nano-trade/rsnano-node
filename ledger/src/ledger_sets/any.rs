@@ -1,8 +1,71 @@
 use rsnano_core::{
     Account, AccountInfo, Amount, BlockHash, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
 };
-use rsnano_store_lmdb::{LmdbPendingStore, LmdbRangeIterator, LmdbStore, Transaction};
+use rsnano_store_lmdb::{
+    LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
+};
 use std::ops::{Deref, RangeBounds, RangeFrom};
+
+use super::LedgerSet;
+
+pub trait AnySet2: LedgerSet {
+    fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
+}
+
+/// All blocks - either confirmed or unconfirmed
+/// It owns the DB transaction
+pub(crate) struct OwningAnySet<'a> {
+    store: &'a LmdbStore,
+    tx: LmdbReadTransaction,
+}
+
+impl<'a> OwningAnySet<'a> {
+    pub(crate) fn new(store: &'a LmdbStore, tx: LmdbReadTransaction) -> Self {
+        Self { store, tx }
+    }
+
+    fn borrowing_set(&'a self) -> BorrowingAnySet<'a> {
+        BorrowingAnySet {
+            store: self.store,
+            tx: &self.tx,
+        }
+    }
+}
+
+impl<'a> LedgerSet for OwningAnySet<'a> {
+    fn block_exists(&self, hash: &BlockHash) -> bool {
+        self.borrowing_set().block_exists(hash)
+    }
+}
+
+impl<'a> AnySet2 for OwningAnySet<'a> {
+    fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
+        self.borrowing_set().get_block(hash)
+    }
+}
+
+pub(crate) struct BorrowingAnySet<'a> {
+    store: &'a LmdbStore,
+    tx: &'a LmdbReadTransaction,
+}
+
+impl<'a> LedgerSet for BorrowingAnySet<'a> {
+    fn block_exists(&self, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
+        self.store.block.exists(self.tx, hash)
+    }
+}
+
+impl<'a> AnySet2 for BorrowingAnySet<'a> {
+    fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
+        if hash.is_zero() {
+            return None;
+        }
+        self.store.block.get(self.tx, hash)
+    }
+}
 
 pub struct AnySet<'a> {
     store: &'a LmdbStore,
