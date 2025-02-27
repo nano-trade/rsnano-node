@@ -5,6 +5,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root, SavedBlock, SendBlockArgs,
     StateBlockArgs, WorkNonce,
 };
+use rsnano_ledger::{AnySet2, LedgerSet};
 use rsnano_node::Node;
 use rsnano_rpc_messages::{BlockCreateArgs, BlockCreateResponse, BlockTypeDto};
 use std::sync::Arc;
@@ -35,21 +36,12 @@ impl RpcCommandHandler {
             bail!("Work generation is disabled");
         }
 
+        let any = self.node.ledger.any2();
+
         if !wallet_id.is_zero() && !account.is_zero() {
             self.node.wallets.fetch(&wallet_id, &account.into())?;
-            let tx = self.node.ledger.read_txn();
-            previous = self
-                .node
-                .ledger
-                .any()
-                .account_head(&tx, &account)
-                .unwrap_or_default();
-            balance = self
-                .node
-                .ledger
-                .any()
-                .account_balance(&tx, &account)
-                .unwrap_or_default();
+            previous = any.account_head(&account).unwrap_or_default();
+            balance = any.account_balance(&account);
         }
 
         if let Some(key) = args.key {
@@ -75,29 +67,15 @@ impl RpcCommandHandler {
         let account = Account::from(pub_key);
         // Fetching account balance & previous for send blocks (if aren't given directly)
         if args.previous.is_none() && args.balance.is_none() {
-            let tx = self.node.ledger.read_txn();
-            previous = self
-                .node
-                .ledger
-                .any()
-                .account_head(&tx, &account)
-                .unwrap_or_default();
-            balance = self
-                .node
-                .ledger
-                .any()
-                .account_balance(&tx, &account)
-                .unwrap_or_default();
+            previous = any.account_head(&account).unwrap_or_default();
+            balance = any.account_balance(&account);
         }
         // Double check current balance if previous block is specified
         else if args.previous.is_some()
             && args.balance.is_some()
             && args.block_type == BlockTypeDto::Send
         {
-            let tx = self.node.ledger.read_txn();
-            if self.node.ledger.any().block_exists(&tx, &previous)
-                && self.node.ledger.any().block_balance(&tx, &previous) != Some(balance)
-            {
+            if any.block_exists(&previous) && any.block_balance(&previous) != Some(balance) {
                 bail!("Balance mismatch for previous block");
             }
         }
@@ -214,7 +192,7 @@ impl RpcCommandHandler {
         if work.is_zero() {
             // Difficulty calculation
             let difficulty = if args.difficulty.is_none() {
-                difficulty_ledger(self.node.clone(), &block)
+                difficulty_ledger(self.node.clone(), &any, &block)
             } else {
                 difficulty
             };
@@ -243,26 +221,21 @@ impl RpcCommandHandler {
     }
 }
 
-pub fn difficulty_ledger(node: Arc<Node>, block: &Block) -> u64 {
+pub fn difficulty_ledger(node: Arc<Node>, any: &impl AnySet2, block: &Block) -> u64 {
     let mut details = BlockDetails::new(Epoch::Epoch0, false, false, false);
     let mut details_found = false;
-    let tx = node.store.tx_begin_read();
 
     // Previous block find
     let mut block_previous: Option<SavedBlock> = None;
     let previous = block.previous();
     if !previous.is_zero() {
-        block_previous = node.ledger.any().get_block(&tx, &previous);
+        block_previous = any.get_block(&previous);
     }
 
     // Send check
     if block_previous.is_some() {
-        let is_send = node
-            .ledger
-            .any()
-            .block_balance(&tx, &previous)
-            .unwrap_or_default()
-            > block.balance_field().unwrap();
+        let is_send =
+            any.block_balance(&previous).unwrap_or_default() > block.balance_field().unwrap();
         details = BlockDetails::new(Epoch::Epoch0, is_send, false, false);
         details_found = true;
     }
@@ -276,12 +249,10 @@ pub fn difficulty_ledger(node: Arc<Node>, block: &Block) -> u64 {
     // Link check
     if let Some(link) = block.link_field() {
         if !details.is_send {
-            if let Some(block_link) = node.ledger.any().get_block(&tx, &link.into()) {
+            if let Some(block_link) = any.get_block(&link.into()) {
                 let account = block.account_field().unwrap(); // Link is non-zero therefore it's a state block and has an account field;
-                if node
-                    .ledger
-                    .any()
-                    .get_pending(&tx, &PendingKey::new(account, link.into()))
+                if any
+                    .get_pending(&PendingKey::new(account, link.into()))
                     .is_some()
                 {
                     let epoch = std::cmp::max(details.epoch, block_link.epoch());

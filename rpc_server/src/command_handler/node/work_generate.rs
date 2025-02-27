@@ -30,18 +30,19 @@ impl RpcCommandHandler {
         }
 
         // Retrieving optional block
-        if let Some(block) = args.block {
-            let block_enum: Block = block.into();
-            if args.hash != block_enum.root().into() {
+        if let Some(json_block) = args.block {
+            let block: Block = json_block.into();
+            if args.hash != block.root().into() {
                 bail!("Block root mismatch");
             }
             // Recalculate difficulty if not provided
             if args.difficulty.is_none() && args.multiplier.is_none() {
-                difficulty = difficulty_ledger(self.node.clone(), &block_enum);
+                let any = self.node.ledger.any2();
+                difficulty = difficulty_ledger(self.node.clone(), &any, &block);
             }
 
             // If optional block difficulty is higher than requested difficulty, send error
-            if self.node.network_params.work.difficulty_block(&block_enum) >= difficulty {
+            if self.node.network_params.work.difficulty_block(&block) >= difficulty {
                 bail!("Provided work is already enough for given difficulty");
             }
         }

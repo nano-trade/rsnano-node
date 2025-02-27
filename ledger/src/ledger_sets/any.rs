@@ -43,6 +43,7 @@ pub trait AnySet2: LedgerSet {
 
     fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock>;
     fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo>;
+    fn account_head(&self, account: &Account) -> Option<BlockHash>;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -148,6 +149,10 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
     fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo> {
         self.borrowing_set().get_pending(key)
     }
+
+    fn account_head(&self, account: &Account) -> Option<BlockHash> {
+        self.borrowing_set().account_head(account)
+    }
 }
 
 pub(crate) struct BorrowingAnySet<'a> {
@@ -174,10 +179,6 @@ impl<'a> BorrowingAnySet<'a> {
             Some(account),
             hash.inc(),
         )
-    }
-
-    fn account_head(&self, account: &Account) -> Option<BlockHash> {
-        self.get_account(account).map(|i| i.head)
     }
 
     fn dependent_blocks_for_unsaved_block(&self, block: &Block) -> DependentBlocks {
@@ -295,6 +296,10 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
 
     fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo> {
         self.store.pending.get(self.tx, key)
+    }
+
+    fn account_head(&self, account: &Account) -> Option<BlockHash> {
+        self.get_account(account).map(|i| i.head)
     }
 }
 
