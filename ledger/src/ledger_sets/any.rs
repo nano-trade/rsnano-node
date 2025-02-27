@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{DependentBlocksFinder, LedgerConstants};
+use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};
 
 use super::{BorrowingConfirmedSet, ConfirmedSet2, LedgerSet};
 
@@ -44,6 +44,10 @@ pub trait AnySet2: LedgerSet {
     fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock>;
     fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo>;
     fn account_head(&self, account: &Account) -> Option<BlockHash>;
+    fn block_account(&self, hash: &BlockHash) -> Option<Account>;
+
+    /// Returns the latest block with representative information
+    fn representative_block_hash(&self, hash: &BlockHash) -> BlockHash;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -152,6 +156,14 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
 
     fn account_head(&self, account: &Account) -> Option<BlockHash> {
         self.borrowing_set().account_head(account)
+    }
+
+    fn block_account(&self, hash: &BlockHash) -> Option<Account> {
+        self.borrowing_set().block_account(hash)
+    }
+
+    fn representative_block_hash(&self, hash: &BlockHash) -> BlockHash {
+        self.borrowing_set().representative_block_hash(hash)
     }
 }
 
@@ -300,6 +312,17 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
 
     fn account_head(&self, account: &Account) -> Option<BlockHash> {
         self.get_account(account).map(|i| i.head)
+    }
+
+    fn block_account(&self, hash: &BlockHash) -> Option<Account> {
+        self.get_block(hash).map(|b| b.account())
+    }
+
+    /// Returns the latest block with representative information
+    fn representative_block_hash(&self, hash: &BlockHash) -> BlockHash {
+        let hash = RepresentativeBlockFinder::new(self.tx, self.store).find_rep_block(*hash);
+        debug_assert!(hash.is_zero() || self.store.block.exists(self.tx, &hash));
+        hash
     }
 }
 

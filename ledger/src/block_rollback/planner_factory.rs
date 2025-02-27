@@ -1,5 +1,5 @@
 use super::rollback_planner::RollbackPlanner;
-use crate::Ledger;
+use crate::{AnySet2, ConfirmedSet2, Ledger};
 use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
     PendingInfo, PendingKey, PublicKey, SavedBlock,
@@ -9,6 +9,7 @@ use rsnano_store_lmdb::Transaction;
 pub(crate) struct RollbackPlannerFactory<'a> {
     ledger: &'a Ledger,
     txn: &'a dyn Transaction,
+    any: &'a dyn AnySet2,
     head_block: &'a SavedBlock,
 }
 
@@ -16,11 +17,13 @@ impl<'a> RollbackPlannerFactory<'a> {
     pub(crate) fn new(
         ledger: &'a Ledger,
         txn: &'a dyn Transaction,
+        any: &'a dyn AnySet2,
         head_block: &'a SavedBlock,
     ) -> Self {
         Self {
             ledger,
             txn,
+            any,
             head_block,
         }
     }
@@ -44,25 +47,20 @@ impl<'a> RollbackPlannerFactory<'a> {
     }
 
     fn latest_block_for_destination(&self) -> Option<BlockHash> {
-        self.ledger
-            .any()
-            .account_head(self.txn, &self.head_block.destination_or_link())
+        self.any
+            .account_head(&self.head_block.destination_or_link())
     }
 
     fn load_pending_receive(&self) -> Option<PendingInfo> {
-        self.ledger.any().get_pending(
-            self.txn,
-            &PendingKey::new(
-                self.head_block.destination_or_link(),
-                self.head_block.hash(),
-            ),
-        )
+        self.any.get_pending(&PendingKey::new(
+            self.head_block.destination_or_link(),
+            self.head_block.hash(),
+        ))
     }
 
     fn load_linked_account(&self) -> Account {
-        self.ledger
-            .any()
-            .block_account(self.txn, &self.head_block.source_or_link())
+        self.any
+            .block_account(&self.head_block.source_or_link())
             .unwrap_or_default()
     }
 
@@ -76,30 +74,25 @@ impl<'a> RollbackPlannerFactory<'a> {
     }
 
     fn account_confirmation_height(&self) -> ConfirmationHeightInfo {
-        self.ledger
-            .store
-            .confirmation_height
-            .get(self.txn, &self.head_block.account())
+        self.any
+            .confirmed()
+            .get_conf_info(&self.head_block.account())
             .unwrap_or_default()
     }
 
     fn get_account(&self, block: &Block) -> anyhow::Result<Account> {
-        self.ledger
-            .any()
-            .block_account(self.txn, &block.hash())
+        self.any
+            .block_account(&block.hash())
             .ok_or_else(|| anyhow!("account not found"))
     }
 
     fn load_account(&self, account: &Account) -> AccountInfo {
-        self.ledger
-            .account_info(self.txn, account)
-            .unwrap_or_default()
+        self.any.get_account(account).unwrap_or_default()
     }
 
     fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {
-        self.ledger
-            .any()
-            .get_block(self.txn, block_hash)
+        self.any
+            .get_block(block_hash)
             .ok_or_else(|| anyhow!("block not found"))
     }
 

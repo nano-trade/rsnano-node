@@ -1,7 +1,9 @@
+use std::time::Instant;
+
 use rsnano_core::{AccountInfo, BlockHash, SavedBlock};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
-use crate::Ledger;
+use crate::{BorrowingAnySet, Ledger};
 
 use super::{
     instructions_executor::RollbackInstructionsExecutor, planner_factory::RollbackPlannerFactory,
@@ -38,8 +40,16 @@ impl<'a> BlockRollbackPerformer<'a> {
     }
 
     fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), anyhow::Error> {
-        let planner =
-            RollbackPlannerFactory::new(self.ledger, self.txn, &head_block).create_planner()?;
+        let started = Instant::now();
+        let any = BorrowingAnySet {
+            constants: &self.ledger.constants,
+            store: &self.ledger.store,
+            tx: self.txn,
+            started: &started,
+        };
+
+        let planner = RollbackPlannerFactory::new(self.ledger, self.txn, &any, &head_block)
+            .create_planner()?;
         let step = planner.roll_back_head_block()?;
         self.execute(step, head_block)?;
         Ok(())
