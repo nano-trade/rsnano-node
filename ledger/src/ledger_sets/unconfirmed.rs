@@ -1,9 +1,7 @@
 use rsnano_core::BlockHash;
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore};
 
-pub trait UnconfirmedSet {
-    fn block_exists(&self, hash: &BlockHash) -> bool;
-}
+use super::LedgerSet;
 
 /// Unconfirmed Blocks of the ledger.
 /// It owns the DB transaction
@@ -25,7 +23,7 @@ impl<'a> OwningUnconfirmedSet<'a> {
     }
 }
 
-impl<'a> UnconfirmedSet for OwningUnconfirmedSet<'a> {
+impl<'a> LedgerSet for OwningUnconfirmedSet<'a> {
     fn block_exists(&self, hash: &BlockHash) -> bool {
         self.borrowing_set().block_exists(hash)
     }
@@ -38,7 +36,7 @@ pub struct BorrowingUnconfirmedSet<'a> {
     tx: &'a LmdbReadTransaction,
 }
 
-impl<'a> UnconfirmedSet for BorrowingUnconfirmedSet<'a> {
+impl<'a> LedgerSet for BorrowingUnconfirmedSet<'a> {
     fn block_exists(&self, hash: &BlockHash) -> bool {
         if hash.is_zero() {
             return false;
