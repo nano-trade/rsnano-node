@@ -2,9 +2,8 @@ use super::DependentBlocksFinder;
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
-    BlockRollbackPerformer, ConfirmedSet, GenerateCacheFlags, LedgerConstants, LedgerSetAny,
-    RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, UnconfirmedSet, WriteGuard,
-    WriteQueue,
+    Any, BlockRollbackPerformer, ConfirmedSet, GenerateCacheFlags, LedgerConstants, RepWeightCache,
+    RepWeightsUpdater, RepresentativeBlockFinder, UnconfirmedSet, WriteGuard, WriteQueue,
 };
 use rsnano_core::{
     block_priority,
@@ -357,8 +356,8 @@ impl Ledger {
         }
     }
 
-    pub fn any(&self) -> LedgerSetAny {
-        LedgerSetAny::new(&self.store)
+    pub fn any(&self) -> Any {
+        Any::new(&self.store)
     }
 
     pub fn confirmed(&self) -> ConfirmedSet {
