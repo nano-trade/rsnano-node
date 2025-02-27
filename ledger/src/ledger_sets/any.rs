@@ -40,6 +40,10 @@ impl<'a> LedgerSet for OwningAnySet<'a> {
     fn account_receivable(&self, account: &Account) -> Amount {
         self.borrowing_set().account_receivable(account)
     }
+
+    fn account_balance(&self, account: &Account) -> Amount {
+        self.borrowing_set().account_balance(account)
+    }
 }
 
 impl<'a> AnySet2 for OwningAnySet<'a> {
@@ -71,6 +75,14 @@ impl<'a> BorrowingAnySet<'a> {
             hash.inc(),
         )
     }
+
+    fn get_account(&self, account: &Account) -> Option<AccountInfo> {
+        self.store.account.get(self.tx, account)
+    }
+
+    fn account_head(&self, account: &Account) -> Option<BlockHash> {
+        self.get_account(account).map(|i| i.head)
+    }
 }
 
 impl<'a> LedgerSet for BorrowingAnySet<'a> {
@@ -89,6 +101,16 @@ impl<'a> LedgerSet for BorrowingAnySet<'a> {
         }
 
         result
+    }
+
+    fn account_balance(&self, account: &Account) -> Amount {
+        let Some(head) = self.account_head(account) else {
+            return Amount::zero();
+        };
+
+        self.get_block(&head)
+            .map(|b| b.balance())
+            .unwrap_or_default()
     }
 }
 

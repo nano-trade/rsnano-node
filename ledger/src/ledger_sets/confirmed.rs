@@ -37,6 +37,10 @@ impl<'a> LedgerSet for OwningConfirmedSet<'a> {
     fn account_receivable(&self, account: &Account) -> Amount {
         self.borrowing_set().account_receivable(account)
     }
+
+    fn account_balance(&self, account: &Account) -> Amount {
+        self.borrowing_set().account_balance(account)
+    }
 }
 
 impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
@@ -81,6 +85,11 @@ impl<'a> BorrowingConfirmedSet<'a> {
             self.block_exists(hash)
         }
     }
+
+    fn account_head(&self, account: &Account) -> Option<BlockHash> {
+        let info = self.store.confirmation_height.get(self.tx, account)?;
+        Some(info.frontier)
+    }
 }
 
 impl<'a> LedgerSet for BorrowingConfirmedSet<'a> {
@@ -98,6 +107,16 @@ impl<'a> LedgerSet for BorrowingConfirmedSet<'a> {
         }
 
         result
+    }
+
+    fn account_balance(&self, account: &Account) -> Amount {
+        let Some(head) = self.account_head(account) else {
+            return Amount::zero();
+        };
+
+        self.get_block(&head)
+            .map(|b| b.balance())
+            .unwrap_or_default()
     }
 }
 

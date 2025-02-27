@@ -31,6 +31,10 @@ impl<'a> LedgerSet for OwningUnconfirmedSet<'a> {
     fn account_receivable(&self, account: &Account) -> Amount {
         self.borrowing_set().account_receivable(account)
     }
+
+    fn account_balance(&self, account: &Account) -> Amount {
+        self.borrowing_set().account_receivable(account)
+    }
 }
 
 /// Unconfirmed Blocks of the ledger
@@ -60,6 +64,10 @@ impl<'a> LedgerSet for BorrowingUnconfirmedSet<'a> {
     }
 
     fn account_receivable(&self, _account: &Account) -> Amount {
+        unimplemented!()
+    }
+
+    fn account_balance(&self, _account: &Account) -> Amount {
         unimplemented!()
     }
 }

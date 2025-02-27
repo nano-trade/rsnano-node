@@ -11,4 +11,5 @@ use rsnano_core::{Account, Amount, BlockHash};
 pub trait LedgerSet {
     fn block_exists(&self, hash: &BlockHash) -> bool;
     fn account_receivable(&self, account: &Account) -> Amount;
+    fn account_balance(&self, account: &Account) -> Amount;
 }
