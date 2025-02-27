@@ -12,7 +12,6 @@ mod generate_cache_flags;
 mod ledger;
 mod ledger_constants;
 mod ledger_context;
-mod ledger_set_any;
 mod ledger_sets;
 mod rep_weight_cache;
 mod rep_weights_updater;
@@ -31,7 +30,6 @@ pub use ledger_constants::{
     LedgerConstants, DEV_GENESIS_ACCOUNT, DEV_GENESIS_BLOCK, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 pub use ledger_context::LedgerContext;
-pub use ledger_set_any::*;
 pub use ledger_sets::*;
 pub use rep_weight_cache::*;
 pub use rep_weights_updater::*;
