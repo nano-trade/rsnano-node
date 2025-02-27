@@ -5,7 +5,7 @@ use super::LedgerSet;
 
 /// Unconfirmed Blocks of the ledger.
 /// It owns the DB transaction
-pub struct OwningUnconfirmedSet<'a> {
+pub(crate) struct OwningUnconfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
 }
@@ -31,7 +31,7 @@ impl<'a> LedgerSet for OwningUnconfirmedSet<'a> {
 
 /// Unconfirmed Blocks of the ledger
 /// It borrows the DB transaction
-pub struct BorrowingUnconfirmedSet<'a> {
+pub(crate) struct BorrowingUnconfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: &'a LmdbReadTransaction,
 }

@@ -4,7 +4,7 @@ mod unconfirmed;
 
 pub use any::*;
 pub use confirmed::*;
-pub use unconfirmed::*;
+pub(crate) use unconfirmed::*;
 
 use rsnano_core::BlockHash;
 

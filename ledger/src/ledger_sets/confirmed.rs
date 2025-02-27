@@ -9,7 +9,7 @@ pub trait ConfirmedSet2: LedgerSet {
 
 /// Only blocks that are confirmed.
 /// It owns the DB transaction
-pub struct OwningConfirmedSet<'a> {
+pub(crate) struct OwningConfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
 }
@@ -41,7 +41,7 @@ impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
 
 /// Only blocks that are confirmed.
 /// It borrows the DB transaction
-pub struct BorrowingConfirmedSet<'a> {
+pub(crate) struct BorrowingConfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: &'a LmdbReadTransaction,
 }
