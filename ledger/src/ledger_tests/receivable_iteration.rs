@@ -1,22 +1,17 @@
-use crate::LedgerContext;
+use crate::{AnySet2, LedgerContext};
 use rsnano_core::{Account, BlockHash, PendingInfo, PendingKey};
 
 #[test]
 fn empty() {
     let ctx = LedgerContext::empty();
-    let txn = ctx.ledger.read_txn();
+    let any = ctx.ledger.any2();
 
-    let mut iterator =
-        ctx.ledger
-            .any()
-            .account_receivable_upper_bound(&txn, Account::zero(), BlockHash::zero());
+    let mut iterator = any.account_receivable_upper_bound(Account::zero(), BlockHash::zero());
 
     assert_eq!(iterator.next(), None);
 
-    let mut iterator = ctx
-        .ledger
-        .any()
-        .receivable_upper_bound(&txn, Account::zero());
+    let any = ctx.ledger.any2();
+    let mut iterator = any.receivable_upper_bound(Account::zero());
     assert_eq!(iterator.next(), None);
 }
 

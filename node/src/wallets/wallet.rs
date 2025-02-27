@@ -1,6 +1,6 @@
 use anyhow::Context;
 use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet2, Ledger};
 use rsnano_store_lmdb::{LmdbWalletStore, LmdbWriteTransaction, Transaction};
 use rsnano_work::WorkThresholds;
 use std::{
@@ -78,14 +78,14 @@ impl Wallet {
 
     pub fn deterministic_check(&self, txn: &dyn Transaction, index: u32) -> u32 {
         let mut result = index;
-        let block_txn = self.ledger.read_txn();
+        let any = self.ledger.any2();
         let mut i = index + 1;
         let mut n = index + 64;
         while i < n {
             let prv = self.store.deterministic_key(txn, i);
             let pair = PrivateKey::from_bytes(prv.as_bytes());
             // Check if account received at least 1 block
-            let latest = self.ledger.any().account_head(&block_txn, &pair.account());
+            let latest = any.account_head(&pair.account());
             match latest {
                 Some(_) => {
                     result = i;
@@ -95,11 +95,7 @@ impl Wallet {
                 }
                 None => {
                     // Check if there are pending blocks for account
-                    if self
-                        .ledger
-                        .any()
-                        .receivable_exists(&block_txn, pair.account())
-                    {
+                    if any.receivable_exists(pair.account()) {
                         result = i;
                         n = i + 64 + (i / 64);
                     }

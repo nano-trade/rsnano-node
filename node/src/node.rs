@@ -51,7 +51,7 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, WorkNonce,
 };
-use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache, Writer};
+use rsnano_ledger::{AnySet2, BlockStatus, Ledger, LedgerSet, RepWeightCache, Writer};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -1379,16 +1379,11 @@ impl Node {
     }
 
     pub fn block(&self, hash: &BlockHash) -> Option<SavedBlock> {
-        let tx = self.ledger.read_txn();
-        self.ledger.any().get_block(&tx, hash)
+        self.ledger.any2().get_block(hash)
     }
 
     pub fn latest(&self, account: &Account) -> BlockHash {
-        let tx = self.ledger.read_txn();
-        self.ledger
-            .any()
-            .account_head(&tx, account)
-            .unwrap_or_default()
+        self.ledger.any2().account_head(account).unwrap_or_default()
     }
 
     pub fn get_node_id(&self) -> NodeId {
@@ -1400,8 +1395,7 @@ impl Node {
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> bool {
-        let tx = self.ledger.read_txn();
-        self.ledger.any().block_exists(&tx, hash)
+        self.ledger.any2().block_exists(hash)
     }
 
     pub fn blocks_exist(&self, hashes: &[Block]) -> bool {
@@ -1409,18 +1403,12 @@ impl Node {
     }
 
     pub fn block_hashes_exist(&self, hashes: impl IntoIterator<Item = BlockHash>) -> bool {
-        let tx = self.ledger.read_txn();
-        hashes
-            .into_iter()
-            .all(|h| self.ledger.any().block_exists(&tx, &h))
+        let any = self.ledger.any2();
+        hashes.into_iter().all(|h| any.block_exists(&h))
     }
 
     pub fn balance(&self, account: &Account) -> Amount {
-        let tx = self.ledger.read_txn();
-        self.ledger
-            .any()
-            .account_balance(&tx, account)
-            .unwrap_or_default()
+        self.ledger.any2().account_balance(account)
     }
 
     pub fn confirm_multi(&self, blocks: &[Block]) {
@@ -1470,10 +1458,11 @@ impl Node {
             return; // TODO better nullability implementation
         }
 
-        if !self.ledger.any().block_exists_or_pruned(
-            &self.ledger.read_txn(),
-            &self.network_params.ledger.genesis_block.hash(),
-        ) {
+        if !self
+            .ledger
+            .any2()
+            .block_exists_or_pruned(&self.network_params.ledger.genesis_block.hash())
+        {
             error!("Genesis block not found. This commonly indicates a configuration issue, check that the --network or --data_path command line arguments are correct, and also the ledger backend node config option. If using a read-only CLI command a ledger must already exist, start the node with --daemon first.");
 
             if self.network_params.network.is_beta_network() {
