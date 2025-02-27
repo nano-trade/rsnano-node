@@ -1,11 +1,11 @@
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, Transaction};
 
-pub struct LedgerSetConfirmed<'a> {
+pub struct ConfirmedSet<'a> {
     store: &'a LmdbStore,
 }
 
-impl<'a> LedgerSetConfirmed<'a> {
+impl<'a> ConfirmedSet<'a> {
     pub fn new(store: &'a LmdbStore) -> Self {
         Self { store }
     }
@@ -106,7 +106,7 @@ impl<'a> LedgerSetConfirmed<'a> {
 
 pub struct ConfirmedReceivableIterator<'a> {
     pub txn: &'a dyn Transaction,
-    pub set: &'a LedgerSetConfirmed<'a>,
+    pub set: &'a ConfirmedSet<'a>,
     pub requested_account: Account,
     pub actual_account: Option<Account>,
     pub next_hash: Option<BlockHash>,

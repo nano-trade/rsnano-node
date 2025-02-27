@@ -13,7 +13,6 @@ mod ledger;
 mod ledger_constants;
 mod ledger_context;
 mod ledger_set_any;
-mod ledger_set_confirmed;
 mod ledger_sets;
 mod rep_weight_cache;
 mod rep_weights_updater;
@@ -33,7 +32,6 @@ pub use ledger_constants::{
 };
 pub use ledger_context::LedgerContext;
 pub use ledger_set_any::*;
-pub use ledger_set_confirmed::*;
 pub use ledger_sets::*;
 pub use rep_weight_cache::*;
 pub use rep_weights_updater::*;

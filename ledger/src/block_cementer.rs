@@ -1,4 +1,4 @@
-use crate::{LedgerConstants, LedgerObserver, LedgerSetAny, LedgerSetConfirmed};
+use crate::{ConfirmedSet, LedgerConstants, LedgerObserver, LedgerSetAny};
 use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
@@ -9,7 +9,7 @@ pub(crate) struct BlockCementer<'a> {
     store: &'a LmdbStore,
     observer: &'a dyn LedgerObserver,
     any: LedgerSetAny<'a>,
-    confirmed: LedgerSetConfirmed<'a>,
+    confirmed: ConfirmedSet<'a>,
 }
 
 impl<'a> BlockCementer<'a> {
@@ -23,7 +23,7 @@ impl<'a> BlockCementer<'a> {
             observer,
             constants,
             any: LedgerSetAny::new(store),
-            confirmed: LedgerSetConfirmed::new(store),
+            confirmed: ConfirmedSet::new(store),
         }
     }
 
