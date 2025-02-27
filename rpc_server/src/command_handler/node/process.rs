@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::{anyhow, bail};
 use rsnano_core::{Block, BlockBase, BlockType};
-use rsnano_ledger::BlockStatus;
+use rsnano_ledger::{BlockStatus, LedgerSet};
 use rsnano_network::ChannelId;
 use rsnano_node::block_processing::BlockSource;
 use rsnano_rpc_messages::{BlockSubTypeDto, HashRpcMessage, ProcessArgs, StartedResponse};
@@ -14,18 +14,11 @@ impl RpcCommandHandler {
         // State blocks subtype check
         if let Block::State(state) = &block {
             if let Some(subtype) = args.subtype {
-                let tx = self.node.ledger.read_txn();
-                if !state.previous().is_zero()
-                    && !self.node.ledger.any().block_exists(&tx, &state.previous())
-                {
+                let any = self.node.ledger.any2();
+                if !state.previous().is_zero() && !any.block_exists(&state.previous()) {
                     bail!("Gap previous block")
                 } else {
-                    let balance = self
-                        .node
-                        .ledger
-                        .any()
-                        .account_balance(&tx, &state.account())
-                        .unwrap_or_default();
+                    let balance = any.account_balance(&state.account());
                     match subtype {
                         BlockSubTypeDto::Send => {
                             if balance <= state.balance() {

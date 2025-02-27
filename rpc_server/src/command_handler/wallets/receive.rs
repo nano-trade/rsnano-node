@@ -1,41 +1,31 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::{anyhow, bail};
 use rsnano_core::{Amount, BlockDetails, PendingKey, Root, WorkNonce};
+use rsnano_ledger::{AnySet2, LedgerSet};
 use rsnano_node::wallets::{WalletsError, WalletsExt};
 use rsnano_rpc_messages::{BlockDto, ReceiveArgs};
 use std::cmp::max;
 
 impl RpcCommandHandler {
     pub fn receive(&self, args: ReceiveArgs) -> anyhow::Result<BlockDto> {
-        let txn = self.node.ledger.read_txn();
+        let any = self.node.ledger.any2();
 
-        if !self
-            .node
-            .ledger
-            .any()
-            .block_exists_or_pruned(&txn, &args.block)
-        {
+        if !any.block_exists_or_pruned(&args.block) {
             bail!(Self::BLOCK_NOT_FOUND);
         }
 
-        let Some(pending_info) = self
-            .node
-            .ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(args.account, args.block))
-        else {
+        let Some(pending_info) = any.get_pending(&PendingKey::new(args.account, args.block)) else {
             bail!("Block is not receivable");
         };
 
         let work: WorkNonce = if let Some(work) = args.work {
-            let (head, epoch) =
-                if let Some(info) = self.node.ledger.any().get_account(&txn, &args.account) {
-                    // When receiving, epoch version is the higher between the previous and the source blocks
-                    let epoch = max(info.epoch, pending_info.epoch);
-                    (Root::from(info.head), epoch)
-                } else {
-                    (Root::from(args.account), pending_info.epoch)
-                };
+            let (head, epoch) = if let Some(info) = any.get_account(&args.account) {
+                // When receiving, epoch version is the higher between the previous and the source blocks
+                let epoch = max(info.epoch, pending_info.epoch);
+                (Root::from(info.head), epoch)
+            } else {
+                (Root::from(args.account), pending_info.epoch)
+            };
             let details = BlockDetails::new(epoch, false, true, false);
             if self.node.network_params.work.difficulty(&head, work.into())
                 < self.node.network_params.work.threshold(&details)

@@ -21,8 +21,8 @@ impl RpcCommandHandler {
         &self,
         args: AccountArg,
     ) -> anyhow::Result<AccountBlockCountResponse> {
-        let tx = self.node.ledger.read_txn();
-        let account = self.load_account(&tx, &args.account)?;
+        let any = self.node.ledger.any2();
+        let account = self.load_account(&any, &args.account)?;
         Ok(AccountBlockCountResponse::new(account.block_count))
     }
 }

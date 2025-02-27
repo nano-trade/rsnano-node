@@ -1,5 +1,5 @@
 use rsnano_core::{Account, Amount, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::DEV_GENESIS_ACCOUNT;
+use rsnano_ledger::{AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::SendArgs;
 use std::time::Duration;
@@ -38,19 +38,16 @@ fn send() {
             .unwrap()
     });
 
-    let tx = node.ledger.read_txn();
+    let any = node.ledger.any2();
 
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.ledger.get_block(&tx, &result.block).is_some(),
+        || any.get_block(&result.block).is_some(),
         "Send block not found in ledger",
     );
 
     assert_eq!(
-        node.ledger
-            .any()
-            .account_balance(&tx, &DEV_GENESIS_ACCOUNT)
-            .unwrap(),
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
         Amount::MAX - amount
     );
 }

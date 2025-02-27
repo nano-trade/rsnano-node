@@ -1,17 +1,13 @@
 use crate::command_handler::RpcCommandHandler;
+use rsnano_ledger::{AnySet2, ConfirmedSet2};
 use rsnano_node::consensus::{ElectionStatus, ElectionStatusType};
 use rsnano_rpc_messages::{HashRpcMessage, StartedResponse};
 
 impl RpcCommandHandler {
     pub(crate) fn block_confirm(&self, args: HashRpcMessage) -> anyhow::Result<StartedResponse> {
-        let tx = self.node.ledger.read_txn();
-        let block = self.load_block_any(&tx, &args.hash)?;
-        if !self
-            .node
-            .ledger
-            .confirmed()
-            .block_exists_or_pruned(&tx, &args.hash)
-        {
+        let any = self.node.ledger.any2();
+        let block = self.load_block_any(&any, &args.hash)?;
+        if !any.confirmed().block_exists_or_pruned(&args.hash) {
             // Start new confirmation for unconfirmed (or not being confirmed) block
             if !self.node.confirming_set.contains(&args.hash) {
                 self.node.election_schedulers.manual.push(block, None);

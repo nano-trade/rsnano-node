@@ -69,6 +69,13 @@ pub trait AnySet2: LedgerSet {
 
     /// Returns the next receivable entry for an account greater than or equal to 'account'
     fn receivable_lower_bound(&self, account: Account) -> AnyReceivableIterator;
+
+    /// Returns the next receivable entry for the account 'account' with hash greater than 'hash'
+    fn account_receivable_upper_bound(
+        &self,
+        account: Account,
+        hash: BlockHash,
+    ) -> AnyReceivableIterator;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -240,6 +247,20 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
             Some(BlockHash::zero()),
         )
     }
+
+    fn account_receivable_upper_bound(
+        &self,
+        account: Account,
+        hash: BlockHash,
+    ) -> AnyReceivableIterator {
+        AnyReceivableIterator::new(
+            &self.tx,
+            self.store.pending.deref(),
+            account,
+            Some(account),
+            hash.inc(),
+        )
+    }
 }
 
 pub(crate) struct BorrowingAnySet<'a> {
@@ -250,24 +271,6 @@ pub(crate) struct BorrowingAnySet<'a> {
 }
 
 impl<'a> BorrowingAnySet<'a> {
-    /// Returns the next receivable entry for the account 'account' with hash greater than 'hash'
-    fn account_receivable_upper_bound<'txn>(
-        &self,
-        account: Account,
-        hash: BlockHash,
-    ) -> AnyReceivableIterator<'txn>
-    where
-        'a: 'txn,
-    {
-        AnyReceivableIterator::<'txn>::new(
-            self.tx,
-            self.store.pending.deref(),
-            account,
-            Some(account),
-            hash.inc(),
-        )
-    }
-
     fn dependent_blocks_for_unsaved_block(&self, block: &Block) -> DependentBlocks {
         DependentBlocksFinder::new(self, &self.constants)
             .find_dependent_blocks_for_unsaved_block(block)
@@ -489,6 +492,20 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
             account,
             None,
             Some(BlockHash::zero()),
+        )
+    }
+
+    fn account_receivable_upper_bound(
+        &self,
+        account: Account,
+        hash: BlockHash,
+    ) -> AnyReceivableIterator {
+        AnyReceivableIterator::new(
+            self.tx,
+            self.store.pending.deref(),
+            account,
+            Some(account),
+            hash.inc(),
         )
     }
 }

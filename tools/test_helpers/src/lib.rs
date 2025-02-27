@@ -630,19 +630,13 @@ pub fn send_block(node: Arc<Node>) -> BlockHash {
 }
 
 pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let transaction = node.ledger.read_txn();
+    let any = node.ledger.any2();
 
-    let previous = node
-        .ledger
-        .any()
-        .account_head(&transaction, &*DEV_GENESIS_ACCOUNT)
+    let previous = any
+        .account_head(&*DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let balance = node
-        .ledger
-        .any()
-        .account_balance(&transaction, &*DEV_GENESIS_ACCOUNT)
-        .unwrap_or(Amount::MAX);
+    let balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -671,10 +665,7 @@ pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) ->
         .account_head(&*DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let mut balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
-    if balance == Amount::zero() {
-        balance = Amount::MAX
-    }
+    let balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -698,10 +689,7 @@ pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> 
         .account_head(&*DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let mut balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
-    if balance == Amount::zero() {
-        balance = Amount::MAX;
-    }
+    let balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -719,13 +707,11 @@ pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> 
 }
 
 pub fn process_open_block(node: Arc<Node>, keys: PrivateKey) -> Block {
-    let transaction = node.ledger.read_txn();
+    let any = node.ledger.any2();
     let account = keys.account();
 
-    let (key, info) = node
-        .ledger
-        .any()
-        .account_receivable_upper_bound(&transaction, account, BlockHash::zero())
+    let (key, info) = any
+        .account_receivable_upper_bound(account, BlockHash::zero())
         .next()
         .unwrap();
 

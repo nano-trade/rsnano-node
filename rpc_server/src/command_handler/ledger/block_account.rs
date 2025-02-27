@@ -3,8 +3,8 @@ use rsnano_rpc_messages::{AccountResponse, HashRpcMessage};
 
 impl RpcCommandHandler {
     pub(crate) fn block_account(&self, args: HashRpcMessage) -> anyhow::Result<AccountResponse> {
-        let tx = self.node.ledger.read_txn();
-        let block = self.load_block_any(&tx, &args.hash)?;
+        let any = self.node.ledger.any2();
+        let block = self.load_block_any(&any, &args.hash)?;
         Ok(AccountResponse::new(block.account()))
     }
 }

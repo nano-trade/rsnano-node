@@ -1,9 +1,11 @@
 use rsnano_core::BlockHash;
-use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_HASH};
+use rsnano_ledger::{
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, LedgerSet, DEV_GENESIS_HASH,
+};
 use rsnano_node::Node;
 use rsnano_rpc_messages::RepublishArgs;
 use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, assert_timely_msg, setup_rpc_client_and_server, System};
 
 fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -41,13 +43,12 @@ fn test_republish_send_block() {
 
     let send = node
         .ledger
-        .any()
+        .any2()
         .get_block(
-            &node.store.tx_begin_read(),
             &node
                 .ledger
-                .any()
-                .block_successor(&node.store.tx_begin_read(), &*DEV_GENESIS_HASH)
+                .any2()
+                .block_successor(&*DEV_GENESIS_HASH)
                 .unwrap(),
         )
         .unwrap();
@@ -65,15 +66,7 @@ fn test_republish_send_block() {
     );
     assert_eq!(result.blocks[0], send.hash(), "Unexpected block hash");
 
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || {
-            node.ledger
-                .any()
-                .block_exists(&node.ledger.read_txn(), &send.hash())
-        },
-        "send block not received by node 2",
-    );
+    assert_timely2(|| node.ledger.any2().block_exists(&send.hash()));
 }
 
 #[test]
@@ -136,8 +129,8 @@ fn test_republish_open_block_with_sources() {
     assert_eq!(
         result.blocks[1],
         node.ledger
-            .any()
-            .block_successor(&node.store.tx_begin_read(), &*DEV_GENESIS_HASH)
+            .any2()
+            .block_successor(&*DEV_GENESIS_HASH)
             .unwrap(),
         "Unexpected send block hash"
     );

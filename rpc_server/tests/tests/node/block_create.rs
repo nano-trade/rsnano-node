@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, Block, BlockType, PrivateKey, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{AnySet2, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::{BlockCreateArgs, BlockTypeDto};
 use test_helpers::{setup_rpc_client_and_server, System};
@@ -50,9 +50,8 @@ fn block_create_state() {
 
     node.process(block.clone());
 
-    let tx = node.ledger.read_txn();
     assert_eq!(
-        node.ledger.any().block_account(&tx, &block.hash()),
+        node.ledger.any2().block_account(&block.hash()),
         Some(*DEV_GENESIS_ACCOUNT)
     );
 }

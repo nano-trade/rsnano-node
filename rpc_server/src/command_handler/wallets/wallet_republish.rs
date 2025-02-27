@@ -1,5 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Account, Block, BlockHash};
+use rsnano_ledger::AnySet2;
 use rsnano_rpc_messages::{BlockHashesResponse, WalletWithCountArgs};
 use std::{collections::VecDeque, time::Duration};
 
@@ -24,15 +25,15 @@ impl RpcCommandHandler {
     ) -> (Vec<BlockHash>, VecDeque<Block>) {
         let mut blocks = Vec::new();
         let mut republish_bundle = VecDeque::new();
-        let tx = self.node.ledger.read_txn();
+        let any = self.node.ledger.any2();
 
         for account in accounts {
-            let mut latest = self.node.ledger.any().account_head(&tx, &account).unwrap();
+            let mut latest = any.account_head(&account).unwrap();
             let mut hashes = Vec::new();
 
             while !latest.is_zero() && (hashes.len() as u64) < count {
                 hashes.push(latest);
-                if let Some(block) = self.node.ledger.any().get_block(&tx, &latest) {
+                if let Some(block) = any.get_block(&latest) {
                     latest = block.previous();
                 } else {
                     latest = BlockHash::zero();
@@ -40,7 +41,7 @@ impl RpcCommandHandler {
             }
 
             for hash in hashes.into_iter().rev() {
-                if let Some(block) = self.node.ledger.get_block(&tx, &hash) {
+                if let Some(block) = any.get_block(&hash) {
                     republish_bundle.push_back(block.into());
                     blocks.push(hash);
                 }

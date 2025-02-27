@@ -1,9 +1,8 @@
 use rsnano_core::{Amount, BlockHash, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::ReceiveArgs;
-use std::time::Duration;
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 #[test]
 fn receive() {
@@ -36,28 +35,15 @@ fn receive() {
         )
         .unwrap();
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node.ledger
-                .any()
-                .account_balance(&node.ledger.read_txn(), &(*DEV_GENESIS_ACCOUNT))
-                != Some(Amount::MAX)
-        },
-        "Genesis account balance not updated",
-    );
+    assert_timely2(|| node.ledger.any2().account_balance(&*DEV_GENESIS_ACCOUNT) != Amount::MAX);
 
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || {
-            !node
-                .ledger
-                .any()
-                .get_account(&node.ledger.read_txn(), &key1.public_key().into())
-                .is_some()
-        },
-        "Destination account should not exist yet",
-    );
+    assert_timely2(|| {
+        !node
+            .ledger
+            .any2()
+            .get_account(&key1.public_key().into())
+            .is_some()
+    });
 
     let send2 = node
         .wallets
@@ -79,18 +65,11 @@ fn receive() {
         .block_on(async { server.client.receive(args).await.unwrap() })
         .block;
 
-    let tx = node.ledger.read_txn();
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.ledger.get_block(&tx, &block_hash).is_some(),
-        "Receive block not found in ledger",
-    );
+    let any = node.ledger.any2();
+    assert_timely2(|| any.get_block(&block_hash).is_some());
 
     assert_eq!(
-        node.ledger
-            .any()
-            .account_balance(&tx, &key1.public_key().into())
-            .unwrap(),
+        any.account_balance(&key1.public_key().into()),
         node.config.receive_minimum - Amount::raw(1)
     );
 
