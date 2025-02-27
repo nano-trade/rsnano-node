@@ -3,7 +3,7 @@ use crate::{
     test_helpers::{
         setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
     },
-    Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet2, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
@@ -797,8 +797,7 @@ fn block_priority() {
         .block(&receive)
         .finish();
 
-    let tx = ledger.read_txn();
-    let (prio_amount, prio_time) = ledger.block_priority(&tx, &receive);
+    let (prio_amount, prio_time) = ledger.any2().block_priority(&receive);
 
     assert_eq!(prio_amount, receive.balance());
     assert_eq!(prio_time, send.timestamp());

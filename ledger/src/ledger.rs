@@ -360,7 +360,7 @@ impl Ledger {
         AnySet::new(&self.store)
     }
 
-    pub fn any2(&self) -> impl AnySet2 + use<'_> {
+    pub fn any2(&self) -> OwningAnySet {
         let tx = self.read_txn();
         OwningAnySet::new(&self.store, tx, &self.constants)
     }
@@ -484,10 +484,17 @@ impl Ledger {
         let mut pruned_count = 0;
         let mut hash = *hash;
         let genesis_hash = self.constants.genesis_block.hash();
+        let started = Instant::now();
+        let mut any = BorrowingAnySet {
+            constants: &self.constants,
+            store: &self.store,
+            tx: txn,
+            started: &started,
+        };
 
         while !hash.is_zero() && hash != genesis_hash {
-            if let Some(block) = self.any().get_block(txn, &hash) {
-                assert!(self.confirmed().block_exists_or_pruned(txn, &hash));
+            if let Some(block) = any.get_block(&hash) {
+                assert!(any.confirmed().block_exists_or_pruned(&hash));
                 self.store.block.del(txn, &hash);
                 self.store.pruned.put(txn, &hash);
                 hash = block.previous();
@@ -497,6 +504,12 @@ impl Ledger {
                     txn.commit();
                     txn.renew();
                 }
+                any = BorrowingAnySet {
+                    constants: &self.constants,
+                    store: &self.store,
+                    tx: txn,
+                    started: &started,
+                };
             } else if self.store.pruned.exists(txn, &hash) {
                 hash = BlockHash::zero();
             } else {

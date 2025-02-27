@@ -66,7 +66,7 @@ pub trait AnySet2: LedgerSet {
 
 /// All blocks - either confirmed or unconfirmed
 /// It owns the DB transaction
-pub(crate) struct OwningAnySet<'a> {
+pub struct OwningAnySet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
     constants: &'a LedgerConstants,
