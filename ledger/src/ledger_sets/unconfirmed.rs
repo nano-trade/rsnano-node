@@ -1,12 +1,13 @@
 use rsnano_core::BlockHash;
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore};
 
-pub struct LedgerSetUnconfirmed<'a> {
+/// Unconfirmed Blocks of the ledger
+pub struct UnconfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
 }
 
-impl<'a> LedgerSetUnconfirmed<'a> {
+impl<'a> UnconfirmedSet<'a> {
     pub fn new(store: &'a LmdbStore, tx: LmdbReadTransaction) -> Self {
         Self { store, tx }
     }

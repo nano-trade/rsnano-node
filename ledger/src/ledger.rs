@@ -3,9 +3,8 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     ledger_set_confirmed::LedgerSetConfirmed,
-    BlockRollbackPerformer, GenerateCacheFlags, LedgerConstants, LedgerSetAny,
-    LedgerSetUnconfirmed, RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard,
-    WriteQueue,
+    BlockRollbackPerformer, GenerateCacheFlags, LedgerConstants, LedgerSetAny, RepWeightCache,
+    RepWeightsUpdater, RepresentativeBlockFinder, UnconfirmedSet, WriteGuard, WriteQueue,
 };
 use rsnano_core::{
     block_priority,
@@ -366,9 +365,9 @@ impl Ledger {
         LedgerSetConfirmed::new(&self.store)
     }
 
-    pub fn unconfirmed(&self) -> LedgerSetUnconfirmed {
+    pub fn unconfirmed(&self) -> UnconfirmedSet {
         let tx = self.read_txn();
-        LedgerSetUnconfirmed::new(&self.store, tx)
+        UnconfirmedSet::new(&self.store, tx)
     }
 
     pub fn pruning_enabled(&self) -> bool {

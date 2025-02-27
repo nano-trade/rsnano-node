@@ -10,7 +10,7 @@ use crate::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{BlockStatus, Ledger, LedgerSetUnconfirmed};
+use rsnano_ledger::{BlockStatus, Ledger, UnconfirmedSet};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
@@ -349,7 +349,7 @@ impl BoundedBacklogImpl {
         }
     }
 
-    fn update(&self, unconfirmed: &LedgerSetUnconfirmed, hash: &BlockHash) {
+    fn update(&self, unconfirmed: &UnconfirmedSet, hash: &BlockHash) {
         // Erase if the block is either confirmed or missing
         if !unconfirmed.block_exists(hash) {
             self.mutex.lock().unwrap().index.erase_hash(hash);
