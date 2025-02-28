@@ -3,7 +3,8 @@ use crate::{
     test_helpers::{
         setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
     },
-    AnySet, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, ConfirmedSet2, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT,
+    DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
@@ -546,42 +547,45 @@ mod dependents_confirmed {
 #[test]
 fn block_confirmed() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     assert_eq!(
         ctx.ledger
-            .confirmed()
-            .block_exists_or_pruned(&txn, &DEV_GENESIS_HASH),
+            .confirmed2()
+            .block_exists_or_pruned(&DEV_GENESIS_HASH),
         true
     );
 
+    let mut txn = ctx.ledger.rw_txn();
     let destination = ctx.block_factory();
     let mut send = ctx
         .genesis_block_factory()
         .send(&txn)
         .link(destination.account())
         .build();
+    txn.commit();
 
     // Must be safe against non-existing blocks
     assert_eq!(
-        ctx.ledger
-            .confirmed()
-            .block_exists_or_pruned(&txn, &send.hash()),
+        ctx.ledger.confirmed2().block_exists_or_pruned(&send.hash()),
         false
     );
 
+    txn = ctx.ledger.rw_txn();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
+    txn.commit();
+
     assert_eq!(
         ctx.ledger
-            .confirmed()
-            .block_exists_or_pruned(&txn, &send.hash()),
+            .confirmed2()
+            .block_exists_or_pruned(&&send.hash()),
         false
     );
 
+    txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send.hash());
+    txn.commit();
+
     assert_eq!(
-        ctx.ledger
-            .confirmed()
-            .block_exists_or_pruned(&txn, &send.hash()),
+        ctx.ledger.confirmed2().block_exists_or_pruned(&send.hash()),
         true
     );
 }

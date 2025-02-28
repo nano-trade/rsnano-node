@@ -18,24 +18,22 @@ fn single() {
     let latest1 = node.latest(&DEV_GENESIS_ACCOUNT);
     let send1 = lattice.genesis().send(&key1, 100);
     node.process(send1.clone());
+    assert_eq!(node.ledger.confirmed2().block_exists(&send1.hash()), false);
     let mut tx = node.ledger.rw_txn();
-    assert_eq!(
-        node.ledger.confirmed().block_exists(&tx, &send1.hash()),
-        false
-    );
     node.ledger.confirm(&mut tx, send1.hash());
-    assert_eq!(
-        node.ledger.confirmed().block_exists(&tx, &send1.hash()),
-        true
-    );
-    let conf_height = node
+    tx.commit();
+
+    assert_eq!(node.ledger.confirmed2().block_exists(&send1.hash()), true);
+    let conf_info = node
         .ledger
-        .get_confirmation_height(&tx, &DEV_GENESIS_ACCOUNT)
+        .confirmed2()
+        .get_conf_info(&DEV_GENESIS_ACCOUNT)
         .unwrap();
-    assert_eq!(conf_height.height, 2);
-    assert_eq!(conf_height.frontier, send1.hash());
+    assert_eq!(conf_info.height, 2);
+    assert_eq!(conf_info.frontier, send1.hash());
 
     // Rollbacks should fail as these blocks have been cemented
+    tx = node.ledger.rw_txn();
     assert!(node.ledger.rollback(&mut tx, &latest1).is_err());
     assert!(node.ledger.rollback(&mut tx, &send1.hash()).is_err());
     assert_eq!(

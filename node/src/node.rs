@@ -1424,22 +1424,17 @@ impl Node {
     }
 
     pub fn block_confirmed(&self, hash: &BlockHash) -> bool {
-        let tx = self.ledger.read_txn();
-        self.ledger.confirmed().block_exists(&tx, hash)
+        self.ledger.confirmed2().block_exists(hash)
     }
 
     pub fn block_hashes_confirmed(&self, blocks: &[BlockHash]) -> bool {
-        let tx = self.ledger.read_txn();
-        blocks
-            .iter()
-            .all(|b| self.ledger.confirmed().block_exists(&tx, b))
+        let confirmed = self.ledger.confirmed2();
+        blocks.iter().all(|b| confirmed.block_exists(b))
     }
 
     pub fn blocks_confirmed(&self, blocks: &[Block]) -> bool {
-        let tx = self.ledger.read_txn();
-        blocks
-            .iter()
-            .all(|b| self.ledger.confirmed().block_exists(&tx, &b.hash()))
+        let confirmed = self.ledger.confirmed2();
+        blocks.iter().all(|b| confirmed.block_exists(&b.hash()))
     }
 
     pub fn flood_block_many(

@@ -132,6 +132,25 @@ impl<'a> OwningAnySet<'a> {
     ) -> impl Iterator<Item = (PendingKey, PendingInfo)> + '_ {
         self.store.pending.iter_range(&self.tx, range)
     }
+
+    pub fn random_blocks(&self, count: usize) -> Vec<SavedBlock> {
+        let mut result = Vec::with_capacity(count);
+        let starting_hash = BlockHash::random();
+
+        // It is more efficient to choose a random starting point and pick a few sequential blocks from there
+        let mut it = self.store.block.iter_range(&self.tx, starting_hash..);
+        while result.len() < count {
+            match it.next() {
+                Some(block) => result.push(block),
+                None => {
+                    // Wrap around when reaching the end
+                    it = self.store.block.iter_range(&self.tx, BlockHash::zero()..);
+                }
+            }
+        }
+
+        result
+    }
 }
 
 impl<'a> LedgerSet for OwningAnySet<'a> {

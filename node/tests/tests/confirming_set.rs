@@ -1,11 +1,13 @@
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
-use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, Writer};
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet, Writer};
 use rsnano_node::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, Direction, StatType},
 };
 use std::time::Duration;
-use test_helpers::{assert_always_eq, assert_timely, assert_timely_eq, start_election, System};
+use test_helpers::{
+    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, start_election, System,
+};
 
 #[test]
 fn observer_callbacks() {
@@ -69,11 +71,7 @@ fn confirmed_history() {
         assert_eq!(node.active.recently_cemented_count(), 0);
         assert_eq!(node.active.len(), 0);
 
-        let tx = node.ledger.read_txn();
-        assert_eq!(
-            node.ledger.confirmed().block_exists(&tx, &send.hash()),
-            false
-        );
+        assert_eq!(node.ledger.confirmed2().block_exists(&send.hash()), false);
 
         assert_timely(Duration::from_secs(10), || {
             node.ledger.write_queue.contains(Writer::ConfirmationHeight)
@@ -98,11 +96,7 @@ fn confirmed_history() {
         !node.ledger.write_queue.contains(Writer::ConfirmationHeight)
     });
 
-    assert_timely(Duration::from_secs(5), || {
-        node.ledger
-            .confirmed()
-            .block_exists(&node.ledger.read_txn(), &send.hash())
-    });
+    assert_timely2(|| node.ledger.confirmed2().block_exists(&send.hash()));
 
     assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
     assert_timely_eq(

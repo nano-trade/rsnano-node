@@ -57,10 +57,6 @@ fn wallet_receivable_options_none() {
     let send = send_block_to(node.clone(), public_key.into(), Amount::raw(1));
     node.ledger.confirm(&mut node.ledger.rw_txn(), send.hash());
 
-    node.ledger
-        .confirmed()
-        .block_exists_or_pruned(&node.ledger.read_txn(), &send.hash());
-
     let server = setup_rpc_client_and_server(node.clone(), true);
 
     let result = node.runtime.block_on(async {

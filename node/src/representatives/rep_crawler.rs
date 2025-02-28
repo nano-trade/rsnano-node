@@ -10,7 +10,7 @@ use crate::{
 };
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet, Ledger, LedgerSet};
 use rsnano_messages::{ConfirmReq, Message};
 use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
@@ -353,8 +353,8 @@ impl RepCrawler {
 
     fn prepare_query_target(&self) -> (BlockHash, Root) {
         const MAX_ATTEMPTS: usize = 32;
-        let tx = self.ledger.read_txn();
-        let random_blocks = self.ledger.random_blocks(&tx, MAX_ATTEMPTS);
+        let any = self.ledger.any();
+        let random_blocks = any.random_blocks(MAX_ATTEMPTS);
 
         for block in &random_blocks {
             // Avoid blocks that could still have live votes coming in
@@ -363,7 +363,7 @@ impl RepCrawler {
             }
 
             // Nodes will not respond to queries for blocks that are not confirmed
-            if !self.ledger.confirmed().block_exists(&tx, &block.hash()) {
+            if !any.confirmed().block_exists(&block.hash()) {
                 continue;
             }
 

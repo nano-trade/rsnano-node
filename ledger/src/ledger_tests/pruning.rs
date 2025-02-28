@@ -394,6 +394,8 @@ fn hash_root_random() {
 
     // Pruning action
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
+    txn.commit();
+    let any = ctx.ledger.any();
 
     // Prunned block will not be included in the random selection because it's not in the blocks set
     {
@@ -401,7 +403,7 @@ fn hash_root_random() {
         let mut iteration = 0;
         while !done && iteration < 42 {
             iteration += 1;
-            let blocks = ctx.ledger.random_blocks(&txn, 10);
+            let blocks = any.random_blocks(10);
             // Random blocks should repeat if the ledger is smaller than the requested count
             assert_eq!(blocks.len(), 10);
             let first = &blocks[0];
@@ -416,7 +418,7 @@ fn hash_root_random() {
         let mut iteration = 0;
         while !done {
             iteration += 1;
-            let blocks = ctx.ledger.random_blocks(&txn, 1);
+            let blocks = any.random_blocks(1);
             assert_eq!(blocks.len(), 1);
             let first = &blocks[0];
             done = first.hash() == send2.hash();
@@ -428,7 +430,7 @@ fn hash_root_random() {
         let mut iteration = 0;
         while !done {
             iteration += 1;
-            let blocks = ctx.ledger.random_blocks(&txn, 1);
+            let blocks = any.random_blocks(1);
             let first = &blocks[0];
             done = first.hash() == *DEV_GENESIS_HASH;
             assert!(iteration < 1000);

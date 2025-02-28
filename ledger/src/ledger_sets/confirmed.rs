@@ -16,7 +16,7 @@ pub trait ConfirmedSet2: LedgerSet {
 
 /// Only blocks that are confirmed.
 /// It owns the DB transaction
-pub(crate) struct OwningConfirmedSet<'a> {
+pub struct OwningConfirmedSet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
 }
@@ -30,6 +30,41 @@ impl<'a> OwningConfirmedSet<'a> {
         BorrowingConfirmedSet {
             store: self.store,
             tx: &self.tx,
+        }
+    }
+
+    fn first_receivable_lower_bound(
+        &self,
+        account: Account,
+        send_hash: BlockHash,
+    ) -> Option<(PendingKey, PendingInfo)> {
+        let mut it = self
+            .store
+            .pending
+            .iter_range(&self.tx, PendingKey::new(account, send_hash)..);
+
+        let (mut key, mut info) = it.next()?;
+
+        while !self.block_exists(&key.send_block_hash) {
+            (key, info) = it.next()?;
+        }
+
+        Some((key, info))
+    }
+
+    /// Returns the next receivable entry for an account greater than or equal to 'account'
+    pub fn receivable_lower_bound<'txn>(
+        &'a self,
+        account: Account,
+    ) -> ConfirmedReceivableIterator2<'txn>
+    where
+        'a: 'txn,
+    {
+        ConfirmedReceivableIterator2::<'txn> {
+            set: self,
+            requested_account: account,
+            actual_account: None,
+            next_hash: Some(BlockHash::zero()),
         }
     }
 }
@@ -273,6 +308,38 @@ impl<'a> ConfirmedSet<'a> {
     }
 }
 
+pub struct ConfirmedReceivableIterator2<'a> {
+    pub set: &'a OwningConfirmedSet<'a>,
+    pub requested_account: Account,
+    pub actual_account: Option<Account>,
+    pub next_hash: Option<BlockHash>,
+}
+
+impl<'a> Iterator for ConfirmedReceivableIterator2<'a> {
+    type Item = (PendingKey, PendingInfo);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let hash = self.next_hash?;
+        let account = self.actual_account.unwrap_or(self.requested_account);
+        let (key, info) = self.set.first_receivable_lower_bound(account, hash)?;
+        match self.actual_account {
+            Some(account) => {
+                if key.receiving_account == account {
+                    self.next_hash = key.send_block_hash.inc();
+                    Some((key.clone(), info.clone()))
+                } else {
+                    None
+                }
+            }
+            None => {
+                self.actual_account = Some(key.receiving_account);
+                self.next_hash = key.send_block_hash.inc();
+                Some((key.clone(), info.clone()))
+            }
+        }
+    }
+}
+
 pub struct ConfirmedReceivableIterator<'a> {
     pub txn: &'a dyn Transaction,
     pub set: &'a ConfirmedSet<'a>,
@@ -351,10 +418,9 @@ mod tests {
             )
             .finish();
 
-        let tx = ledger.read_txn();
-        let receivable: Vec<_> = ledger
-            .confirmed()
-            .receivable_lower_bound(&tx, Account::zero())
+        let confirmed = ledger.confirmed2();
+        let receivable: Vec<_> = confirmed
+            .receivable_lower_bound(Account::zero())
             .map(|i| i.0)
             .collect();
 

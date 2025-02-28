@@ -2,7 +2,7 @@ use rsnano_core::{
     utils::MemoryStream, Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, Writer, DEV_GENESIS_ACCOUNT,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
@@ -514,11 +514,7 @@ fn inactive_votes_cache_election_start() {
     assert_eq!(3, send4_cache.len());
     node.process_active(send3.clone());
     // An election is started for send6 but does not
-    let tx = node.ledger.read_txn();
-    assert_eq!(
-        node.ledger.confirmed().block_exists(&tx, &send3.hash()),
-        false
-    );
+    assert_eq!(node.ledger.confirmed2().block_exists(&send3.hash()), false);
     assert_eq!(node.confirming_set.contains(&send3.hash()), false);
     // send7 cannot be voted on but an election should be started from inactive votes
     node.process_active(send4);

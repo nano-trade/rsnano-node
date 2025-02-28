@@ -364,7 +364,7 @@ impl Ledger {
         ConfirmedSet::new(&self.store)
     }
 
-    pub fn confirmed2(&self) -> impl ConfirmedSet2 + use<'_> {
+    pub fn confirmed2(&self) -> OwningConfirmedSet<'_> {
         let tx = self.read_txn();
         OwningConfirmedSet::new(&self.store, tx)
     }
@@ -384,25 +384,6 @@ impl Ledger {
 
     pub fn bootstrap_weight_max_blocks(&self) -> u64 {
         self.rep_weights.bootstrap_weight_max_blocks()
-    }
-
-    pub fn random_blocks(&self, tx: &dyn Transaction, count: usize) -> Vec<SavedBlock> {
-        let mut result = Vec::with_capacity(count);
-        let starting_hash = BlockHash::random();
-
-        // It is more efficient to choose a random starting point and pick a few sequential blocks from there
-        let mut it = self.store.block.iter_range(tx, starting_hash..);
-        while result.len() < count {
-            match it.next() {
-                Some(block) => result.push(block),
-                None => {
-                    // Wrap around when reaching the end
-                    it = self.store.block.iter_range(tx, BlockHash::zero()..);
-                }
-            }
-        }
-
-        result
     }
 
     /// Returns the cached vote weight for the given representative.
