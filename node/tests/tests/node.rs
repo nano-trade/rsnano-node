@@ -4,7 +4,7 @@ use rsnano_core::{
     VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, LedgerSet, Writer,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, ConfirmedSet, LedgerSet, Writer,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
@@ -254,7 +254,7 @@ fn deferred_dependent_elections() {
 
     node1
         .ledger
-        .rollback(&mut node1.store.tx_begin_write(), &receive.hash())
+        .rollback(&mut node1.ledger.rw_txn(), &receive.hash())
         .unwrap();
     assert!(!node1.block_exists(&receive.hash()));
 
@@ -1083,13 +1083,8 @@ fn search_receivable_pruned() {
 
     // Pruning
     {
-        let mut transaction = node2.store.tx_begin_write();
-        assert_eq!(
-            1,
-            node2
-                .ledger
-                .pruning_action(&mut transaction, &send1.hash(), 1)
-        );
+        let mut tx = node2.ledger.rw_txn();
+        assert_eq!(1, node2.ledger.pruning_action(&mut tx, &send1.hash(), 1));
     }
     assert_eq!(1, node2.ledger.pruned_count());
     assert!(node2.ledger.any().block_exists_or_pruned(&send1.hash())); // true for pruned
@@ -2654,14 +2649,12 @@ fn unconfirmed_send() {
     );
 
     // wait until receive1 (auto-receive created by wallet) is cemented
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
-            let tx = node2.store.tx_begin_read();
             node2
-                .store
-                .confirmation_height
-                .get(&tx, &key2.account())
+                .ledger
+                .confirmed()
+                .get_conf_info(&key2.account())
                 .unwrap_or_default()
                 .height
         },

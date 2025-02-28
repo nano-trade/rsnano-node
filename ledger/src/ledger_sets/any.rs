@@ -119,6 +119,10 @@ impl<'a> OwningAnySet<'a> {
         self.store.account.iter_range(&self.tx, range)
     }
 
+    pub fn iter_accounts(&self) -> impl Iterator<Item = (Account, AccountInfo)> + '_ {
+        self.store.account.iter(&self.tx)
+    }
+
     pub fn iter_account_range(
         &self,
         range: impl RangeBounds<Account> + 'static,

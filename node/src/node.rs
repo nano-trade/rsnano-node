@@ -1073,11 +1073,8 @@ impl Node {
             }
         }
 
-        {
-            let tx = ledger.read_txn();
-            if flags.enable_pruning || ledger.store.pruned.count(&tx) > 0 {
-                ledger.enable_pruning();
-            }
+        if flags.enable_pruning {
+            ledger.enable_pruning();
         }
 
         if ledger.pruning_enabled() {

@@ -9,13 +9,11 @@ impl RpcCommandHandler {
         let threshold = args.threshold.unwrap_or(Amount::zero());
         let start_account = args.start.unwrap_or(Account::zero()).inc_or_max();
 
-        let tx = self.node.ledger.read_txn();
-
         let delegators = self
             .node
-            .store
-            .account
-            .iter_range(&tx, start_account..)
+            .ledger
+            .any()
+            .iter_account_range(start_account..)
             .filter_map(|(account, info)| {
                 if info.representative == representative && info.balance >= threshold {
                     Some((account, info.balance))
@@ -23,8 +21,9 @@ impl RpcCommandHandler {
                     None
                 }
             })
-            .take(count);
+            .take(count)
+            .collect();
 
-        DelegatorsResponse::new(delegators.collect())
+        DelegatorsResponse::new(delegators)
     }
 }

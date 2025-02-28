@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::utils::UnixTimestamp;
 use rsnano_core::Account;
-use rsnano_ledger::LedgerSet;
+use rsnano_ledger::{AnySet, LedgerSet};
 use rsnano_node::Node;
 use rsnano_rpc_messages::{AccountInfo, WalletLedgerArgs, WalletLedgerResponse};
 use std::collections::HashMap;
@@ -40,7 +40,7 @@ fn get_accounts_info(
     receivable: bool,
     modified_since: UnixTimestamp,
 ) -> HashMap<Account, AccountInfo> {
-    let tx = node.store.tx_begin_read();
+    let tx = node.ledger.read_txn();
     let any = node.ledger.any();
     let mut account_dtos = HashMap::new();
 
@@ -50,7 +50,7 @@ fn get_accounts_info(
                 let entry = AccountInfo {
                     frontier: info.head,
                     open_block: info.open_block,
-                    representative_block: node.ledger.representative_block_hash(&tx, &info.head),
+                    representative_block: any.representative_block_hash(&info.head),
                     balance: info.balance,
                     modified_timestamp: info.modified.as_u64().into(),
                     block_count: info.block_count.into(),

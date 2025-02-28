@@ -162,7 +162,7 @@ mod election_scheduler {
 
         // Process the block
         node.ledger
-            .process(&mut node.store.tx_begin_write(), &mut send1)
+            .process(&mut node.ledger.rw_txn(), &mut send1)
             .unwrap();
 
         // Activate the account

@@ -1,5 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Account, Amount, BlockHash, PendingKey};
+use rsnano_ledger::LedgerSet;
 use rsnano_rpc_messages::{unwrap_u64_or_max, UnopenedArgs, UnopenedResponse};
 use std::collections::HashMap;
 
@@ -10,13 +11,9 @@ impl RpcCommandHandler {
         let start = args.account.unwrap_or(Account::from(1)); // exclude burn account by default
         let mut accounts: HashMap<Account, Amount> = HashMap::new();
 
-        let tx = self.node.store.tx_begin_read();
+        let any = self.node.ledger.any();
 
-        let mut iterator = self
-            .node
-            .store
-            .pending
-            .iter_range(&tx, PendingKey::new(start, BlockHash::zero())..);
+        let mut iterator = any.iter_pending_range(PendingKey::new(start, BlockHash::zero())..);
 
         let mut current_account = start;
         let mut current_account_sum = Amount::zero();
@@ -30,13 +27,12 @@ impl RpcCommandHandler {
             let (key, info) = cur;
             let account = key.receiving_account;
 
-            if self.node.store.account.get(&tx, &account).is_some() {
+            if any.get_account(&account).is_some() {
                 if account == Account::MAX {
                     break;
                 }
                 // Skip existing accounts
-                iterator = self.node.store.pending.iter_range(
-                    &tx,
+                iterator = any.iter_pending_range(
                     PendingKey::new(account.inc().unwrap(), BlockHash::zero())..,
                 );
                 current = iterator.next();

@@ -181,7 +181,7 @@ impl LmdbStore {
     }
 
     pub fn vendor(&self) -> String {
-        // fake version! TODO: read version
+        // hard coded version! TODO: read version from Cargo
         format!("lmdb-rkv {}.{}.{}", 0, 14, 0)
     }
 

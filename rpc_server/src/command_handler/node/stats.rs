@@ -23,7 +23,7 @@ impl RpcCommandHandler {
                 );
                 Ok(sink.finish())
             }
-            StatsType::Database => Ok(serde_json::to_value(self.node.store.memory_stats()?)?),
+            StatsType::Database => Ok(serde_json::to_value(self.node.ledger.memory_stats()?)?),
             StatsType::Objects => Ok(ContainerInfo::builder()
                 .node("node", self.node.container_info())
                 .finish()

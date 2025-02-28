@@ -16,7 +16,8 @@ use rsnano_store_lmdb::{
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LedgerCache,
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
     LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction,
-    LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, Transaction,
+    LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats,
+    Transaction,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -298,11 +299,15 @@ impl Ledger {
             });
         }
 
-        let transaction = self.store.tx_begin_read();
+        let tx = self.store.tx_begin_read();
         self.store
             .cache
             .pruned_count
-            .fetch_add(self.store.pruned.count(&transaction), Ordering::SeqCst);
+            .fetch_add(self.store.pruned.count(&tx), Ordering::SeqCst);
+
+        if self.store.pruned.count(&tx) > 0 {
+            self.enable_pruning();
+        }
 
         Ok(())
     }
@@ -620,6 +625,19 @@ impl Ledger {
 
     pub fn work_thresholds(&self) -> &WorkThresholds {
         &self.constants.work
+    }
+
+    pub fn version(&self) -> u32 {
+        let tx = self.store.tx_begin_read();
+        self.store.version.get(&tx).unwrap_or_default() as u32
+    }
+
+    pub fn store_vendor(&self) -> String {
+        self.store.vendor()
+    }
+
+    pub fn memory_stats(&self) -> anyhow::Result<MemoryStats> {
+        self.store.memory_stats()
     }
 
     pub fn container_info(&self) -> ContainerInfo {

@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::Amount;
-use rsnano_ledger::LedgerSet;
+use rsnano_ledger::{AnySet, ConfirmedSet, LedgerSet};
 use rsnano_rpc_messages::{WalletInfoResponse, WalletRpcMessage};
 use rsnano_store_lmdb::KeyType;
 
@@ -14,7 +14,6 @@ impl RpcCommandHandler {
         let mut cemented_count = 0u64;
         let mut deterministic_count = 0u64;
         let mut adhoc_count = 0u64;
-        let tx = self.node.ledger.read_txn();
         let any = self.node.ledger.any();
 
         for (account, _priv_key) in accounts {
@@ -24,8 +23,7 @@ impl RpcCommandHandler {
                 balance += account_info.balance;
             }
 
-            if let Some(confirmation_info) = self.node.store.confirmation_height.get(&tx, &account)
-            {
+            if let Some(confirmation_info) = any.confirmed().get_conf_info(&account) {
                 cemented_count += confirmation_info.height;
             }
 

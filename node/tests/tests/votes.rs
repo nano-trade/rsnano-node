@@ -333,7 +333,7 @@ fn vote_spacing_vote_generator() {
         .send(&*DEV_GENESIS_KEY, Amount::nano(1001));
 
     node.ledger
-        .process(&mut node.store.tx_begin_write(), &send1)
+        .process(&mut node.ledger.rw_txn(), &send1)
         .unwrap();
     assert_eq!(
         node.stats.count(
@@ -358,10 +358,10 @@ fn vote_spacing_vote_generator() {
     );
 
     node.ledger
-        .rollback(&mut node.store.tx_begin_write(), &send1.hash())
+        .rollback(&mut node.ledger.rw_txn(), &send1.hash())
         .unwrap();
     node.ledger
-        .process(&mut node.store.tx_begin_write(), &send2)
+        .process(&mut node.ledger.rw_txn(), &send2)
         .unwrap();
     node.vote_generators
         .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());

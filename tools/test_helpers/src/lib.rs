@@ -93,7 +93,7 @@ impl System {
     }
 
     fn setup_node(&mut self, node: &Node) {
-        let mut tx = node.store.tx_begin_write();
+        let mut tx = node.ledger.rw_txn();
         for block in &mut self.initialization_blocks {
             node.ledger.process(&mut tx, block).unwrap();
         }

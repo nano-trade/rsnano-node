@@ -4,13 +4,12 @@ use rsnano_rpc_messages::VersionResponse;
 
 impl RpcCommandHandler {
     pub(crate) fn version(&self) -> VersionResponse {
-        let tx = self.node.ledger.read_txn();
         VersionResponse {
             rpc_version: 1.into(),
-            store_version: (self.node.store.version.get(&tx).unwrap_or_default() as u32).into(),
+            store_version: self.node.ledger.version().into(),
             protocol_version: self.node.network_params.network.protocol_version.into(),
             node_vendor: format!("RsNano {}", VERSION_STRING),
-            store_vendor: self.node.store.vendor(),
+            store_vendor: self.node.ledger.store_vendor(),
             network: self
                 .node
                 .network_params

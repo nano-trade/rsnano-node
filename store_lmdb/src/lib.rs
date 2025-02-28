@@ -37,7 +37,7 @@ pub use rep_weight_store::*;
 use rsnano_nullable_lmdb::{
     InactiveTransaction, LmdbDatabase, LmdbEnvironment, RoCursor, RoTransaction, RwTransaction,
 };
-pub use store::{create_backup_file, LedgerCache, LmdbStore};
+pub use store::{create_backup_file, LedgerCache, LmdbStore, MemoryStats};
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
 
