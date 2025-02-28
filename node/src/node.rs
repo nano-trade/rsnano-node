@@ -260,7 +260,7 @@ impl Node {
         ));
 
         let mut ledger = Ledger::new(
-            store.clone(),
+            store,
             network_params.ledger.clone(),
             config.representative_vote_weight_minimum,
             rep_weights.clone(),

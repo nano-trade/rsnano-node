@@ -515,7 +515,6 @@ impl Ledger {
         pruned_count
     }
 
-    ///
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
     pub fn rollback(
         &self,
