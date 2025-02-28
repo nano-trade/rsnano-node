@@ -459,11 +459,10 @@ impl BlockProcessorLoopImpl {
     ) -> Vec<(BlockStatus, Arc<BlockContext>)> {
         let batch = self.next_batch(&mut guard, self.config.batch_size);
         drop(guard);
+        let timer = Instant::now();
 
         let mut write_guard = self.ledger.write_queue.wait(Writer::BlockProcessor);
         let mut tx = self.ledger.rw_txn();
-
-        let timer = Instant::now();
 
         // Processing blocks
         let mut number_of_blocks_processed = 0;

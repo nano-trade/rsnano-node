@@ -355,9 +355,7 @@ fn vote_spacing_vote_generator() {
         1,
     );
 
-    node.ledger
-        .rollback(&mut node.ledger.rw_txn(), &send1.hash())
-        .unwrap();
+    node.ledger.rollback2(&send1.hash()).unwrap();
     node.ledger
         .process(&mut node.ledger.rw_txn(), &send2)
         .unwrap();
@@ -442,9 +440,7 @@ fn vote_spacing_rapid() {
         1,
     );
 
-    node.ledger
-        .rollback(&mut node.ledger.rw_txn(), &send1.hash())
-        .unwrap();
+    node.ledger.rollback2(&send1.hash()).unwrap();
     node.ledger
         .process(&mut node.ledger.rw_txn(), &send2)
         .unwrap();

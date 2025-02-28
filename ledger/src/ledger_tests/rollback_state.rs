@@ -14,9 +14,9 @@ fn rollback_send() {
 
     let mut send = genesis.send(&txn).build();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&send.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
@@ -51,9 +51,9 @@ fn rollback_receive() {
 
     let mut receive = genesis.receive(&txn, send.hash()).build();
     ctx.ledger.process(&mut txn, &mut receive).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&receive.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
@@ -88,9 +88,9 @@ fn rollback_received_send() {
 
     let mut open = destination.open(&txn, send.hash()).build();
     ctx.ledger.process(&mut txn, &mut open).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&send.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(
@@ -119,9 +119,9 @@ fn rollback_rep_change() {
 
     let mut change = genesis.change(&txn).representative(representative).build();
     ctx.ledger.process(&mut txn, &mut change).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&change.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&change.hash()), false);
@@ -153,9 +153,9 @@ fn rollback_open() {
 
     let mut open = destination.open(&txn, send.hash()).build();
     ctx.ledger.process(&mut txn, &mut open).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &open.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&open.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&open.hash()), false);
@@ -184,9 +184,9 @@ fn rollback_send_with_rep_change() {
     let representative = PublicKey::from(1);
     let mut send = genesis.send(&txn).representative(representative).build();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&send.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
@@ -216,9 +216,9 @@ fn rollback_receive_with_rep_change() {
         .representative(representative)
         .build();
     ctx.ledger.process(&mut txn, &mut receive).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&receive.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);

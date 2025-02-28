@@ -13,9 +13,9 @@ fn rollback_dependent_blocks_too() {
 
     let mut send = genesis.legacy_send(&txn).build();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
-
-    ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&change.hash()).unwrap();
 
     assert_eq!(ctx.ledger.any().get_block(&send.hash()), None);
 

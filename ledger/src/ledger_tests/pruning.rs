@@ -158,10 +158,10 @@ fn pruning_source_rollback() {
         .key(&genesis.key)
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
+    txn.commit();
 
     // Rollback receive block
-    ctx.ledger.rollback(&mut txn, &receive1.hash()).unwrap();
-    txn.commit();
+    ctx.ledger.rollback2(&receive1.hash()).unwrap();
 
     let any = ctx.ledger.any();
     let info2 = any
@@ -225,10 +225,10 @@ fn pruning_source_rollback_legacy() {
         .sign(&genesis.key)
         .build();
     ctx.ledger.process(&mut txn, &mut receive1).unwrap();
+    txn.commit();
 
     // Rollback receive block
-    ctx.ledger.rollback(&mut txn, &receive1.hash()).unwrap();
-    txn.commit();
+    ctx.ledger.rollback2(&receive1.hash()).unwrap();
 
     let mut any = ctx.ledger.any();
     let info3 = any
@@ -258,10 +258,10 @@ fn pruning_source_rollback_legacy() {
         .sign(&destination.key)
         .build();
     ctx.ledger.process(&mut txn, &mut open1).unwrap();
+    txn.commit();
 
     // Rollback open block
-    ctx.ledger.rollback(&mut txn, &open1.hash()).unwrap();
-    txn.commit();
+    ctx.ledger.rollback2(&open1.hash()).unwrap();
 
     any = ctx.ledger.any();
     let info4 = any

@@ -152,8 +152,9 @@ fn send_open_receive_rollback() {
         .representative(rep_account)
         .build();
     ctx.ledger.process(&mut txn, &mut change).unwrap();
+    txn.commit();
 
-    ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
+    ctx.ledger.rollback2(&receive.hash()).unwrap();
 
     assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::raw(50));
     assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
@@ -162,7 +163,7 @@ fn send_open_receive_rollback() {
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
     );
 
-    ctx.ledger.rollback(&mut txn, &open.hash()).unwrap();
+    ctx.ledger.rollback2(&open.hash()).unwrap();
 
     assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
@@ -171,7 +172,7 @@ fn send_open_receive_rollback() {
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
     );
 
-    ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
+    ctx.ledger.rollback2(&change.hash()).unwrap();
 
     assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
@@ -180,7 +181,7 @@ fn send_open_receive_rollback() {
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
     );
 
-    ctx.ledger.rollback(&mut txn, &send2.hash()).unwrap();
+    ctx.ledger.rollback2(&send2.hash()).unwrap();
 
     assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
@@ -189,7 +190,7 @@ fn send_open_receive_rollback() {
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(50)
     );
 
-    ctx.ledger.rollback(&mut txn, &send1.hash()).unwrap();
+    ctx.ledger.rollback2(&send1.hash()).unwrap();
 
     assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());

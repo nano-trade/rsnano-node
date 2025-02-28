@@ -518,6 +518,15 @@ impl Ledger {
 
         pruned_count
     }
+    ///
+    /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
+    pub fn rollback2(
+        &self,
+        block: &BlockHash,
+    ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
+        let mut tx = self.rw_txn();
+        self.rollback(&mut tx, block)
+    }
 
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
     pub fn rollback(

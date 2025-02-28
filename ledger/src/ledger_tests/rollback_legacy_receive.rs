@@ -1,7 +1,7 @@
 use rsnano_core::PendingKey;
 
 use crate::{
-    ledger_tests::LedgerContext, test_helpers::setup_legacy_receive_block, AnySet,
+    ledger_tests::LedgerContext, test_helpers::setup_legacy_receive_block, AnySet, LedgerSet,
     DEV_GENESIS_ACCOUNT,
 };
 
@@ -10,16 +10,12 @@ fn clear_successor() {
     let ctx = LedgerContext::empty();
     let mut txn = ctx.ledger.rw_txn();
     let receive = setup_legacy_receive_block(&ctx, &mut txn);
+    txn.commit();
 
-    ctx.ledger
-        .rollback(&mut txn, &receive.receive_block.hash())
-        .unwrap();
+    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
     assert_eq!(
-        ctx.ledger
-            .store
-            .block
-            .successor(&txn, &receive.open_block.hash()),
+        ctx.ledger.any().block_successor(&receive.open_block.hash()),
         None
     );
 }
@@ -29,14 +25,14 @@ fn update_account_info() {
     let ctx = LedgerContext::empty();
     let mut txn = ctx.ledger.rw_txn();
     let receive = setup_legacy_receive_block(&ctx, &mut txn);
+    txn.commit();
 
-    ctx.ledger
-        .rollback(&mut txn, &receive.receive_block.hash())
-        .unwrap();
+    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
     let account_info = ctx
         .ledger
-        .account_info(&txn, &receive.destination.account())
+        .any()
+        .get_account(&receive.destination.account())
         .unwrap();
 
     assert_eq!(account_info.head, receive.open_block.hash());
@@ -49,11 +45,9 @@ fn rollback_pending_info() {
     let ctx = LedgerContext::empty();
     let mut txn = ctx.ledger.rw_txn();
     let receive = setup_legacy_receive_block(&ctx, &mut txn);
-
-    ctx.ledger
-        .rollback(&mut txn, &receive.receive_block.hash())
-        .unwrap();
     txn.commit();
+
+    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
     let pending = ctx
         .ledger
@@ -73,10 +67,9 @@ fn rollback_vote_weight() {
     let ctx = LedgerContext::empty();
     let mut txn = ctx.ledger.rw_txn();
     let receive = setup_legacy_receive_block(&ctx, &mut txn);
+    txn.commit();
 
-    ctx.ledger
-        .rollback(&mut txn, &receive.receive_block.hash())
-        .unwrap();
+    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
     assert_eq!(
         ctx.ledger.weight(&receive.destination.public_key()),
