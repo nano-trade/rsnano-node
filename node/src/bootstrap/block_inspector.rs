@@ -4,8 +4,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
-use rsnano_ledger::{BlockStatus, Ledger};
-use rsnano_store_lmdb::LmdbReadTransaction;
+use rsnano_ledger::{AnySet2, BlockStatus, Ledger};
 use std::sync::{Arc, Mutex};
 
 /// Inspects a processed block and adjusts the bootstrap state accordingly
@@ -30,11 +29,11 @@ impl BlockInspector {
 
     pub fn inspect(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
         let mut state = self.state.lock().unwrap();
-        let tx = self.ledger.read_txn();
+        let any = self.ledger.any2();
         for (result, context) in batch {
             let block = context.block.lock().unwrap().clone();
             let saved_block = context.saved_block.lock().unwrap().clone();
-            let account = self.get_account(&tx, &block, &saved_block);
+            let account = self.get_account(&any, &block, &saved_block);
 
             self.inspect_block(
                 &mut state,
@@ -49,18 +48,15 @@ impl BlockInspector {
 
     fn get_account(
         &self,
-        tx: &LmdbReadTransaction,
+        any: &dyn AnySet2,
         block: &Block,
         saved_block: &Option<SavedBlock>,
     ) -> Account {
         match saved_block {
             Some(b) => b.account(),
-            None => block.account_field().unwrap_or_else(|| {
-                self.ledger
-                    .any()
-                    .block_account(tx, &block.previous())
-                    .unwrap_or_default()
-            }),
+            None => block
+                .account_field()
+                .unwrap_or_else(|| any.block_account(&block.previous()).unwrap_or_default()),
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use std::{
     cmp::max,
@@ -210,9 +210,9 @@ impl BacklogScanThread {
             let mut up_to_date = Vec::new();
             let mut unconfirmed = Vec::new();
             {
-                let tx = self.ledger.store.tx_begin_read();
+                let any = self.ledger.any2();
                 let mut count = 0;
-                let mut it = self.ledger.any().accounts_range(&tx, next..);
+                let mut it = any.accounts_range(next..);
                 while let Some((account, account_info)) = it.next() {
                     if count >= self.config.batch_size {
                         break;
@@ -220,12 +220,7 @@ impl BacklogScanThread {
 
                     self.stats.inc(StatType::BacklogScan, DetailType::Total);
 
-                    let conf_info = self
-                        .ledger
-                        .store
-                        .confirmation_height
-                        .get(&tx, &account)
-                        .unwrap_or_default();
+                    let conf_info = any.confirmed().get_conf_info(&account).unwrap_or_default();
 
                     let is_unconfirmed = conf_info.height < account_info.block_count;
                     if is_unconfirmed {
@@ -242,12 +237,7 @@ impl BacklogScanThread {
                     next = account.inc_or_max();
                     count += 1;
                 }
-                done = self
-                    .ledger
-                    .any()
-                    .accounts_range(&tx, next..)
-                    .next()
-                    .is_none();
+                done = any.accounts_range(next..).next().is_none();
             }
 
             self.stats

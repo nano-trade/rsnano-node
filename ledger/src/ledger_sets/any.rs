@@ -109,6 +109,13 @@ impl<'a> OwningAnySet<'a> {
             started: &self.started,
         }
     }
+
+    pub fn accounts_range(
+        &self,
+        range: impl RangeBounds<Account> + 'static,
+    ) -> Box<dyn Iterator<Item = (Account, AccountInfo)> + '_> {
+        self.store.account.iter_range(&self.tx, range)
+    }
 }
 
 impl<'a> LedgerSet for OwningAnySet<'a> {
