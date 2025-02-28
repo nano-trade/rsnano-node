@@ -10,14 +10,14 @@ use rsnano_core::{
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
 use rsnano_network::bandwidth_limiter::RateLimiter;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
     BlockContext, BlockProcessor,
 };
-use crate::{consensus::Bucketing, stats::Stats};
+use crate::consensus::Bucketing;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {

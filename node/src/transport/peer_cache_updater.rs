@@ -9,13 +9,10 @@ use tracing::debug;
 use rsnano_ledger::Ledger;
 use rsnano_network::{Channel, Network};
 use rsnano_nullable_clock::SystemTimeFactory;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
-use crate::{
-    stats::Stats,
-    utils::{CancellationToken, Runnable},
-};
+use crate::utils::{CancellationToken, Runnable};
 
 /// Writes a snapshot of the current peers to the database,
 /// so that we can reconnect to them when the node is restarted

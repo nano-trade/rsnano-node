@@ -6,9 +6,7 @@ use rsnano_core::ProtocolInfo;
 use rsnano_messages::{Message, MessageSerializer};
 use rsnano_network::{Channel, ChannelId, TrafficType};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use rsnano_stats::{Direction, StatType};
-
-use crate::stats::Stats;
+use rsnano_stats::{Direction, StatType, Stats};
 
 pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 

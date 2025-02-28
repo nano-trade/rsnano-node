@@ -7,9 +7,7 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode};
-use rsnano_stats::{DetailType, StatType};
-
-use crate::stats::Stats;
+use rsnano_stats::{DetailType, StatType, Stats};
 
 pub(crate) struct VoteRebroadcastQueueBuilder {
     stats: Option<Arc<Stats>>,

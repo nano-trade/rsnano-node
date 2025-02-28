@@ -1,3 +1,35 @@
+use std::{
+    collections::{HashMap, VecDeque},
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
+    },
+    time::Duration,
+};
+
+use tracing::{debug, error, info, warn};
+
+use rsnano_core::{
+    utils::{ContainerInfo, Peer},
+    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
+    VoteSource, WorkNonce,
+};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache, Writer};
+use rsnano_messages::NetworkFilter;
+use rsnano_network::{
+    ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
+    TcpListenerExt, TcpNetworkAdapter, TrafficType,
+};
+use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
+use rsnano_output_tracker::OutputListenerMt;
+use rsnano_stats::Stats;
+use rsnano_store_lmdb::{
+    EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
+    TransactionTracker,
+};
+use rsnano_work::WorkPool;
+
 use crate::{
     block_processing::{
         BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockSource, BoundedBacklog,
@@ -24,10 +56,7 @@ use crate::{
     representatives::{
         OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
     },
-    stats::{
-        adapters::{LedgerStats, NetworkStats},
-        Stats,
-    },
+    stats::adapters::{LedgerStats, NetworkStats},
     telemetry::{
         TelementryConfig, TelementryExt, Telemetry, TelemetryFactory, BUILD_INFO, VERSION_STRING,
     },
@@ -46,34 +75,6 @@ use crate::{
     work::DistributedWorkFactory,
     NodeCallbacks, OnlineWeightSampler,
 };
-use rsnano_core::{
-    utils::{ContainerInfo, Peer},
-    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
-    VoteSource, WorkNonce,
-};
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache, Writer};
-use rsnano_messages::NetworkFilter;
-use rsnano_network::{
-    ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
-    TcpListenerExt, TcpNetworkAdapter, TrafficType,
-};
-use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
-use rsnano_output_tracker::OutputListenerMt;
-use rsnano_store_lmdb::{
-    EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
-    TransactionTracker,
-};
-use rsnano_work::WorkPool;
-use std::{
-    collections::{HashMap, VecDeque},
-    path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
-    },
-    time::Duration,
-};
-use tracing::{debug, error, info, warn};
 
 pub struct Node {
     is_nulled: bool,

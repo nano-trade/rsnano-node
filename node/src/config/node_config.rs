@@ -1,3 +1,18 @@
+use std::{cmp::max, net::Ipv6Addr, time::Duration};
+
+use once_cell::sync::Lazy;
+use rand::Rng;
+
+use rsnano_core::{
+    utils::{get_env_or_default_string, Peer},
+    Account, Amount, PublicKey,
+};
+use rsnano_network::NetworkConfig;
+use rsnano_nullable_http_client::Url;
+use rsnano_stats::StatsConfig;
+use rsnano_store_lmdb::LmdbConfig;
+use rsnano_work::OpenClConfig;
+
 use super::{
     websocket_config::WebsocketConfig, DiagnosticsConfig, NetworkParams, Networks,
     DEV_NETWORK_PARAMS,
@@ -12,20 +27,8 @@ use crate::{
         ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
         PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
     },
-    stats::StatsConfig,
     transport::MessageProcessorConfig,
 };
-use once_cell::sync::Lazy;
-use rand::Rng;
-use rsnano_core::{
-    utils::{get_env_or_default_string, Peer},
-    Account, Amount, PublicKey,
-};
-use rsnano_network::NetworkConfig;
-use rsnano_nullable_http_client::Url;
-use rsnano_store_lmdb::LmdbConfig;
-use rsnano_work::OpenClConfig;
-use std::{cmp::max, net::Ipv6Addr, time::Duration};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeConfig {

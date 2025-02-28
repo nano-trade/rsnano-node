@@ -9,7 +9,7 @@ use tracing::trace;
 use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     election_schedulers::ElectionSchedulers, Election, ElectionData, LocalVoteHistory,
@@ -21,7 +21,6 @@ use crate::{
     config::{NetworkParams, NodeConfig},
     consensus::{ElectionState, VoteInfo},
     representatives::OnlineReps,
-    stats::Stats,
     utils::ThreadPool,
     wallets::Wallets,
 };

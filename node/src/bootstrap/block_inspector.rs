@@ -2,13 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, BlockStatus, Ledger};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::state::{BootstrapState, PriorityUpResult};
-use crate::{
-    block_processing::{BlockContext, BlockSource},
-    stats::Stats,
-};
+use crate::block_processing::{BlockContext, BlockSource};
 
 /// Inspects a processed block and adjusts the bootstrap state accordingly
 pub(super) struct BlockInspector {

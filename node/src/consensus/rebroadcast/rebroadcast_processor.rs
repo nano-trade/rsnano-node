@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 use rsnano_core::Vote;
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::TrafficType;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::wallet_reps_cache::WalletRepsCache;
-use crate::{stats::Stats, transport::MessageFlooder, wallets::WalletRepresentatives};
+use crate::{transport::MessageFlooder, wallets::WalletRepresentatives};
 
 /// Rebroadcasts a given vote if necessary
 pub(super) struct RebroadcastProcessor {

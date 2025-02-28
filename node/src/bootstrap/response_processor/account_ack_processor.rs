@@ -2,12 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, BlockHash};
 use rsnano_messages::AccountInfoAckPayload;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::{
-    bootstrap::state::{BootstrapState, CandidateAccounts, RunningQuery},
-    stats::Stats,
-};
+use crate::bootstrap::state::{BootstrapState, CandidateAccounts, RunningQuery};
 
 /// Processes responses to an AscPullReq for account info
 pub(crate) struct AccountAckProcessor {

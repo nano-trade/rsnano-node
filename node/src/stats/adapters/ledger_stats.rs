@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use rsnano_core::{Block, BlockSubType};
 use rsnano_ledger::LedgerObserver;
-use rsnano_stats::{DetailType, Direction, StatType};
-
-use crate::stats::Stats;
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 pub struct LedgerStats {
     stats: Arc<Stats>,

@@ -1,4 +1,4 @@
-use crate::stats::StatsConfig;
+use rsnano_stats::StatsConfig;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

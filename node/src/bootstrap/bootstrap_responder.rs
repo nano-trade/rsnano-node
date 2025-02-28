@@ -15,9 +15,9 @@ use rsnano_messages::{
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::{stats::Stats, transport::MessageSender};
+use crate::transport::MessageSender;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapResponderConfig {

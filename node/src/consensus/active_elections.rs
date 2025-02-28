@@ -19,7 +19,7 @@ use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::{Network, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, Direction, Sample, StatType};
+use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
     confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionData,
@@ -32,7 +32,6 @@ use crate::{
     config::{NetworkParams, NodeConfig, NodeFlags},
     consensus::VoteApplierExt,
     representatives::OnlineReps,
-    stats::Stats,
     transport::MessageFlooder,
     utils::HardenedConstants,
     wallets::Wallets,

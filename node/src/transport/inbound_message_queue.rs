@@ -6,10 +6,9 @@ use std::{
 use rsnano_core::utils::{ContainerInfo, FairQueue};
 use rsnano_messages::Message;
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::MessageCallback;
-use crate::stats::Stats;
 
 pub struct InboundMessageQueue {
     state: Mutex<State>,

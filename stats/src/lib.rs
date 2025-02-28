@@ -1,6 +1,14 @@
+mod stats;
+mod stats_config;
 mod stats_enums;
-use rsnano_core::{BlockSubType, VoteSource};
+mod stats_log_sink;
+
+pub use stats::*;
+pub use stats_config::StatsConfig;
 pub use stats_enums::*;
+pub use stats_log_sink::{StatFileWriter, StatsJsonWriterV2, StatsLogSink};
+
+use rsnano_core::{BlockSubType, VoteSource};
 
 impl From<VoteSource> for DetailType {
     fn from(value: VoteSource) -> Self {

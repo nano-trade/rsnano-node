@@ -10,13 +10,12 @@ use rsnano_core::{
 };
 use rsnano_ledger::{AnySet, Ledger};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
     request_aggregator_impl::{AggregateResult, RequestAggregatorImpl},
     VoteGenerators,
 };
-use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RequestAggregatorConfig {

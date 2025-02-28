@@ -11,10 +11,9 @@ use rsnano_core::{
     Vote, VoteSource,
 };
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{RepTier, RepTiers, VoteProcessorConfig};
-use crate::stats::Stats;
 
 pub struct VoteProcessorQueue {
     data: Mutex<VoteProcessorQueueData>,

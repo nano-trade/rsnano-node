@@ -1,23 +1,24 @@
-use crate::bootstrap::{
-    state::BootstrapState, AscPullQuerySpec, BootstrapConfig, BootstrapPromise,
+use std::{
+    sync::{Arc, Condvar, Mutex, RwLock},
+    thread::JoinHandle,
 };
-use crate::{block_processing::BlockProcessor, stats::Stats, transport::MessageSender};
+
 use rsnano_ledger::Ledger;
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_network::Network;
 use rsnano_nullable_clock::SteadyClock;
-use std::sync::RwLock;
-use std::{
-    sync::{Arc, Condvar, Mutex},
-    thread::JoinHandle,
-};
+use rsnano_stats::Stats;
 
-use super::bootstrap_promise_runner::BootstrapPromiseRunner;
-use super::query_sender::QuerySender;
-use super::send_queries_promise::SendQueriesPromise;
 use super::{
-    channel_waiter::ChannelWaiter, dependency_requester::DependencyRequester,
-    frontier_requester::FrontierRequester, priority::PriorityRequester,
+    bootstrap_promise_runner::BootstrapPromiseRunner, channel_waiter::ChannelWaiter,
+    dependency_requester::DependencyRequester, frontier_requester::FrontierRequester,
+    priority::PriorityRequester, query_sender::QuerySender,
+    send_queries_promise::SendQueriesPromise,
+};
+use crate::{
+    block_processing::BlockProcessor,
+    bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapConfig, BootstrapPromise},
+    transport::MessageSender,
 };
 
 /// Manages the threads that send out AscPullReqs

@@ -1,19 +1,17 @@
 use std::{
     collections::BTreeMap,
-    sync::{atomic::AtomicU64, Arc, Condvar, Mutex, RwLock},
+    sync::{atomic::AtomicU64, Arc, Condvar, LazyLock, Mutex, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant, SystemTime},
 };
 
 use anyhow::Result;
 use bounded_vec_deque::BoundedVecDeque;
-use once_cell::sync::Lazy;
 use tracing::debug;
 
 use rsnano_core::utils::get_env_bool;
-use rsnano_stats::{DetailType, Direction, Sample, StatType};
 
-use super::{StatFileWriter, StatsConfig, StatsLogSink};
+use crate::{DetailType, Direction, Sample, StatFileWriter, StatType, StatsConfig, StatsLogSink};
 
 pub struct Stats {
     config: StatsConfig,
@@ -483,8 +481,8 @@ struct StatsLoopState {
     log_last_sample_writeout: Instant,
 }
 
-static LOG_COUNT: Lazy<Mutex<Option<StatFileWriter>>> = Lazy::new(|| Mutex::new(None));
-static LOG_SAMPLE: Lazy<Mutex<Option<StatFileWriter>>> = Lazy::new(|| Mutex::new(None));
+static LOG_COUNT: LazyLock<Mutex<Option<StatFileWriter>>> = LazyLock::new(|| Mutex::new(None));
+static LOG_SAMPLE: LazyLock<Mutex<Option<StatFileWriter>>> = LazyLock::new(|| Mutex::new(None));
 
 #[cfg(test)]
 mod tests {

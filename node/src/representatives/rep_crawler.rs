@@ -15,13 +15,12 @@ use rsnano_ledger::{AnySet, Ledger, LedgerSet};
 use rsnano_messages::{ConfirmReq, Message};
 use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use rsnano_stats::{DetailType, Direction, Sample, StatType};
+use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{InsertResult, OnlineReps};
 use crate::{
     config::{NetworkParams, NodeConfig},
     consensus::ActiveElections,
-    stats::Stats,
     transport::{
         keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
         MessageSender,

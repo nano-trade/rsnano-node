@@ -5,10 +5,9 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, VoteSource};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{VoteCache, VoteProcessorConfig, VoteRouter};
-use crate::stats::Stats;
 
 pub(crate) struct VoteCacheProcessor {
     state: Arc<Mutex<State>>,

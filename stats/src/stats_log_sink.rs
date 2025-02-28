@@ -1,6 +1,7 @@
+use std::{any::Any, fs::File, io::Write, path::PathBuf, time::SystemTime};
+
 use anyhow::Result;
 use chrono::{DateTime, Local};
-use std::{any::Any, fs::File, io::Write, path::PathBuf, time::SystemTime};
 
 pub trait StatsLogSink {
     /// Called before logging starts

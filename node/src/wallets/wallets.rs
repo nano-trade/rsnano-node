@@ -1,15 +1,19 @@
-use super::{Wallet, WalletActionThread, WalletRepresentatives};
-use crate::{
-    block_processing::{BlockProcessor, BlockSource},
-    cementation::{ConfirmingSet, ConfirmingSetConfig},
-    config::{NetworkConstants, NetworkParams, NodeConfig},
-    representatives::OnlineReps,
-    stats::Stats,
-    transport::MessageFlooder,
-    utils::{ThreadPool, ThreadPoolImpl},
-    work::DistributedWorkFactory,
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    fs::Permissions,
+    mem::size_of,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+    sync::{Arc, Condvar, Mutex},
+    time::{Duration, Instant},
 };
+
 use rand::Rng;
+use rsnano_stats::Stats;
+use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
+
 use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo},
     Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, Networks,
@@ -24,18 +28,17 @@ use rsnano_store_lmdb::{
     Transaction,
 };
 use rsnano_work::{WorkPool, WorkThresholds};
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-    fs::Permissions,
-    mem::size_of,
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-    sync::{Arc, Condvar, Mutex},
-    time::{Duration, Instant},
+
+use super::{Wallet, WalletActionThread, WalletRepresentatives};
+use crate::{
+    block_processing::{BlockProcessor, BlockSource},
+    cementation::{ConfirmingSet, ConfirmingSetConfig},
+    config::{NetworkConstants, NetworkParams, NodeConfig},
+    representatives::OnlineReps,
+    transport::MessageFlooder,
+    utils::{ThreadPool, ThreadPoolImpl},
+    work::DistributedWorkFactory,
 };
-use tracing::{info, warn};
 
 #[derive(FromPrimitive, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum WalletsError {

@@ -8,14 +8,13 @@ use tracing::trace;
 use rsnano_core::VoteSource;
 use rsnano_messages::{Message, NetworkFilter};
 use rsnano_network::{Channel, Network};
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapResponder, Bootstrapper},
     config::NodeConfig,
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
-    stats::Stats,
     telemetry::Telemetry,
     wallets::Wallets,
 };

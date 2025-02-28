@@ -14,10 +14,9 @@ use std::{
 use mock_instant::thread_local::Instant;
 
 use rsnano_core::{utils::ContainerInfo, Amount, BlockHash, PublicKey, Vote, VoteCode};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::TallyKey;
-use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteCacheConfig {

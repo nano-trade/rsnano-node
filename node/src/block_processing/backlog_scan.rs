@@ -8,9 +8,7 @@ use std::{
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_network::bandwidth_limiter::RateLimiter;
-use rsnano_stats::{DetailType, StatType};
-
-use crate::stats::Stats;
+use rsnano_stats::{DetailType, StatType, Stats};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BacklogScanConfig {

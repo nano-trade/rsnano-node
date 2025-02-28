@@ -4,9 +4,7 @@ use anyhow::Error;
 use tracing::{debug, trace};
 
 use rsnano_network::{Channel, ChannelDirection, NetworkError, NetworkObserver, TrafficType};
-use rsnano_stats::{DetailType, Direction, StatType};
-
-use crate::stats::Stats;
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 #[derive(Clone)]
 pub struct NetworkStats(Arc<Stats>);

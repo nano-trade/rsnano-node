@@ -4,12 +4,9 @@ use tracing::info;
 
 use rsnano_ledger::Ledger;
 use rsnano_network::PeerConnector;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::{
-    stats::Stats,
-    utils::{CancellationToken, Runnable},
-};
+use crate::utils::{CancellationToken, Runnable};
 
 // Tries to connect to peers that are stored in the peer cache
 pub struct PeerCacheConnector {

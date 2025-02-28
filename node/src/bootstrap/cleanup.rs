@@ -4,10 +4,9 @@ use std::{
 };
 
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::state::{BootstrapState, RunningQuery};
-use crate::stats::Stats;
 
 pub(super) struct BootstrapCleanup {
     clock: Arc<SteadyClock>,

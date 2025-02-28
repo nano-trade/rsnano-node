@@ -12,7 +12,7 @@ use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
 use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DeadChannelCleanupStep, Network};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, Sample, StatType};
+use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{
     block_inspector::BlockInspector,
@@ -24,7 +24,6 @@ use super::{
 };
 use crate::{
     block_processing::{BlockContext, BlockProcessor, LedgerNotifications},
-    stats::Stats,
     transport::MessageSender,
 };
 

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rsnano_ledger::Ledger;
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     pull_count_decider::PullCountDecider, pull_type_decider::PullTypeDecider,
@@ -15,7 +15,6 @@ use crate::{
         requesters::channel_waiter::ChannelWaiter, state::BootstrapState, AscPullQuerySpec,
         BootstrapConfig, BootstrapPromise, PollResult,
     },
-    stats::Stats,
 };
 
 pub(crate) struct PriorityRequester {
@@ -105,6 +104,14 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, RwLock};
+
+    use rsnano_core::Account;
+    use rsnano_ledger::Ledger;
+    use rsnano_network::{bandwidth_limiter::RateLimiter, Network};
+    use rsnano_nullable_clock::SteadyClock;
+    use rsnano_stats::Stats;
+
     use super::PriorityRequester;
     use crate::{
         block_processing::BlockProcessor,
@@ -116,13 +123,7 @@ mod tests {
             state::BootstrapState,
             BootstrapConfig, PollResult,
         },
-        stats::Stats,
     };
-    use rsnano_core::Account;
-    use rsnano_ledger::Ledger;
-    use rsnano_network::{bandwidth_limiter::RateLimiter, Network};
-    use rsnano_nullable_clock::SteadyClock;
-    use std::sync::{Arc, RwLock};
 
     #[test]
     fn happy_path() {

@@ -7,13 +7,10 @@ use std::{
 use rsnano_messages::{Keepalive, Message, NetworkFilter};
 use rsnano_network::{DeadChannelCleanup, Network, NetworkConfig, PeerConnector, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder, SynCookies};
-use crate::{
-    config::{NetworkParams, NodeFlags},
-    stats::Stats,
-};
+use crate::config::{NetworkParams, NodeFlags};
 
 pub(crate) struct NetworkThreads {
     cleanup_thread: Option<JoinHandle<()>>,

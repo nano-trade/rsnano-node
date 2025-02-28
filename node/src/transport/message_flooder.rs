@@ -1,12 +1,15 @@
-use super::{try_send_serialized_message, MessageSender};
-use crate::{representatives::OnlineReps, stats::Stats};
-use rsnano_messages::{Message, MessageSerializer};
-use rsnano_network::{Channel, Network, TrafficType};
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, RwLock},
 };
+
+use rsnano_messages::{Message, MessageSerializer};
+use rsnano_network::{Channel, Network, TrafficType};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use rsnano_stats::Stats;
+
+use super::{try_send_serialized_message, MessageSender};
+use crate::representatives::OnlineReps;
 
 /// Floods messages to PRs and non PRs
 pub struct MessageFlooder {

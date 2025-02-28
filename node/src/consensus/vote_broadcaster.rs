@@ -6,10 +6,10 @@ use std::{
 use rsnano_core::{Vote, VoteSource};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::TrafficType;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::VoteProcessorQueue;
-use crate::{stats::Stats, transport::MessageFlooder};
+use crate::transport::MessageFlooder;
 
 /// Broadcast a vote to PRs and some non-PRs
 pub struct VoteBroadcaster {

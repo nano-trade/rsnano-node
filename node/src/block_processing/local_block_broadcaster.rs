@@ -13,10 +13,10 @@ use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
 use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{BlockSource, LedgerNotifications};
-use crate::{cementation::ConfirmingSet, stats::Stats, transport::MessageFlooder};
+use crate::{cementation::ConfirmingSet, transport::MessageFlooder};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalBlockBroadcasterConfig {

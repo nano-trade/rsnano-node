@@ -4006,12 +4006,17 @@ dependencies = [
 name = "rsnano_stats"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "bounded-vec-deque",
+ "chrono",
  "num",
  "num-derive",
  "num-traits 0.1.43",
  "rsnano_core",
  "serde",
+ "serde_json",
  "serde_variant",
+ "tracing",
 ]
 
 [[package]]

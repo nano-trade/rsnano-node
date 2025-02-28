@@ -7,10 +7,8 @@ use std::{
     thread::JoinHandle,
 };
 
-use crate::stats::Stats;
-
 use rsnano_core::{utils::ContainerInfo, BlockHash, HashOrAccount, UncheckedInfo, UncheckedKey};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 pub struct UncheckedMap {
     join_handle: Mutex<Option<JoinHandle<()>>>,

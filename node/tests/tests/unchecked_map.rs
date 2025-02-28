@@ -1,11 +1,13 @@
+use std::{sync::Arc, time::Duration};
+
 use rsnano_core::{
     Amount, Block, PrivateKey, StateBlockArgs, UncheckedInfo, UncheckedKey, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
 };
-use rsnano_node::{block_processing::UncheckedMap, stats::Stats};
-use std::{sync::Arc, time::Duration};
+use rsnano_node::block_processing::UncheckedMap;
+use rsnano_stats::Stats;
 use test_helpers::{assert_timely, assert_timely_eq};
 
 #[test]

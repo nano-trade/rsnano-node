@@ -11,9 +11,8 @@ use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, Account, PublicKey};
 use rsnano_ledger::RepWeightCache;
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::stats::Stats;
 use crate::{config::NetworkParams, representatives::OnlineReps};
 
 // Higher number means higher priority

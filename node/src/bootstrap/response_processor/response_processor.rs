@@ -1,18 +1,21 @@
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
+use rsnano_ledger::Ledger;
+use rsnano_messages::{AscPullAck, AscPullAckType};
+use rsnano_network::ChannelId;
+use rsnano_nullable_clock::Timestamp;
+use rsnano_stats::Stats;
+
 use super::{
     super::state::{BootstrapState, QueryType, RunningQuery},
     account_ack_processor::AccountAckProcessor,
     block_ack_processor::BlockAckProcessor,
     frontier_ack_processor::FrontierAckProcessor,
 };
-use crate::{block_processing::BlockProcessor, stats::Stats};
-use rsnano_ledger::Ledger;
-use rsnano_messages::{AscPullAck, AscPullAckType};
-use rsnano_network::ChannelId;
-use rsnano_nullable_clock::Timestamp;
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use crate::block_processing::BlockProcessor;
 
 pub(crate) struct ResponseProcessor {
     state: Arc<Mutex<BootstrapState>>,

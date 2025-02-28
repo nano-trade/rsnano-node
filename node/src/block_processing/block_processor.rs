@@ -15,14 +15,13 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::{LmdbWriteTransaction, Transaction};
 use rsnano_work::WorkThresholds;
 
 use super::{
     BlockContext, BlockProcessorCallback, BlockSource, LedgerNotificationQueue, UncheckedMap,
 };
-use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {

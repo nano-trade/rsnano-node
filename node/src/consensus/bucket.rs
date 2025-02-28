@@ -4,13 +4,13 @@ use std::{
 };
 
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
     ActiveElections, Election, ElectionBehavior,
 };
-use crate::{consensus::ActiveElectionsExt, stats::Stats};
+use crate::consensus::ActiveElectionsExt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PriorityBucketConfig {

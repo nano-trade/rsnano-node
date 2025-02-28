@@ -12,14 +12,13 @@ use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
 use rsnano_ledger::{BlockStatus, Ledger, WriteGuard, Writer};
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
 use super::ordered_entries::{Entry, OrderedEntries};
 use crate::{
     block_processing::BlockContext,
     consensus::Election,
-    stats::Stats,
     utils::{ThreadPool, ThreadPoolImpl},
 };
 

@@ -5,12 +5,9 @@ use tracing::error;
 
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_nullable_http_client::{HttpClient, Url};
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::{
-    consensus::{ElectionStatus, ElectionStatusType},
-    stats::Stats,
-};
+use crate::consensus::{ElectionStatus, ElectionStatusType};
 
 /// Performs an HTTP callback to a configured endpoint
 /// if a block is confirmed

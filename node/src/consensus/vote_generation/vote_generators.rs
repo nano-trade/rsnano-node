@@ -1,17 +1,19 @@
-use super::{vote_generator::VoteGenerator, LocalVoteHistory};
-use crate::{
-    config::{NetworkParams, NodeConfig},
-    consensus::VoteBroadcaster,
-    stats::Stats,
-    transport::MessageSender,
-    wallets::Wallets,
-};
+use std::{sync::Arc, time::Duration};
+
 use rsnano_core::{utils::ContainerInfo, BlockHash, Networks, Root, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_network::{Channel, ChannelId};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::{sync::Arc, time::Duration};
+use rsnano_stats::Stats;
+
+use super::{vote_generator::VoteGenerator, LocalVoteHistory};
+use crate::{
+    config::{NetworkParams, NodeConfig},
+    consensus::VoteBroadcaster,
+    transport::MessageSender,
+    wallets::Wallets,
+};
 
 #[derive(Clone)]
 pub struct VoteGenerationEvent {

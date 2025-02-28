@@ -2,12 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use rsnano_messages::BlocksAckPayload;
 use rsnano_network::ChannelId;
-use rsnano_stats::{DetailType, Direction, StatType};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::state::{BootstrapState, PriorityDownResult, RunningQuery, VerifyResult},
-    stats::Stats,
 };
 
 pub(crate) struct BlockAckProcessor {

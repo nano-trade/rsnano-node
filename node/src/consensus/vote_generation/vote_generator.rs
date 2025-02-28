@@ -17,13 +17,12 @@ use rsnano_ledger::{AnySet, Ledger, Writer};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{Channel, ChannelId, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, Direction, Sample, StatType};
+use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
 use super::{LocalVoteHistory, VoteSpacing};
 use crate::{
-    consensus::VoteBroadcaster, stats::Stats, transport::MessageSender, utils::ProcessingQueue,
-    wallets::Wallets,
+    consensus::VoteBroadcaster, transport::MessageSender, utils::ProcessingQueue, wallets::Wallets,
 };
 
 pub struct VoteGeneratorRequest {

@@ -1,12 +1,15 @@
+use std::sync::{Arc, Mutex, RwLock, Weak};
+
+use rsnano_core::PrivateKey;
+use rsnano_messages::*;
+use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
+use rsnano_stats::Stats;
+
 use super::{
     nano_data_receiver::NanoDataReceiver, HandshakeProcess, InboundMessageQueue, LatestKeepalives,
     SynCookies,
 };
-use crate::{config::NetworkParams, stats::Stats};
-use rsnano_core::PrivateKey;
-use rsnano_messages::*;
-use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
-use std::sync::{Arc, Mutex, RwLock, Weak};
+use crate::config::NetworkParams;
 
 pub(crate) struct NanoDataReceiverFactory {
     network_params: Arc<NetworkParams>,
