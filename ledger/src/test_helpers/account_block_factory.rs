@@ -196,6 +196,17 @@ impl<'a> AccountBlockFactory<'a> {
             .key(&self.key)
     }
 
+    pub(crate) fn change2(&self) -> TestStateBlockBuilder {
+        let info = self.info2().unwrap();
+        TestBlockBuilder::state()
+            .account(self.account())
+            .previous(info.head)
+            .representative(Account::from(1))
+            .balance(info.balance)
+            .link(Link::zero())
+            .key(&self.key)
+    }
+
     pub(crate) fn change(&self, txn: &dyn Transaction) -> TestStateBlockBuilder {
         let info = self.info(txn).unwrap();
         TestBlockBuilder::state()

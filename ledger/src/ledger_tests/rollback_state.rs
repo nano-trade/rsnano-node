@@ -36,20 +36,18 @@ fn rollback_send() {
 #[test]
 fn rollback_receive() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
     let amount_sent = Amount::raw(50);
-    let mut send = genesis
-        .send(&txn)
+    let send = genesis
+        .send2()
         .amount_sent(amount_sent)
         .link(genesis.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send).unwrap();
+    ctx.ledger.process_one(&send).unwrap();
 
-    let mut receive = genesis.receive(&txn, send.hash()).build();
-    ctx.ledger.process(&mut txn, &mut receive).unwrap();
-    txn.commit();
+    let receive = genesis.receive2(send.hash()).build();
+    ctx.ledger.process_one(&receive).unwrap();
 
     ctx.ledger.rollback2(&receive.hash()).unwrap();
     let any = ctx.ledger.any();
@@ -77,16 +75,14 @@ fn rollback_receive() {
 #[test]
 fn rollback_received_send() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
     let destination = AccountBlockFactory::new(&ctx.ledger);
 
-    let mut send = genesis.send(&txn).link(destination.account()).build();
-    ctx.ledger.process(&mut txn, &mut send).unwrap();
+    let send = genesis.send2().link(destination.account()).build();
+    ctx.ledger.process_one(&send).unwrap();
 
-    let mut open = destination.open(&txn, send.hash()).build();
-    ctx.ledger.process(&mut txn, &mut open).unwrap();
-    txn.commit();
+    let open = destination.open2(send.hash()).build();
+    ctx.ledger.process_one(&open).unwrap();
 
     ctx.ledger.rollback2(&send.hash()).unwrap();
     let any = ctx.ledger.any();
@@ -111,13 +107,11 @@ fn rollback_received_send() {
 #[test]
 fn rollback_rep_change() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
     let representative = PublicKey::from(1);
 
-    let mut change = genesis.change(&txn).representative(representative).build();
-    ctx.ledger.process(&mut txn, &mut change).unwrap();
-    txn.commit();
+    let change = genesis.change2().representative(representative).build();
+    ctx.ledger.process_one(&change).unwrap();
 
     ctx.ledger.rollback2(&change.hash()).unwrap();
     let any = ctx.ledger.any();
@@ -137,21 +131,19 @@ fn rollback_rep_change() {
 #[test]
 fn rollback_open() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
     let destination = AccountBlockFactory::new(&ctx.ledger);
 
     let amount_sent = Amount::raw(50);
-    let mut send = genesis
-        .send(&txn)
+    let send = genesis
+        .send2()
         .link(destination.account())
         .amount_sent(amount_sent)
         .build();
-    ctx.ledger.process(&mut txn, &mut send).unwrap();
+    ctx.ledger.process_one(&send).unwrap();
 
-    let mut open = destination.open(&txn, send.hash()).build();
-    ctx.ledger.process(&mut txn, &mut open).unwrap();
-    txn.commit();
+    let open = destination.open2(send.hash()).build();
+    ctx.ledger.process_one(&open).unwrap();
 
     ctx.ledger.rollback2(&open.hash()).unwrap();
     let any = ctx.ledger.any();
@@ -176,13 +168,11 @@ fn rollback_open() {
 #[test]
 fn rollback_send_with_rep_change() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
     let representative = PublicKey::from(1);
-    let mut send = genesis.send(&txn).representative(representative).build();
-    ctx.ledger.process(&mut txn, &mut send).unwrap();
-    txn.commit();
+    let send = genesis.send2().representative(representative).build();
+    ctx.ledger.process_one(&send).unwrap();
 
     ctx.ledger.rollback2(&send.hash()).unwrap();
     let any = ctx.ledger.any();
@@ -202,19 +192,17 @@ fn rollback_send_with_rep_change() {
 #[test]
 fn rollback_receive_with_rep_change() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
     let representative = PublicKey::from(1);
-    let mut send = genesis.send(&txn).link(genesis.account()).build();
-    ctx.ledger.process(&mut txn, &mut send).unwrap();
+    let send = genesis.send2().link(genesis.account()).build();
+    ctx.ledger.process_one(&send).unwrap();
 
-    let mut receive = genesis
-        .receive(&txn, send.hash())
+    let receive = genesis
+        .receive2(send.hash())
         .representative(representative)
         .build();
-    ctx.ledger.process(&mut txn, &mut receive).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&receive).unwrap();
 
     ctx.ledger.rollback2(&receive.hash()).unwrap();
     let any = ctx.ledger.any();

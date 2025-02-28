@@ -1325,9 +1325,7 @@ impl Node {
     }
 
     pub fn try_process(&self, block: Block) -> Result<SavedBlock, BlockStatus> {
-        let _guard = self.ledger.write_queue.wait(Writer::Testing);
-        let mut tx = self.ledger.rw_txn();
-        self.ledger.process(&mut tx, &block)
+        self.ledger.process_one(&block)
     }
 
     pub fn process(&self, block: Block) -> SavedBlock {
@@ -1343,9 +1341,8 @@ impl Node {
 
     pub fn process_multi(&self, blocks: &[Block]) {
         let _guard = self.ledger.write_queue.wait(Writer::Testing);
-        let mut tx = self.ledger.rw_txn();
         for (i, block) in blocks.iter().enumerate() {
-            match self.ledger.process(&mut tx, &mut block.clone()) {
+            match self.ledger.process_one(block) {
                 Ok(_) | Err(BlockStatus::Old) => {}
                 Err(e) => {
                     panic!("Could not multi-process block index {}: {:?}", i, e);
