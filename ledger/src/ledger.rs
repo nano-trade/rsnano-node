@@ -1,10 +1,9 @@
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
-    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, ConfirmedSet2,
-    GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
-    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard,
-    WriteQueue,
+    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet2, GenerateCacheFlags,
+    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
+    RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
@@ -358,10 +357,6 @@ impl Ledger {
     pub fn any(&self) -> OwningAnySet {
         let tx = self.read_txn();
         OwningAnySet::new(&self.store, tx, &self.constants)
-    }
-
-    pub fn confirmed(&self) -> ConfirmedSet {
-        ConfirmedSet::new(&self.store)
     }
 
     pub fn confirmed2(&self) -> OwningConfirmedSet<'_> {

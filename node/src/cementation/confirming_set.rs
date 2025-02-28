@@ -402,7 +402,23 @@ impl ConfirmingSetThread {
                         already_cemented.push_back(hash);
                     }
 
-                    success = self.ledger.confirmed().block_exists(&tx, &hash);
+                    success = {
+                        if let Some(block) = self.ledger.store.block.get(&tx, &hash) {
+                            if let Some(conf_info) = self
+                                .ledger
+                                .store
+                                .confirmation_height
+                                .get(&tx, &block.account())
+                            {
+                                block.height() <= conf_info.height
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    };
+
                     if success {
                         break;
                     }

@@ -1,4 +1,4 @@
-use crate::{ConfirmedSet, LedgerConstants, LedgerObserver};
+use crate::{LedgerConstants, LedgerObserver};
 use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
@@ -8,7 +8,6 @@ pub(crate) struct BlockCementer<'a> {
     constants: &'a LedgerConstants,
     store: &'a LmdbStore,
     observer: &'a dyn LedgerObserver,
-    confirmed: ConfirmedSet<'a>,
 }
 
 impl<'a> BlockCementer<'a> {
@@ -21,7 +20,6 @@ impl<'a> BlockCementer<'a> {
             store,
             observer,
             constants,
-            confirmed: ConfirmedSet::new(store),
         }
     }
 
@@ -41,7 +39,7 @@ impl<'a> BlockCementer<'a> {
             let dependents =
                 block.dependent_blocks(&self.constants.epochs, &self.constants.genesis_account);
             for dependent in dependents.iter() {
-                if !dependent.is_zero() && !self.confirmed.block_exists_or_pruned(txn, dependent) {
+                if !dependent.is_zero() && !self.is_confirmed(txn, dependent) {
                     self.observer.dependent_unconfirmed();
 
                     stack.push_back(*dependent);
@@ -56,7 +54,7 @@ impl<'a> BlockCementer<'a> {
 
             if stack.back() == Some(&hash) {
                 stack.pop_back();
-                if !self.confirmed.block_exists_or_pruned(txn, &hash) {
+                if !self.is_confirmed(txn, &hash) {
                     // We must only confirm blocks that have their dependencies confirmed
 
                     let conf_height = ConfirmationHeightInfo::new(block.height(), block.hash());
@@ -93,5 +91,19 @@ impl<'a> BlockCementer<'a> {
             }
         }
         result
+    }
+
+    fn is_confirmed(&self, tx: &LmdbWriteTransaction, hash: &BlockHash) -> bool {
+        if self.store.pruned.exists(tx, hash) {
+            return true;
+        }
+        let Some(block) = self.store.block.get(tx, hash) else {
+            return false;
+        };
+        let Some(info) = self.store.confirmation_height.get(tx, &block.account()) else {
+            return false;
+        };
+
+        block.height() <= info.height
     }
 }
