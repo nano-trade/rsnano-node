@@ -253,7 +253,7 @@ fn deferred_dependent_elections() {
         node1.active.election(&receive.qualified_root()).is_some()
     });
 
-    node1.ledger.rollback2(&receive.hash()).unwrap();
+    node1.ledger.rollback(&receive.hash()).unwrap();
     assert!(!node1.block_exists(&receive.hash()));
 
     node1.process_local(receive.clone().into()).unwrap();

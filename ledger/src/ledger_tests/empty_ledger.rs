@@ -1,7 +1,7 @@
 use super::LedgerContext;
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{utils::UnixTimestamp, Account, Amount, BlockType};
 
@@ -35,11 +35,11 @@ fn genesis_account_balance() {
 #[test]
 fn genesis_account_info() {
     let ctx = LedgerContext::empty();
-    let txn = ctx.ledger.read_txn();
 
     let account_info = ctx
         .ledger
-        .account_info(&txn, &DEV_GENESIS_ACCOUNT)
+        .any()
+        .get_account(&DEV_GENESIS_ACCOUNT)
         .expect("genesis account not found");
 
     // Frontier time should have been updated when genesis balance was added
@@ -51,12 +51,12 @@ fn genesis_account_info() {
 #[test]
 fn genesis_confirmation_height_info() {
     let ctx = LedgerContext::empty();
-    let txn = ctx.ledger.read_txn();
 
     // Genesis block should be confirmed by default
     let conf_info = ctx
         .ledger
-        .get_confirmation_height(&txn, &DEV_GENESIS_ACCOUNT)
+        .confirmed()
+        .get_conf_info(&DEV_GENESIS_ACCOUNT)
         .expect("conf height not found");
 
     assert_eq!(conf_info.height, 1);
@@ -73,10 +73,10 @@ fn cache() {
 #[test]
 fn genesis_representative() {
     let ctx = LedgerContext::empty();
-    let txn = ctx.ledger.read_txn();
     assert_eq!(
         ctx.ledger
-            .representative_block_hash(&txn, &DEV_GENESIS_HASH),
+            .any()
+            .representative_block_hash(&DEV_GENESIS_HASH),
         *DEV_GENESIS_HASH
     );
 }

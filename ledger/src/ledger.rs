@@ -3,12 +3,12 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue, Writer,
+    RepWeightCache, RepWeightsUpdater, WriteGuard, WriteQueue, Writer,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
-    PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
+    PendingInfo, PendingKey, PublicKey, QualifiedRoot, SavedBlock,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::{
@@ -397,22 +397,6 @@ impl Ledger {
         self.rep_weights.weight(rep)
     }
 
-    /// Returns the exact vote weight for the given representative by doing a database lookup
-    pub fn weight_exact(&self, txn: &dyn Transaction, representative: PublicKey) -> Amount {
-        self.store
-            .rep_weight
-            .get(txn, &representative)
-            .unwrap_or_default()
-    }
-
-    /// Return latest root for account, account number if there are no blocks for this account
-    pub fn latest_root(&self, txn: &dyn Transaction, account: &Account) -> Root {
-        match self.account_info(txn, account) {
-            Some(info) => info.head.into(),
-            None => account.into(),
-        }
-    }
-
     pub fn is_epoch_link(&self, link: &Link) -> bool {
         self.constants.epochs.is_epoch_link(link)
     }
@@ -425,26 +409,7 @@ impl Ledger {
         self.constants.epochs.link(epoch).cloned()
     }
 
-    pub fn block_amount(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<Amount> {
-        let block = self.get_block(tx, hash)?;
-        self.block_amount_for(tx, &block)
-    }
-
-    pub fn block_amount_for(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<Amount> {
-        let block_balance = block.balance();
-        if block.previous().is_zero() {
-            Some(block_balance)
-        } else {
-            let previous_balance = self.get_block(tx, &block.previous())?.balance();
-            if block_balance > previous_balance {
-                Some(block_balance - previous_balance)
-            } else {
-                Some(previous_balance - block_balance)
-            }
-        }
-    }
-
-    pub fn update_account(
+    pub(crate) fn update_account(
         &self,
         txn: &mut LmdbWriteTransaction,
         account: &Account,
@@ -520,21 +485,20 @@ impl Ledger {
     }
     ///
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
-    pub fn rollback2(
+    pub fn rollback(
         &self,
         block: &BlockHash,
     ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
         let mut tx = self.rw_txn();
-        self.rollback(&mut tx, block)
+        self.rollback_with_tx(&mut tx, block)
     }
 
-    /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
-    pub fn rollback(
+    fn rollback_with_tx(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        tx: &mut LmdbWriteTransaction,
         block: &BlockHash,
     ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
-        let mut performer = BlockRollbackPerformer::new(self, txn);
+        let mut performer = BlockRollbackPerformer::new(self, tx);
         match performer.roll_back(block) {
             Ok(()) => Ok(performer.rolled_back),
             Err(e) => Err((e, performer.rolled_back)),
@@ -573,7 +537,7 @@ impl Ledger {
                         block.account().encode_account()
                     );
 
-                    let rollback_list = match self.rollback(&mut tx, &block.hash()) {
+                    let rollback_list = match self.rollback_with_tx(&mut tx, &block.hash()) {
                         Ok(rollback_list) => {
                             self.stats
                                 .inc(StatType::BoundedBacklog, DetailType::Rollback);
@@ -609,13 +573,6 @@ impl Ledger {
             processed,
             processed_hashes,
         }
-    }
-
-    /// Returns the latest block with representative information
-    pub fn representative_block_hash(&self, txn: &dyn Transaction, hash: &BlockHash) -> BlockHash {
-        let hash = RepresentativeBlockFinder::new(txn, self.store.as_ref()).find_rep_block(*hash);
-        debug_assert!(hash.is_zero() || self.store.block.exists(txn, &hash));
-        hash
     }
 
     pub fn process_batch<'a>(
@@ -689,7 +646,7 @@ impl Ledger {
             if successor != hash {
                 // Replace our block with the winner and roll back any dependent blocks
                 debug!("Rolling back: {} and replacing with: {}", successor, hash);
-                rollback_list = match self.rollback(tx, &successor) {
+                rollback_list = match self.rollback_with_tx(tx, &successor) {
                     Ok(rollback_list) => {
                         self.stats.inc(StatType::Ledger, DetailType::Rollback);
                         debug!("Blocks rolled back: {}", rollback_list.len());
@@ -723,26 +680,6 @@ impl Ledger {
                 .get(tx, &root.root.into())
                 .map(|i| i.open_block)
         }
-    }
-
-    pub fn get_block(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
-        self.store.block.get(txn, hash)
-    }
-
-    pub fn account_info(
-        &self,
-        transaction: &dyn Transaction,
-        account: &Account,
-    ) -> Option<AccountInfo> {
-        self.store.account.get(transaction, account)
-    }
-
-    pub fn get_confirmation_height(
-        &self,
-        txn: &dyn Transaction,
-        account: &Account,
-    ) -> Option<ConfirmationHeightInfo> {
-        self.store.confirmation_height.get(txn, account)
     }
 
     pub fn confirm(&self, txn: &mut LmdbWriteTransaction, hash: BlockHash) -> Vec<SavedBlock> {

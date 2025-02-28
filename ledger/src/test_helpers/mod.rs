@@ -9,7 +9,7 @@ pub use saved_block_lattice_builder::*;
 pub use unsaved_block_lattice_builder::*;
 
 pub fn upgrade_genesis_to_epoch_v1(ctx: &LedgerContext) -> Block {
-    let epoch = ctx.genesis_block_factory().epoch_v1_2().build();
+    let epoch = ctx.genesis_block_factory().epoch_v1().build();
     ctx.ledger.process_one(&epoch).unwrap();
     epoch
 }
@@ -25,7 +25,7 @@ pub fn setup_legacy_send_block<'a>(ctx: &'a LedgerContext) -> LegacySendBlockRes
 
     let amount_sent = Amount::raw(50);
     let send_block = genesis
-        .legacy_send2()
+        .legacy_send()
         .destination(destination.account())
         .amount(amount_sent)
         .build();
@@ -74,7 +74,7 @@ pub fn setup_legacy_receive_block<'a>(ctx: &'a LedgerContext) -> LegacyReceiveBl
 
     let amount_sent2 = Amount::raw(25);
     let send2 = genesis
-        .legacy_send2()
+        .legacy_send()
         .destination(open.destination.account())
         .amount(amount_sent2)
         .build();
@@ -104,7 +104,7 @@ pub fn setup_send_block<'a>(ctx: &'a LedgerContext) -> SendBlockResult<'a> {
 
     let amount_sent = Amount::raw(50);
     let send_block = genesis
-        .send2()
+        .send()
         .link(destination.account())
         .amount_sent(amount_sent)
         .build();
@@ -123,7 +123,7 @@ pub struct OpenBlockResult {
 pub fn setup_open_block(ctx: &LedgerContext) -> OpenBlockResult {
     let send = setup_send_block(ctx);
 
-    let open_block = send.destination.open2(send.send_block.hash()).build();
+    let open_block = send.destination.open(send.send_block.hash()).build();
     let open_block = ctx.ledger.process_one(&open_block).unwrap();
 
     OpenBlockResult {

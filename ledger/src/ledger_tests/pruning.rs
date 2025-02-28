@@ -12,7 +12,7 @@ fn pruning_action() {
     let genesis = ctx.genesis_block_factory();
 
     let send1 = genesis
-        .send2()
+        .send()
         .amount_sent(100)
         .link(genesis.account())
         .build();
@@ -23,7 +23,7 @@ fn pruning_action() {
     txn.commit();
 
     let send2 = genesis
-        .send2()
+        .send()
         .amount_sent(100)
         .link(genesis.account())
         .build();
@@ -89,7 +89,7 @@ fn pruning_large_chain() {
     let mut last_hash = *DEV_GENESIS_HASH;
 
     for _ in 0..send_receive_pairs {
-        let send = genesis.send2().link(genesis.account()).build();
+        let send = genesis.send().link(genesis.account()).build();
         ctx.ledger.process_one(&send).unwrap();
 
         let receive = genesis.receive(send.hash()).build();
@@ -131,14 +131,14 @@ fn pruning_source_rollback() {
     upgrade_genesis_to_epoch_v1(&ctx);
 
     let send1 = genesis
-        .send2()
+        .send()
         .amount_sent(100)
         .link(genesis.account())
         .build();
     ctx.ledger.process_one(&send1).unwrap();
 
     let send2 = genesis
-        .send2()
+        .send()
         .amount_sent(100)
         .link(genesis.account())
         .build();
@@ -162,7 +162,7 @@ fn pruning_source_rollback() {
     ctx.ledger.process_one(&receive1).unwrap();
 
     // Rollback receive block
-    ctx.ledger.rollback2(&receive1.hash()).unwrap();
+    ctx.ledger.rollback(&receive1.hash()).unwrap();
 
     let any = ctx.ledger.any();
     let info2 = any
@@ -191,7 +191,7 @@ fn pruning_source_rollback_legacy() {
     let genesis = ctx.genesis_block_factory();
 
     let send1 = genesis
-        .legacy_send2()
+        .legacy_send()
         .destination(genesis.account())
         .amount(100)
         .build();
@@ -199,14 +199,14 @@ fn pruning_source_rollback_legacy() {
 
     let destination = ctx.block_factory();
     let send2 = genesis
-        .legacy_send2()
+        .legacy_send()
         .destination(destination.account())
         .amount(100)
         .build();
     ctx.ledger.process_one(&send2).unwrap();
 
     let mut send3 = genesis
-        .legacy_send2()
+        .legacy_send()
         .destination(genesis.account())
         .amount(100)
         .build();
@@ -228,7 +228,7 @@ fn pruning_source_rollback_legacy() {
     ctx.ledger.process_one(&receive1).unwrap();
 
     // Rollback receive block
-    ctx.ledger.rollback2(&receive1.hash()).unwrap();
+    ctx.ledger.rollback(&receive1.hash()).unwrap();
 
     let mut any = ctx.ledger.any();
     let info3 = any
@@ -257,7 +257,7 @@ fn pruning_source_rollback_legacy() {
     ctx.ledger.process_one(&open1).unwrap();
 
     // Rollback open block
-    ctx.ledger.rollback2(&open1.hash()).unwrap();
+    ctx.ledger.rollback(&open1.hash()).unwrap();
 
     any = ctx.ledger.any();
     let info4 = any
@@ -286,23 +286,20 @@ fn pruning_legacy_blocks() {
     let genesis = ctx.genesis_block_factory();
     let destination = ctx.block_factory();
 
-    let send1 = genesis
-        .legacy_send2()
-        .destination(genesis.account())
-        .build();
+    let send1 = genesis.legacy_send().destination(genesis.account()).build();
     ctx.ledger.process_one(&send1).unwrap();
 
     let receive1 = genesis.legacy_receive2(send1.hash()).build();
     ctx.ledger.process_one(&receive1).unwrap();
 
     let change1 = genesis
-        .legacy_change2()
+        .legacy_change()
         .representative(destination.public_key())
         .build();
     ctx.ledger.process_one(&change1).unwrap();
 
     let send2 = genesis
-        .legacy_send2()
+        .legacy_send()
         .destination(destination.account())
         .build();
     ctx.ledger.process_one(&send2).unwrap();
@@ -311,7 +308,7 @@ fn pruning_legacy_blocks() {
     ctx.ledger.process_one(&open1).unwrap();
 
     let send3 = destination
-        .legacy_send2()
+        .legacy_send()
         .destination(genesis.account())
         .build();
     ctx.ledger.process_one(&send3).unwrap();
@@ -348,10 +345,10 @@ fn pruning_safe_functions() {
     ctx.ledger.enable_pruning();
     let genesis = ctx.genesis_block_factory();
 
-    let send1 = genesis.send2().link(genesis.account()).build();
+    let send1 = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send1).unwrap();
 
-    let send2 = genesis.send2().link(genesis.account()).build();
+    let send2 = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send2).unwrap();
 
     let mut txn = ctx.ledger.rw_txn();
@@ -380,10 +377,10 @@ fn hash_root_random() {
     ctx.ledger.enable_pruning();
     let genesis = ctx.genesis_block_factory();
 
-    let send1 = genesis.send2().link(genesis.account()).build();
+    let send1 = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send1).unwrap();
 
-    let send2 = genesis.send2().link(genesis.account()).build();
+    let send2 = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send2).unwrap();
 
     let mut txn = ctx.ledger.rw_txn();

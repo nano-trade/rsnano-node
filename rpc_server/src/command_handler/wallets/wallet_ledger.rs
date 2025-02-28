@@ -40,7 +40,6 @@ fn get_accounts_info(
     receivable: bool,
     modified_since: UnixTimestamp,
 ) -> HashMap<Account, AccountInfo> {
-    let tx = node.ledger.read_txn();
     let any = node.ledger.any();
     let mut account_dtos = HashMap::new();
 
@@ -55,7 +54,7 @@ fn get_accounts_info(
                     modified_timestamp: info.modified.as_u64().into(),
                     block_count: info.block_count.into(),
                     representative: representative.then(|| info.representative.as_account()),
-                    weight: weight.then(|| node.ledger.weight_exact(&tx, account.into())),
+                    weight: weight.then(|| any.weight_exact(account.into())),
                     receivable: receivable.then(|| any.account_receivable(&account)),
                     pending: receivable.then(|| any.account_receivable(&account)),
                 };

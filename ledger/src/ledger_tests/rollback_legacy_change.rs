@@ -7,13 +7,13 @@ fn rollback_dependent_blocks_too() {
     let ctx = LedgerContext::empty();
     let genesis = ctx.genesis_block_factory();
 
-    let change = genesis.legacy_change2().build();
+    let change = genesis.legacy_change().build();
     ctx.ledger.process_one(&change).unwrap();
 
-    let send = genesis.legacy_send2().build();
+    let send = genesis.legacy_send().build();
     ctx.ledger.process_one(&send).unwrap();
 
-    ctx.ledger.rollback2(&change.hash()).unwrap();
+    ctx.ledger.rollback(&change.hash()).unwrap();
 
     assert_eq!(ctx.ledger.any().get_block(&send.hash()), None);
 

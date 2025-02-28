@@ -1,6 +1,7 @@
 use rsnano_core::{
     block_priority, utils::UnixTimestamp, Account, AccountInfo, Amount, Block, BlockHash,
-    DependentBlocks, DetailedBlock, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
+    DependentBlocks, DetailedBlock, PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root,
+    SavedBlock,
 };
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
@@ -154,6 +155,22 @@ impl<'a> OwningAnySet<'a> {
         }
 
         result
+    }
+
+    /// Return latest root for account, account number if there are no blocks for this account
+    pub fn latest_root(&self, account: &Account) -> Root {
+        match self.get_account(account) {
+            Some(info) => info.head.into(),
+            None => account.into(),
+        }
+    }
+
+    /// Returns the exact vote weight for the given representative by doing a database lookup
+    pub fn weight_exact(&self, representative: PublicKey) -> Amount {
+        self.store
+            .rep_weight
+            .get(&self.tx, &representative)
+            .unwrap_or_default()
     }
 }
 

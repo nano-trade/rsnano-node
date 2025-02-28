@@ -35,7 +35,6 @@ impl RpcCommandHandler {
                         None
                     };
 
-                    let tx = self.node.ledger.read_txn();
                     let entry = LedgerAccountInfo {
                         frontier: info.head,
                         open_block: info.open_block,
@@ -44,7 +43,7 @@ impl RpcCommandHandler {
                         modified_timestamp: info.modified.as_u64().into(),
                         block_count: info.block_count.into(),
                         representative: representative.then(|| info.representative.into()),
-                        weight: weight.then(|| self.node.ledger.weight_exact(&tx, account.into())),
+                        weight: weight.then(|| any.weight_exact(account.into())),
                         pending: receivable,
                         receivable,
                     };
@@ -78,7 +77,6 @@ impl RpcCommandHandler {
                             None
                         };
 
-                        let tx = self.node.ledger.read_txn();
                         let entry = LedgerAccountInfo {
                             frontier: info.head,
                             open_block: info.open_block,
@@ -87,8 +85,7 @@ impl RpcCommandHandler {
                             modified_timestamp: info.modified.as_u64().into(),
                             block_count: info.block_count.into(),
                             representative: representative.then(|| info.representative.into()),
-                            weight: weight
-                                .then(|| self.node.ledger.weight_exact(&tx, account.into())),
+                            weight: weight.then(|| any.weight_exact(account.into())),
                             pending,
                             receivable: pending,
                         };

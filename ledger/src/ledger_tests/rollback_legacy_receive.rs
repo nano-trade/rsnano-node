@@ -10,7 +10,7 @@ fn clear_successor() {
     let ctx = LedgerContext::empty();
     let receive = setup_legacy_receive_block(&ctx);
 
-    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
+    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
 
     assert_eq!(
         ctx.ledger.any().block_successor(&receive.open_block.hash()),
@@ -23,7 +23,7 @@ fn update_account_info() {
     let ctx = LedgerContext::empty();
     let receive = setup_legacy_receive_block(&ctx);
 
-    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
+    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
 
     let account_info = ctx
         .ledger
@@ -41,7 +41,7 @@ fn rollback_pending_info() {
     let ctx = LedgerContext::empty();
     let receive = setup_legacy_receive_block(&ctx);
 
-    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
+    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
 
     let pending = ctx
         .ledger
@@ -61,7 +61,7 @@ fn rollback_vote_weight() {
     let ctx = LedgerContext::empty();
     let receive = setup_legacy_receive_block(&ctx);
 
-    ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
+    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
 
     assert_eq!(
         ctx.ledger.weight(&receive.destination.public_key()),

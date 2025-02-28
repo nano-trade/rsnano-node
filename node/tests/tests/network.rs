@@ -287,14 +287,8 @@ fn receive_weight_change() {
         )
         .unwrap();
     assert_timely(Duration::from_secs(10), || {
-        node1
-            .ledger
-            .weight_exact(&node1.ledger.read_txn(), key2.public_key())
-            == node1.config.receive_minimum
-            && node2
-                .ledger
-                .weight_exact(&node2.ledger.read_txn(), key2.public_key())
-                == node1.config.receive_minimum
+        node1.ledger.any().weight_exact(key2.public_key()) == node1.config.receive_minimum
+            && node2.ledger.any().weight_exact(key2.public_key()) == node1.config.receive_minimum
     });
 }
 

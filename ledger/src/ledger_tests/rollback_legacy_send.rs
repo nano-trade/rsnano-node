@@ -69,7 +69,7 @@ fn rollback_dependent_blocks_too() {
     let open = setup_legacy_open_block(&ctx);
 
     // Rollback send block. This requires the rollback of the open block first.
-    ctx.ledger.rollback2(&open.send_block.hash()).unwrap();
+    ctx.ledger.rollback(&open.send_block.hash()).unwrap();
 
     assert_eq!(
         ctx.ledger.any().account_balance(&DEV_GENESIS_ACCOUNT),
@@ -98,6 +98,6 @@ fn rollback_dependent_blocks_too() {
 
 fn rollback_send_block<'a>(ctx: &'a LedgerContext) -> LegacySendBlockResult<'a> {
     let send = setup_legacy_send_block(ctx);
-    ctx.ledger.rollback2(&send.send_block.hash()).unwrap();
+    ctx.ledger.rollback(&send.send_block.hash()).unwrap();
     send
 }

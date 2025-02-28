@@ -315,13 +315,12 @@ impl Wallets {
             let mut action_accounts_l: Vec<PrivateKey> = Vec::new();
             {
                 let transaction_l = self.env.tx_begin_read();
-                let ledger_txn = self.ledger.read_txn();
                 let lock = self.mutex.lock().unwrap();
                 for (wallet_id, wallet) in lock.iter() {
                     let representatives_l = wallet.representatives.lock().unwrap().clone();
                     for account in representatives_l {
                         if wallet.store.exists(&transaction_l, &account.into()) {
-                            if !self.ledger.weight_exact(&ledger_txn, account).is_zero() {
+                            if !self.ledger.weight(&account).is_zero() {
                                 if wallet.store.valid_password(&transaction_l) {
                                     let prv = wallet
                                         .store
@@ -1258,12 +1257,11 @@ impl WalletsExt for Arc<Wallets> {
             return PublicKey::zero();
         }
         let key = wallet.store.insert_adhoc(&mut tx, key);
-        let block_tx = self.ledger.read_txn();
         if generate_work {
             self.work_ensure(
                 wallet,
                 key.into(),
-                self.ledger.latest_root(&block_tx, &key.into()),
+                self.ledger.any().latest_root(&key.into()),
             );
         }
         let half_principal_weight = self.online_reps.lock().unwrap().minimum_principal_weight() / 2;
@@ -2134,9 +2132,9 @@ impl WalletsExt for Arc<Wallets> {
             // Change representative for all wallet accounts
             if update_existing_accounts {
                 let tx = self.env.tx_begin_read();
-                let block_tx = self.ledger.read_txn();
+                let any = self.ledger.any();
                 for (account, _) in wallet.store.iter(&tx) {
-                    if let Some(info) = self.ledger.account_info(&block_tx, &account.into()) {
+                    if let Some(info) = any.get_account(&account.into()) {
                         if info.representative != rep {
                             accounts.push(account);
                         }

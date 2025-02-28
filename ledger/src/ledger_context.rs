@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use rsnano_core::{Account, Amount, ConfirmationHeightInfo, Networks};
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, TestDbFile};
+use rsnano_store_lmdb::{LmdbStore, TestDbFile};
 use rsnano_work::WorkThresholds;
 
-use crate::{test_helpers::AccountBlockFactory, Ledger, LedgerConstants, RepWeightCache};
+use crate::{
+    test_helpers::AccountBlockFactory, Ledger, LedgerConstants, LedgerSet, RepWeightCache,
+};
 
 pub struct LedgerContext {
     pub ledger: Arc<Ledger>,
@@ -46,20 +48,22 @@ impl LedgerContext {
         AccountBlockFactory::new(&self.ledger)
     }
 
-    pub fn inc_confirmation_height(&self, txn: &mut LmdbWriteTransaction, account: &Account) {
+    pub fn inc_confirmation_height(&self, account: &Account) {
+        let mut txn = self.ledger.rw_txn();
+        let frontier = self.ledger.any().get_account(account).unwrap().head;
         let mut height = self
             .ledger
             .store
             .confirmation_height
-            .get(txn, account)
+            .get(&txn, account)
             .unwrap_or_else(|| ConfirmationHeightInfo {
                 height: 0,
-                frontier: self.ledger.account_info(txn, account).unwrap().head,
+                frontier,
             });
         height.height = height.height + 1;
         self.ledger
             .store
             .confirmation_height
-            .put(txn, account, &height);
+            .put(&mut txn, account, &height);
     }
 }

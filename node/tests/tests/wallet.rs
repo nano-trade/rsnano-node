@@ -716,9 +716,8 @@ fn work_generate() {
 
     let start = Instant::now();
     loop {
-        let tx = node1.ledger.read_txn();
         let work1 = node1.wallets.work_get(&wallet_id, &account1.into());
-        let root = node1.ledger.latest_root(&tx, &account1);
+        let root = node1.ledger.any().latest_root(&account1);
         if DEV_NETWORK_PARAMS.work.difficulty(&root, work1)
             >= DEV_NETWORK_PARAMS.work.threshold_base()
         {

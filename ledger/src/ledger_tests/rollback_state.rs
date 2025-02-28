@@ -11,10 +11,10 @@ fn rollback_send() {
     let ctx = LedgerContext::empty();
     let genesis = ctx.genesis_block_factory();
 
-    let send = genesis.send2().build();
+    let send = genesis.send().build();
     ctx.ledger.process_one(&send).unwrap();
 
-    ctx.ledger.rollback2(&send.hash()).unwrap();
+    ctx.ledger.rollback(&send.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
@@ -40,7 +40,7 @@ fn rollback_receive() {
 
     let amount_sent = Amount::raw(50);
     let send = genesis
-        .send2()
+        .send()
         .amount_sent(amount_sent)
         .link(genesis.account())
         .build();
@@ -49,7 +49,7 @@ fn rollback_receive() {
     let receive = genesis.receive(send.hash()).build();
     ctx.ledger.process_one(&receive).unwrap();
 
-    ctx.ledger.rollback2(&receive.hash()).unwrap();
+    ctx.ledger.rollback(&receive.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
@@ -78,13 +78,13 @@ fn rollback_received_send() {
     let genesis = ctx.genesis_block_factory();
     let destination = AccountBlockFactory::new(&ctx.ledger);
 
-    let send = genesis.send2().link(destination.account()).build();
+    let send = genesis.send().link(destination.account()).build();
     ctx.ledger.process_one(&send).unwrap();
 
-    let open = destination.open2(send.hash()).build();
+    let open = destination.open(send.hash()).build();
     ctx.ledger.process_one(&open).unwrap();
 
-    ctx.ledger.rollback2(&send.hash()).unwrap();
+    ctx.ledger.rollback(&send.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(
@@ -110,10 +110,10 @@ fn rollback_rep_change() {
     let genesis = ctx.genesis_block_factory();
     let representative = PublicKey::from(1);
 
-    let change = genesis.change2().representative(representative).build();
+    let change = genesis.change().representative(representative).build();
     ctx.ledger.process_one(&change).unwrap();
 
-    ctx.ledger.rollback2(&change.hash()).unwrap();
+    ctx.ledger.rollback(&change.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&change.hash()), false);
@@ -136,16 +136,16 @@ fn rollback_open() {
 
     let amount_sent = Amount::raw(50);
     let send = genesis
-        .send2()
+        .send()
         .link(destination.account())
         .amount_sent(amount_sent)
         .build();
     ctx.ledger.process_one(&send).unwrap();
 
-    let open = destination.open2(send.hash()).build();
+    let open = destination.open(send.hash()).build();
     ctx.ledger.process_one(&open).unwrap();
 
-    ctx.ledger.rollback2(&open.hash()).unwrap();
+    ctx.ledger.rollback(&open.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&open.hash()), false);
@@ -171,10 +171,10 @@ fn rollback_send_with_rep_change() {
     let genesis = ctx.genesis_block_factory();
 
     let representative = PublicKey::from(1);
-    let send = genesis.send2().representative(representative).build();
+    let send = genesis.send().representative(representative).build();
     ctx.ledger.process_one(&send).unwrap();
 
-    ctx.ledger.rollback2(&send.hash()).unwrap();
+    ctx.ledger.rollback(&send.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
@@ -195,7 +195,7 @@ fn rollback_receive_with_rep_change() {
     let genesis = ctx.genesis_block_factory();
 
     let representative = PublicKey::from(1);
-    let send = genesis.send2().link(genesis.account()).build();
+    let send = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send).unwrap();
 
     let receive = genesis
@@ -204,7 +204,7 @@ fn rollback_receive_with_rep_change() {
         .build();
     ctx.ledger.process_one(&receive).unwrap();
 
-    ctx.ledger.rollback2(&receive.hash()).unwrap();
+    ctx.ledger.rollback(&receive.hash()).unwrap();
     let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
