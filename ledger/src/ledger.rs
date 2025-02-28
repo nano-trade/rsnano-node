@@ -1,7 +1,7 @@
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
-    AnySet, AnySet2, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, ConfirmedSet2,
+    AnySet2, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, ConfirmedSet2,
     GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
     OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard,
     WriteQueue,
@@ -355,10 +355,6 @@ impl Ledger {
         }
     }
 
-    pub fn any(&self) -> AnySet {
-        AnySet::new(&self.store)
-    }
-
     pub fn any2(&self) -> OwningAnySet {
         let tx = self.read_txn();
         OwningAnySet::new(&self.store, tx, &self.constants)
@@ -442,6 +438,25 @@ impl Ledger {
 
     pub fn epoch_link(&self, epoch: Epoch) -> Option<Link> {
         self.constants.epochs.link(epoch).cloned()
+    }
+
+    pub fn block_amount(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<Amount> {
+        let block = self.get_block(tx, hash)?;
+        self.block_amount_for(tx, &block)
+    }
+
+    pub fn block_amount_for(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<Amount> {
+        let block_balance = block.balance();
+        if block.previous().is_zero() {
+            Some(block_balance)
+        } else {
+            let previous_balance = self.get_block(tx, &block.previous())?.balance();
+            if block_balance > previous_balance {
+                Some(block_balance - previous_balance)
+            } else {
+                Some(previous_balance - block_balance)
+            }
+        }
     }
 
     pub fn update_account(

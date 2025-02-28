@@ -1,4 +1,4 @@
-use crate::{AnySet, ConfirmedSet, LedgerConstants, LedgerObserver};
+use crate::{ConfirmedSet, LedgerConstants, LedgerObserver};
 use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
@@ -8,7 +8,6 @@ pub(crate) struct BlockCementer<'a> {
     constants: &'a LedgerConstants,
     store: &'a LmdbStore,
     observer: &'a dyn LedgerObserver,
-    any: AnySet<'a>,
     confirmed: ConfirmedSet<'a>,
 }
 
@@ -22,7 +21,6 @@ impl<'a> BlockCementer<'a> {
             store,
             observer,
             constants,
-            any: AnySet::new(store),
             confirmed: ConfirmedSet::new(store),
         }
     }
@@ -38,7 +36,7 @@ impl<'a> BlockCementer<'a> {
         let mut stack = VecDeque::new();
         stack.push_back(target_hash);
         while let Some(&hash) = stack.back() {
-            let block = self.any.get_block(txn, &hash).unwrap();
+            let block = self.store.block.get(txn, &hash).unwrap();
 
             let dependents =
                 block.dependent_blocks(&self.constants.epochs, &self.constants.genesis_account);
@@ -84,7 +82,7 @@ impl<'a> BlockCementer<'a> {
             // Ensure that the block wasn't rolled back during the refresh
             let refreshed = txn.refresh_if_needed();
             if refreshed {
-                if !self.any.block_exists(txn, &target_hash) {
+                if !self.store.block.exists(txn, &target_hash) {
                     break; // Block was rolled back during cementing
                 }
             }
