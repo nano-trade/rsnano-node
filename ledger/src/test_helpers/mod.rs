@@ -15,6 +15,12 @@ pub fn upgrade_genesis_to_epoch_v1(ctx: &LedgerContext, txn: &mut LmdbWriteTrans
     epoch
 }
 
+pub fn upgrade_genesis_to_epoch_v1_2(ctx: &LedgerContext) -> Block {
+    let epoch = ctx.genesis_block_factory().epoch_v1_2().build();
+    ctx.ledger.process_one(&epoch).unwrap();
+    epoch
+}
+
 pub struct LegacySendBlockResult<'a> {
     pub destination: AccountBlockFactory<'a>,
     pub send_block: SavedBlock,

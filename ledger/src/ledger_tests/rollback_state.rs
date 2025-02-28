@@ -9,12 +9,10 @@ use rsnano_core::{Amount, Epoch, PendingInfo, PendingKey, PublicKey};
 #[test]
 fn rollback_send() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
-    let mut send = genesis.send(&txn).build();
-    ctx.ledger.process(&mut txn, &mut send).unwrap();
-    txn.commit();
+    let send = genesis.send2().build();
+    ctx.ledger.process_one(&send).unwrap();
 
     ctx.ledger.rollback2(&send.hash()).unwrap();
     let any = ctx.ledger.any();

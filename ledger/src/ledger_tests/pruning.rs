@@ -1,37 +1,44 @@
 use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
 
 use crate::{
-    ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext,
-    test_helpers::upgrade_genesis_to_epoch_v1, AnySet, LedgerSet, DEV_GENESIS_HASH,
+    ledger_constants::LEDGER_CONSTANTS_STUB,
+    ledger_tests::LedgerContext,
+    test_helpers::{upgrade_genesis_to_epoch_v1, upgrade_genesis_to_epoch_v1_2},
+    AnySet, LedgerSet, DEV_GENESIS_HASH,
 };
 
 #[test]
 fn pruning_action() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
-    let mut send1 = genesis
-        .send(&txn)
+    let send1 = genesis
+        .send2()
         .amount_sent(100)
         .link(genesis.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send1).unwrap();
-    ctx.ledger.confirm(&mut txn, send1.hash());
+    ctx.ledger.process_one(&send1).unwrap();
 
-    let mut send2 = genesis
-        .send(&txn)
+    let mut txn = ctx.ledger.rw_txn();
+    ctx.ledger.confirm(&mut txn, send1.hash());
+    txn.commit();
+
+    let send2 = genesis
+        .send2()
         .amount_sent(100)
         .link(genesis.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send2).unwrap();
+    ctx.ledger.process_one(&send2).unwrap();
+
+    let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
 
     // Prune...
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &DEV_GENESIS_HASH, 1), 0);
     txn.commit();
+
     let mut any = ctx.ledger.any();
     assert!(any
         .get_pending(&PendingKey::new(genesis.account(), send1.hash()))
@@ -42,17 +49,15 @@ fn pruning_action() {
     assert!(any.block_exists(&DEV_GENESIS_HASH));
     assert!(any.block_exists(&send2.hash()));
 
-    txn = ctx.ledger.rw_txn();
     // Receiving pruned block
-    let mut receive1 = TestBlockBuilder::state()
+    let receive1 = TestBlockBuilder::state()
         .account(genesis.account())
         .previous(send2.hash())
         .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
         .link(send1.hash())
         .key(&genesis.key)
         .build();
-    ctx.ledger.process(&mut txn, &mut receive1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&receive1).unwrap();
 
     any = ctx.ledger.any();
     assert!(any.block_exists(&receive1.hash()));
@@ -82,23 +87,20 @@ fn pruning_large_chain() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
     let genesis = ctx.genesis_block_factory();
-    let mut txn = ctx.ledger.rw_txn();
     let send_receive_pairs = 20;
     let mut last_hash = *DEV_GENESIS_HASH;
 
     for _ in 0..send_receive_pairs {
-        let mut send = genesis.send(&txn).link(genesis.account()).build();
-        ctx.ledger.process(&mut txn, &mut send).unwrap();
+        let send = genesis.send2().link(genesis.account()).build();
+        ctx.ledger.process_one(&send).unwrap();
 
-        let mut receive = genesis.receive(&txn, send.hash()).build();
-        ctx.ledger.process(&mut txn, &mut receive).unwrap();
+        let receive = genesis.receive2(send.hash()).build();
+        ctx.ledger.process_one(&receive).unwrap();
 
         last_hash = receive.hash();
     }
-    assert_eq!(
-        ctx.ledger.store.block.count(&txn),
-        send_receive_pairs * 2 + 1
-    );
+    assert_eq!(ctx.ledger.block_count(), send_receive_pairs * 2 + 1);
+    let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, last_hash);
 
     // Pruning action
@@ -127,38 +129,39 @@ fn pruning_source_rollback() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
     let genesis = ctx.genesis_block_factory();
+
+    upgrade_genesis_to_epoch_v1_2(&ctx);
+
+    let send1 = genesis
+        .send2()
+        .amount_sent(100)
+        .link(genesis.account())
+        .build();
+    ctx.ledger.process_one(&send1).unwrap();
+
+    let send2 = genesis
+        .send2()
+        .amount_sent(100)
+        .link(genesis.account())
+        .build();
+    ctx.ledger.process_one(&send2).unwrap();
+
     let mut txn = ctx.ledger.rw_txn();
-
-    upgrade_genesis_to_epoch_v1(&ctx, &mut txn);
-
-    let mut send1 = genesis
-        .send(&txn)
-        .amount_sent(100)
-        .link(genesis.account())
-        .build();
-    ctx.ledger.process(&mut txn, &mut send1).unwrap();
-
-    let mut send2 = genesis
-        .send(&txn)
-        .amount_sent(100)
-        .link(genesis.account())
-        .build();
-    ctx.ledger.process(&mut txn, &mut send2).unwrap();
     ctx.ledger.confirm(&mut txn, send2.hash());
 
     // Pruning action
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 2);
+    txn.commit();
 
     // Receiving pruned block
-    let mut receive1 = TestBlockBuilder::state()
+    let receive1 = TestBlockBuilder::state()
         .account(genesis.account())
         .previous(send2.hash())
         .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
         .link(send1.hash())
         .key(&genesis.key)
         .build();
-    ctx.ledger.process(&mut txn, &mut receive1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&receive1).unwrap();
 
     // Rollback receive block
     ctx.ledger.rollback2(&receive1.hash()).unwrap();
@@ -171,10 +174,8 @@ fn pruning_source_rollback() {
     assert_eq!(info2.amount, Amount::raw(100));
     assert_eq!(info2.epoch, Epoch::Epoch1);
 
-    txn = ctx.ledger.rw_txn();
     // Process receive block again
-    ctx.ledger.process(&mut txn, &mut receive1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&receive1).unwrap();
 
     let any = ctx.ledger.any();
     assert_eq!(
@@ -190,42 +191,43 @@ fn pruning_source_rollback_legacy() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
     let genesis = ctx.genesis_block_factory();
-    let mut txn = ctx.ledger.rw_txn();
 
-    let mut send1 = genesis
-        .legacy_send(&txn)
+    let send1 = genesis
+        .legacy_send2()
         .destination(genesis.account())
         .amount(100)
         .build();
-    ctx.ledger.process(&mut txn, &mut send1).unwrap();
+    ctx.ledger.process_one(&send1).unwrap();
 
     let destination = ctx.block_factory();
-    let mut send2 = genesis
-        .legacy_send(&txn)
+    let send2 = genesis
+        .legacy_send2()
         .destination(destination.account())
         .amount(100)
         .build();
-    ctx.ledger.process(&mut txn, &mut send2).unwrap();
+    ctx.ledger.process_one(&send2).unwrap();
 
     let mut send3 = genesis
-        .legacy_send(&txn)
+        .legacy_send2()
         .destination(genesis.account())
         .amount(100)
         .build();
-    ctx.ledger.process(&mut txn, &mut send3).unwrap();
+    ctx.ledger.process_one(&mut send3).unwrap();
+
+    let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
 
     // Pruning action
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send2.hash(), 1), 2);
+    txn.commit();
 
     // Receiving pruned block
-    let mut receive1 = TestBlockBuilder::legacy_receive()
+    let receive1 = TestBlockBuilder::legacy_receive()
         .previous(send3.hash())
         .source(send1.hash())
         .sign(&genesis.key)
         .build();
-    ctx.ledger.process(&mut txn, &mut receive1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&receive1).unwrap();
 
     // Rollback receive block
     ctx.ledger.rollback2(&receive1.hash()).unwrap();
@@ -238,10 +240,8 @@ fn pruning_source_rollback_legacy() {
     assert_eq!(info3.amount, Amount::raw(100));
     assert_eq!(info3.epoch, Epoch::Epoch0);
 
-    txn = ctx.ledger.rw_txn();
     // Process receive block again
-    ctx.ledger.process(&mut txn, &mut receive1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&receive1).unwrap();
 
     any = ctx.ledger.any();
     assert_eq!(
@@ -252,13 +252,11 @@ fn pruning_source_rollback_legacy() {
     assert_eq!(ctx.ledger.block_count(), 5);
 
     // Receiving pruned block (open)
-    txn = ctx.ledger.rw_txn();
-    let mut open1 = TestBlockBuilder::legacy_open()
+    let open1 = TestBlockBuilder::legacy_open()
         .source(send2.hash())
         .sign(&destination.key)
         .build();
-    ctx.ledger.process(&mut txn, &mut open1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&open1).unwrap();
 
     // Rollback open block
     ctx.ledger.rollback2(&open1.hash()).unwrap();
@@ -272,9 +270,7 @@ fn pruning_source_rollback_legacy() {
     assert_eq!(info4.epoch, Epoch::Epoch0);
 
     // Process open block again
-    txn = ctx.ledger.rw_txn();
-    ctx.ledger.process(&mut txn, &mut open1).unwrap();
-    txn.commit();
+    ctx.ledger.process_one(&open1).unwrap();
 
     any = ctx.ledger.any();
     assert_eq!(
@@ -289,39 +285,40 @@ fn pruning_source_rollback_legacy() {
 fn pruning_legacy_blocks() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
     let destination = ctx.block_factory();
 
-    let mut send1 = genesis
-        .legacy_send(&txn)
+    let send1 = genesis
+        .legacy_send2()
         .destination(genesis.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send1).unwrap();
+    ctx.ledger.process_one(&send1).unwrap();
 
-    let mut receive1 = genesis.legacy_receive(&txn, send1.hash()).build();
-    ctx.ledger.process(&mut txn, &mut receive1).unwrap();
+    let receive1 = genesis.legacy_receive2(send1.hash()).build();
+    ctx.ledger.process_one(&receive1).unwrap();
 
-    let mut change1 = genesis
-        .legacy_change(&txn)
+    let change1 = genesis
+        .legacy_change2()
         .representative(destination.public_key())
         .build();
-    ctx.ledger.process(&mut txn, &mut change1).unwrap();
+    ctx.ledger.process_one(&change1).unwrap();
 
-    let mut send2 = genesis
-        .legacy_send(&txn)
+    let send2 = genesis
+        .legacy_send2()
         .destination(destination.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send2).unwrap();
+    ctx.ledger.process_one(&send2).unwrap();
 
-    let mut open1 = destination.legacy_open(send2.hash()).build();
-    ctx.ledger.process(&mut txn, &mut open1).unwrap();
+    let open1 = destination.legacy_open(send2.hash()).build();
+    ctx.ledger.process_one(&open1).unwrap();
 
-    let mut send3 = destination
-        .legacy_send(&txn)
+    let send3 = destination
+        .legacy_send2()
         .destination(genesis.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send3).unwrap();
+    ctx.ledger.process_one(&send3).unwrap();
+
+    let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, change1.hash());
     ctx.ledger.confirm(&mut txn, open1.hash());
 
@@ -351,14 +348,15 @@ fn pruning_legacy_blocks() {
 fn pruning_safe_functions() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
-    let mut send1 = genesis.send(&txn).link(genesis.account()).build();
-    ctx.ledger.process(&mut txn, &mut send1).unwrap();
+    let send1 = genesis.send2().link(genesis.account()).build();
+    ctx.ledger.process_one(&send1).unwrap();
 
-    let mut send2 = genesis.send(&txn).link(genesis.account()).build();
-    ctx.ledger.process(&mut txn, &mut send2).unwrap();
+    let send2 = genesis.send2().link(genesis.account()).build();
+    ctx.ledger.process_one(&send2).unwrap();
+
+    let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send1.hash());
 
     // Pruning action
@@ -382,14 +380,15 @@ fn pruning_safe_functions() {
 fn hash_root_random() {
     let ctx = LedgerContext::empty();
     ctx.ledger.enable_pruning();
-    let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
-    let mut send1 = genesis.send(&txn).link(genesis.account()).build();
-    ctx.ledger.process(&mut txn, &mut send1).unwrap();
+    let send1 = genesis.send2().link(genesis.account()).build();
+    ctx.ledger.process_one(&send1).unwrap();
 
-    let mut send2 = genesis.send(&txn).link(genesis.account()).build();
-    ctx.ledger.process(&mut txn, &mut send2).unwrap();
+    let send2 = genesis.send2().link(genesis.account()).build();
+    ctx.ledger.process_one(&send2).unwrap();
+
+    let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send1.hash());
 
     // Pruning action
