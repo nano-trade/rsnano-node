@@ -147,6 +147,7 @@ impl LmdbEnv {
         let mut environment_flags = EnvironmentFlags::NO_SUB_DIR
             | EnvironmentFlags::NO_TLS
             | EnvironmentFlags::NO_READAHEAD;
+
         if options.config.sync == SyncStrategy::NosyncSafe {
             environment_flags |= EnvironmentFlags::NO_META_SYNC;
         } else if options.config.sync == SyncStrategy::NosyncUnsafe {
@@ -155,6 +156,8 @@ impl LmdbEnv {
             environment_flags |= EnvironmentFlags::NO_SYNC
                 | EnvironmentFlags::WRITE_MAP
                 | EnvironmentFlags::MAP_ASYNC;
+        } else if options.config.sync == SyncStrategy::NosyncUnsafeWriteMap {
+            environment_flags |= EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP;
         }
 
         if !memory_intensive_instrumentation() && options.use_no_mem_init {

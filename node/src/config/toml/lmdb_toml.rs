@@ -46,6 +46,7 @@ impl From<&LmdbConfig> for LmdbToml {
                 SyncStrategy::NosyncSafe => "nosync_safe".to_string(),
                 SyncStrategy::NosyncUnsafe => "nosync_unsafe".to_string(),
                 SyncStrategy::NosyncUnsafeLargeMemory => "nosync_unsafe_large_memory".to_string(),
+                _ => panic!("invalid sync strategy"),
             }),
             max_databases: Some(config.max_databases),
             map_size: Some(config.map_size),

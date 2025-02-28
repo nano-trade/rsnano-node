@@ -17,6 +17,7 @@ use rsnano_node::{
 };
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
+use rsnano_store_lmdb::SyncStrategy;
 use rsnano_work::WorkPool;
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
@@ -62,6 +63,7 @@ impl System {
         let mut config = NodeConfig::new(Some(port), &network_params, 1);
         config.representative_vote_weight_minimum = Amount::zero();
         config.io_threads = 1;
+        config.lmdb_config.sync = SyncStrategy::NosyncUnsafeWriteMap;
         config
     }
 

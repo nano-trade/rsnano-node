@@ -4615,6 +4615,7 @@ dependencies = [
  "rsnano_nullable_tcp",
  "rsnano_rpc_client",
  "rsnano_rpc_server",
+ "rsnano_store_lmdb",
  "rsnano_websocket_server",
  "rsnano_work",
  "tokio",

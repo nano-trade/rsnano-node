@@ -17,6 +17,9 @@ pub enum SyncStrategy {
      * @warning Do not use this option if external processes uses the database concurrently.
      */
     NosyncUnsafeLargeMemory,
+
+    /// Never sync
+    NosyncUnsafeWriteMap,
 }
 
 #[derive(Clone, Debug, PartialEq)]
