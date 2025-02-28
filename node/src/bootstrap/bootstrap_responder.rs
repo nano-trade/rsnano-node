@@ -3,13 +3,12 @@ use crate::{
     transport::MessageSender,
 };
 use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger, OwningAnySet};
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
-use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::min,
     collections::VecDeque,
@@ -198,12 +197,14 @@ impl BootstrapResponderImpl {
         let batch = queue.next_batch(self.batch_size);
         drop(queue);
 
-        let mut tx = self.ledger.read_txn();
+        let mut any = self.ledger.any2();
         for (_, (request, channel)) in batch {
-            tx.refresh_if_needed();
+            if any.should_refresh() {
+                any = self.ledger.any2();
+            }
 
             if !channel.should_drop(TrafficType::BootstrapServer) {
-                let response = self.process(&tx, request);
+                let response = self.process(&any, request);
                 self.respond(response, &channel);
             } else {
                 self.stats.inc_dir(
@@ -217,34 +218,29 @@ impl BootstrapResponderImpl {
         self.queue.lock().unwrap()
     }
 
-    fn process(&self, tx: &LmdbReadTransaction, message: AscPullReq) -> AscPullAck {
+    fn process(&self, any: &OwningAnySet, message: AscPullReq) -> AscPullAck {
         match message.req_type {
-            AscPullReqType::Blocks(blocks) => self.process_blocks(tx, message.id, blocks),
-            AscPullReqType::AccountInfo(account) => self.process_account(tx, message.id, account),
+            AscPullReqType::Blocks(blocks) => self.process_blocks(any, message.id, blocks),
+            AscPullReqType::AccountInfo(account) => self.process_account(any, message.id, account),
             AscPullReqType::Frontiers(frontiers) => {
-                self.process_frontiers(tx, message.id, frontiers)
+                self.process_frontiers(any, message.id, frontiers)
             }
         }
     }
 
-    fn process_blocks(
-        &self,
-        tx: &LmdbReadTransaction,
-        id: u64,
-        request: BlocksReqPayload,
-    ) -> AscPullAck {
+    fn process_blocks(&self, any: &dyn AnySet2, id: u64, request: BlocksReqPayload) -> AscPullAck {
         let count = min(request.count, BootstrapResponder::MAX_BLOCKS);
 
         match request.start_type {
             HashType::Account => {
-                if let Some(info) = self.ledger.account_info(tx, &request.start.into()) {
+                if let Some(info) = any.get_account(&request.start.into()) {
                     // Start from open block if pulling by account
-                    return self.prepare_response(tx, id, info.open_block, count);
+                    return self.prepare_response(any, id, info.open_block, count);
                 }
             }
             HashType::Block => {
-                if self.ledger.any().block_exists(tx, &request.start.into()) {
-                    return self.prepare_response(tx, id, request.start.into(), count);
+                if any.block_exists(&request.start.into()) {
+                    return self.prepare_response(any, id, request.start.into(), count);
                 }
             }
         }
@@ -259,7 +255,7 @@ impl BootstrapResponderImpl {
 
     fn process_account(
         &self,
-        tx: &LmdbReadTransaction,
+        any: &dyn AnySet2,
         id: u64,
         request: AccountInfoReqPayload,
     ) -> AscPullAck {
@@ -267,9 +263,7 @@ impl BootstrapResponderImpl {
             HashType::Account => request.target.into(),
             HashType::Block => {
                 // Try to lookup account assuming target is block hash
-                self.ledger
-                    .any()
-                    .block_account(tx, &request.target.into())
+                any.block_account(&request.target.into())
                     .unwrap_or_default()
             }
         };
@@ -279,12 +273,12 @@ impl BootstrapResponderImpl {
             ..Default::default()
         };
 
-        if let Some(account_info) = self.ledger.account_info(tx, &target) {
+        if let Some(account_info) = any.get_account(&target) {
             response_payload.account_open = account_info.open_block;
             response_payload.account_head = account_info.head;
             response_payload.account_block_count = account_info.block_count;
 
-            if let Some(conf_info) = self.ledger.store.confirmation_height.get(tx, &target) {
+            if let Some(conf_info) = any.confirmed().get_conf_info(&target) {
                 response_payload.account_conf_frontier = conf_info.frontier;
                 response_payload.account_conf_height = conf_info.height;
             }
@@ -302,14 +296,12 @@ impl BootstrapResponderImpl {
      */
     fn process_frontiers(
         &self,
-        tx: &LmdbReadTransaction,
+        any: &OwningAnySet,
         id: u64,
         request: FrontiersReqPayload,
     ) -> AscPullAck {
-        let frontiers = self
-            .ledger
-            .any()
-            .accounts_range(tx, request.start..)
+        let frontiers = any
+            .accounts_range(request.start..)
             .map(|(account, info)| Frontier::new(account, info.head))
             .take(request.count as usize)
             .collect();
@@ -322,12 +314,12 @@ impl BootstrapResponderImpl {
 
     fn prepare_response(
         &self,
-        tx: &LmdbReadTransaction,
+        any: &dyn AnySet2,
         id: u64,
         start_block: BlockHash,
         count: u8,
     ) -> AscPullAck {
-        let blocks = self.prepare_blocks(tx, start_block, count as usize);
+        let blocks = self.prepare_blocks(any, start_block, count as usize);
         let response_payload = BlocksAckPayload::new(blocks);
 
         AscPullAck {
@@ -345,13 +337,13 @@ impl BootstrapResponderImpl {
 
     fn prepare_blocks(
         &self,
-        tx: &LmdbReadTransaction,
+        any: &dyn AnySet2,
         start_block: BlockHash,
         count: usize,
     ) -> VecDeque<Block> {
         let mut result = VecDeque::new();
         if !start_block.is_zero() {
-            let mut current = self.ledger.any().get_block(tx, &start_block);
+            let mut current = any.get_block(&start_block);
             while let Some(c) = current.take() {
                 let successor = c.successor().unwrap_or_default();
                 result.push_back(c.into());
@@ -359,7 +351,7 @@ impl BootstrapResponderImpl {
                 if result.len() == count {
                     break;
                 }
-                current = self.ledger.any().get_block(tx, &successor);
+                current = any.get_block(&successor);
             }
         }
         result
