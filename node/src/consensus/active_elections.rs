@@ -1101,8 +1101,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 if let Some(active) = self_w.upgrade() {
                     for (status, context) in batch {
                         if *status == BlockStatus::Fork {
-                            let block = context.block.lock().unwrap().clone();
-                            active.publish_block(&block);
+                            active.publish_block(&context.block);
                         }
                     }
                 }

@@ -476,8 +476,7 @@ impl BlockProcessorLoopImpl {
 
             if force {
                 number_of_forced_processed += 1;
-                let block = ctx.block.lock().unwrap().clone();
-                self.rollback_competitor(&mut tx, &block);
+                self.rollback_competitor(&mut tx, &ctx.block);
             }
 
             number_of_blocks_processed += 1;
@@ -502,11 +501,11 @@ impl BlockProcessorLoopImpl {
         txn: &mut LmdbWriteTransaction,
         context: &BlockContext,
     ) -> BlockStatus {
-        let mut block = context.block.lock().unwrap().clone();
-        let hash = block.hash();
+        let hash = context.block.hash();
+        let block = &context.block;
         let mut saved_block = None;
 
-        let result = match self.ledger.process(txn, &mut block) {
+        let result = match self.ledger.process(txn, &context.block) {
             Ok(saved) => {
                 saved_block = Some(saved.clone());
                 *context.saved_block.lock().unwrap() = Some(saved);
@@ -515,14 +514,11 @@ impl BlockProcessorLoopImpl {
             Err(r) => r,
         };
 
-        // reassign to copy sideband
-        *context.block.lock().unwrap() = block.clone();
-
         self.stats
             .inc(StatType::BlockProcessorResult, result.into());
         self.stats
             .inc(StatType::BlockProcessorSource, context.source.into());
-        trace!(?result, block = %block.hash(), source = ?context.source, "Block processed");
+        trace!(?result, block = %hash, source = ?context.source, "Block processed");
 
         match result {
             BlockStatus::Progress => {
@@ -544,7 +540,7 @@ impl BlockProcessorLoopImpl {
             }
             BlockStatus::GapPrevious => {
                 self.unchecked
-                    .put(block.previous().into(), UncheckedInfo::new(block));
+                    .put(block.previous().into(), UncheckedInfo::new(block.clone()));
                 self.stats.inc(StatType::Ledger, DetailType::GapPrevious);
             }
             BlockStatus::GapSource => {
@@ -553,7 +549,7 @@ impl BlockProcessorLoopImpl {
                         .source_field()
                         .unwrap_or(block.link_field().unwrap_or_default().into())
                         .into(),
-                    UncheckedInfo::new(block),
+                    UncheckedInfo::new(block.clone()),
                 );
                 self.stats.inc(StatType::Ledger, DetailType::GapSource);
             }
@@ -561,7 +557,7 @@ impl BlockProcessorLoopImpl {
                 // Specific unchecked key starting with epoch open block account public key
                 self.unchecked.put(
                     block.account_field().unwrap().into(),
-                    UncheckedInfo::new(block),
+                    UncheckedInfo::new(block.clone()),
                 );
                 self.stats.inc(StatType::Ledger, DetailType::GapSource);
             }

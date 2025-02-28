@@ -31,14 +31,13 @@ impl BlockInspector {
         let mut state = self.state.lock().unwrap();
         let any = self.ledger.any();
         for (result, context) in batch {
-            let block = context.block.lock().unwrap().clone();
             let saved_block = context.saved_block.lock().unwrap().clone();
-            let account = self.get_account(&any, &block, &saved_block);
+            let account = self.get_account(&any, &context.block, &saved_block);
 
             self.inspect_block(
                 &mut state,
                 *result,
-                &block,
+                &context.block,
                 saved_block,
                 context.source,
                 &account,

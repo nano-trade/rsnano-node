@@ -165,7 +165,7 @@ impl ConfirmingSet {
         {
             let mut guard = self.thread.mutex.lock().unwrap();
             for (_, context) in batch {
-                if let Some(entry) = guard.deferred.remove(&context.block.lock().unwrap().hash()) {
+                if let Some(entry) = guard.deferred.remove(&context.block.hash()) {
                     self.thread
                         .stats
                         .inc(StatType::ConfirmingSet, DetailType::Requeued);
