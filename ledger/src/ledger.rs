@@ -653,6 +653,11 @@ impl Ledger {
         }
     }
 
+    pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockStatus> {
+        let mut tx = self.rw_txn();
+        self.process(&mut tx, block)
+    }
+
     pub fn process(
         &self,
         txn: &mut LmdbWriteTransaction,
