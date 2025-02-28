@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Amount, Epoch};
-use rsnano_ledger::{AnySet, ConfirmedSet2, LedgerSet};
+use rsnano_ledger::{AnySet, ConfirmedSet, LedgerSet};
 use rsnano_rpc_messages::{unwrap_bool_or_false, AccountInfoArgs, AccountInfoResponse};
 
 impl RpcCommandHandler {

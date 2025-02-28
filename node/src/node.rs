@@ -1424,16 +1424,16 @@ impl Node {
     }
 
     pub fn block_confirmed(&self, hash: &BlockHash) -> bool {
-        self.ledger.confirmed2().block_exists(hash)
+        self.ledger.confirmed().block_exists(hash)
     }
 
     pub fn block_hashes_confirmed(&self, blocks: &[BlockHash]) -> bool {
-        let confirmed = self.ledger.confirmed2();
+        let confirmed = self.ledger.confirmed();
         blocks.iter().all(|b| confirmed.block_exists(b))
     }
 
     pub fn blocks_confirmed(&self, blocks: &[Block]) -> bool {
-        let confirmed = self.ledger.confirmed2();
+        let confirmed = self.ledger.confirmed();
         blocks.iter().all(|b| confirmed.block_exists(&b.hash()))
     }
 

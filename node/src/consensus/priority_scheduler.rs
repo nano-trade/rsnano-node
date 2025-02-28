@@ -4,7 +4,7 @@ use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
     SavedBlock,
 };
-use rsnano_ledger::{AnySet, ConfirmedSet2};
+use rsnano_ledger::{AnySet, ConfirmedSet};
 use std::{
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,

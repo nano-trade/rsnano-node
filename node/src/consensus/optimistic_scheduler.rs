@@ -5,7 +5,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use std::{
     collections::{HashMap, VecDeque},
     mem::size_of,

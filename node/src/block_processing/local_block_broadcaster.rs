@@ -5,7 +5,7 @@ use crate::{
     transport::MessageFlooder,
 };
 use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
-use rsnano_ledger::{BlockStatus, ConfirmedSet2, Ledger};
+use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use std::{
@@ -216,7 +216,7 @@ impl LocalBlockBroadcaster {
         drop(data);
         let mut already_confirmed = HashSet::new();
         {
-            let confirmed = self.ledger.confirmed2();
+            let confirmed = self.ledger.confirmed();
             for entry in local_blocks_copy {
                 // This block has never been broadcasted, keep it so it's broadcasted at least once
                 if entry.last_broadcast.is_none() {

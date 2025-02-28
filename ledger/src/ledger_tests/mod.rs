@@ -3,7 +3,7 @@ use crate::{
     test_helpers::{
         setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
     },
-    AnySet, ConfirmedSet2, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT,
+    AnySet, ConfirmedSet, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_HASH,
 };
 use rsnano_core::{
@@ -549,7 +549,7 @@ fn block_confirmed() {
     let ctx = LedgerContext::empty();
     assert_eq!(
         ctx.ledger
-            .confirmed2()
+            .confirmed()
             .block_exists_or_pruned(&DEV_GENESIS_HASH),
         true
     );
@@ -565,7 +565,7 @@ fn block_confirmed() {
 
     // Must be safe against non-existing blocks
     assert_eq!(
-        ctx.ledger.confirmed2().block_exists_or_pruned(&send.hash()),
+        ctx.ledger.confirmed().block_exists_or_pruned(&send.hash()),
         false
     );
 
@@ -574,9 +574,7 @@ fn block_confirmed() {
     txn.commit();
 
     assert_eq!(
-        ctx.ledger
-            .confirmed2()
-            .block_exists_or_pruned(&&send.hash()),
+        ctx.ledger.confirmed().block_exists_or_pruned(&&send.hash()),
         false
     );
 
@@ -585,7 +583,7 @@ fn block_confirmed() {
     txn.commit();
 
     assert_eq!(
-        ctx.ledger.confirmed2().block_exists_or_pruned(&send.hash()),
+        ctx.ledger.confirmed().block_exists_or_pruned(&send.hash()),
         true
     );
 }

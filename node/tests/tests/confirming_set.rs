@@ -71,7 +71,7 @@ fn confirmed_history() {
         assert_eq!(node.active.recently_cemented_count(), 0);
         assert_eq!(node.active.len(), 0);
 
-        assert_eq!(node.ledger.confirmed2().block_exists(&send.hash()), false);
+        assert_eq!(node.ledger.confirmed().block_exists(&send.hash()), false);
 
         assert_timely(Duration::from_secs(10), || {
             node.ledger.write_queue.contains(Writer::ConfirmationHeight)
@@ -96,7 +96,7 @@ fn confirmed_history() {
         !node.ledger.write_queue.contains(Writer::ConfirmationHeight)
     });
 
-    assert_timely2(|| node.ledger.confirmed2().block_exists(&send.hash()));
+    assert_timely2(|| node.ledger.confirmed().block_exists(&send.hash()));
 
     assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
     assert_timely_eq(

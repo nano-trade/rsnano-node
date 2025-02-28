@@ -9,7 +9,7 @@ impl RpcCommandHandler {
     pub(crate) fn accounts_balances(&self, args: AccountsBalancesArgs) -> AccountsBalancesResponse {
         let only_confirmed = unwrap_bool_or_true(args.include_only_confirmed);
         if only_confirmed {
-            let set = self.node.ledger.confirmed2();
+            let set = self.node.ledger.confirmed();
             get_account_balances(set, &args)
         } else {
             let set = self.node.ledger.any();

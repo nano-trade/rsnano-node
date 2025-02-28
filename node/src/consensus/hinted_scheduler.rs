@@ -6,7 +6,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
-use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,

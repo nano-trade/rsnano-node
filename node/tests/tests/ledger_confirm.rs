@@ -1,7 +1,7 @@
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet2, LedgerSet,
-    DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT,
+    DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::stats::{DetailType, Direction, StatType};
 use std::time::Duration;
@@ -18,15 +18,15 @@ fn single() {
     let latest1 = node.latest(&DEV_GENESIS_ACCOUNT);
     let send1 = lattice.genesis().send(&key1, 100);
     node.process(send1.clone());
-    assert_eq!(node.ledger.confirmed2().block_exists(&send1.hash()), false);
+    assert_eq!(node.ledger.confirmed().block_exists(&send1.hash()), false);
     let mut tx = node.ledger.rw_txn();
     node.ledger.confirm(&mut tx, send1.hash());
     tx.commit();
 
-    assert_eq!(node.ledger.confirmed2().block_exists(&send1.hash()), true);
+    assert_eq!(node.ledger.confirmed().block_exists(&send1.hash()), true);
     let conf_info = node
         .ledger
-        .confirmed2()
+        .confirmed()
         .get_conf_info(&DEV_GENESIS_ACCOUNT)
         .unwrap();
     assert_eq!(conf_info.height, 2);

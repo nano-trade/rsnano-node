@@ -12,7 +12,7 @@ use std::{
 
 use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};
 
-use super::{BorrowingConfirmedSet, ConfirmedSet2, LedgerSet};
+use super::{BorrowingConfirmedSet, ConfirmedSet, LedgerSet};
 
 pub trait AnySet: LedgerSet {
     fn should_refresh(&self) -> bool;

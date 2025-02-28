@@ -1,5 +1,5 @@
 use super::rollback_planner::RollbackPlanner;
-use crate::{AnySet, ConfirmedSet2, Ledger};
+use crate::{AnySet, ConfirmedSet, Ledger};
 use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
     PendingInfo, PendingKey, PublicKey, SavedBlock,

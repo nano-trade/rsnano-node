@@ -1,7 +1,7 @@
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
-    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet2, GenerateCacheFlags,
+    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
     RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
 };
@@ -359,7 +359,7 @@ impl Ledger {
         OwningAnySet::new(&self.store, tx, &self.constants)
     }
 
-    pub fn confirmed2(&self) -> OwningConfirmedSet<'_> {
+    pub fn confirmed(&self) -> OwningConfirmedSet<'_> {
         let tx = self.read_txn();
         OwningConfirmedSet::new(&self.store, tx)
     }

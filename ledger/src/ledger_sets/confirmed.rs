@@ -8,7 +8,7 @@ use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore, Transaction};
 
 use super::{AnyReceivableIterator, LedgerSet};
 
-pub trait ConfirmedSet2: LedgerSet {
+pub trait ConfirmedSet: LedgerSet {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
     fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool;
     fn get_conf_info(&self, account: &Account) -> Option<ConfirmationHeightInfo>;
@@ -56,11 +56,11 @@ impl<'a> OwningConfirmedSet<'a> {
     pub fn receivable_lower_bound<'txn>(
         &'a self,
         account: Account,
-    ) -> ConfirmedReceivableIterator2<'txn>
+    ) -> ConfirmedReceivableIterator<'txn>
     where
         'a: 'txn,
     {
-        ConfirmedReceivableIterator2::<'txn> {
+        ConfirmedReceivableIterator::<'txn> {
             set: self,
             requested_account: account,
             actual_account: None,
@@ -87,7 +87,7 @@ impl<'a> LedgerSet for OwningConfirmedSet<'a> {
     }
 }
 
-impl<'a> ConfirmedSet2 for OwningConfirmedSet<'a> {
+impl<'a> ConfirmedSet for OwningConfirmedSet<'a> {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         self.borrowing_set().get_block(hash)
     }
@@ -169,7 +169,7 @@ impl<'a> LedgerSet for BorrowingConfirmedSet<'a> {
     }
 }
 
-impl<'a> ConfirmedSet2 for BorrowingConfirmedSet<'a> {
+impl<'a> ConfirmedSet for BorrowingConfirmedSet<'a> {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         if hash.is_zero() {
             return None;
@@ -204,14 +204,14 @@ impl<'a> ConfirmedSet2 for BorrowingConfirmedSet<'a> {
     }
 }
 
-pub struct ConfirmedReceivableIterator2<'a> {
+pub struct ConfirmedReceivableIterator<'a> {
     pub set: &'a OwningConfirmedSet<'a>,
     pub requested_account: Account,
     pub actual_account: Option<Account>,
     pub next_hash: Option<BlockHash>,
 }
 
-impl<'a> Iterator for ConfirmedReceivableIterator2<'a> {
+impl<'a> Iterator for ConfirmedReceivableIterator<'a> {
     type Item = (PendingKey, PendingInfo);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -279,7 +279,7 @@ mod tests {
             )
             .finish();
 
-        let confirmed = ledger.confirmed2();
+        let confirmed = ledger.confirmed();
         let receivable: Vec<_> = confirmed
             .receivable_lower_bound(Account::zero())
             .map(|i| i.0)

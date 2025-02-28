@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use rsnano_core::{Account, Block, BlockBase, BlockHash, SavedBlock};
-use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_zero, AccountHistoryArgs, AccountHistoryResponse,
     BlockSubTypeDto, BlockTypeDto, HistoryEntry,

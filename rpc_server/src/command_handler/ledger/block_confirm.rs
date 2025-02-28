@@ -1,5 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
-use rsnano_ledger::{AnySet, ConfirmedSet2};
+use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_node::consensus::{ElectionStatus, ElectionStatusType};
 use rsnano_rpc_messages::{HashRpcMessage, StartedResponse};
 

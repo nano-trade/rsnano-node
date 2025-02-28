@@ -1,6 +1,6 @@
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use std::{
     cmp::max,

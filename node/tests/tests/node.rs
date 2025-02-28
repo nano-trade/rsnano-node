@@ -1073,7 +1073,7 @@ fn search_receivable_pruned() {
     assert_timely(Duration::from_secs(10), || {
         node1.active.len() == 0 && node2.active.len() == 0
     });
-    assert_timely2(|| node1.ledger.confirmed2().block_exists(&send2.hash()));
+    assert_timely2(|| node1.ledger.confirmed().block_exists(&send2.hash()));
     assert_timely_eq2(|| node2.ledger.cemented_count(), 3);
 
     node1

@@ -3,7 +3,7 @@ use crate::{
     transport::MessageSender,
 };
 use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
-use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger, OwningAnySet};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, OwningAnySet};
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
