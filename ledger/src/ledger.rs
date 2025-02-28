@@ -3,14 +3,14 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
+    RepWeightCache, RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue, Writer,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
-    PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
+    PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
 };
-use rsnano_stats::{DetailType, Stats};
+use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
@@ -30,6 +30,7 @@ use std::{
     },
     time::{Duration, Instant, SystemTime},
 };
+use tracing::debug;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
@@ -531,6 +532,76 @@ impl Ledger {
         }
     }
 
+    pub fn rollback_batch(
+        &self,
+        targets: &[BlockHash],
+        max_rollbacks: usize,
+        can_roll_back: impl Fn(&BlockHash) -> bool,
+    ) -> BatchRollbackResult {
+        self.stats
+            .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
+
+        let mut rolled_back_count = 0;
+        let mut processed = Vec::new();
+        let mut processed_hashes = Vec::new();
+        {
+            let _guard = self.write_queue.wait(Writer::BoundedBacklog);
+            let mut tx = self.rw_txn();
+
+            for hash in targets {
+                // Skip the rollback if the block is being used by the node, this should be race free as it's checked while holding the ledger write lock
+                if !can_roll_back(hash) {
+                    self.stats
+                        .inc(StatType::BoundedBacklog, DetailType::RollbackSkipped);
+                    continue;
+                }
+
+                // Here we check that the block is still OK to rollback, there could be a delay between gathering the targets and performing the rollbacks
+                if let Some(block) = self.store.block.get(&tx, hash) {
+                    debug!(
+                        "Rolling back: {}, account: {}",
+                        hash,
+                        block.account().encode_account()
+                    );
+
+                    let rollback_list = match self.rollback(&mut tx, &block.hash()) {
+                        Ok(rollback_list) => {
+                            self.stats
+                                .inc(StatType::BoundedBacklog, DetailType::Rollback);
+                            rollback_list
+                        }
+                        Err((_, rollback_list)) => {
+                            self.stats
+                                .inc(StatType::BoundedBacklog, DetailType::RollbackFailed);
+                            rollback_list
+                        }
+                    };
+
+                    rolled_back_count += rollback_list.len();
+                    for b in &rollback_list {
+                        processed_hashes.push(b.hash());
+                    }
+                    processed.push((rollback_list, block.qualified_root()));
+
+                    // Return early if we reached the maximum number of rollbacks
+                    if rolled_back_count >= max_rollbacks {
+                        break;
+                    }
+                } else {
+                    self.stats
+                        .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
+                    rolled_back_count += 1;
+                    processed_hashes.push(*hash);
+                }
+            }
+        }
+
+        BatchRollbackResult {
+            processed,
+            processed_hashes,
+        }
+    }
+
     /// Returns the latest block with representative information
     pub fn representative_block_hash(&self, txn: &dyn Transaction, hash: &BlockHash) -> BlockHash {
         let hash = RepresentativeBlockFinder::new(txn, self.store.as_ref()).find_rep_block(*hash);
@@ -647,4 +718,9 @@ impl Ledger {
             .node("rep_weights", self.rep_weights.container_info())
             .finish()
     }
+}
+
+pub struct BatchRollbackResult {
+    pub processed: Vec<(Vec<SavedBlock>, QualifiedRoot)>,
+    pub processed_hashes: Vec<BlockHash>,
 }

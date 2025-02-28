@@ -3770,6 +3770,7 @@ dependencies = [
  "rsnano_store_lmdb",
  "rsnano_work",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]

@@ -440,70 +440,16 @@ impl BlockProcessorLoopImpl {
     }
 
     fn process_rollback(&self, request: RollbackRequest) {
-        self.stats
-            .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
+        let can_roll_back = self.can_roll_back.read().unwrap();
+        let result =
+            self.ledger
+                .rollback_batch(&request.targets, request.max_rollbacks, &*can_roll_back);
 
-        let mut rolled_back_count = 0;
-        let mut processed = Vec::new();
-        let mut processed_hashes = Vec::new();
-        {
-            let can_roll_back = self.can_roll_back.read().unwrap();
-            let _guard = self.ledger.write_queue.wait(Writer::BoundedBacklog);
-            let mut tx = self.ledger.rw_txn();
-
-            for hash in &request.targets {
-                // Skip the rollback if the block is being used by the node, this should be race free as it's checked while holding the ledger write lock
-                if !can_roll_back(hash) {
-                    self.stats
-                        .inc(StatType::BoundedBacklog, DetailType::RollbackSkipped);
-                    continue;
-                }
-
-                // Here we check that the block is still OK to rollback, there could be a delay between gathering the targets and performing the rollbacks
-                if let Some(block) = self.ledger.store.block.get(&tx, hash) {
-                    debug!(
-                        "Rolling back: {}, account: {}",
-                        hash,
-                        block.account().encode_account()
-                    );
-
-                    let rollback_list = match self.ledger.rollback(&mut tx, &block.hash()) {
-                        Ok(rollback_list) => {
-                            self.stats
-                                .inc(StatType::BoundedBacklog, DetailType::Rollback);
-                            rollback_list
-                        }
-                        Err((_, rollback_list)) => {
-                            self.stats
-                                .inc(StatType::BoundedBacklog, DetailType::RollbackFailed);
-                            rollback_list
-                        }
-                    };
-
-                    rolled_back_count += rollback_list.len();
-                    for b in &rollback_list {
-                        processed_hashes.push(b.hash());
-                    }
-                    processed.push((rollback_list, block.qualified_root()));
-
-                    // Return early if we reached the maximum number of rollbacks
-                    if rolled_back_count >= request.max_rollbacks {
-                        break;
-                    }
-                } else {
-                    self.stats
-                        .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
-                    rolled_back_count += 1;
-                    processed_hashes.push(*hash);
-                }
-            }
-        }
-
-        for (rolled_back, root) in processed {
+        for (rolled_back, root) in result.processed {
             self.notifier.notify_rollback(rolled_back, root);
         }
 
-        *request.result.rolled_back.lock().unwrap() = Some(processed_hashes);
+        *request.result.rolled_back.lock().unwrap() = Some(result.processed_hashes);
         request.result.done.notify_all();
     }
 
