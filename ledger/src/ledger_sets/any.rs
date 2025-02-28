@@ -76,6 +76,8 @@ pub trait AnySet2: LedgerSet {
         account: Account,
         hash: BlockHash,
     ) -> AnyReceivableIterator;
+
+    fn get_final_vote(&self, root: &QualifiedRoot) -> Option<BlockHash>;
 }
 
 /// All blocks - either confirmed or unconfirmed
@@ -267,6 +269,10 @@ impl<'a> AnySet2 for OwningAnySet<'a> {
             Some(account),
             hash.inc(),
         )
+    }
+
+    fn get_final_vote(&self, root: &QualifiedRoot) -> Option<BlockHash> {
+        self.borrowing_set().get_final_vote(root)
     }
 }
 
@@ -514,6 +520,10 @@ impl<'a> AnySet2 for BorrowingAnySet<'a> {
             Some(account),
             hash.inc(),
         )
+    }
+
+    fn get_final_vote(&self, root: &QualifiedRoot) -> Option<BlockHash> {
+        self.store.final_vote.get(self.tx, root)
     }
 }
 

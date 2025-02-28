@@ -7,9 +7,8 @@ use rsnano_core::{
     utils::{ContainerInfo, FairQueue},
     BlockHash, Root,
 };
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet2, Ledger};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
-use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::{max, min},
     sync::{Arc, Condvar, Mutex, MutexGuard},
@@ -219,15 +218,17 @@ impl RequestAggregatorLoop {
         let batch = state.queue.next_batch(self.config.batch_size);
         drop(state);
 
-        let mut tx = self.ledger.read_txn();
+        let mut any = self.ledger.any2();
 
         for (_, request) in &batch {
-            tx.refresh_if_needed();
+            if any.should_refresh() {
+                any = self.ledger.any2();
+            }
 
             let should_drop = request.channel.should_drop(TrafficType::VoteReply);
 
             if !should_drop {
-                self.process(&tx, request);
+                self.process(&any, request);
             } else {
                 self.stats.inc_dir(
                     StatType::RequestAggregator,
@@ -240,8 +241,8 @@ impl RequestAggregatorLoop {
         self.mutex.lock().unwrap()
     }
 
-    fn process(&self, tx: &LmdbReadTransaction, request: &AggregatorRequest) {
-        let remaining = self.aggregate(tx, request);
+    fn process(&self, any: &dyn AnySet2, request: &AggregatorRequest) {
+        let remaining = self.aggregate(any, request);
 
         if !remaining.remaining_normal.is_empty() {
             self.stats
@@ -278,8 +279,8 @@ impl RequestAggregatorLoop {
 
     /// Aggregate requests and send cached votes to channel.
     /// Return the remaining hashes that need vote generation for each block for regular & final vote generators
-    fn aggregate(&self, tx: &LmdbReadTransaction, requests: &AggregatorRequest) -> AggregateResult {
-        let mut aggregator = RequestAggregatorImpl::new(&self.ledger, &self.stats, tx);
+    fn aggregate(&self, any: &dyn AnySet2, requests: &AggregatorRequest) -> AggregateResult {
+        let mut aggregator = RequestAggregatorImpl::new(&self.stats, any);
         aggregator.add_votes(&requests.roots_hashes);
         aggregator.get_result()
     }

@@ -19,11 +19,10 @@ use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
     Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
 };
-use rsnano_ledger::{BlockStatus, Ledger};
+use rsnano_ledger::{AnySet2, BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::{Network, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashMap},
@@ -225,10 +224,7 @@ impl ActiveElections {
             .push_back(status.clone());
 
         // Trigger callback for confirmed block
-        let amount = {
-            let txn = self.ledger.read_txn();
-            self.ledger.any().block_amount_for(&txn, &block)
-        };
+        let amount = self.ledger.any2().block_amount_for(&block);
 
         let callbacks = self.election_ended_observers.read().unwrap();
         for callback in callbacks.iter() {
@@ -242,9 +238,9 @@ impl ActiveElections {
 
     //--------------------------------------------------------------------------------
 
-    pub fn notify_observers(
+    fn notify_observers(
         &self,
-        tx: &LmdbReadTransaction,
+        any: &impl AnySet2,
         status: &ElectionStatus,
         votes: &Vec<VoteWithWeightInfo>,
     ) {
@@ -277,11 +273,7 @@ impl ActiveElections {
             return;
         }
 
-        let amount = self
-            .ledger
-            .any()
-            .block_amount_for(tx, &block)
-            .unwrap_or_default();
+        let amount = any.block_amount_for(&block).unwrap_or_default();
 
         for callback in ended_callbacks.iter() {
             (callback)(status, votes, block, amount);
@@ -1088,10 +1080,12 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                         }
 
                         // TODO: This could be offloaded to a separate notification worker, profiling is needed
-                        let mut tx = active.ledger.read_txn();
+                        let mut any = active.ledger.any2();
                         for (status, votes) in results {
-                            tx.refresh_if_needed();
-                            active.notify_observers(&tx, &status, &votes);
+                            if any.should_refresh() {
+                                any = active.ledger.any2();
+                            }
+                            active.notify_observers(&any, &status, &votes);
                         }
                     }
                 }

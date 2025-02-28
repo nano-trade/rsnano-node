@@ -5,8 +5,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::LmdbReadTransaction;
+use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
 use std::{
     collections::{HashMap, VecDeque},
     mem::size_of,
@@ -166,12 +165,12 @@ impl OptimisticScheduler {
                 .inc(StatType::OptimisticScheduler, DetailType::Loop);
 
             if self.predicate(&guard) {
-                let tx = self.ledger.read_txn();
+                let any = self.ledger.any2();
 
                 while self.predicate(&guard) {
                     let (account, time) = guard.pop_front().unwrap();
                     drop(guard);
-                    self.run_one(&tx, account, time);
+                    self.run_one(&any, account, time);
                     guard = self.candidates.lock().unwrap();
                 }
             }
@@ -188,18 +187,14 @@ impl OptimisticScheduler {
         }
     }
 
-    fn run_one(&self, tx: &LmdbReadTransaction, account: Account, _time: Instant) {
-        let any = self.ledger.any();
-        let Some(head) = any.account_head(tx, &account) else {
+    fn run_one(&self, any: &impl AnySet2, account: Account, _time: Instant) {
+        let Some(head) = any.account_head(&account) else {
             return;
         };
-        if let Some(block) = any.get_block(tx, &head) {
+        if let Some(block) = any.get_block(&head) {
             // Ensure block is not already confirmed
             if !self.confirming_set.contains(&block.hash())
-                || self
-                    .ledger
-                    .confirmed()
-                    .block_exists_or_pruned(tx, &block.hash())
+                || any.confirmed().block_exists_or_pruned(&block.hash())
             {
                 // Try to insert it into AEC
                 // We check for AEC vacancy inside our predicate
