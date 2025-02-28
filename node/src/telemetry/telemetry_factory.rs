@@ -1,12 +1,13 @@
 use std::{
     sync::{Arc, RwLock},
-    time::{Instant, SystemTime},
+    time::SystemTime,
 };
 
 use rsnano_core::{PrivateKey, Signature};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{TelemetryData, TelemetryMaker};
 use rsnano_network::{ChannelMode, Network};
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 
 use crate::block_processing::UncheckedMap;
 
@@ -18,7 +19,8 @@ pub struct TelemetryFactory {
     pub network: Arc<RwLock<Network>>,
     pub node_id_key: PrivateKey,
     pub unchecked: Arc<UncheckedMap>,
-    pub startup_time: Instant,
+    pub startup_time: Timestamp,
+    pub clock: Arc<SteadyClock>,
 }
 
 impl TelemetryFactory {
@@ -39,7 +41,7 @@ impl TelemetryFactory {
             cemented_count: self.ledger.cemented_count(),
             bandwidth_cap,
             protocol_version,
-            uptime: self.startup_time.elapsed().as_secs(),
+            uptime: self.startup_time.elapsed(self.clock.now()).as_secs(),
             unchecked_count: self.unchecked.len() as u64,
             genesis_block: self.ledger.genesis_hash(),
             peer_count,

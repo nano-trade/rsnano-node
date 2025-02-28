@@ -62,11 +62,13 @@ impl RpcCommandHandler {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv6Addr;
+    use std::{net::Ipv6Addr, sync::Arc};
 
-    use rsnano_rpc_messages::{RpcCommand, RpcError, TelemetryArgs};
+    use rsnano_messages::TelemetryData;
+    use rsnano_node::Node;
+    use rsnano_rpc_messages::{RpcCommand, RpcError, TelemetryArgs, TelemetryDto};
 
-    use crate::command_handler::test_rpc_command;
+    use crate::command_handler::{test_rpc_command, test_rpc_command_with_node};
 
     #[test]
     fn fails_when_only_port_provided() {
@@ -88,5 +90,53 @@ mod tests {
         });
         let error: RpcError = test_rpc_command(cmd);
         assert_eq!(error.error, "Both port and address required")
+    }
+
+    #[test]
+    fn returns_local_telemetry_by_default() {
+        let cmd = RpcCommand::Telemetry(TelemetryArgs {
+            raw: None,
+            address: None,
+            port: None,
+        });
+
+        let node = Arc::new(Node::new_null());
+        let expected = node.telemetry.local_telemetry();
+        let result: TelemetryDto = test_rpc_command_with_node(cmd, node);
+        assert_result(expected, result);
+    }
+
+    #[test]
+    fn returns_local_telemetry_if_local_address_requested() {
+        let node = Arc::new(Node::new_null());
+        let cmd = RpcCommand::Telemetry(TelemetryArgs {
+            raw: None,
+            address: Some(Ipv6Addr::LOCALHOST),
+            port: Some(node.tcp_listener.local_address().port().into()),
+        });
+
+        let expected = node.telemetry.local_telemetry();
+        let result: TelemetryDto = test_rpc_command_with_node(cmd, node);
+        assert_result(expected, result);
+    }
+
+    #[test]
+    fn fails_when_peer_not_found() {
+        let node = Arc::new(Node::new_null());
+        let cmd = RpcCommand::Telemetry(TelemetryArgs {
+            raw: None,
+            address: Some(Ipv6Addr::LOCALHOST),
+            port: Some(12345.into()),
+        });
+
+        let error: RpcError = test_rpc_command_with_node(cmd, node);
+        assert_eq!(error.error, "Peer not found");
+    }
+
+    fn assert_result(expected: TelemetryData, mut result: TelemetryDto) {
+        let mut expected_dto: TelemetryDto = expected.into();
+        expected_dto.signature = None;
+        result.signature = None;
+        assert_eq!(result, expected_dto);
     }
 }

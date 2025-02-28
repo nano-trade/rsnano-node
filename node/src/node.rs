@@ -71,7 +71,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tracing::{debug, error, info, warn};
 
@@ -90,7 +90,6 @@ pub struct Node {
     pub flags: NodeFlags,
     pub work: Arc<WorkPool>,
     pub distributed_work: Arc<DistributedWorkFactory>,
-    pub store: Arc<LmdbStore>,
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
@@ -200,7 +199,11 @@ impl Node {
         let work = args.work;
         // Time relative to the start of the node. This makes time exlicit and enables us to
         // write time relevant unit tests with ease.
-        let steady_clock = Arc::new(SteadyClock::default());
+        let steady_clock = if is_nulled {
+            Arc::new(SteadyClock::new_null())
+        } else {
+            Arc::new(SteadyClock::default())
+        };
 
         let network_label = network_params.network.get_current_network_as_string();
         let global_config = GlobalConfig {
@@ -353,7 +356,8 @@ impl Node {
             network: network.clone(),
             node_id_key: node_id.clone(),
             unchecked: unchecked.clone(),
-            startup_time: Instant::now(),
+            startup_time: steady_clock.now(),
+            clock: steady_clock.clone(),
         };
 
         let telemetry = Arc::new(Telemetry::new(
@@ -1191,7 +1195,6 @@ impl Node {
             syn_cookies,
             network,
             ledger,
-            store,
             stats,
             data_path: application_path,
             network_params,
