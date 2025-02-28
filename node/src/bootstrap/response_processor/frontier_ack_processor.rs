@@ -76,8 +76,8 @@ impl FrontierAckProcessor {
         let stats = self.stats.clone();
         let state = self.state.clone();
         self.workers.post(Box::new(move || {
-            let tx = ledger.read_txn();
-            let mut worker = FrontierWorker::new(&ledger, &tx, &stats, &state);
+            let any = ledger.any2();
+            let mut worker = FrontierWorker::new(&any, &stats, &state);
             worker.process(frontiers);
         }));
     }

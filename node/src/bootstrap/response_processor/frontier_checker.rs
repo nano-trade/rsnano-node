@@ -1,8 +1,7 @@
 use super::database_crawler::{AccountCrawlSource, DatabaseCrawler, PendingCrawlSource};
 use crate::bootstrap::state::OutdatedAccounts;
 use rsnano_core::{Account, Frontier};
-use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::LmdbReadTransaction;
+use rsnano_ledger::{AnySet2, OwningAnySet};
 
 pub(crate) enum FrontierCheckResult {
     /// Account doesn't exist in the ledger and has no pending blocks, can't be prioritized right now
@@ -17,19 +16,17 @@ pub(crate) enum FrontierCheckResult {
 
 /// Checks if a given frontier is up to date or outdated
 pub(crate) struct FrontierChecker<'a> {
-    ledger: &'a Ledger,
-    tx: &'a LmdbReadTransaction,
+    any: &'a OwningAnySet<'a>,
     account_crawler: DatabaseCrawler<'a, AccountCrawlSource<'a>>,
     pending_crawler: DatabaseCrawler<'a, PendingCrawlSource<'a>>,
 }
 
 impl<'a> FrontierChecker<'a> {
-    pub(crate) fn new(ledger: &'a Ledger, tx: &'a LmdbReadTransaction) -> Self {
+    pub(crate) fn new(any: &'a OwningAnySet<'a>) -> Self {
         Self {
-            ledger,
-            tx,
-            account_crawler: DatabaseCrawler::new(AccountCrawlSource::new(ledger, tx)),
-            pending_crawler: DatabaseCrawler::new(PendingCrawlSource::new(ledger, tx)),
+            any,
+            account_crawler: DatabaseCrawler::new(AccountCrawlSource::new(any)),
+            pending_crawler: DatabaseCrawler::new(PendingCrawlSource::new(any)),
         }
     }
 
@@ -74,11 +71,7 @@ impl<'a> FrontierChecker<'a> {
                 // Check for frontier mismatch
                 if info.head != frontier.hash {
                     // Check if frontier block exists in our ledger
-                    if !self
-                        .ledger
-                        .any()
-                        .block_exists_or_pruned(self.tx, &frontier.hash)
-                    {
+                    if !self.any.block_exists_or_pruned(&frontier.hash) {
                         return FrontierCheckResult::Outdated; // Frontier is outdated
                     }
                 }
@@ -111,6 +104,7 @@ impl<'a> FrontierChecker<'a> {
 mod tests {
     use super::*;
     use rsnano_core::{AccountInfo, BlockHash, PendingInfo, PendingKey};
+    use rsnano_ledger::Ledger;
 
     #[test]
     fn no_frontiers_and_empty_ledger() {
@@ -245,8 +239,8 @@ mod tests {
     }
 
     fn get_outdated_accounts(ledger: &Ledger, frontiers: &[Frontier]) -> OutdatedAccounts {
-        let tx = ledger.read_txn();
-        let mut checker = FrontierChecker::new(&ledger, &tx);
+        let any = ledger.any2();
+        let mut checker = FrontierChecker::new(&any);
         checker.get_outdated_accounts(frontiers)
     }
 

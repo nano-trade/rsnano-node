@@ -118,6 +118,20 @@ impl<'a> OwningAnySet<'a> {
     ) -> Box<dyn Iterator<Item = (Account, AccountInfo)> + '_> {
         self.store.account.iter_range(&self.tx, range)
     }
+
+    pub fn iter_account_range(
+        &self,
+        range: impl RangeBounds<Account> + 'static,
+    ) -> Box<dyn Iterator<Item = (Account, AccountInfo)> + '_> {
+        self.store.account.iter_range(&self.tx, range)
+    }
+
+    pub fn iter_pending_range(
+        &self,
+        range: impl RangeBounds<PendingKey> + 'static,
+    ) -> impl Iterator<Item = (PendingKey, PendingInfo)> + '_ {
+        self.store.pending.iter_range(&self.tx, range)
+    }
 }
 
 impl<'a> LedgerSet for OwningAnySet<'a> {

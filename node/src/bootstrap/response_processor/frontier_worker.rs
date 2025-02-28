@@ -4,8 +4,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::Frontier;
-use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::LmdbReadTransaction;
+use rsnano_ledger::OwningAnySet;
 use std::sync::Mutex;
 
 /// Handles received frontiers
@@ -17,15 +16,14 @@ pub(crate) struct FrontierWorker<'a> {
 
 impl<'a> FrontierWorker<'a> {
     pub(crate) fn new(
-        ledger: &'a Ledger,
-        tx: &'a LmdbReadTransaction,
+        any: &'a OwningAnySet<'a>,
         stats: &'a Stats,
         state: &'a Mutex<BootstrapState>,
     ) -> Self {
         Self {
             stats,
             state,
-            checker: FrontierChecker::new(ledger, tx),
+            checker: FrontierChecker::new(any),
         }
     }
 
@@ -64,14 +62,15 @@ mod tests {
     use super::*;
     use crate::bootstrap::state::CandidateAccounts;
     use rsnano_core::{Account, AccountInfo, BlockHash};
+    use rsnano_ledger::Ledger;
 
     #[test]
     fn empty() {
         let ledger = Ledger::new_null();
-        let tx = ledger.read_txn();
+        let any = ledger.any2();
         let stats = Stats::default();
         let state = Mutex::new(BootstrapState::default());
-        let mut worker = FrontierWorker::new(&ledger, &tx, &stats, &state);
+        let mut worker = FrontierWorker::new(&any, &stats, &state);
 
         worker.process(Vec::new());
 
@@ -90,10 +89,10 @@ mod tests {
                 },
             )
             .finish();
-        let tx = ledger.read_txn();
+        let any = ledger.any2();
         let stats = Stats::default();
         let state = Mutex::new(BootstrapState::default());
-        let mut worker = FrontierWorker::new(&ledger, &tx, &stats, &state);
+        let mut worker = FrontierWorker::new(&any, &stats, &state);
 
         worker.process(vec![Frontier::new(account, BlockHash::from(3))]);
 
