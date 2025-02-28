@@ -1,11 +1,7 @@
 use rsnano_core::{Amount, PrivateKey, Signature, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_node::{
-    config::NodeFlags,
-    consensus::RepTier,
-    stats::{DetailType, Direction, StatType},
-    wallets::WalletsExt,
-};
+use rsnano_node::{config::NodeFlags, consensus::RepTier, wallets::WalletsExt};
+use rsnano_stats::{DetailType, Direction, StatType};
 use std::{
     sync::Arc,
     time::{Duration, Instant},

@@ -1,11 +1,3 @@
-use crate::{
-    config::{NodeConfig, NodeFlags},
-    stats::{DetailType, StatType, Stats},
-    utils::{ThreadPool, ThreadPoolImpl},
-};
-use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
-use rsnano_ledger::{Ledger, Writer};
-use rsnano_store_lmdb::Transaction;
 use std::{
     collections::VecDeque,
     sync::{
@@ -14,7 +6,19 @@ use std::{
     },
     time::{Duration, SystemTime},
 };
+
 use tracing::debug;
+
+use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
+use rsnano_ledger::{Ledger, Writer};
+use rsnano_stats::{DetailType, StatType};
+use rsnano_store_lmdb::Transaction;
+
+use crate::{
+    config::{NodeConfig, NodeFlags},
+    stats::Stats,
+    utils::{ThreadPool, ThreadPoolImpl},
+};
 
 pub struct LedgerPruning {
     config: NodeConfig,

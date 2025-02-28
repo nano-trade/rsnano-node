@@ -1,13 +1,16 @@
-use super::channel_waiter::ChannelWaiter;
-use crate::{
-    bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapPromise, PollResult},
-    stats::{DetailType, StatType, Stats},
-};
+use std::sync::Arc;
+
 use rsnano_core::{Account, BlockHash};
 use rsnano_messages::{AscPullReqType, FrontiersReqPayload};
 use rsnano_network::{bandwidth_limiter::RateLimiter, Channel};
 use rsnano_nullable_clock::SteadyClock;
-use std::sync::Arc;
+use rsnano_stats::{DetailType, StatType};
+
+use super::channel_waiter::ChannelWaiter;
+use crate::{
+    bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapPromise, PollResult},
+    stats::Stats,
+};
 
 /// Creates frontier requests as specified by the frontier scanner
 pub(crate) struct FrontierRequester {

@@ -10,6 +10,7 @@ use rsnano_core::{
     Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo, Epoch,
     Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
+use rsnano_stats::DetailType;
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
@@ -75,6 +76,27 @@ impl BlockStatus {
             BlockStatus::RepresentativeMismatch => "Representative mismatch",
             BlockStatus::BlockPosition => "Block position",
             BlockStatus::InsufficientWork => "Insufficient work",
+        }
+    }
+}
+
+impl From<BlockStatus> for DetailType {
+    fn from(value: BlockStatus) -> Self {
+        match value {
+            BlockStatus::Progress => Self::Progress,
+            BlockStatus::BadSignature => Self::BadSignature,
+            BlockStatus::Old => Self::Old,
+            BlockStatus::NegativeSpend => Self::NegativeSpend,
+            BlockStatus::Fork => Self::Fork,
+            BlockStatus::Unreceivable => Self::Unreceivable,
+            BlockStatus::GapPrevious => Self::GapPrevious,
+            BlockStatus::GapSource => Self::GapSource,
+            BlockStatus::GapEpochOpenPending => Self::GapEpochOpenPending,
+            BlockStatus::OpenedBurnAccount => Self::OpenedBurnAccount,
+            BlockStatus::BalanceMismatch => Self::BalanceMismatch,
+            BlockStatus::RepresentativeMismatch => Self::RepresentativeMismatch,
+            BlockStatus::BlockPosition => Self::BlockPosition,
+            BlockStatus::InsufficientWork => Self::InsufficientWork,
         }
     }
 }

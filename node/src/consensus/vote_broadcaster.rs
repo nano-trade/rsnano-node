@@ -1,15 +1,15 @@
-use super::VoteProcessorQueue;
-use crate::{
-    stats::{DetailType, StatType, Stats},
-    transport::MessageFlooder,
-};
-use rsnano_core::{Vote, VoteSource};
-use rsnano_messages::{ConfirmAck, Message};
-use rsnano_network::TrafficType;
 use std::{
     ops::Deref,
     sync::{Arc, Mutex},
 };
+
+use rsnano_core::{Vote, VoteSource};
+use rsnano_messages::{ConfirmAck, Message};
+use rsnano_network::TrafficType;
+use rsnano_stats::{DetailType, StatType};
+
+use super::VoteProcessorQueue;
+use crate::{stats::Stats, transport::MessageFlooder};
 
 /// Broadcast a vote to PRs and some non-PRs
 pub struct VoteBroadcaster {

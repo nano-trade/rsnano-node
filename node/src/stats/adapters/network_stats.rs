@@ -1,8 +1,12 @@
-use crate::stats::{DetailType, Direction, StatType, Stats};
-use anyhow::Error;
-use rsnano_network::{Channel, ChannelDirection, NetworkError, NetworkObserver, TrafficType};
 use std::{net::SocketAddrV6, sync::Arc};
+
+use anyhow::Error;
 use tracing::{debug, trace};
+
+use rsnano_network::{Channel, ChannelDirection, NetworkError, NetworkObserver, TrafficType};
+use rsnano_stats::{DetailType, Direction, StatType};
+
+use crate::stats::Stats;
 
 #[derive(Clone)]
 pub struct NetworkStats(Arc<Stats>);
@@ -220,34 +224,5 @@ impl NetworkObserver for NetworkStats {
             DetailType::AcceptFailure,
             Direction::In,
         );
-    }
-}
-
-impl From<ChannelDirection> for Direction {
-    fn from(value: ChannelDirection) -> Self {
-        match value {
-            ChannelDirection::Inbound => Direction::In,
-            ChannelDirection::Outbound => Direction::Out,
-        }
-    }
-}
-
-impl From<TrafficType> for DetailType {
-    fn from(value: TrafficType) -> Self {
-        match value {
-            TrafficType::Generic => DetailType::Generic,
-            TrafficType::BootstrapServer => DetailType::BootstrapServer,
-            TrafficType::BootstrapRequests => DetailType::BootstrapRequests,
-            TrafficType::BlockBroadcast => DetailType::BlockBroadcast,
-            TrafficType::BlockBroadcastInitial => DetailType::BlockBroadcastInitial,
-            TrafficType::BlockBroadcastRpc => DetailType::BlockBroadcastRpc,
-            TrafficType::ConfirmationRequests => DetailType::ConfirmationRequests,
-            TrafficType::Keepalive => DetailType::Keepalive,
-            TrafficType::Vote => DetailType::Vote,
-            TrafficType::VoteRebroadcast => DetailType::VoteRebroadcast,
-            TrafficType::RepCrawler => DetailType::RepCrawler,
-            TrafficType::VoteReply => DetailType::VoteReply,
-            TrafficType::Telemetry => DetailType::Telemetry,
-        }
     }
 }

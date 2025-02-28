@@ -1,12 +1,3 @@
-use crate::{
-    block_processing::BlockContext,
-    consensus::Election,
-    stats::{DetailType, StatType, Stats},
-    utils::{ThreadPool, ThreadPoolImpl},
-};
-use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
-use rsnano_ledger::{BlockStatus, Ledger, WriteGuard, Writer};
-use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
     collections::{HashSet, VecDeque},
     sync::{
@@ -16,9 +7,21 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
+
 use tracing::debug;
 
+use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
+use rsnano_ledger::{BlockStatus, Ledger, WriteGuard, Writer};
+use rsnano_stats::{DetailType, StatType};
+use rsnano_store_lmdb::LmdbWriteTransaction;
+
 use super::ordered_entries::{Entry, OrderedEntries};
+use crate::{
+    block_processing::BlockContext,
+    consensus::Election,
+    stats::Stats,
+    utils::{ThreadPool, ThreadPoolImpl},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConfirmingSetConfig {

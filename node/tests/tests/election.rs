@@ -1,12 +1,9 @@
+use std::{sync::Arc, time::Duration};
+
 use rsnano_core::{Amount, PrivateKey, Vote, VoteSource, DEV_GENESIS_KEY};
 use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
-use rsnano_node::{
-    config::NodeConfig,
-    consensus::ElectionBehavior,
-    stats::{DetailType, Direction, StatType},
-    wallets::WalletsExt,
-};
-use std::{sync::Arc, time::Duration};
+use rsnano_node::{config::NodeConfig, consensus::ElectionBehavior, wallets::WalletsExt};
+use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_timely, assert_timely_eq, get_available_port, setup_chain, start_election, System,
 };

@@ -1,10 +1,13 @@
-use super::state::{BootstrapState, RunningQuery};
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_stats::{DetailType, StatType};
+
+use super::state::{BootstrapState, RunningQuery};
+use crate::stats::Stats;
 
 pub(super) struct BootstrapCleanup {
     clock: Arc<SteadyClock>,

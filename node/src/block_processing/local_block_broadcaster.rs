@@ -1,13 +1,3 @@
-use super::{BlockSource, LedgerNotifications};
-use crate::{
-    cementation::ConfirmingSet,
-    stats::{DetailType, Direction, StatType, Stats},
-    transport::MessageFlooder,
-};
-use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
-use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
-use rsnano_messages::{Message, Publish};
-use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -16,7 +6,17 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
+
 use tracing::debug;
+
+use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
+use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
+use rsnano_messages::{Message, Publish};
+use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
+use rsnano_stats::{DetailType, Direction, StatType};
+
+use super::{BlockSource, LedgerNotifications};
+use crate::{cementation::ConfirmingSet, stats::Stats, transport::MessageFlooder};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalBlockBroadcasterConfig {

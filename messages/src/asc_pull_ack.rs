@@ -4,6 +4,7 @@ use rsnano_core::{
     utils::{BufferWriter, Deserialize, Serialize, Stream, StreamExt},
     Account, Block, BlockHash, BlockType, Frontier,
 };
+use rsnano_stats::DetailType;
 use serde::ser::SerializeStruct;
 use serde_derive::Serialize;
 use std::{collections::VecDeque, fmt::Display, mem::size_of};
@@ -250,6 +251,16 @@ impl Serialize for AccountInfoAckPayload {
         writer.write_u64_be_safe(self.account_block_count);
         self.account_conf_frontier.serialize(writer);
         writer.write_u64_be_safe(self.account_conf_height);
+    }
+}
+
+impl From<&AscPullAckType> for DetailType {
+    fn from(value: &AscPullAckType) -> Self {
+        match value {
+            AscPullAckType::Blocks(_) => DetailType::Blocks,
+            AscPullAckType::AccountInfo(_) => DetailType::AccountInfo,
+            AscPullAckType::Frontiers(_) => DetailType::Frontiers,
+        }
     }
 }
 

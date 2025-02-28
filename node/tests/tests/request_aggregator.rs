@@ -1,17 +1,19 @@
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, AnySet};
 use rsnano_messages::ConfirmAck;
 use rsnano_node::{
     config::NodeFlags,
     consensus::{AggregatorRequest, VoteGenerationEvent},
-    stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
 use rsnano_output_tracker::OutputTrackerMt;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use rsnano_stats::{DetailType, Direction, StatType};
+
 use test_helpers::{
     assert_timely2, assert_timely_eq, assert_timely_msg, make_fake_channel, System,
 };

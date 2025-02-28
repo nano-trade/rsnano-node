@@ -9,12 +9,8 @@ use rsnano_ledger::{
 };
 use rsnano_messages::{ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer};
 use rsnano_network::{ChannelMode, TrafficType};
-use rsnano_node::{
-    config::NodeConfig,
-    consensus::VoteProcessorConfig,
-    stats::{DetailType, Direction, StatType},
-    wallets::WalletsExt,
-};
+use rsnano_node::{config::NodeConfig, consensus::VoteProcessorConfig, wallets::WalletsExt};
+use rsnano_stats::{DetailType, Direction, StatType};
 
 use test_helpers::{
     assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2,

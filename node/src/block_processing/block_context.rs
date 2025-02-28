@@ -1,6 +1,6 @@
-use crate::stats::DetailType;
 use rsnano_core::{Block, SavedBlock};
 use rsnano_ledger::BlockStatus;
+use rsnano_stats::DetailType;
 use std::{
     sync::{Arc, Condvar, Mutex},
     time::Instant,

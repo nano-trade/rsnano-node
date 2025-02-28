@@ -1,6 +1,8 @@
-use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{Account, Block, BlockHash, Root, SavedBlock};
 use rsnano_ledger::{AnySet, LedgerSet};
+use rsnano_stats::{DetailType, StatType};
+
+use crate::stats::Stats;
 
 pub(super) struct RequestAggregatorImpl<'a> {
     stats: &'a Stats,

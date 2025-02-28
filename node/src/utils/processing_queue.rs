@@ -8,7 +8,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use crate::stats::{DetailType, Direction, StatType, Stats};
+use crate::stats::Stats;
+use rsnano_stats::{DetailType, Direction, StatType};
 
 /**
  * Queue that processes enqueued elements in (possibly parallel) batches

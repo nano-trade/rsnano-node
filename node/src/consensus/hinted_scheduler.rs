@@ -1,12 +1,3 @@
-use super::{ActiveElections, ElectionBehavior, VoteCache};
-use crate::{
-    cementation::ConfirmingSet,
-    consensus::ActiveElectionsExt,
-    representatives::OnlineReps,
-    stats::{DetailType, StatType, Stats},
-};
-use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
-use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
@@ -16,6 +7,16 @@ use std::{
     },
     thread::JoinHandle,
     time::{Duration, Instant},
+};
+
+use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
+use rsnano_stats::{DetailType, StatType};
+
+use super::{ActiveElections, ElectionBehavior, VoteCache};
+use crate::{
+    cementation::ConfirmingSet, consensus::ActiveElectionsExt, representatives::OnlineReps,
+    stats::Stats,
 };
 
 #[derive(Clone, Debug, PartialEq)]

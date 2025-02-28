@@ -1,7 +1,8 @@
-use crate::{bootstrap::AscPullQuerySpec, stats::DetailType};
+use crate::bootstrap::AscPullQuerySpec;
 use rsnano_core::{Account, BlockHash, Frontier, HashOrAccount};
 use rsnano_messages::{AscPullAck, AscPullAckType, AscPullReqType, BlocksAckPayload, HashType};
 use rsnano_nullable_clock::Timestamp;
+use rsnano_stats::DetailType;
 use std::time::Duration;
 
 use super::VerifyResult;

@@ -1,14 +1,3 @@
-use crate::{
-    stats::{DetailType, Direction, StatType, Stats},
-    transport::MessageSender,
-};
-use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
-use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, OwningAnySet};
-use rsnano_messages::{
-    AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
-    AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
-};
-use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
 use std::{
     cmp::min,
     collections::VecDeque,
@@ -18,6 +7,17 @@ use std::{
     },
     thread::JoinHandle,
 };
+
+use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, OwningAnySet};
+use rsnano_messages::{
+    AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
+    AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
+};
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
+use rsnano_stats::{DetailType, Direction, StatType};
+
+use crate::{stats::Stats, transport::MessageSender};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapResponderConfig {
@@ -407,26 +407,6 @@ impl BootstrapResponderImpl {
             .lock()
             .unwrap()
             .try_send(channel, &msg, TrafficType::BootstrapServer);
-    }
-}
-
-impl From<&AscPullAckType> for DetailType {
-    fn from(value: &AscPullAckType) -> Self {
-        match value {
-            AscPullAckType::Blocks(_) => DetailType::Blocks,
-            AscPullAckType::AccountInfo(_) => DetailType::AccountInfo,
-            AscPullAckType::Frontiers(_) => DetailType::Frontiers,
-        }
-    }
-}
-
-impl From<&AscPullReqType> for DetailType {
-    fn from(value: &AscPullReqType) -> Self {
-        match value {
-            AscPullReqType::Blocks(_) => DetailType::Blocks,
-            AscPullReqType::AccountInfo(_) => DetailType::AccountInfo,
-            AscPullReqType::Frontiers(_) => DetailType::Frontiers,
-        }
     }
 }
 

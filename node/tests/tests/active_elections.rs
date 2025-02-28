@@ -1,3 +1,11 @@
+use std::{
+    collections::HashMap,
+    sync::{atomic::Ordering, Arc},
+    thread::sleep,
+    time::Duration,
+    usize,
+};
+
 use rsnano_core::{
     utils::MemoryStream, Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
@@ -9,16 +17,9 @@ use rsnano_node::{
     bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, ElectionBehavior},
-    stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
-use std::{
-    collections::HashMap,
-    sync::{atomic::Ordering, Arc},
-    thread::sleep,
-    time::Duration,
-    usize,
-};
+use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_always_eq, assert_never, assert_timely, assert_timely2, assert_timely_eq,
     assert_timely_eq2, assert_timely_msg, get_available_port, process_open_block,

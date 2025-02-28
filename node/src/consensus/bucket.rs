@@ -1,16 +1,16 @@
-use super::{
-    ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections, Election, ElectionBehavior,
-};
-use crate::{
-    consensus::ActiveElectionsExt,
-    stats::{DetailType, StatType, Stats},
-};
-use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
+
+use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_stats::{DetailType, StatType};
+
+use super::{
+    ordered_blocks::{BlockEntry, OrderedBlocks},
+    ActiveElections, Election, ElectionBehavior,
+};
+use crate::{consensus::ActiveElectionsExt, stats::Stats};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PriorityBucketConfig {

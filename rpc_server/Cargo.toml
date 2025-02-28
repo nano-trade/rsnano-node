@@ -25,3 +25,4 @@ indexmap = "2"
 
 [dev-dependencies]
 test_helpers = { path = "../tools/test_helpers" }
+rsnano_stats = { path = "../stats" }

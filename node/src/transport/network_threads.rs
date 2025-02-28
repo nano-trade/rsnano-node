@@ -1,15 +1,18 @@
-use super::{keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder, SynCookies};
-use crate::{
-    config::{NetworkParams, NodeFlags},
-    stats::{DetailType, StatType, Stats},
-};
-use rsnano_messages::{Keepalive, Message, NetworkFilter};
-use rsnano_network::{DeadChannelCleanup, Network, NetworkConfig, PeerConnector, TrafficType};
-use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::Duration,
+};
+
+use rsnano_messages::{Keepalive, Message, NetworkFilter};
+use rsnano_network::{DeadChannelCleanup, Network, NetworkConfig, PeerConnector, TrafficType};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_stats::{DetailType, StatType};
+
+use super::{keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder, SynCookies};
+use crate::{
+    config::{NetworkParams, NodeFlags},
+    stats::Stats,
 };
 
 pub(crate) struct NetworkThreads {

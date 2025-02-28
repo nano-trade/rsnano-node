@@ -1,19 +1,22 @@
-use super::{
-    request_aggregator_impl::{AggregateResult, RequestAggregatorImpl},
-    VoteGenerators,
+use std::{
+    cmp::{max, min},
+    sync::{Arc, Condvar, Mutex, MutexGuard},
+    thread::JoinHandle,
 };
-use crate::stats::{DetailType, Direction, StatType, Stats};
+
 use rsnano_core::{
     utils::{ContainerInfo, FairQueue},
     BlockHash, Root,
 };
 use rsnano_ledger::{AnySet, Ledger};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
-use std::{
-    cmp::{max, min},
-    sync::{Arc, Condvar, Mutex, MutexGuard},
-    thread::JoinHandle,
+use rsnano_stats::{DetailType, Direction, StatType};
+
+use super::{
+    request_aggregator_impl::{AggregateResult, RequestAggregatorImpl},
+    VoteGenerators,
 };
+use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RequestAggregatorConfig {

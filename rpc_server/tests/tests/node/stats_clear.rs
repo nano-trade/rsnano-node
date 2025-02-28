@@ -1,5 +1,6 @@
-use rsnano_node::stats::{DetailType, Direction, StatType};
 use std::time::Duration;
+
+use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]

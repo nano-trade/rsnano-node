@@ -1,20 +1,24 @@
+use std::{
+    net::SocketAddrV6,
+    sync::{Arc, RwLock},
+};
+
+use tracing::trace;
+
+use rsnano_core::VoteSource;
+use rsnano_messages::{Message, NetworkFilter};
+use rsnano_network::{Channel, Network};
+use rsnano_stats::{DetailType, Direction, StatType};
+
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapResponder, Bootstrapper},
     config::NodeConfig,
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
-    stats::{DetailType, Direction, StatType, Stats},
+    stats::Stats,
     telemetry::Telemetry,
     wallets::Wallets,
 };
-use rsnano_core::VoteSource;
-use rsnano_messages::{Message, NetworkFilter};
-use rsnano_network::{Channel, Network};
-use std::{
-    net::SocketAddrV6,
-    sync::{Arc, RwLock},
-};
-use tracing::trace;
 
 /// Handle realtime messages (as opposed to bootstrap messages)
 pub struct RealtimeMessageHandler {

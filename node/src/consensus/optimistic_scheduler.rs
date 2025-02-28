@@ -1,11 +1,3 @@
-use super::{ActiveElections, ActiveElectionsExt, ElectionBehavior};
-use crate::{
-    cementation::ConfirmingSet,
-    config::NetworkConstants,
-    stats::{DetailType, StatType, Stats},
-};
-use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use std::{
     collections::{HashMap, VecDeque},
     mem::size_of,
@@ -16,6 +8,13 @@ use std::{
     thread::JoinHandle,
     time::Instant,
 };
+
+use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo};
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
+use rsnano_stats::{DetailType, StatType};
+
+use super::{ActiveElections, ActiveElectionsExt, ElectionBehavior};
+use crate::{cementation::ConfirmingSet, config::NetworkConstants, stats::Stats};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptimisticSchedulerConfig {

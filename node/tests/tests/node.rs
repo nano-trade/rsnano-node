@@ -1,3 +1,13 @@
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    thread::sleep,
+    time::Duration,
+};
+
 use rsnano_core::{
     utils::milliseconds_since_epoch, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
     PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource,
@@ -13,18 +23,9 @@ use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, AggregatorRequest, VoteApplierExt},
-    stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    thread::sleep,
-    time::Duration,
-};
+use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
     assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, get_available_port,

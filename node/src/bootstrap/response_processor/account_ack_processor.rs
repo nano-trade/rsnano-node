@@ -1,10 +1,13 @@
-use crate::{
-    bootstrap::state::{BootstrapState, CandidateAccounts, RunningQuery},
-    stats::{DetailType, StatType, Stats},
-};
+use std::sync::{Arc, Mutex};
+
 use rsnano_core::{Account, BlockHash};
 use rsnano_messages::AccountInfoAckPayload;
-use std::sync::{Arc, Mutex};
+use rsnano_stats::{DetailType, StatType};
+
+use crate::{
+    bootstrap::state::{BootstrapState, CandidateAccounts, RunningQuery},
+    stats::Stats,
+};
 
 /// Processes responses to an AscPullReq for account info
 pub(crate) struct AccountAckProcessor {
@@ -80,8 +83,7 @@ impl AccountAckProcessor {
 mod tests {
     use rsnano_core::Account;
     use rsnano_nullable_clock::Timestamp;
-
-    use crate::stats::Direction;
+    use rsnano_stats::Direction;
 
     use super::*;
 

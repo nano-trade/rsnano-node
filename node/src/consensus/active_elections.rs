@@ -1,3 +1,26 @@
+use std::{
+    cmp::{max, min},
+    collections::{BTreeMap, HashMap},
+    mem::size_of,
+    ops::Deref,
+    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock},
+    thread::JoinHandle,
+    time::{Duration, Instant},
+};
+
+use bounded_vec_deque::BoundedVecDeque;
+use tracing::{debug, trace};
+
+use rsnano_core::{
+    utils::{ContainerInfo, MemoryStream},
+    Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
+};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger};
+use rsnano_messages::{Message, NetworkFilter, Publish};
+use rsnano_network::{Network, TrafficType};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_stats::{DetailType, Direction, Sample, StatType};
+
 use super::{
     confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionData,
     ElectionState, ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier,
@@ -9,30 +32,11 @@ use crate::{
     config::{NetworkParams, NodeConfig, NodeFlags},
     consensus::VoteApplierExt,
     representatives::OnlineReps,
-    stats::{DetailType, Direction, Sample, StatType, Stats},
+    stats::Stats,
     transport::MessageFlooder,
     utils::HardenedConstants,
     wallets::Wallets,
 };
-use bounded_vec_deque::BoundedVecDeque;
-use rsnano_core::{
-    utils::{ContainerInfo, MemoryStream},
-    Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
-};
-use rsnano_ledger::{AnySet, BlockStatus, Ledger};
-use rsnano_messages::{Message, NetworkFilter, Publish};
-use rsnano_network::{Network, TrafficType};
-use rsnano_nullable_clock::SteadyClock;
-use std::{
-    cmp::{max, min},
-    collections::{BTreeMap, HashMap},
-    mem::size_of,
-    ops::Deref,
-    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock},
-    thread::JoinHandle,
-    time::{Duration, Instant},
-};
-use tracing::{debug, trace};
 
 const ELECTION_MAX_BLOCKS: usize = 10;
 

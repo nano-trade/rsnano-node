@@ -1,27 +1,30 @@
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{atomic::Ordering, Arc, Mutex, MutexGuard, RwLock, Weak},
+    time::{Duration, SystemTime},
+};
+
+use tracing::trace;
+
+use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, VoteCode, VoteSource};
+use rsnano_ledger::Ledger;
+use rsnano_network::ChannelId;
+use rsnano_stats::{DetailType, StatType};
+
+use super::{
+    election_schedulers::ElectionSchedulers, Election, ElectionData, LocalVoteHistory,
+    RecentlyConfirmedCache, TallyKey, VoteGenerators,
+};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::{NetworkParams, NodeConfig},
     consensus::{ElectionState, VoteInfo},
     representatives::OnlineReps,
-    stats::{DetailType, StatType, Stats},
+    stats::Stats,
     utils::ThreadPool,
     wallets::Wallets,
 };
-
-use super::{
-    election_schedulers::ElectionSchedulers, Election, ElectionData, LocalVoteHistory,
-    RecentlyConfirmedCache, TallyKey, VoteGenerators,
-};
-use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, VoteCode, VoteSource};
-use rsnano_ledger::Ledger;
-use rsnano_network::ChannelId;
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{atomic::Ordering, Arc, Mutex, MutexGuard, RwLock, Weak},
-    time::{Duration, SystemTime},
-};
-use tracing::trace;
 
 pub struct VoteApplier {
     ledger: Arc<Ledger>,

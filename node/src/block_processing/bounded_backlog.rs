@@ -1,23 +1,23 @@
-use super::{
-    backlog_index::{BacklogEntry, BacklogIndex},
-    backlog_scan::UnconfirmedInfo,
-    BlockContext, BlockProcessor,
-};
-use crate::{
-    consensus::Bucketing,
-    stats::{DetailType, StatType, Stats},
-};
-use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
-};
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
-use rsnano_network::bandwidth_limiter::RateLimiter;
 use std::{
     cmp::min,
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::Duration,
 };
+
+use rsnano_core::{
+    utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
+};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
+use rsnano_network::bandwidth_limiter::RateLimiter;
+use rsnano_stats::{DetailType, StatType};
+
+use super::{
+    backlog_index::{BacklogEntry, BacklogIndex},
+    backlog_scan::UnconfirmedInfo,
+    BlockContext, BlockProcessor,
+};
+use crate::{consensus::Bucketing, stats::Stats};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {

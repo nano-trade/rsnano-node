@@ -1,3 +1,4 @@
+use num_derive::FromPrimitive;
 use serde::Serialize;
 use serde_variant::to_variant_name;
 

@@ -1,5 +1,3 @@
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{utils::ContainerInfo, BlockHash, HashOrAccount, UncheckedInfo, UncheckedKey};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, VecDeque},
@@ -8,6 +6,11 @@ use std::{
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
 };
+
+use crate::stats::Stats;
+
+use rsnano_core::{utils::ContainerInfo, BlockHash, HashOrAccount, UncheckedInfo, UncheckedKey};
+use rsnano_stats::{DetailType, StatType};
 
 pub struct UncheckedMap {
     join_handle: Mutex<Option<JoinHandle<()>>>,

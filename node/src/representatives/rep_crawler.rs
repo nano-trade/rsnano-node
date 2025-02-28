@@ -1,19 +1,3 @@
-use super::{InsertResult, OnlineReps};
-use crate::{
-    config::{NetworkParams, NodeConfig},
-    consensus::ActiveElections,
-    stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{
-        keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
-        MessageSender,
-    },
-};
-use bounded_vec_deque::BoundedVecDeque;
-use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
-use rsnano_ledger::{AnySet, Ledger, LedgerSet};
-use rsnano_messages::{ConfirmReq, Message};
-use rsnano_network::{Channel, ChannelId, Network, TrafficType};
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     collections::HashMap,
     mem::size_of,
@@ -22,7 +6,27 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
+
+use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, info, warn};
+
+use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
+use rsnano_ledger::{AnySet, Ledger, LedgerSet};
+use rsnano_messages::{ConfirmReq, Message};
+use rsnano_network::{Channel, ChannelId, Network, TrafficType};
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_stats::{DetailType, Direction, Sample, StatType};
+
+use super::{InsertResult, OnlineReps};
+use crate::{
+    config::{NetworkParams, NodeConfig},
+    consensus::ActiveElections,
+    stats::Stats,
+    transport::{
+        keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
+        MessageSender,
+    },
+};
 
 /// Crawls the network for representatives. Queries are performed by requesting confirmation of a
 /// random block and observing the corresponding vote.

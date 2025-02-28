@@ -1,19 +1,17 @@
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
 use rsnano_core::{Account, Block, BlockHash, HashOrAccount, SavedBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_messages::{
     AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq, AscPullReqType,
     BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_node::{
-    bootstrap::BootstrapResponder,
-    stats::{DetailType, Direction, StatType},
-    Node,
-};
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use rsnano_node::{bootstrap::BootstrapResponder, Node};
+use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_always_eq, assert_timely_eq, assert_timely_eq2, make_fake_channel, setup_chains, System,
 };

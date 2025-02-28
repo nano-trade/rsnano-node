@@ -1,0 +1,12 @@
+[package]
+name = "rsnano_stats"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rsnano_core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_variant = "0"
+num = "0"
+num-traits = "0"
+num-derive = "0"

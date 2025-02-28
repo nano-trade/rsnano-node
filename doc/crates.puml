@@ -1,7 +1,7 @@
-@startuml "Split crates"
-
+@startuml
 [core]
 [work]
+[stats]
 [ledger]
 [store_lmdb]
 [messages]
@@ -40,11 +40,13 @@ folder "nullables"{
 [websocket_server] --> [node]
 [websocket_messages] --> [core]
 [messages] --> [work]
-[network] --> [core]
+[messages] --> [stats]
+[network] --> [stats]
 [ledger] --> [store_lmdb]
 [ledger] --> [work]
+[ledger] --> [stats]
 [store_lmdb] --> [core]
 [work] --> [core]
+[stats] --> [core]
 [core] --> "nullables"
-
 @enduml

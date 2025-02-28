@@ -8,6 +8,7 @@ members = [
     "nullables/clock",
     "nullables/random",
     "core",
+	"stats",
 	"work",
     "messages",
     "network",

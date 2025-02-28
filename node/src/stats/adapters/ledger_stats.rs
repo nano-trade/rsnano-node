@@ -1,7 +1,10 @@
-use crate::stats::{DetailType, Direction, StatType, Stats};
+use std::sync::Arc;
+
 use rsnano_core::{Block, BlockSubType};
 use rsnano_ledger::LedgerObserver;
-use std::sync::Arc;
+use rsnano_stats::{DetailType, Direction, StatType};
+
+use crate::stats::Stats;
 
 pub struct LedgerStats {
     stats: Arc<Stats>,
@@ -52,18 +55,6 @@ fn block_detail_type(block: &Block, is_epoch: bool) -> DetailType {
             } else {
                 DetailType::StateBlock
             }
-        }
-    }
-}
-
-impl From<BlockSubType> for DetailType {
-    fn from(block_type: BlockSubType) -> Self {
-        match block_type {
-            BlockSubType::Send => DetailType::Send,
-            BlockSubType::Receive => DetailType::Receive,
-            BlockSubType::Open => DetailType::Open,
-            BlockSubType::Change => DetailType::Change,
-            BlockSubType::Epoch => DetailType::EpochBlock,
         }
     }
 }

@@ -1,10 +1,11 @@
 use super::SynCookies;
-use crate::stats::{DetailType, Direction, StatType, Stats};
+use crate::stats::Stats;
 use rsnano_core::{BlockHash, NodeId, PrivateKey, ProtocolInfo};
 use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
 };
 use rsnano_network::{Channel, TrafficType};
+use rsnano_stats::{DetailType, Direction, StatType};
 use std::{
     net::SocketAddrV6,
     sync::{

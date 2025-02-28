@@ -1,17 +1,21 @@
+use std::{sync::Arc, time::Duration};
+
+use rand::RngCore;
+
+use rsnano_messages::{AscPullReq, Message};
+use rsnano_network::TrafficType;
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use rsnano_stats::{DetailType, StatType};
+
 use crate::{
     bootstrap::{
         state::{BootstrapState, RunningQuery},
         AscPullQuerySpec,
     },
-    stats::{DetailType, StatType, Stats},
+    stats::Stats,
     transport::MessageSender,
 };
-use rand::RngCore;
-use rsnano_messages::{AscPullReq, Message};
-use rsnano_network::TrafficType;
-use rsnano_nullable_clock::SteadyClock;
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::{sync::Arc, time::Duration};
 
 /// Sends an AscPullReq message
 pub(crate) struct QuerySender {

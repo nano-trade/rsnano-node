@@ -1,10 +1,3 @@
-use crate::{
-    config::NetworkParams,
-    representatives::OnlineReps,
-    stats::{DetailType, Direction, StatType, Stats},
-};
-use rsnano_core::{utils::ContainerInfo, Account, PublicKey};
-use rsnano_ledger::RepWeightCache;
 use std::{
     collections::HashSet,
     mem::size_of,
@@ -12,8 +5,16 @@ use std::{
     thread::JoinHandle,
     time::Duration,
 };
+
 use strum_macros::EnumIter;
 use tracing::debug;
+
+use rsnano_core::{utils::ContainerInfo, Account, PublicKey};
+use rsnano_ledger::RepWeightCache;
+use rsnano_stats::{DetailType, Direction, StatType};
+
+use crate::stats::Stats;
+use crate::{config::NetworkParams, representatives::OnlineReps};
 
 // Higher number means higher priority
 #[derive(FromPrimitive, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, EnumIter, Hash, Debug)]

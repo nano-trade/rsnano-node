@@ -1,17 +1,22 @@
-use super::pull_count_decider::PullCountDecider;
-use super::pull_type_decider::PullTypeDecider;
-use super::query_factory::QueryFactory;
-use crate::bootstrap::requesters::channel_waiter::ChannelWaiter;
-use crate::bootstrap::BootstrapConfig;
-use crate::bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapPromise, PollResult};
-use crate::{
-    block_processing::{BlockProcessor, BlockSource},
-    stats::{DetailType, StatType, Stats},
-};
+use std::sync::Arc;
+
 use rsnano_ledger::Ledger;
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
-use std::sync::Arc;
+use rsnano_stats::{DetailType, StatType};
+
+use super::{
+    pull_count_decider::PullCountDecider, pull_type_decider::PullTypeDecider,
+    query_factory::QueryFactory,
+};
+use crate::{
+    block_processing::{BlockProcessor, BlockSource},
+    bootstrap::{
+        requesters::channel_waiter::ChannelWaiter, state::BootstrapState, AscPullQuerySpec,
+        BootstrapConfig, BootstrapPromise, PollResult,
+    },
+    stats::Stats,
+};
 
 pub(crate) struct PriorityRequester {
     state: PriorityState,

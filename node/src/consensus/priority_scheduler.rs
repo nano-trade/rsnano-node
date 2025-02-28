@@ -1,16 +1,20 @@
-use super::{bucketing::Bucketing, ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
-    SavedBlock,
-};
-use rsnano_ledger::{AnySet, ConfirmedSet};
 use std::{
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
     time::Duration,
 };
+
 use tracing::trace;
+
+use rsnano_core::{
+    utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
+    SavedBlock,
+};
+use rsnano_ledger::{AnySet, ConfirmedSet};
+use rsnano_stats::{DetailType, StatType};
+
+use super::{bucketing::Bucketing, ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
+use crate::stats::Stats;
 
 pub struct PriorityScheduler {
     mutex: Mutex<PrioritySchedulerImpl>,

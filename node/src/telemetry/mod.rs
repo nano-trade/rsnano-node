@@ -14,14 +14,11 @@ use std::{
 
 use rsnano_core::{utils::ContainerInfo, BlockHash};
 use rsnano_messages::{Message, TelemetryAck, TelemetryData};
-use rsnano_nullable_clock::SteadyClock;
-
-use crate::{
-    config::NetworkParams,
-    stats::{DetailType, StatType, Stats},
-    transport::MessageSender,
-};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, Network, TrafficType};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_stats::{DetailType, StatType};
+
+use crate::{config::NetworkParams, stats::Stats, transport::MessageSender};
 
 /**
  * This class periodically broadcasts and requests telemetry from peers.

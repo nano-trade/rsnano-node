@@ -132,8 +132,10 @@ impl RunningQueryContainer {
 
 #[cfg(test)]
 mod tests {
+    use rsnano_stats::DetailType;
+
     use super::*;
-    use crate::{bootstrap::state::QueryType, stats::DetailType};
+    use crate::bootstrap::state::QueryType;
 
     #[test]
     fn empty() {

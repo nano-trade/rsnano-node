@@ -1,7 +1,3 @@
-use super::{VoteProcessorQueue, VoteRouter};
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{Vote, VoteCode, VoteSource};
-use rsnano_network::Channel;
 use std::{
     cmp::{max, min},
     sync::{
@@ -11,7 +7,15 @@ use std::{
     thread::JoinHandle,
     time::Instant,
 };
+
 use tracing::{debug, trace};
+
+use rsnano_core::{Vote, VoteCode, VoteSource};
+use rsnano_network::Channel;
+use rsnano_stats::{DetailType, StatType};
+
+use super::{VoteProcessorQueue, VoteRouter};
+use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteProcessorConfig {

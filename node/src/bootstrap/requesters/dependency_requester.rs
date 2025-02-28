@@ -1,9 +1,13 @@
-use super::channel_waiter::ChannelWaiter;
-use crate::bootstrap::state::BootstrapState;
-use crate::bootstrap::{AscPullQuerySpec, BootstrapPromise, PollResult};
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_network::Channel;
 use std::sync::Arc;
+
+use rsnano_network::Channel;
+use rsnano_stats::{DetailType, StatType};
+
+use super::channel_waiter::ChannelWaiter;
+use crate::{
+    bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapPromise, PollResult},
+    stats::Stats,
+};
 
 pub(super) struct DependencyRequester {
     state: DependencyState,

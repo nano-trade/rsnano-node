@@ -3766,6 +3766,7 @@ dependencies = [
  "once_cell",
  "rand 0.9.0",
  "rsnano_core",
+ "rsnano_stats",
  "rsnano_store_lmdb",
  "rsnano_work",
  "serde_json",
@@ -3782,6 +3783,7 @@ dependencies = [
  "num-traits 0.2.19",
  "rand 0.9.0",
  "rsnano_core",
+ "rsnano_stats",
  "rsnano_work",
  "serde",
  "serde_derive",
@@ -3804,6 +3806,7 @@ dependencies = [
  "rsnano_nullable_clock",
  "rsnano_nullable_tcp",
  "rsnano_output_tracker",
+ "rsnano_stats",
  "serde",
  "serde_json",
  "tokio",
@@ -3843,6 +3846,7 @@ dependencies = [
  "rsnano_nullable_random",
  "rsnano_nullable_tcp",
  "rsnano_output_tracker",
+ "rsnano_stats",
  "rsnano_store_lmdb",
  "rsnano_websocket_messages",
  "rsnano_work",
@@ -3988,6 +3992,7 @@ dependencies = [
  "rsnano_nullable_clock",
  "rsnano_rpc_client",
  "rsnano_rpc_messages",
+ "rsnano_stats",
  "rsnano_store_lmdb",
  "serde",
  "serde_json",
@@ -3995,6 +4000,18 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+]
+
+[[package]]
+name = "rsnano_stats"
+version = "0.1.0"
+dependencies = [
+ "num",
+ "num-derive",
+ "num-traits 0.1.43",
+ "rsnano_core",
+ "serde",
+ "serde_variant",
 ]
 
 [[package]]

@@ -1,16 +1,20 @@
-use super::{RepTier, RepTiers, VoteProcessorConfig};
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{
-    utils::{ContainerInfo, FairQueue, FairQueueInfo},
-    Vote, VoteSource,
-};
-use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use std::{
     collections::VecDeque,
     mem::size_of,
     sync::{Arc, Condvar, Mutex},
 };
+
 use strum::IntoEnumIterator;
+
+use rsnano_core::{
+    utils::{ContainerInfo, FairQueue, FairQueueInfo},
+    Vote, VoteSource,
+};
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
+use rsnano_stats::{DetailType, StatType};
+
+use super::{RepTier, RepTiers, VoteProcessorConfig};
+use crate::stats::Stats;
 
 pub struct VoteProcessorQueue {
     data: Mutex<VoteProcessorQueueData>,

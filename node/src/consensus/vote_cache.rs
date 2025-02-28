@@ -1,10 +1,6 @@
-use super::TallyKey;
-use crate::stats::{DetailType, StatType, Stats};
-#[cfg(test)]
-use mock_instant::thread_local::Instant;
-use rsnano_core::{utils::ContainerInfo, Amount, BlockHash, PublicKey, Vote, VoteCode};
 #[cfg(not(test))]
 use std::time::Instant;
+
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
@@ -13,6 +9,15 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+
+#[cfg(test)]
+use mock_instant::thread_local::Instant;
+
+use rsnano_core::{utils::ContainerInfo, Amount, BlockHash, PublicKey, Vote, VoteCode};
+use rsnano_stats::{DetailType, StatType};
+
+use super::TallyKey;
+use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteCacheConfig {
@@ -526,9 +531,9 @@ impl OrderedVoters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stats::Direction;
     use mock_instant::thread_local::MockClock;
     use rsnano_core::PrivateKey;
+    use rsnano_stats::Direction;
 
     fn create_vote(rep: &PrivateKey, hash: &BlockHash, timestamp_offset: u64) -> Arc<Vote> {
         Arc::new(Vote::new(

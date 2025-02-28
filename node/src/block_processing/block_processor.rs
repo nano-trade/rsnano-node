@@ -1,15 +1,3 @@
-use super::{
-    BlockContext, BlockProcessorCallback, BlockSource, LedgerNotificationQueue, UncheckedMap,
-};
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{
-    utils::{ContainerInfo, FairQueue, FairQueueInfo},
-    Block, BlockHash, BlockType, Epoch, Networks, QualifiedRoot, SavedBlock, UncheckedInfo,
-};
-use rsnano_ledger::{BlockStatus, Ledger, Writer};
-use rsnano_network::{ChannelId, DeadChannelCleanupStep};
-use rsnano_store_lmdb::{LmdbWriteTransaction, Transaction};
-use rsnano_work::WorkThresholds;
 use std::{
     collections::VecDeque,
     mem::size_of,
@@ -17,8 +5,24 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
+
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info, trace};
+
+use rsnano_core::{
+    utils::{ContainerInfo, FairQueue, FairQueueInfo},
+    Block, BlockHash, BlockType, Epoch, Networks, QualifiedRoot, SavedBlock, UncheckedInfo,
+};
+use rsnano_ledger::{BlockStatus, Ledger, Writer};
+use rsnano_network::{ChannelId, DeadChannelCleanupStep};
+use rsnano_stats::{DetailType, StatType};
+use rsnano_store_lmdb::{LmdbWriteTransaction, Transaction};
+use rsnano_work::WorkThresholds;
+
+use super::{
+    BlockContext, BlockProcessorCallback, BlockSource, LedgerNotificationQueue, UncheckedMap,
+};
+use crate::stats::Stats;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
@@ -802,7 +806,7 @@ impl RollbackResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stats::Direction;
+    use rsnano_stats::Direction;
 
     #[test]
     fn insufficient_work() {

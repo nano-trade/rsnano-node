@@ -8,8 +8,8 @@ use rsnano_node::{
     config::{NodeFlags, DEV_NETWORK_PARAMS},
     consensus::{ConfirmationSolicitor, Election, ElectionBehavior, VoteInfo},
     representatives::PeeredRepInfo,
-    stats::{DetailType, Direction, StatType},
 };
+use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::System;
 
 #[test]

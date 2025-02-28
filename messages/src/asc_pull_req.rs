@@ -5,6 +5,7 @@ use rsnano_core::{
     utils::{BufferWriter, Deserialize, Serialize, Stream, StreamExt},
     Account, BlockHash, HashOrAccount,
 };
+use rsnano_stats::DetailType;
 use serde_derive::Serialize;
 use std::{fmt::Display, mem::size_of};
 
@@ -257,6 +258,16 @@ impl MessageVariant for AscPullReq {
             -1 // pull_type
             - 8, // ID
         )
+    }
+}
+
+impl From<&AscPullReqType> for DetailType {
+    fn from(value: &AscPullReqType) -> Self {
+        match value {
+            AscPullReqType::Blocks(_) => DetailType::Blocks,
+            AscPullReqType::AccountInfo(_) => DetailType::AccountInfo,
+            AscPullReqType::Frontiers(_) => DetailType::Frontiers,
+        }
     }
 }
 

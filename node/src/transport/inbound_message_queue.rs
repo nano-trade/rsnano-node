@@ -1,12 +1,15 @@
-use super::MessageCallback;
-use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::utils::{ContainerInfo, FairQueue};
-use rsnano_messages::Message;
-use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
 };
+
+use rsnano_core::utils::{ContainerInfo, FairQueue};
+use rsnano_messages::Message;
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
+use rsnano_stats::{DetailType, StatType};
+
+use super::MessageCallback;
+use crate::stats::Stats;
 
 pub struct InboundMessageQueue {
     state: Mutex<State>,

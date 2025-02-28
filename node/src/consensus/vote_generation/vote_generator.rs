@@ -1,20 +1,3 @@
-use super::{LocalVoteHistory, VoteSpacing};
-use crate::{
-    consensus::VoteBroadcaster,
-    stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::MessageSender,
-    utils::ProcessingQueue,
-    wallets::Wallets,
-};
-use rsnano_core::{
-    utils::{milliseconds_since_epoch, ContainerInfo},
-    BlockHash, Root, SavedBlock, Vote,
-};
-use rsnano_ledger::{AnySet, Ledger, Writer};
-use rsnano_messages::{ConfirmAck, Message};
-use rsnano_network::{Channel, ChannelId, TrafficType};
-use rsnano_nullable_clock::SteadyClock;
-use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
     collections::VecDeque,
     mem::size_of,
@@ -24,6 +7,23 @@ use std::{
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
+};
+
+use rsnano_core::{
+    utils::{milliseconds_since_epoch, ContainerInfo},
+    BlockHash, Root, SavedBlock, Vote,
+};
+use rsnano_ledger::{AnySet, Ledger, Writer};
+use rsnano_messages::{ConfirmAck, Message};
+use rsnano_network::{Channel, ChannelId, TrafficType};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_stats::{DetailType, Direction, Sample, StatType};
+use rsnano_store_lmdb::LmdbWriteTransaction;
+
+use super::{LocalVoteHistory, VoteSpacing};
+use crate::{
+    consensus::VoteBroadcaster, stats::Stats, transport::MessageSender, utils::ProcessingQueue,
+    wallets::Wallets,
 };
 
 pub struct VoteGeneratorRequest {

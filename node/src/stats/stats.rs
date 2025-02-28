@@ -1,17 +1,19 @@
-use super::{DetailType, Direction, Sample, StatType};
-use super::{StatFileWriter, StatsConfig, StatsLogSink};
-use anyhow::Result;
-use bounded_vec_deque::BoundedVecDeque;
-use once_cell::sync::Lazy;
-use rsnano_core::utils::get_env_bool;
-use rsnano_messages::MessageType;
 use std::{
     collections::BTreeMap,
     sync::{atomic::AtomicU64, Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant, SystemTime},
 };
+
+use anyhow::Result;
+use bounded_vec_deque::BoundedVecDeque;
+use once_cell::sync::Lazy;
 use tracing::debug;
+
+use rsnano_core::utils::get_env_bool;
+use rsnano_stats::{DetailType, Direction, Sample, StatType};
+
+use super::{StatFileWriter, StatsConfig, StatsLogSink};
 
 pub struct Stats {
     config: StatsConfig,
@@ -410,28 +412,6 @@ impl SamplerEntry {
     fn collect(&self) -> Vec<i64> {
         let mut guard = self.samples.lock().unwrap();
         guard.drain(..).collect()
-    }
-}
-
-impl From<MessageType> for DetailType {
-    fn from(msg: MessageType) -> Self {
-        match msg {
-            MessageType::Invalid => DetailType::Invalid,
-            MessageType::NotAType => DetailType::NotAType,
-            MessageType::Keepalive => DetailType::Keepalive,
-            MessageType::Publish => DetailType::Publish,
-            MessageType::ConfirmReq => DetailType::ConfirmReq,
-            MessageType::ConfirmAck => DetailType::ConfirmAck,
-            MessageType::BulkPull => DetailType::BulkPull,
-            MessageType::BulkPush => DetailType::BulkPush,
-            MessageType::FrontierReq => DetailType::FrontierReq,
-            MessageType::NodeIdHandshake => DetailType::NodeIdHandshake,
-            MessageType::BulkPullAccount => DetailType::BulkPullAccount,
-            MessageType::TelemetryReq => DetailType::TelemetryReq,
-            MessageType::TelemetryAck => DetailType::TelemetryAck,
-            MessageType::AscPullReq => DetailType::AscPullReq,
-            MessageType::AscPullAck => DetailType::AscPullAck,
-        }
     }
 }
 

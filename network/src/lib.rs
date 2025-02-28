@@ -13,20 +13,24 @@ pub mod token_bucket;
 pub mod utils;
 pub mod write_queue;
 
-use async_trait::async_trait;
 pub use channel::*;
 pub use dead_channel_cleanup::*;
 pub use network::*;
 pub use network_observer::*;
-use num_derive::FromPrimitive;
 pub use peer_connector::*;
+pub use tcp_channel_adapter::*;
+pub use tcp_listener::*;
+pub use tcp_network_adapter::*;
+
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
 };
-pub use tcp_channel_adapter::*;
-pub use tcp_listener::*;
-pub use tcp_network_adapter::*;
+
+use async_trait::async_trait;
+use num_derive::FromPrimitive;
+
+use rsnano_stats::DetailType;
 
 #[macro_use]
 extern crate anyhow;
@@ -155,5 +159,34 @@ impl DataReceiver for NullDataReceiver {
 
     fn try_unpause(&self) -> ReceiveResult {
         ReceiveResult::Continue
+    }
+}
+
+impl From<ChannelDirection> for rsnano_stats::Direction {
+    fn from(value: ChannelDirection) -> Self {
+        match value {
+            ChannelDirection::Inbound => rsnano_stats::Direction::In,
+            ChannelDirection::Outbound => rsnano_stats::Direction::Out,
+        }
+    }
+}
+
+impl From<TrafficType> for DetailType {
+    fn from(value: TrafficType) -> Self {
+        match value {
+            TrafficType::Generic => DetailType::Generic,
+            TrafficType::BootstrapServer => DetailType::BootstrapServer,
+            TrafficType::BootstrapRequests => DetailType::BootstrapRequests,
+            TrafficType::BlockBroadcast => DetailType::BlockBroadcast,
+            TrafficType::BlockBroadcastInitial => DetailType::BlockBroadcastInitial,
+            TrafficType::BlockBroadcastRpc => DetailType::BlockBroadcastRpc,
+            TrafficType::ConfirmationRequests => DetailType::ConfirmationRequests,
+            TrafficType::Keepalive => DetailType::Keepalive,
+            TrafficType::Vote => DetailType::Vote,
+            TrafficType::VoteRebroadcast => DetailType::VoteRebroadcast,
+            TrafficType::RepCrawler => DetailType::RepCrawler,
+            TrafficType::VoteReply => DetailType::VoteReply,
+            TrafficType::Telemetry => DetailType::Telemetry,
+        }
     }
 }

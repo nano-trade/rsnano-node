@@ -124,8 +124,8 @@ mod election_scheduler {
     use rsnano_node::{
         config::NodeConfig,
         consensus::{ActiveElectionsExt, ElectionBehavior, OptimisticSchedulerConfig},
-        stats::{DetailType, Direction, StatType},
     };
+    use rsnano_stats::{DetailType, Direction, StatType};
     use test_helpers::{setup_chains, setup_rep};
 
     #[test]

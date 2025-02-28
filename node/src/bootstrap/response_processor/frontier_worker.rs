@@ -1,11 +1,14 @@
+use std::sync::Mutex;
+
+use rsnano_core::Frontier;
+use rsnano_ledger::OwningAnySet;
+use rsnano_stats::{DetailType, StatType};
+
 use super::frontier_checker::FrontierChecker;
 use crate::{
     bootstrap::state::{BootstrapState, OutdatedAccounts},
-    stats::{DetailType, StatType, Stats},
+    stats::Stats,
 };
-use rsnano_core::Frontier;
-use rsnano_ledger::OwningAnySet;
-use std::sync::Mutex;
 
 /// Handles received frontiers
 pub(crate) struct FrontierWorker<'a> {
