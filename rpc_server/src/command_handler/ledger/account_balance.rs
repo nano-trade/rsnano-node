@@ -12,7 +12,7 @@ impl RpcCommandHandler {
             let set = self.node.ledger.confirmed2();
             get_account_balance(set, &args)
         } else {
-            let set = self.node.ledger.any2();
+            let set = self.node.ledger.any();
             get_account_balance(set, &args)
         }
     }
@@ -21,7 +21,7 @@ impl RpcCommandHandler {
         &self,
         args: AccountArg,
     ) -> anyhow::Result<AccountBlockCountResponse> {
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
         let account = self.load_account(&any, &args.account)?;
         Ok(AccountBlockCountResponse::new(account.block_count))
     }

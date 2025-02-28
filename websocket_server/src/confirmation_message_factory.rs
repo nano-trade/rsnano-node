@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, BlockType, SavedBlock, VoteWithWeightInfo};
-use rsnano_ledger::{AnySet2, Ledger};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_node::consensus::ElectionStatus;
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
@@ -78,7 +78,7 @@ impl<'a> ConfirmationMessageFactory<'a> {
             return None;
         }
 
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         match any.linked_account(self.block) {
             Some(linked) => Some(linked.encode_account()),
             None => Some("0".to_owned()),

@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use rsnano_core::{BlockType, SavedBlock};
-use rsnano_ledger::AnySet2;
+use rsnano_ledger::AnySet;
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, BlockInfoArgs, BlockInfoResponse, BlockSubTypeDto,
 };
@@ -9,7 +9,7 @@ use rsnano_rpc_messages::{
 impl RpcCommandHandler {
     pub(crate) fn block_info(&self, args: BlockInfoArgs) -> anyhow::Result<BlockInfoResponse> {
         let include_linked_account = unwrap_bool_or_false(args.include_linked_account);
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
         let block = any
             .detailed_block(&args.hash)
             .ok_or_else(|| anyhow!(Self::BLOCK_NOT_FOUND))?;

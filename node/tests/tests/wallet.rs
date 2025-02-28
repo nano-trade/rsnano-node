@@ -3,7 +3,7 @@ use rsnano_core::{
     KeyDerivationFunction, PrivateKey, PublicKey, RawKey, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, LedgerSet, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
@@ -222,7 +222,7 @@ fn spend_all_one() {
         )
         .unwrap();
 
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     let info2 = any.get_account(&DEV_GENESIS_ACCOUNT).unwrap();
     assert_ne!(info2.head, *DEV_GENESIS_HASH);
     let block = any.get_block(&info2.head).unwrap();
@@ -711,7 +711,7 @@ fn work_generate() {
         )
         .unwrap();
     assert_timely(Duration::from_secs(10), || {
-        node1.ledger.any2().account_balance(&DEV_GENESIS_ACCOUNT) != Amount::MAX
+        node1.ledger.any().account_balance(&DEV_GENESIS_ACCOUNT) != Amount::MAX
     });
 
     let start = Instant::now();
@@ -1230,7 +1230,7 @@ fn epoch_2_receive_propagation() {
             );
             assert_eq!(
                 node.ledger
-                    .any2()
+                    .any()
                     .get_block(&receive2.hash())
                     .unwrap()
                     .epoch(),
@@ -1326,7 +1326,7 @@ fn epoch_2_receive_unopened() {
             );
             assert_eq!(
                 node.ledger
-                    .any2()
+                    .any()
                     .get_block(&receive1.hash())
                     .unwrap()
                     .epoch(),
@@ -1431,7 +1431,7 @@ fn search_receivable() {
     );
     let receive_hash = node
         .ledger
-        .any2()
+        .any()
         .account_head(&DEV_GENESIS_ACCOUNT)
         .unwrap();
     let receive = node.block(&receive_hash).unwrap();
@@ -1525,7 +1525,7 @@ fn receive_pruned() {
         .unwrap();
 
     assert_eq!(
-        node2.ledger.any2().block_balance(&open1.hash()),
+        node2.ledger.any().block_balance(&open1.hash()),
         Some(amount)
     );
     assert_timely_eq2(|| node2.ledger.cemented_count(), 4);
@@ -1533,7 +1533,7 @@ fn receive_pruned() {
 
 fn upgrade_genesis_epoch(node: &Node, epoch: Epoch) {
     let mut tx = node.ledger.rw_txn();
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     let latest = any.account_head(&DEV_GENESIS_ACCOUNT).unwrap();
     let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
 

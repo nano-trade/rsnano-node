@@ -6,7 +6,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
-use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
@@ -124,7 +124,7 @@ impl HintedScheduler {
         self.active.vacancy(ElectionBehavior::Hinted) > 0
     }
 
-    fn activate(&self, any: &impl AnySet2, hash: BlockHash, check_dependents: bool) {
+    fn activate(&self, any: &impl AnySet, hash: BlockHash, check_dependents: bool) {
         const MAX_ITERATIONS: usize = 64;
         let mut visited = HashSet::new();
         let mut stack = Vec::new();
@@ -189,7 +189,7 @@ impl HintedScheduler {
         // Get the list before db transaction starts to avoid unnecessary slowdowns
         let tops = self.vote_cache.lock().unwrap().top(minimum_tally);
 
-        let mut any = self.ledger.any2();
+        let mut any = self.ledger.any();
 
         for entry in tops {
             if self.stopped.load(Ordering::SeqCst) {
@@ -205,7 +205,7 @@ impl HintedScheduler {
             }
 
             if any.should_refresh() {
-                any = self.ledger.any2();
+                any = self.ledger.any();
             }
 
             // Check dependents only if cached tally is lower than quorum

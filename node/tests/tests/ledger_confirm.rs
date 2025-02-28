@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, ConfirmedSet2, LedgerSet,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet2, LedgerSet,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::stats::{DetailType, Direction, StatType};
@@ -133,7 +133,7 @@ fn multiple_accounts() {
         10
     );
     assert_eq!(node.ledger.cemented_count(), 11);
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     assert!(any.confirmed().block_exists(&receive3.hash()));
     assert_eq!(
         any.get_account(&DEV_GENESIS_ACCOUNT).unwrap().block_count,
@@ -280,7 +280,7 @@ fn send_receive_self() {
     tx.commit();
 
     assert_eq!(confirmed.len(), 6);
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     assert!(any.confirmed().block_exists(&receive3.hash()));
     assert_eq!(
         any.get_account(&DEV_GENESIS_ACCOUNT).unwrap().block_count,

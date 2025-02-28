@@ -4,7 +4,7 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    AnySet2, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    AnySet, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
@@ -630,7 +630,7 @@ pub fn send_block(node: Arc<Node>) -> BlockHash {
 }
 
 pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
 
     let previous = any
         .account_head(&*DEV_GENESIS_ACCOUNT)
@@ -659,7 +659,7 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
 }
 
 pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
 
     let previous = any
         .account_head(&*DEV_GENESIS_ACCOUNT)
@@ -683,7 +683,7 @@ pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) ->
 }
 
 pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
 
     let previous = any
         .account_head(&*DEV_GENESIS_ACCOUNT)
@@ -707,7 +707,7 @@ pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> 
 }
 
 pub fn process_open_block(node: Arc<Node>, keys: PrivateKey) -> Block {
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     let account = keys.account();
 
     let (key, info) = any
@@ -735,7 +735,7 @@ pub fn upgrade_epoch(
     //pool: &mut WorkPoolImpl,
     epoch: Epoch,
 ) -> Block {
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     let account = *DEV_GENESIS_ACCOUNT;
     let latest = any.account_head(&account).unwrap();
     let balance = any.account_balance(&account);

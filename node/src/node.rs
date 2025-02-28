@@ -51,7 +51,7 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, WorkNonce,
 };
-use rsnano_ledger::{AnySet2, BlockStatus, Ledger, LedgerSet, RepWeightCache, Writer};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache, Writer};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -573,7 +573,7 @@ impl Node {
                 return;
             };
 
-            let any = ledger_l.any2();
+            let any = ledger_l.any();
             for (status, context) in batch {
                 if *status == BlockStatus::Progress {
                     let account = context
@@ -603,7 +603,7 @@ impl Node {
                 let Some(schedulers) = schedulers_w.upgrade() else {
                     return;
                 };
-                let any = ledger_l.any2();
+                let any = ledger_l.any();
                 for context in batch {
                     schedulers.activate_successors(&any, &context.block);
                 }
@@ -718,7 +718,7 @@ impl Node {
         let ledger_l = ledger.clone();
         backlog_scan.on_unconfirmed_found(move |batch| {
             if let Some(schedulers) = schedulers_w.upgrade() {
-                let any = ledger_l.any2();
+                let any = ledger_l.any();
                 for info in batch {
                     schedulers.activate_backlog(
                         &any,
@@ -1379,11 +1379,11 @@ impl Node {
     }
 
     pub fn block(&self, hash: &BlockHash) -> Option<SavedBlock> {
-        self.ledger.any2().get_block(hash)
+        self.ledger.any().get_block(hash)
     }
 
     pub fn latest(&self, account: &Account) -> BlockHash {
-        self.ledger.any2().account_head(account).unwrap_or_default()
+        self.ledger.any().account_head(account).unwrap_or_default()
     }
 
     pub fn get_node_id(&self) -> NodeId {
@@ -1395,7 +1395,7 @@ impl Node {
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> bool {
-        self.ledger.any2().block_exists(hash)
+        self.ledger.any().block_exists(hash)
     }
 
     pub fn blocks_exist(&self, hashes: &[Block]) -> bool {
@@ -1403,12 +1403,12 @@ impl Node {
     }
 
     pub fn block_hashes_exist(&self, hashes: impl IntoIterator<Item = BlockHash>) -> bool {
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         hashes.into_iter().all(|h| any.block_exists(&h))
     }
 
     pub fn balance(&self, account: &Account) -> Amount {
-        self.ledger.any2().account_balance(account)
+        self.ledger.any().account_balance(account)
     }
 
     pub fn confirm_multi(&self, blocks: &[Block]) {
@@ -1460,7 +1460,7 @@ impl Node {
 
         if !self
             .ledger
-            .any2()
+            .any()
             .block_exists_or_pruned(&self.network_params.ledger.genesis_block.hash())
         {
             error!("Genesis block not found. This commonly indicates a configuration issue, check that the --network or --data_path command line arguments are correct, and also the ledger backend node config option. If using a read-only CLI command a ledger must already exist, start the node with --daemon first.");

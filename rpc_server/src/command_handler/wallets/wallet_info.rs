@@ -15,7 +15,7 @@ impl RpcCommandHandler {
         let mut deterministic_count = 0u64;
         let mut adhoc_count = 0u64;
         let tx = self.node.ledger.read_txn();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         for (account, _priv_key) in accounts {
             let account = account.into();

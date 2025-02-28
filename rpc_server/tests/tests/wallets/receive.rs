@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, BlockHash, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::{AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::ReceiveArgs;
 use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
@@ -35,12 +35,12 @@ fn receive() {
         )
         .unwrap();
 
-    assert_timely2(|| node.ledger.any2().account_balance(&*DEV_GENESIS_ACCOUNT) != Amount::MAX);
+    assert_timely2(|| node.ledger.any().account_balance(&*DEV_GENESIS_ACCOUNT) != Amount::MAX);
 
     assert_timely2(|| {
         !node
             .ledger
-            .any2()
+            .any()
             .get_account(&key1.public_key().into())
             .is_some()
     });
@@ -65,7 +65,7 @@ fn receive() {
         .block_on(async { server.client.receive(args).await.unwrap() })
         .block;
 
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     assert_timely2(|| any.get_block(&block_hash).is_some());
 
     assert_eq!(

@@ -10,7 +10,7 @@ use crate::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet2, BlockStatus, Ledger, LedgerSet, OwningAnySet};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use std::{
     cmp::min,
@@ -115,14 +115,14 @@ impl BoundedBacklog {
     }
 
     pub fn activate_batch(&self, batch: &[UnconfirmedInfo]) {
-        let mut any = self.backlog_impl.ledger.any2();
+        let mut any = self.backlog_impl.ledger.any();
         for info in batch {
             self.activate(&mut any, &info.account, &info.account_info, &info.conf_info);
         }
     }
 
     pub fn insert_batch(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
-        let any = self.backlog_impl.ledger.any2();
+        let any = self.backlog_impl.ledger.any();
         for (result, context) in batch {
             if *result == BlockStatus::Progress {
                 if let Some(block) = context.saved_block.lock().unwrap().clone() {
@@ -182,14 +182,14 @@ impl BoundedBacklog {
             }
 
             if any.should_refresh() {
-                *any = self.backlog_impl.ledger.any2();
+                *any = self.backlog_impl.ledger.any();
             }
 
             block = any.get_block(&blk.previous());
         }
     }
 
-    pub fn insert(&self, any: &impl AnySet2, block: &SavedBlock) -> bool {
+    pub fn insert(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
         let (priority_balance, priority_timestamp) = any.block_priority(block);
         let bucket_index = self.bucketing.bucket_index(priority_balance);
 

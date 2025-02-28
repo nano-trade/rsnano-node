@@ -1,7 +1,7 @@
 use rsnano_core::PendingKey;
 
 use crate::{
-    ledger_tests::LedgerContext, test_helpers::setup_legacy_receive_block, AnySet2,
+    ledger_tests::LedgerContext, test_helpers::setup_legacy_receive_block, AnySet,
     DEV_GENESIS_ACCOUNT,
 };
 
@@ -57,7 +57,7 @@ fn rollback_pending_info() {
 
     let pending = ctx
         .ledger
-        .any2()
+        .any()
         .get_pending(&PendingKey::new(
             receive.destination.account(),
             receive.send_block.hash(),

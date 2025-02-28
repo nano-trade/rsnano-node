@@ -325,13 +325,13 @@ fn unchecked_epoch() {
     node1
         .block_processor
         .add(open1.into(), BlockSource::Live, ChannelId::LOOPBACK);
-    assert_timely2(|| node1.ledger.any2().block_exists(&epoch1.hash()));
+    assert_timely2(|| node1.ledger.any().block_exists(&epoch1.hash()));
 
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
     assert_timely_eq(Duration::from_secs(10), || node1.unchecked.len(), 0);
     let info = node1
         .ledger
-        .any2()
+        .any()
         .get_account(&destination.account())
         .unwrap();
     assert_eq!(info.epoch, Epoch::Epoch1);
@@ -395,10 +395,10 @@ fn unchecked_epoch_invalid() {
 
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
     assert_timely(Duration::from_secs(10), || {
-        node1.ledger.any2().block_exists(&epoch2.hash())
+        node1.ledger.any().block_exists(&epoch2.hash())
     });
 
-    let any = node1.ledger.any2();
+    let any = node1.ledger.any();
     assert_eq!(any.block_exists(&epoch1.hash()), false);
     assert_eq!(node1.unchecked.len(), 0);
     let info = any.get_account(&destination.account()).unwrap();

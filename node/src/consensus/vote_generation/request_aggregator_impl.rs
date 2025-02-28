@@ -1,17 +1,17 @@
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{Account, Block, BlockHash, Root, SavedBlock};
-use rsnano_ledger::{AnySet2, LedgerSet};
+use rsnano_ledger::{AnySet, LedgerSet};
 
 pub(super) struct RequestAggregatorImpl<'a> {
     stats: &'a Stats,
-    any: &'a dyn AnySet2,
+    any: &'a dyn AnySet,
 
     pub to_generate: Vec<SavedBlock>,
     pub to_generate_final: Vec<SavedBlock>,
 }
 
 impl<'a> RequestAggregatorImpl<'a> {
-    pub fn new(stats: &'a Stats, any: &'a dyn AnySet2) -> Self {
+    pub fn new(stats: &'a Stats, any: &'a dyn AnySet) -> Self {
         Self {
             stats,
             any,

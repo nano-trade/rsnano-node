@@ -1,11 +1,11 @@
-use crate::{AnySet2, LedgerConstants};
+use crate::{AnySet, LedgerConstants};
 use rsnano_core::{Block, BlockBase, BlockHash, DependentBlocks, SavedBlock, StateBlock};
 
 /// Finds all dependent blocks for a given block.
 /// There can be at most two dependencies per block, namely "previous" and "link/source".
 pub struct DependentBlocksFinder<'a, T>
 where
-    T: AnySet2,
+    T: AnySet,
 {
     any: &'a T,
     constants: &'a LedgerConstants,
@@ -13,7 +13,7 @@ where
 
 impl<'a, T> DependentBlocksFinder<'a, T>
 where
-    T: AnySet2,
+    T: AnySet,
 {
     pub fn new(any: &'a T, constants: &'a LedgerConstants) -> Self {
         Self { any, constants }

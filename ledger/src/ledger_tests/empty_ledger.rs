@@ -1,14 +1,14 @@
 use super::LedgerContext;
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{utils::UnixTimestamp, Account, Amount, BlockType};
 
 #[test]
 fn account_balance_is_none_for_unknown_account() {
     let ctx = LedgerContext::empty();
-    let balance = ctx.ledger.any2().account_balance(&Account::zero());
+    let balance = ctx.ledger.any().account_balance(&Account::zero());
     assert_eq!(balance, Amount::zero());
 }
 
@@ -18,7 +18,7 @@ fn get_genesis_block() {
 
     let block = ctx
         .ledger
-        .any2()
+        .any()
         .get_block(&DEV_GENESIS_HASH)
         .expect("genesis block not found");
 
@@ -28,7 +28,7 @@ fn get_genesis_block() {
 #[test]
 fn genesis_account_balance() {
     let ctx = LedgerContext::empty();
-    let balance = ctx.ledger.any2().account_balance(&DEV_GENESIS_ACCOUNT);
+    let balance = ctx.ledger.any().account_balance(&DEV_GENESIS_ACCOUNT);
     assert_eq!(balance, LEDGER_CONSTANTS_STUB.genesis_amount);
 }
 
@@ -93,5 +93,5 @@ fn genesis_vote_weight() {
 #[test]
 fn latest_empty() {
     let ctx = LedgerContext::empty();
-    assert_eq!(ctx.ledger.any2().account_head(&Account::from(1)), None);
+    assert_eq!(ctx.ledger.any().account_head(&Account::from(1)), None);
 }

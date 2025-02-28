@@ -2,7 +2,7 @@ use super::difficulty_ledger;
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
 use rsnano_core::{Block, BlockType, DifficultyV1};
-use rsnano_ledger::{AnySet2, LedgerSet};
+use rsnano_ledger::{AnySet, LedgerSet};
 use rsnano_rpc_messages::{WorkGenerateArgs, WorkGenerateDto};
 
 impl RpcCommandHandler {
@@ -38,7 +38,7 @@ impl RpcCommandHandler {
             }
             // Recalculate difficulty if not provided
             if args.difficulty.is_none() && args.multiplier.is_none() {
-                let any = self.node.ledger.any2();
+                let any = self.node.ledger.any();
                 difficulty = difficulty_ledger(self.node.clone(), &any, &block);
             }
 
@@ -61,7 +61,7 @@ impl RpcCommandHandler {
         } else {
             let _account = if let Some(_account) = args.account {
                 // Fetch account from block if not given
-                let any = self.node.ledger.any2();
+                let any = self.node.ledger.any();
                 if any.block_exists(&args.hash) {
                     any.block_account(&args.hash)
                 } else {

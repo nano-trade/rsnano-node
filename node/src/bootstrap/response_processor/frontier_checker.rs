@@ -1,7 +1,7 @@
 use super::database_crawler::{AccountCrawlSource, DatabaseCrawler, PendingCrawlSource};
 use crate::bootstrap::state::OutdatedAccounts;
 use rsnano_core::{Account, Frontier};
-use rsnano_ledger::{AnySet2, OwningAnySet};
+use rsnano_ledger::{AnySet, OwningAnySet};
 
 pub(crate) enum FrontierCheckResult {
     /// Account doesn't exist in the ledger and has no pending blocks, can't be prioritized right now
@@ -239,7 +239,7 @@ mod tests {
     }
 
     fn get_outdated_accounts(ledger: &Ledger, frontiers: &[Frontier]) -> OutdatedAccounts {
-        let any = ledger.any2();
+        let any = ledger.any();
         let mut checker = FrontierChecker::new(&any);
         checker.get_outdated_accounts(frontiers)
     }

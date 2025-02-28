@@ -7,7 +7,7 @@ use rsnano_core::{
     utils::{ContainerInfo, FairQueue},
     BlockHash, Root,
 };
-use rsnano_ledger::{AnySet2, Ledger};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
 use std::{
     cmp::{max, min},
@@ -218,11 +218,11 @@ impl RequestAggregatorLoop {
         let batch = state.queue.next_batch(self.config.batch_size);
         drop(state);
 
-        let mut any = self.ledger.any2();
+        let mut any = self.ledger.any();
 
         for (_, request) in &batch {
             if any.should_refresh() {
-                any = self.ledger.any2();
+                any = self.ledger.any();
             }
 
             let should_drop = request.channel.should_drop(TrafficType::VoteReply);
@@ -241,7 +241,7 @@ impl RequestAggregatorLoop {
         self.mutex.lock().unwrap()
     }
 
-    fn process(&self, any: &dyn AnySet2, request: &AggregatorRequest) {
+    fn process(&self, any: &dyn AnySet, request: &AggregatorRequest) {
         let remaining = self.aggregate(any, request);
 
         if !remaining.remaining_normal.is_empty() {
@@ -279,7 +279,7 @@ impl RequestAggregatorLoop {
 
     /// Aggregate requests and send cached votes to channel.
     /// Return the remaining hashes that need vote generation for each block for regular & final vote generators
-    fn aggregate(&self, any: &dyn AnySet2, requests: &AggregatorRequest) -> AggregateResult {
+    fn aggregate(&self, any: &dyn AnySet, requests: &AggregatorRequest) -> AggregateResult {
         let mut aggregator = RequestAggregatorImpl::new(&self.stats, any);
         aggregator.add_votes(&requests.roots_hashes);
         aggregator.get_result()

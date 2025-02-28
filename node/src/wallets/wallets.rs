@@ -16,7 +16,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
 };
-use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
@@ -619,7 +619,7 @@ impl Wallets {
         amount: Amount,
         mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         if !wallet.store.valid_password(tx) {
             bail!("invalid password");
         }
@@ -661,7 +661,7 @@ impl Wallets {
         amount: Amount,
         mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
 
         let block = match self.get_block_hash(tx, id)? {
             Some(hash) => Some(any.get_block(&hash).unwrap()),
@@ -1472,7 +1472,7 @@ impl WalletsExt for Arc<Wallets> {
         let mut block = None;
         {
             let wallet_tx = self.env.tx_begin_read();
-            let any = self.ledger.any2();
+            let any = self.ledger.any();
             if !wallet.store.valid_password(&wallet_tx) {
                 warn!(
                     "Changing representative for account {} failed, wallet locked",
@@ -1555,7 +1555,7 @@ impl WalletsExt for Arc<Wallets> {
 
         let mut block = None;
         let mut epoch = Epoch::Epoch0;
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         let wallet_tx = self.env.tx_begin_read();
         if any.block_exists_or_pruned(&send_hash) {
             if let Some(pending_info) = any.get_pending(&PendingKey::new(account, send_hash)) {
@@ -1846,7 +1846,7 @@ impl WalletsExt for Arc<Wallets> {
         info!("Beginning receivable block search");
 
         for (account, wallet_value) in wallet.store.iter(wallet_tx) {
-            let any = self.ledger.any2();
+            let any = self.ledger.any();
             // Don't search pending for watch-only accounts
             if !wallet_value.key.is_zero() {
                 for (key, info) in
@@ -1904,7 +1904,7 @@ impl WalletsExt for Arc<Wallets> {
                 let representative = wallet.store.representative(&wallet_tx);
                 let pending = self
                     .ledger
-                    .any2()
+                    .any()
                     .get_pending(&PendingKey::new(destination, hash));
                 if let Some(pending) = pending {
                     let amount = pending.amount;
@@ -1919,7 +1919,7 @@ impl WalletsExt for Arc<Wallets> {
                         true,
                     );
                 } else {
-                    if !self.ledger.any2().block_exists_or_pruned(&hash) {
+                    if !self.ledger.any().block_exists_or_pruned(&hash) {
                         warn!("Confirmed block is missing:  {}", hash);
                         debug_assert!(false);
                     } else {

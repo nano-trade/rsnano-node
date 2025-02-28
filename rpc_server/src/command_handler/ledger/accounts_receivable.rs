@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use indexmap::IndexMap;
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey};
-use rsnano_ledger::{AnySet2, ConfirmedSet2};
+use rsnano_ledger::{AnySet, ConfirmedSet2};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_bool_or_true, unwrap_u64_or_max, AccountsReceivableArgs,
     AccountsReceivableResponse, AccountsReceivableSimple, AccountsReceivableSource,
@@ -20,7 +20,7 @@ impl RpcCommandHandler {
         let include_only_confirmed = unwrap_bool_or_true(args.include_only_confirmed);
         let sorting = unwrap_bool_or_false(args.sorting);
         let simple = threshold.is_zero() && !source && !sorting; // if simple, response is a list of hashes for each account
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         let mut response_builder = if simple {
             ResponseBuilderEnum::Simple(SimpleBuilder::new())

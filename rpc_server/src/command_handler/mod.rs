@@ -5,7 +5,7 @@ mod wallets;
 
 use anyhow::anyhow;
 use rsnano_core::{Account, AccountInfo, BlockHash, SavedBlock};
-use rsnano_ledger::AnySet2;
+use rsnano_ledger::AnySet;
 use rsnano_node::Node;
 use rsnano_rpc_messages::{RpcCommand, RpcError, StatsType};
 use serde_json::{to_value, Value};
@@ -168,12 +168,12 @@ impl RpcCommandHandler {
         }
     }
 
-    fn load_block_any(&self, any: &dyn AnySet2, hash: &BlockHash) -> anyhow::Result<SavedBlock> {
+    fn load_block_any(&self, any: &dyn AnySet, hash: &BlockHash) -> anyhow::Result<SavedBlock> {
         any.get_block(hash)
             .ok_or_else(|| anyhow!(Self::BLOCK_NOT_FOUND))
     }
 
-    fn load_account(&self, any: &dyn AnySet2, account: &Account) -> anyhow::Result<AccountInfo> {
+    fn load_account(&self, any: &dyn AnySet, account: &Account) -> anyhow::Result<AccountInfo> {
         any.get_account(account)
             .ok_or_else(|| anyhow!(Self::ACCOUNT_NOT_FOUND))
     }

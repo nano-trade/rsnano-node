@@ -1,6 +1,6 @@
 use crate::command_handler::{ledger::AccountHistoryHelper, RpcCommandHandler};
 use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
-use rsnano_ledger::{AnySet2, LedgerSet};
+use rsnano_ledger::{AnySet, LedgerSet};
 use rsnano_rpc_messages::{HistoryEntry, WalletHistoryArgs, WalletHistoryResponse};
 
 impl RpcCommandHandler {
@@ -11,7 +11,7 @@ impl RpcCommandHandler {
         let modified_since: UnixTimestamp = args.modified_since.unwrap_or_default().inner().into();
         let accounts = self.node.wallets.get_accounts_of_wallet(&args.wallet)?;
         let mut entries: Vec<HistoryEntry> = Vec::new();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         for account in accounts {
             if let Some(info) = any.get_account(&account) {

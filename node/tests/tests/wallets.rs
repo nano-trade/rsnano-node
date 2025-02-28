@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, PrivateKey, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
@@ -183,7 +183,7 @@ fn search_receivable() {
         );
         let receive_hash = node
             .ledger
-            .any2()
+            .any()
             .account_head(&DEV_GENESIS_ACCOUNT)
             .unwrap();
         let receive = node.block(&receive_hash).unwrap();

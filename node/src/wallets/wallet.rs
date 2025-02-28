@@ -1,6 +1,6 @@
 use anyhow::Context;
 use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
-use rsnano_ledger::{AnySet2, Ledger};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_store_lmdb::{LmdbWalletStore, LmdbWriteTransaction, Transaction};
 use rsnano_work::WorkThresholds;
 use std::{
@@ -78,7 +78,7 @@ impl Wallet {
 
     pub fn deterministic_check(&self, txn: &dyn Transaction, index: u32) -> u32 {
         let mut result = index;
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         let mut i = index + 1;
         let mut n = index + 64;
         while i < n {

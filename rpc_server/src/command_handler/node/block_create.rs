@@ -5,7 +5,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root, SavedBlock, SendBlockArgs,
     StateBlockArgs, WorkNonce,
 };
-use rsnano_ledger::{AnySet2, LedgerSet};
+use rsnano_ledger::{AnySet, LedgerSet};
 use rsnano_node::Node;
 use rsnano_rpc_messages::{BlockCreateArgs, BlockCreateResponse, BlockTypeDto};
 use std::sync::Arc;
@@ -36,7 +36,7 @@ impl RpcCommandHandler {
             bail!("Work generation is disabled");
         }
 
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         if !wallet_id.is_zero() && !account.is_zero() {
             self.node.wallets.fetch(&wallet_id, &account.into())?;
@@ -221,7 +221,7 @@ impl RpcCommandHandler {
     }
 }
 
-pub fn difficulty_ledger(node: Arc<Node>, any: &impl AnySet2, block: &Block) -> u64 {
+pub fn difficulty_ledger(node: Arc<Node>, any: &impl AnySet, block: &Block) -> u64 {
     let mut details = BlockDetails::new(Epoch::Epoch0, false, false, false);
     let mut details_found = false;
 

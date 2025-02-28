@@ -20,7 +20,7 @@ impl RpcCommandHandler {
 
         let mut accounts: HashMap<Account, LedgerAccountInfo> = HashMap::new();
         let tx = self.node.store.tx_begin_read();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         if !sorting {
             // Simple

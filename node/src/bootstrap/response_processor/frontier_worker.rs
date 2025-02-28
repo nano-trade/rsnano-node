@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn empty() {
         let ledger = Ledger::new_null();
-        let any = ledger.any2();
+        let any = ledger.any();
         let stats = Stats::default();
         let state = Mutex::new(BootstrapState::default());
         let mut worker = FrontierWorker::new(&any, &stats, &state);
@@ -89,7 +89,7 @@ mod tests {
                 },
             )
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let stats = Stats::default();
         let state = Mutex::new(BootstrapState::default());
         let mut worker = FrontierWorker::new(&any, &stats, &state);

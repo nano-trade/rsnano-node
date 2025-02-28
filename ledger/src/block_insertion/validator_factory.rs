@@ -1,18 +1,18 @@
 use rsnano_core::{utils::UnixTimestamp, Account, Block, PendingKey, SavedBlock};
 
-use crate::{AnySet2, LedgerConstants};
+use crate::{AnySet, LedgerConstants};
 
 use super::BlockValidator;
 
 pub(crate) struct BlockValidatorFactory<'a> {
-    any: &'a dyn AnySet2,
+    any: &'a dyn AnySet,
     constants: &'a LedgerConstants,
     block: &'a Block,
 }
 
 impl<'a> BlockValidatorFactory<'a> {
     pub(crate) fn new(
-        any: &'a dyn AnySet2,
+        any: &'a dyn AnySet,
         constants: &'a LedgerConstants,
         block: &'a Block,
     ) -> Self {
@@ -83,7 +83,7 @@ mod tests {
     fn block_for_unknown_account() {
         let block = TestBlockBuilder::state().build();
         let ledger = Ledger::new_null_builder().finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
 
@@ -106,7 +106,7 @@ mod tests {
             .previous(previous.hash())
             .build();
         let ledger = Ledger::new_null_builder().block(&previous).finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
 
@@ -117,7 +117,7 @@ mod tests {
     fn block_exists() {
         let block = TestBlockBuilder::state().build_saved();
         let ledger = Ledger::new_null_builder().block(&block).finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.block_exists, true);
@@ -127,7 +127,7 @@ mod tests {
     fn pruned_block_exists() {
         let block = TestBlockBuilder::state().build();
         let ledger = Ledger::new_null_builder().pruned(&block.hash()).finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.block_exists, true);
@@ -140,7 +140,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&block.account_field().unwrap(), &account_info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.old_account_info, Some(account_info));
@@ -156,7 +156,7 @@ mod tests {
                 &pending_info,
             )
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.pending_receive_info, Some(pending_info));
@@ -178,7 +178,7 @@ mod tests {
                 &pending_info,
             )
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.pending_receive_info, Some(pending_info));
@@ -194,7 +194,7 @@ mod tests {
                 &pending_info,
             )
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.any_pending_exists, true);
@@ -205,7 +205,7 @@ mod tests {
         let source = TestBlockBuilder::state().build_saved();
         let block = TestBlockBuilder::state().link(source.hash()).build();
         let ledger = Ledger::new_null_builder().block(&source).finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.source_block_exists, true);
@@ -217,7 +217,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .pruned(&BlockHash::from(42))
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.source_block_exists, true);
@@ -230,7 +230,7 @@ mod tests {
             .previous(previous.hash())
             .build_saved();
         let ledger = Ledger::new_null_builder().block(&previous).finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let validator =
             BlockValidatorFactory::new(&any, &ledger.constants, &block).create_validator();
         assert_eq!(validator.previous_block, Some(previous));

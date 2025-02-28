@@ -13,7 +13,7 @@ use super::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet2, Ledger};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::{Arc, Mutex};
 
@@ -82,13 +82,13 @@ impl ElectionSchedulers {
         self.manual.contains(hash) || self.priority.contains(hash)
     }
 
-    pub fn activate_successors(&self, any: &impl AnySet2, block: &SavedBlock) {
+    pub fn activate_successors(&self, any: &impl AnySet, block: &SavedBlock) {
         self.priority.activate_successors(any, block);
     }
 
     pub fn activate_backlog(
         &self,
-        any: &impl AnySet2,
+        any: &impl AnySet,
         account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
@@ -98,7 +98,7 @@ impl ElectionSchedulers {
             .activate_with_info(any, account, account_info, conf_info);
     }
 
-    pub fn activate(&self, any: &impl AnySet2, account: &Account) -> bool {
+    pub fn activate(&self, any: &impl AnySet, account: &Account) -> bool {
         self.priority.activate(any, account)
     }
 

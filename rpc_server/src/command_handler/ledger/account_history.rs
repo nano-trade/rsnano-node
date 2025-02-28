@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use rsnano_core::{Account, Block, BlockBase, BlockHash, SavedBlock};
-use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_zero, AccountHistoryArgs, AccountHistoryResponse,
     BlockSubTypeDto, BlockTypeDto, HistoryEntry,
@@ -48,7 +48,7 @@ impl<'a> AccountHistoryHelper<'a> {
         }
     }
 
-    fn initialize(&mut self, any: &impl AnySet2) -> anyhow::Result<()> {
+    fn initialize(&mut self, any: &impl AnySet) -> anyhow::Result<()> {
         self.current_block_hash = self.hash_of_first_block(any)?;
         self.account = any
             .block_account(&self.current_block_hash)
@@ -56,7 +56,7 @@ impl<'a> AccountHistoryHelper<'a> {
         Ok(())
     }
 
-    fn hash_of_first_block(&self, any: &impl AnySet2) -> anyhow::Result<BlockHash> {
+    fn hash_of_first_block(&self, any: &impl AnySet) -> anyhow::Result<BlockHash> {
         let hash = if let Some(head) = &self.head {
             *head
         } else {
@@ -78,7 +78,7 @@ impl<'a> AccountHistoryHelper<'a> {
     }
 
     pub(crate) fn account_history(mut self) -> anyhow::Result<AccountHistoryResponse> {
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         self.initialize(&any)?;
         let mut history = Vec::new();
         let mut next_block = any.get_block(&self.current_block_hash);
@@ -102,7 +102,7 @@ impl<'a> AccountHistoryHelper<'a> {
         Ok(self.create_response(history))
     }
 
-    fn go_to_next_block(&mut self, any: &impl AnySet2, block: &Block) -> Option<SavedBlock> {
+    fn go_to_next_block(&mut self, any: &impl AnySet, block: &Block) -> Option<SavedBlock> {
         self.current_block_hash = if self.reverse {
             any.block_successor(&self.current_block_hash)
                 .unwrap_or_default()
@@ -119,7 +119,7 @@ impl<'a> AccountHistoryHelper<'a> {
         !self.accounts_to_filter.contains(account)
     }
 
-    pub(crate) fn entry_for(&self, block: &SavedBlock, any: &impl AnySet2) -> Option<HistoryEntry> {
+    pub(crate) fn entry_for(&self, block: &SavedBlock, any: &impl AnySet) -> Option<HistoryEntry> {
         let mut entry = match &**block {
             Block::LegacySend(b) => {
                 let mut entry = empty_entry();
@@ -264,7 +264,7 @@ impl<'a> AccountHistoryHelper<'a> {
         entry
     }
 
-    fn set_common_fields(&self, entry: &mut HistoryEntry, block: &SavedBlock, any: &impl AnySet2) {
+    fn set_common_fields(&self, entry: &mut HistoryEntry, block: &SavedBlock, any: &impl AnySet) {
         entry.local_timestamp = block.timestamp().as_u64().into();
         entry.height = block.height().into();
         entry.hash = block.hash();

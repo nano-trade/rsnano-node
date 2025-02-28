@@ -1,14 +1,14 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::{anyhow, bail};
 use rsnano_core::{Amount, BlockDetails, PendingKey, Root, WorkNonce};
-use rsnano_ledger::{AnySet2, LedgerSet};
+use rsnano_ledger::{AnySet, LedgerSet};
 use rsnano_node::wallets::{WalletsError, WalletsExt};
 use rsnano_rpc_messages::{BlockDto, ReceiveArgs};
 use std::cmp::max;
 
 impl RpcCommandHandler {
     pub fn receive(&self, args: ReceiveArgs) -> anyhow::Result<BlockDto> {
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         if !any.block_exists_or_pruned(&args.block) {
             bail!(Self::BLOCK_NOT_FOUND);

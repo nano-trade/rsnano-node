@@ -19,7 +19,7 @@ use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
     Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
 };
-use rsnano_ledger::{AnySet2, BlockStatus, Ledger};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::{Network, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
@@ -224,7 +224,7 @@ impl ActiveElections {
             .push_back(status.clone());
 
         // Trigger callback for confirmed block
-        let amount = self.ledger.any2().block_amount_for(&block);
+        let amount = self.ledger.any().block_amount_for(&block);
 
         let callbacks = self.election_ended_observers.read().unwrap();
         for callback in callbacks.iter() {
@@ -240,7 +240,7 @@ impl ActiveElections {
 
     fn notify_observers(
         &self,
-        any: &impl AnySet2,
+        any: &impl AnySet,
         status: &ElectionStatus,
         votes: &Vec<VoteWithWeightInfo>,
     ) {
@@ -1080,10 +1080,10 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                         }
 
                         // TODO: This could be offloaded to a separate notification worker, profiling is needed
-                        let mut any = active.ledger.any2();
+                        let mut any = active.ledger.any();
                         for (status, votes) in results {
                             if any.should_refresh() {
-                                any = active.ledger.any2();
+                                any = active.ledger.any();
                             }
                             active.notify_observers(&any, &status, &votes);
                         }

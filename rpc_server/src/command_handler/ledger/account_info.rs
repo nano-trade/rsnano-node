@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Amount, Epoch};
-use rsnano_ledger::{AnySet2, ConfirmedSet2, LedgerSet};
+use rsnano_ledger::{AnySet, ConfirmedSet2, LedgerSet};
 use rsnano_rpc_messages::{unwrap_bool_or_false, AccountInfoArgs, AccountInfoResponse};
 
 impl RpcCommandHandler {
@@ -9,7 +9,7 @@ impl RpcCommandHandler {
         args: AccountInfoArgs,
     ) -> anyhow::Result<AccountInfoResponse> {
         let txn = self.node.ledger.read_txn();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
         let include_confirmed = unwrap_bool_or_false(args.include_confirmed);
         let info = self.load_account(&any, &args.account)?;
 

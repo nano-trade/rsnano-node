@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
 use rsnano_core::{BlockHash, PendingKey};
-use rsnano_ledger::{AnySet2, ConfirmedSet2};
+use rsnano_ledger::{AnySet, ConfirmedSet2};
 use rsnano_node::Node;
 use rsnano_rpc_messages::{ExistsResponse, ReceivableExistsArgs};
 use std::sync::Arc;
@@ -13,7 +13,7 @@ impl RpcCommandHandler {
     ) -> anyhow::Result<ExistsResponse> {
         let include_active = args.include_active.unwrap_or_default().inner();
         let include_only_confirmed = args.include_only_confirmed.unwrap_or(true.into()).inner();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         let Some(block) = any.get_block(&args.hash) else {
             bail!(Self::BLOCK_NOT_FOUND);
@@ -42,7 +42,7 @@ impl RpcCommandHandler {
 /** Due to the asynchronous nature of updating confirmation heights, it can also be necessary to check active roots */
 fn block_confirmed(
     node: Arc<Node>,
-    any: &dyn AnySet2,
+    any: &dyn AnySet,
     hash: &BlockHash,
     include_active: bool,
     include_only_confirmed: bool,

@@ -1,5 +1,5 @@
 use super::rollback_planner::RollbackPlanner;
-use crate::{AnySet2, ConfirmedSet2, Ledger};
+use crate::{AnySet, ConfirmedSet2, Ledger};
 use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
     PendingInfo, PendingKey, PublicKey, SavedBlock,
@@ -7,16 +7,12 @@ use rsnano_core::{
 
 pub(crate) struct RollbackPlannerFactory<'a> {
     ledger: &'a Ledger,
-    any: &'a dyn AnySet2,
+    any: &'a dyn AnySet,
     head_block: &'a SavedBlock,
 }
 
 impl<'a> RollbackPlannerFactory<'a> {
-    pub(crate) fn new(
-        ledger: &'a Ledger,
-        any: &'a dyn AnySet2,
-        head_block: &'a SavedBlock,
-    ) -> Self {
+    pub(crate) fn new(ledger: &'a Ledger, any: &'a dyn AnySet, head_block: &'a SavedBlock) -> Self {
         Self {
             ledger,
             any,

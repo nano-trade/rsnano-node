@@ -14,7 +14,7 @@ use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};
 
 use super::{BorrowingConfirmedSet, ConfirmedSet2, LedgerSet};
 
-pub trait AnySet2: LedgerSet {
+pub trait AnySet: LedgerSet {
     fn should_refresh(&self) -> bool;
     fn block_exists_or_pruned(&self, hash: &BlockHash) -> bool;
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock>;
@@ -152,7 +152,7 @@ impl<'a> LedgerSet for OwningAnySet<'a> {
     }
 }
 
-impl<'a> AnySet2 for OwningAnySet<'a> {
+impl<'a> AnySet for OwningAnySet<'a> {
     fn should_refresh(&self) -> bool {
         self.borrowing_set().should_refresh()
     }
@@ -337,7 +337,7 @@ impl<'a> LedgerSet for BorrowingAnySet<'a> {
     }
 }
 
-impl<'a> AnySet2 for BorrowingAnySet<'a> {
+impl<'a> AnySet for BorrowingAnySet<'a> {
     fn get_block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         if hash.is_zero() {
             return None;
@@ -672,7 +672,7 @@ mod tests {
     ) {
         let ledger = ledger_with_pending_entries(existing_keys);
         let result: Vec<_> = ledger
-            .any2()
+            .any()
             .receivable_upper_bound(queried_account)
             .map(|(k, _)| k)
             .collect();
@@ -687,7 +687,7 @@ mod tests {
     ) {
         let ledger = ledger_with_pending_entries(existing_keys);
         let result: Vec<_> = ledger
-            .any2()
+            .any()
             .receivable_lower_bound(queried_account)
             .map(|(k, _)| k)
             .collect();

@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::BlockHash;
-use rsnano_ledger::AnySet2;
+use rsnano_ledger::AnySet;
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_zero, BlockHashesResponse, ChainArgs,
 };
@@ -13,7 +13,7 @@ impl RpcCommandHandler {
         let mut offset = unwrap_u64_or_zero(args.offset);
         let mut blocks = Vec::new();
 
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         while !hash.is_zero() && blocks.len() < count as usize {
             if let Some(block) = any.get_block(&hash) {

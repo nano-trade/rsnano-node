@@ -12,7 +12,7 @@ impl RpcCommandHandler {
             let set = self.node.ledger.confirmed2();
             get_account_balances(set, &args)
         } else {
-            let set = self.node.ledger.any2();
+            let set = self.node.ledger.any();
             get_account_balances(set, &args)
         }
     }

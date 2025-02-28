@@ -1,6 +1,6 @@
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use std::{
     cmp::max,
@@ -210,7 +210,7 @@ impl BacklogScanThread {
             let mut up_to_date = Vec::new();
             let mut unconfirmed = Vec::new();
             {
-                let any = self.ledger.any2();
+                let any = self.ledger.any();
                 let mut count = 0;
                 let mut it = any.accounts_range(next..);
                 while let Some((account, account_info)) = it.next() {

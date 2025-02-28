@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use rsnano_core::{Block, BlockHash, PendingKey};
-use rsnano_ledger::AnySet2;
+use rsnano_ledger::AnySet;
 use rsnano_rpc_messages::{BlockHashesResponse, RepublishArgs};
 use std::time::Duration;
 
@@ -12,7 +12,7 @@ impl RpcCommandHandler {
         let destinations = args.destinations.unwrap_or_default().inner();
         let mut hash = args.hash;
         let mut blocks = Vec::new();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         let mut republish_bundle: Vec<Block> = Vec::new();
 

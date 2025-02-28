@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
-use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, AnySet2};
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, AnySet};
 use rsnano_messages::ConfirmAck;
 use rsnano_node::{
     config::NodeFlags,
@@ -547,7 +547,7 @@ fn cannot_vote() {
         )
         .unwrap();
 
-    assert_eq!(node.ledger.any2().dependents_confirmed(&send2), false);
+    assert_eq!(node.ledger.any().dependents_confirmed(&send2), false);
 
     let dummy_channel = make_fake_channel(&node);
     // correct + incorrect

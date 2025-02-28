@@ -1,7 +1,7 @@
 use crate::command_handler::RpcCommandHandler;
 use indexmap::IndexMap;
 use rsnano_core::BlockHash;
-use rsnano_ledger::{AnySet2, ConfirmedSet2};
+use rsnano_ledger::{AnySet, ConfirmedSet2};
 use rsnano_rpc_messages::{
     AccountsReceivableResponse, AccountsReceivableSimple, AccountsReceivableSource,
     AccountsReceivableThreshold, SourceInfo, WalletReceivableArgs,
@@ -19,7 +19,7 @@ impl RpcCommandHandler {
         let include_only_confirmed = args.include_only_confirmed.unwrap_or(true.into()).inner();
 
         let accounts = self.node.wallets.get_accounts_of_wallet(&args.wallet)?;
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
 
         let mut pending_source = IndexMap::new();
         let mut pending_threshold = IndexMap::new();

@@ -3,7 +3,7 @@ use std::time::Instant;
 use rsnano_core::{AccountInfo, BlockHash, SavedBlock};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
-use crate::{AnySet2, BorrowingAnySet, Ledger, LedgerSet};
+use crate::{AnySet, BorrowingAnySet, Ledger, LedgerSet};
 
 use super::{
     instructions_executor::RollbackInstructionsExecutor, planner_factory::RollbackPlannerFactory,

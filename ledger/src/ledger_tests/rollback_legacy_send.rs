@@ -5,7 +5,7 @@ use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::setup_legacy_open_block,
     test_helpers::{setup_legacy_send_block, LegacySendBlockResult},
-    AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 
 use super::LedgerContext;
@@ -45,7 +45,7 @@ fn remove_from_pending_store() {
     let send = rollback_send_block(&ctx, &mut txn);
     txn.commit();
 
-    let pending = ctx.ledger.any2().get_pending(&PendingKey::new(
+    let pending = ctx.ledger.any().get_pending(&PendingKey::new(
         send.destination.account(),
         send.send_block.hash(),
     ));
@@ -82,24 +82,24 @@ fn rollback_dependent_blocks_too() {
     txn.commit();
 
     assert_eq!(
-        ctx.ledger.any2().account_balance(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.any().account_balance(&DEV_GENESIS_ACCOUNT),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
 
     assert_eq!(
         ctx.ledger
-            .any2()
+            .any()
             .account_balance(&open.destination.account()),
         Amount::zero()
     );
 
     assert!(ctx
         .ledger
-        .any2()
+        .any()
         .get_account(&open.destination.account())
         .is_none());
 
-    let pending = ctx.ledger.any2().get_pending(&PendingKey::new(
+    let pending = ctx.ledger.any().get_pending(&PendingKey::new(
         open.destination.account(),
         *DEV_GENESIS_HASH,
     ));

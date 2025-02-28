@@ -14,7 +14,7 @@ impl RpcCommandHandler {
         // State blocks subtype check
         if let Block::State(state) = &block {
             if let Some(subtype) = args.subtype {
-                let any = self.node.ledger.any2();
+                let any = self.node.ledger.any();
                 if !state.previous().is_zero() && !any.block_exists(&state.previous()) {
                     bail!("Gap previous block")
                 } else {

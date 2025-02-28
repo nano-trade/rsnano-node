@@ -1,6 +1,6 @@
 use rsnano_core::BlockHash;
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, LedgerSet, DEV_GENESIS_HASH,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, LedgerSet, DEV_GENESIS_HASH,
 };
 use rsnano_node::Node;
 use rsnano_rpc_messages::RepublishArgs;
@@ -43,11 +43,11 @@ fn test_republish_send_block() {
 
     let send = node
         .ledger
-        .any2()
+        .any()
         .get_block(
             &node
                 .ledger
-                .any2()
+                .any()
                 .block_successor(&*DEV_GENESIS_HASH)
                 .unwrap(),
         )
@@ -66,7 +66,7 @@ fn test_republish_send_block() {
     );
     assert_eq!(result.blocks[0], send.hash(), "Unexpected block hash");
 
-    assert_timely2(|| node.ledger.any2().block_exists(&send.hash()));
+    assert_timely2(|| node.ledger.any().block_exists(&send.hash()));
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn test_republish_open_block_with_sources() {
     assert_eq!(
         result.blocks[1],
         node.ledger
-            .any2()
+            .any()
             .block_successor(&*DEV_GENESIS_HASH)
             .unwrap(),
         "Unexpected send block hash"

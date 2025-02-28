@@ -5,7 +5,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger};
 use std::{
     collections::{HashMap, VecDeque},
     mem::size_of,
@@ -165,7 +165,7 @@ impl OptimisticScheduler {
                 .inc(StatType::OptimisticScheduler, DetailType::Loop);
 
             if self.predicate(&guard) {
-                let any = self.ledger.any2();
+                let any = self.ledger.any();
 
                 while self.predicate(&guard) {
                     let (account, time) = guard.pop_front().unwrap();
@@ -187,7 +187,7 @@ impl OptimisticScheduler {
         }
     }
 
-    fn run_one(&self, any: &impl AnySet2, account: Account, _time: Instant) {
+    fn run_one(&self, any: &impl AnySet, account: Account, _time: Instant) {
         let Some(head) = any.account_head(&account) else {
             return;
         };

@@ -4,7 +4,7 @@ use rsnano_core::{
     VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet2, BlockStatus, LedgerSet, Writer,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, LedgerSet, Writer,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
@@ -80,7 +80,7 @@ fn pruning_depth_max_depth() {
     assert_eq!(node1.ledger.pruned_count(), 1);
     assert_eq!(node1.ledger.block_count(), 3);
 
-    let any = node1.ledger.any2();
+    let any = node1.ledger.any();
 
     // Ensure that the genesis block, send1, and send2 either exist or are pruned
     assert!(any.block_exists_or_pruned(&*DEV_GENESIS_HASH));
@@ -135,7 +135,7 @@ fn pruning_automatic() {
     assert_eq!(node1.ledger.pruned_count(), 1);
     assert_eq!(node1.ledger.block_count(), 3);
 
-    let any = node1.ledger.any2();
+    let any = node1.ledger.any();
     assert!(any.block_exists_or_pruned(&*DEV_GENESIS_HASH));
     assert!(any.block_exists_or_pruned(&send1.hash()));
     assert!(any.block_exists_or_pruned(&send2.hash()));
@@ -245,7 +245,7 @@ fn deferred_dependent_elections() {
     });
     assert!(!node1
         .ledger
-        .any2()
+        .any()
         .dependents_confirmed_for_unsaved_block(&receive));
 
     assert_never(std::time::Duration::from_millis(500), || {
@@ -801,9 +801,9 @@ fn fork_multi_flip() {
     });
 
     node1.confirm(send1.hash());
-    assert_timely2(|| node2.ledger.any2().block_exists_or_pruned(&send1.hash()));
-    assert!(!node2.ledger.any2().block_exists(&send2.hash()));
-    assert!(!node2.ledger.any2().block_exists_or_pruned(&send3.hash()));
+    assert_timely2(|| node2.ledger.any().block_exists_or_pruned(&send1.hash()));
+    assert!(!node2.ledger.any().block_exists(&send2.hash()));
+    assert!(!node2.ledger.any().block_exists_or_pruned(&send3.hash()));
 
     let winner = election.winner_hash().unwrap();
     assert_eq!(send1.hash(), winner);
@@ -1097,7 +1097,7 @@ fn search_receivable_pruned() {
         );
     }
     assert_eq!(1, node2.ledger.pruned_count());
-    assert!(node2.ledger.any2().block_exists_or_pruned(&send1.hash())); // true for pruned
+    assert!(node2.ledger.any().block_exists_or_pruned(&send1.hash())); // true for pruned
 
     // Receive pruned block
     node2
@@ -2677,7 +2677,7 @@ fn unconfirmed_send() {
 
     let recv1 = node2
         .ledger
-        .any2()
+        .any()
         .find_receive_block_by_send_hash(&key2.account(), &send1.hash())
         .unwrap();
 
@@ -2826,12 +2826,12 @@ fn block_confirm() {
     );
 
     assert_timely2(|| {
-        node1.ledger.any2().block_exists_or_pruned(&hash1)
-            && node2.ledger.any2().block_exists_or_pruned(&hash1)
+        node1.ledger.any().block_exists_or_pruned(&hash1)
+            && node2.ledger.any().block_exists_or_pruned(&hash1)
     });
 
-    assert!(node1.ledger.any2().block_exists_or_pruned(&hash1));
-    assert!(node2.ledger.any2().block_exists_or_pruned(&hash1));
+    assert!(node1.ledger.any().block_exists_or_pruned(&hash1));
+    assert!(node2.ledger.any().block_exists_or_pruned(&hash1));
 
     // Confirm send1 on node2 so it can vote for send2
     start_election(&node2, &hash1);

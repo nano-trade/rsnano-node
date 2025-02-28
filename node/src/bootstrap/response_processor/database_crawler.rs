@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn empty_ledger() {
         let ledger = Ledger::new_null();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(Account::from(123));
@@ -147,7 +147,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&account, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(account);
@@ -161,7 +161,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&account, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(Account::from(1));
@@ -175,7 +175,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&account, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(Account::from(2));
@@ -189,7 +189,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&account, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(Account::from(2));
@@ -206,7 +206,7 @@ mod tests {
             .account_info(&account1, &info)
             .account_info(&account2, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(account1);
@@ -226,7 +226,7 @@ mod tests {
 
         let ledger = ledger_builder.finish();
 
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(first_account);
@@ -242,7 +242,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&account, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(account);
@@ -257,7 +257,7 @@ mod tests {
         let ledger = Ledger::new_null_builder()
             .account_info(&account, &info)
             .finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
         crawler.seek(account);
@@ -272,7 +272,7 @@ mod tests {
         let key = PendingKey::new_test_instance();
         let info = PendingInfo::new_test_instance();
         let ledger = Ledger::new_null_builder().pending(&key, &info).finish();
-        let any = ledger.any2();
+        let any = ledger.any();
         let mut crawler = DatabaseCrawler::new(PendingCrawlSource::new(&any));
         crawler.seek(key.receiving_account);
         assert_eq!(crawler.current, Some((key.receiving_account, info)));

@@ -10,7 +10,7 @@ use rsnano_core::{
     utils::{milliseconds_since_epoch, ContainerInfo},
     BlockHash, Root, SavedBlock, Vote,
 };
-use rsnano_ledger::{AnySet2, Ledger, Writer};
+use rsnano_ledger::{AnySet, Ledger, Writer};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{Channel, ChannelId, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
@@ -135,7 +135,7 @@ impl VoteGenerator {
     /// Queue blocks for vote generation, returning the number of successful candidates.
     pub(crate) fn generate(&self, blocks: &[SavedBlock], channel: &Arc<Channel>) -> usize {
         let req_candidates = {
-            let any = self.ledger.any2();
+            let any = self.ledger.any();
             blocks
                 .iter()
                 .filter_map(|i| {
@@ -382,21 +382,21 @@ impl SharedState {
         if self.is_final {
             let mut write_guard = self.ledger.write_queue.wait(Writer::VotingFinal);
             let mut tx = self.ledger.rw_txn();
-            let mut any = self.ledger.any2();
+            let mut any = self.ledger.any();
             for (root, hash) in &batch {
                 (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
                 if any.should_refresh() {
-                    any = self.ledger.any2();
+                    any = self.ledger.any();
                 }
                 if self.should_vote_final(&mut tx, &any, root, hash) {
                     verified.push_back((*root, *hash));
                 }
             }
         } else {
-            let mut any = self.ledger.any2();
+            let mut any = self.ledger.any();
             for (root, hash) in &batch {
                 if any.should_refresh() {
-                    any = self.ledger.any2();
+                    any = self.ledger.any();
                 }
                 if self.should_vote_non_final(&any, root, hash) {
                     verified.push_back((*root, *hash));
@@ -418,7 +418,7 @@ impl SharedState {
         }
     }
 
-    fn should_vote_non_final(&self, any: &impl AnySet2, root: &Root, hash: &BlockHash) -> bool {
+    fn should_vote_non_final(&self, any: &impl AnySet, root: &Root, hash: &BlockHash) -> bool {
         let Some(block) = any.get_block(hash) else {
             return false;
         };
@@ -429,7 +429,7 @@ impl SharedState {
     fn should_vote_final(
         &self,
         txn: &mut LmdbWriteTransaction,
-        any: &impl AnySet2,
+        any: &impl AnySet,
         root: &Root,
         hash: &BlockHash,
     ) -> bool {

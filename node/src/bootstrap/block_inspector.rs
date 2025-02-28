@@ -4,7 +4,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
-use rsnano_ledger::{AnySet2, BlockStatus, Ledger};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use std::sync::{Arc, Mutex};
 
 /// Inspects a processed block and adjusts the bootstrap state accordingly
@@ -29,7 +29,7 @@ impl BlockInspector {
 
     pub fn inspect(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
         let mut state = self.state.lock().unwrap();
-        let any = self.ledger.any2();
+        let any = self.ledger.any();
         for (result, context) in batch {
             let block = context.block.lock().unwrap().clone();
             let saved_block = context.saved_block.lock().unwrap().clone();
@@ -48,7 +48,7 @@ impl BlockInspector {
 
     fn get_account(
         &self,
-        any: &dyn AnySet2,
+        any: &dyn AnySet,
         block: &Block,
         saved_block: &Option<SavedBlock>,
     ) -> Account {

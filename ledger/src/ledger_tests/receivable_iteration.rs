@@ -1,16 +1,16 @@
-use crate::{AnySet2, LedgerContext};
+use crate::{AnySet, LedgerContext};
 use rsnano_core::{Account, BlockHash, PendingInfo, PendingKey};
 
 #[test]
 fn empty() {
     let ctx = LedgerContext::empty();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     let mut iterator = any.account_receivable_upper_bound(Account::zero(), BlockHash::zero());
 
     assert_eq!(iterator.next(), None);
 
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
     let mut iterator = any.receivable_upper_bound(Account::zero());
     assert_eq!(iterator.next(), None);
 }
@@ -32,7 +32,7 @@ fn reveivable_upper_bound_for_given_account() {
     ctx.ledger.store.pending.put(&mut txn, &key_2, &pending);
     ctx.ledger.store.pending.put(&mut txn, &key_3, &pending);
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     // exact match
     let mut iterator = any.account_receivable_upper_bound(account, hash);
@@ -63,7 +63,7 @@ fn reveivable_upper_bound() {
     ctx.ledger.store.pending.put(&mut txn, &key_2, &pending);
     ctx.ledger.store.pending.put(&mut txn, &key_3, &pending);
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     // same account
     let mut iterator = any.receivable_upper_bound(100.into());
@@ -91,7 +91,7 @@ fn reveivable_any() {
     ctx.ledger.store.pending.put(&mut txn, &key, &pending);
     txn.commit();
 
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
     assert_eq!(any.receivable_exists(100.into()), true);
     assert_eq!(any.receivable_exists(99.into()), false);
     assert_eq!(any.receivable_exists(101.into()), false);

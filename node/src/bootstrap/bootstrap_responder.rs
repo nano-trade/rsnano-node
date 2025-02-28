@@ -3,7 +3,7 @@ use crate::{
     transport::MessageSender,
 };
 use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
-use rsnano_ledger::{AnySet2, ConfirmedSet2, Ledger, OwningAnySet};
+use rsnano_ledger::{AnySet, ConfirmedSet2, Ledger, OwningAnySet};
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
@@ -197,10 +197,10 @@ impl BootstrapResponderImpl {
         let batch = queue.next_batch(self.batch_size);
         drop(queue);
 
-        let mut any = self.ledger.any2();
+        let mut any = self.ledger.any();
         for (_, (request, channel)) in batch {
             if any.should_refresh() {
-                any = self.ledger.any2();
+                any = self.ledger.any();
             }
 
             if !channel.should_drop(TrafficType::BootstrapServer) {
@@ -228,7 +228,7 @@ impl BootstrapResponderImpl {
         }
     }
 
-    fn process_blocks(&self, any: &dyn AnySet2, id: u64, request: BlocksReqPayload) -> AscPullAck {
+    fn process_blocks(&self, any: &dyn AnySet, id: u64, request: BlocksReqPayload) -> AscPullAck {
         let count = min(request.count, BootstrapResponder::MAX_BLOCKS);
 
         match request.start_type {
@@ -255,7 +255,7 @@ impl BootstrapResponderImpl {
 
     fn process_account(
         &self,
-        any: &dyn AnySet2,
+        any: &dyn AnySet,
         id: u64,
         request: AccountInfoReqPayload,
     ) -> AscPullAck {
@@ -314,7 +314,7 @@ impl BootstrapResponderImpl {
 
     fn prepare_response(
         &self,
-        any: &dyn AnySet2,
+        any: &dyn AnySet,
         id: u64,
         start_block: BlockHash,
         count: u8,
@@ -337,7 +337,7 @@ impl BootstrapResponderImpl {
 
     fn prepare_blocks(
         &self,
-        any: &dyn AnySet2,
+        any: &dyn AnySet,
         start_block: BlockHash,
         count: usize,
     ) -> VecDeque<Block> {

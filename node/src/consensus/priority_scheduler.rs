@@ -4,7 +4,7 @@ use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
     SavedBlock,
 };
-use rsnano_ledger::{AnySet2, ConfirmedSet2};
+use rsnano_ledger::{AnySet, ConfirmedSet2};
 use std::{
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
@@ -74,7 +74,7 @@ impl PriorityScheduler {
         self.buckets.iter().any(|b| b.contains(hash))
     }
 
-    pub fn activate(&self, any: &impl AnySet2, account: &Account) -> bool {
+    pub fn activate(&self, any: &impl AnySet, account: &Account) -> bool {
         debug_assert!(!account.is_zero());
         if let Some(account_info) = any.get_account(account) {
             let conf_info = any.confirmed().get_conf_info(account).unwrap_or_default();
@@ -90,7 +90,7 @@ impl PriorityScheduler {
 
     pub fn activate_with_info(
         &self,
-        any: &impl AnySet2,
+        any: &impl AnySet,
         account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
@@ -200,7 +200,7 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn activate_successors(&self, any: &impl AnySet2, block: &SavedBlock) -> bool {
+    pub fn activate_successors(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
         let mut result = self.activate(any, &block.account());
 
         // Start or vote for the next unconfirmed block in the destination account

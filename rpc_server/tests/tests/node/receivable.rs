@@ -2,7 +2,7 @@ use rsnano_core::{
     Account, Amount, Block, PublicKey, RawKey, StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{wallets::WalletsExt, Node};
 use rsnano_rpc_messages::{ReceivableArgs, ReceivableResponse};
@@ -11,7 +11,7 @@ use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
 fn send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
 
     let previous = any
         .account_head(&*DEV_GENESIS_ACCOUNT)

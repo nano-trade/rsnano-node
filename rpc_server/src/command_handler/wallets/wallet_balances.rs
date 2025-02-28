@@ -13,7 +13,7 @@ impl RpcCommandHandler {
             .get_accounts_of_wallet(&args.wallet)
             .unwrap();
         let mut balances = HashMap::new();
-        let any = self.node.ledger.any2();
+        let any = self.node.ledger.any();
         for account in accounts {
             let balance = any.account_balance(&account);
 

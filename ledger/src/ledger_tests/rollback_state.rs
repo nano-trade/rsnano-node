@@ -2,7 +2,7 @@ use super::LedgerContext;
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::AccountBlockFactory,
-    AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{Amount, Epoch, PendingInfo, PendingKey, PublicKey};
 
@@ -17,7 +17,7 @@ fn rollback_send() {
 
     ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
     assert_eq!(
@@ -54,7 +54,7 @@ fn rollback_receive() {
 
     ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
     assert_eq!(
@@ -91,7 +91,7 @@ fn rollback_received_send() {
 
     ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(
         any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
@@ -122,7 +122,7 @@ fn rollback_rep_change() {
 
     ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&change.hash()), false);
     assert_eq!(
@@ -156,7 +156,7 @@ fn rollback_open() {
 
     ctx.ledger.rollback(&mut txn, &open.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&open.hash()), false);
     assert_eq!(any.account_balance(&destination.account()), Amount::zero());
@@ -187,7 +187,7 @@ fn rollback_send_with_rep_change() {
 
     ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
     assert_eq!(
@@ -219,7 +219,7 @@ fn rollback_receive_with_rep_change() {
 
     ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
     txn.commit();
-    let any = ctx.ledger.any2();
+    let any = ctx.ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
     assert_eq!(

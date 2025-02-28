@@ -41,7 +41,7 @@ fn get_accounts_info(
     modified_since: UnixTimestamp,
 ) -> HashMap<Account, AccountInfo> {
     let tx = node.store.tx_begin_read();
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
     let mut account_dtos = HashMap::new();
 
     for account in accounts {

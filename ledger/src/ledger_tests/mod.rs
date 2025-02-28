@@ -3,7 +3,7 @@ use crate::{
     test_helpers::{
         setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
     },
-    AnySet2, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
@@ -31,7 +31,7 @@ fn ledger_successor() {
 
     assert_eq!(
         ledger
-            .any2()
+            .any()
             .block_successor_by_qualified_root(&QualifiedRoot::new(Root::zero(), chain.open())),
         Some(send.hash())
     );
@@ -48,7 +48,7 @@ fn ledger_successor_genesis() {
 
     assert_eq!(
         ledger
-            .any2()
+            .any()
             .block_successor_by_qualified_root(&QualifiedRoot::new(
                 genesis.account().into(),
                 BlockHash::zero()
@@ -233,7 +233,7 @@ fn block_destination_source() {
     let block6 = receive2;
 
     assert_eq!(
-        ledger.any2().block_balance(&block6.hash()),
+        ledger.any().block_balance(&block6.hash()),
         Some(block6.balance_field().unwrap())
     );
     assert_eq!(block1.destination(), Some(dest_account));
@@ -269,14 +269,14 @@ fn state_account() {
     ctx.ledger.process(&mut txn, &mut send).unwrap();
     txn.commit();
     assert_eq!(
-        ctx.ledger.any2().block_account(&send.hash()),
+        ctx.ledger.any().block_account(&send.hash()),
         Some(*DEV_GENESIS_ACCOUNT)
     );
 }
 
 mod dependents_confirmed {
     use super::*;
-    use crate::{ledger_constants::DEV_GENESIS_BLOCK, AnySet2};
+    use crate::{ledger_constants::DEV_GENESIS_BLOCK, AnySet};
 
     #[test]
     fn genesis_is_confirmed() {
@@ -284,7 +284,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&DEV_GENESIS_BLOCK),
             true
         );
@@ -306,7 +306,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&send),
             true
         );
@@ -327,7 +327,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&send2),
             false
         );
@@ -352,7 +352,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&open),
             false
         );
@@ -378,7 +378,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&open),
             true
         );
@@ -416,7 +416,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&receive),
             false
         );
@@ -454,7 +454,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&receive),
             false
         );
@@ -493,7 +493,7 @@ mod dependents_confirmed {
 
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&receive),
             true
         );
@@ -536,7 +536,7 @@ mod dependents_confirmed {
         txn.commit();
         assert_eq!(
             ctx.ledger
-                .any2()
+                .any()
                 .dependents_confirmed_for_unsaved_block(&receive1),
             true
         );
@@ -757,7 +757,7 @@ fn sideband_height() {
     txn.commit();
 
     let assert_sideband_height = |hash: &BlockHash, expected_height: u64| {
-        let block = ctx.ledger.any2().get_block(hash).unwrap();
+        let block = ctx.ledger.any().get_block(hash).unwrap();
         assert_eq!(block.height(), expected_height);
     };
 
@@ -799,7 +799,7 @@ fn block_priority() {
         .block(&receive)
         .finish();
 
-    let (prio_amount, prio_time) = ledger.any2().block_priority(&receive);
+    let (prio_amount, prio_time) = ledger.any().block_priority(&receive);
 
     assert_eq!(prio_amount, receive.balance());
     assert_eq!(prio_time, send.timestamp());
@@ -809,7 +809,7 @@ fn block_priority() {
 fn linked_account_for_change_block() {
     let ledger = Ledger::new_null();
     let block = SavedBlock::new_test_change_block();
-    assert_eq!(ledger.any2().linked_account(&block), None);
+    assert_eq!(ledger.any().linked_account(&block), None);
 }
 
 #[test]
@@ -817,7 +817,7 @@ fn linked_account_for_send_block() {
     let ledger = Ledger::new_null();
     let block = SavedBlock::new_test_send_block();
     assert_eq!(
-        ledger.any2().linked_account(&block),
+        ledger.any().linked_account(&block),
         Some(block.destination_or_link())
     );
 }
@@ -841,7 +841,7 @@ fn linked_account_for_receive_block() {
 
     let ledger = Ledger::new_null_builder().block(&send_block).finish();
     assert_eq!(
-        ledger.any2().linked_account(&receive_block),
+        ledger.any().linked_account(&receive_block),
         Some(sender.account())
     );
 }

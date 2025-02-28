@@ -1,5 +1,5 @@
 use rsnano_core::{Account, Amount, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::{AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT};
+use rsnano_ledger::{AnySet, LedgerSet, DEV_GENESIS_ACCOUNT};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::SendArgs;
 use std::time::Duration;
@@ -38,7 +38,7 @@ fn send() {
             .unwrap()
     });
 
-    let any = node.ledger.any2();
+    let any = node.ledger.any();
 
     assert_timely_msg(
         Duration::from_secs(5),
