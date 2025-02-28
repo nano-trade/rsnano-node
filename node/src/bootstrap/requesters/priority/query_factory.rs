@@ -7,7 +7,7 @@ use crate::bootstrap::{
     AscPullQuerySpec,
 };
 use rsnano_core::{Account, BlockHash, HashOrAccount};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, LedgerSet};
 use rsnano_messages::{AscPullReqType, BlocksReqPayload, HashType};
 use rsnano_network::Channel;
 use rsnano_nullable_clock::Timestamp;
@@ -51,11 +51,11 @@ impl QueryFactory {
     }
 
     fn get_account_info(&self, account: &Account) -> (BlockHash, BlockHash) {
-        let tx = self.ledger.read_txn();
-        let account_info = self.ledger.store.account.get(&tx, account);
+        let any = self.ledger.any();
+        let account_info = any.get_account(account);
         let head = account_info.map(|i| i.head).unwrap_or_default();
 
-        if let Some(conf_info) = self.ledger.store.confirmation_height.get(&tx, account) {
+        if let Some(conf_info) = any.confirmed().get_conf_info(account) {
             (head, conf_info.frontier)
         } else {
             (head, BlockHash::zero())
