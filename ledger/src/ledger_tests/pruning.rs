@@ -31,11 +31,11 @@ fn pruning_action() {
 
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
+    txn.commit();
 
     // Prune...
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &DEV_GENESIS_HASH, 1), 0);
-    txn.commit();
+    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 1);
+    assert_eq!(ctx.ledger.prune_one(&DEV_GENESIS_HASH, 1), 0);
 
     let mut any = ctx.ledger.any();
     assert!(any
@@ -72,8 +72,8 @@ fn pruning_action() {
     assert!(any.block_exists(&send2.hash()));
     txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &send2.hash(), 1), 1);
     txn.commit();
+    assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 1);
 
     any = ctx.ledger.any();
     assert_eq!(any.block_exists(&send2.hash()), false);
@@ -100,13 +100,15 @@ fn pruning_large_chain() {
     assert_eq!(ctx.ledger.block_count(), send_receive_pairs * 2 + 1);
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, last_hash);
+    txn.commit();
 
     // Pruning action
     assert_eq!(
-        ctx.ledger.pruning_action(&mut txn, &last_hash, 5),
-        send_receive_pairs * 2
+        ctx.ledger.prune_one(&last_hash, 5),
+        send_receive_pairs as usize * 2
     );
 
+    txn = ctx.ledger.rw_txn();
     assert!(ctx.ledger.store.pruned.exists(&txn, &last_hash));
     assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
     assert_eq!(ctx.ledger.store.block.exists(&txn, &last_hash), false);
@@ -146,10 +148,10 @@ fn pruning_source_rollback() {
 
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
+    txn.commit();
 
     // Pruning action
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 2);
-    txn.commit();
+    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 2);
 
     // Receiving pruned block
     let receive1 = TestBlockBuilder::state()
@@ -214,10 +216,10 @@ fn pruning_source_rollback_legacy() {
 
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send2.hash());
+    txn.commit();
 
     // Pruning action
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &send2.hash(), 1), 2);
-    txn.commit();
+    assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 2);
 
     // Receiving pruned block
     let receive1 = TestBlockBuilder::legacy_receive()
@@ -316,12 +318,13 @@ fn pruning_legacy_blocks() {
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, change1.hash());
     ctx.ledger.confirm(&mut txn, open1.hash());
+    txn.commit();
 
     // Pruning action
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &change1.hash(), 2), 3);
+    assert_eq!(ctx.ledger.prune_one(&change1.hash(), 2), 3);
+    assert_eq!(ctx.ledger.prune_one(&open1.hash(), 1), 1);
 
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &open1.hash(), 1), 1);
-
+    txn = ctx.ledger.rw_txn();
     assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
     assert_eq!(ctx.ledger.store.block.exists(&txn, &send1.hash()), false);
     assert_eq!(ctx.ledger.store.pruned.exists(&txn, &send1.hash()), true);
@@ -353,10 +356,10 @@ fn pruning_safe_functions() {
 
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send1.hash());
+    txn.commit();
 
     // Pruning action
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
-    txn.commit();
+    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 1);
     let any = ctx.ledger.any();
 
     // Safe ledger actions
@@ -385,10 +388,10 @@ fn hash_root_random() {
 
     let mut txn = ctx.ledger.rw_txn();
     ctx.ledger.confirm(&mut txn, send1.hash());
+    txn.commit();
 
     // Pruning action
-    assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
-    txn.commit();
+    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 1);
     let any = ctx.ledger.any();
 
     // Prunned block will not be included in the random selection because it's not in the blocks set

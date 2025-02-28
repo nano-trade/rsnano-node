@@ -1080,10 +1080,7 @@ fn search_receivable_pruned() {
         .unwrap();
 
     // Pruning
-    {
-        let mut tx = node2.ledger.rw_txn();
-        assert_eq!(1, node2.ledger.pruning_action(&mut tx, &send1.hash(), 1));
-    }
+    assert_eq!(1, node2.ledger.prune_one(&send1.hash(), 1));
     assert_eq!(1, node2.ledger.pruned_count());
     assert!(node2.ledger.any().block_exists_or_pruned(&send1.hash())); // true for pruned
 

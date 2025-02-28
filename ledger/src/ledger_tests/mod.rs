@@ -529,8 +529,9 @@ mod dependents_confirmed {
 
         let mut txn = ctx.ledger.rw_txn();
         ctx.ledger.confirm(&mut txn, send2.hash());
-        assert_eq!(ctx.ledger.pruning_action(&mut txn, &send2.hash(), 1), 2);
         txn.commit();
+
+        assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 2);
 
         let receive1 = TestBlockBuilder::state()
             .account(destination.account())

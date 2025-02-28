@@ -22,7 +22,7 @@ use rsnano_store_lmdb::{
 };
 use rsnano_work::WorkThresholds;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     net::SocketAddrV6,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -439,12 +439,36 @@ impl Ledger {
         }
     }
 
-    pub fn pruning_action(
+    pub fn prune_batch(&self, targets: &mut VecDeque<BlockHash>, batch_size: usize) -> usize {
+        let mut transaction_write_count = 0;
+        // TODO break loop if node stopped
+        if !targets.is_empty() {
+            let _write_guard = self.write_queue.wait(Writer::Pruning);
+            let mut tx = self.rw_txn();
+            while !targets.is_empty() && transaction_write_count < batch_size {
+                let pruning_hash = targets.front().unwrap();
+                let account_pruned_count =
+                    self.pruning_action(&mut tx, pruning_hash, batch_size as u64);
+                transaction_write_count += account_pruned_count as usize;
+                targets.pop_front();
+            }
+        }
+        transaction_write_count
+    }
+
+    pub fn prune_one(&self, target: &BlockHash, batch_size: usize) -> usize {
+        let _write_guard = self.write_queue.wait(Writer::Pruning);
+        let mut tx = self.rw_txn();
+        self.pruning_action(&mut tx, target, batch_size as u64) as usize
+    }
+
+    fn pruning_action(
         &self,
         txn: &mut LmdbWriteTransaction,
         hash: &BlockHash,
         batch_size: u64,
     ) -> u64 {
+        self.stats.inc(StatType::Pruning, DetailType::PruningTarget);
         let mut pruned_count = 0;
         let mut hash = *hash;
         let genesis_hash = self.constants.genesis_block.hash();
@@ -480,6 +504,9 @@ impl Ledger {
                 panic!("Error finding block for pruning");
             }
         }
+
+        self.stats
+            .add(StatType::Pruning, DetailType::PrunedCount, pruned_count);
 
         pruned_count
     }

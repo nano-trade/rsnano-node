@@ -1498,11 +1498,8 @@ fn receive_pruned() {
         .unwrap();
 
     // Pruning
-    assert_timely_eq(Duration::from_secs(5), || node2.ledger.cemented_count(), 3);
-    {
-        let mut tx = node2.ledger.rw_txn();
-        assert_eq!(node2.ledger.pruning_action(&mut tx, &send1.hash(), 2), 1);
-    }
+    assert_timely_eq2(|| node2.ledger.cemented_count(), 3);
+    assert_eq!(node2.ledger.prune_one(&send1.hash(), 2), 1);
 
     node2
         .wallets
