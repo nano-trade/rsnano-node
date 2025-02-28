@@ -1532,12 +1532,11 @@ fn receive_pruned() {
 }
 
 fn upgrade_genesis_epoch(node: &Node, epoch: Epoch) {
-    let mut tx = node.ledger.rw_txn();
     let any = node.ledger.any();
     let latest = any.account_head(&DEV_GENESIS_ACCOUNT).unwrap();
     let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
 
-    let mut epoch: Block = EpochBlockArgs {
+    let epoch: Block = EpochBlockArgs {
         epoch_signer: &DEV_GENESIS_KEY,
         account: *DEV_GENESIS_ACCOUNT,
         previous: latest,
@@ -1547,5 +1546,5 @@ fn upgrade_genesis_epoch(node: &Node, epoch: Epoch) {
         work: node.work_generate_dev(latest),
     }
     .into();
-    node.ledger.process(&mut tx, &mut epoch).unwrap();
+    node.ledger.process_one(&epoch).unwrap();
 }

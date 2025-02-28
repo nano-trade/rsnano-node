@@ -46,7 +46,7 @@ fn rollback_receive() {
         .build();
     ctx.ledger.process_one(&send).unwrap();
 
-    let receive = genesis.receive2(send.hash()).build();
+    let receive = genesis.receive(send.hash()).build();
     ctx.ledger.process_one(&receive).unwrap();
 
     ctx.ledger.rollback2(&receive.hash()).unwrap();
@@ -199,7 +199,7 @@ fn rollback_receive_with_rep_change() {
     ctx.ledger.process_one(&send).unwrap();
 
     let receive = genesis
-        .receive2(send.hash())
+        .receive(send.hash())
         .representative(representative)
         .build();
     ctx.ledger.process_one(&receive).unwrap();

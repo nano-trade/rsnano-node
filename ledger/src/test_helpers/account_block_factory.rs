@@ -168,23 +168,7 @@ impl<'a> AccountBlockFactory<'a> {
             .key(&self.key)
     }
 
-    pub(crate) fn receive(
-        &self,
-        txn: &dyn Transaction,
-        send_hash: BlockHash,
-    ) -> TestStateBlockBuilder {
-        let receiver_info = self.info(txn).unwrap();
-        let amount_sent = self.ledger.block_amount(txn, &send_hash).unwrap();
-        TestBlockBuilder::state()
-            .account(self.account())
-            .previous(receiver_info.head)
-            .representative(receiver_info.representative)
-            .balance(receiver_info.balance + amount_sent)
-            .link(send_hash)
-            .key(&self.key)
-    }
-
-    pub(crate) fn receive2(&self, send_hash: BlockHash) -> TestStateBlockBuilder {
+    pub(crate) fn receive(&self, send_hash: BlockHash) -> TestStateBlockBuilder {
         let receiver_info = self.info2().unwrap();
         let amount_sent = self.ledger.any().block_amount(&send_hash).unwrap();
         TestBlockBuilder::state()

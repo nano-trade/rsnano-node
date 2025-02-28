@@ -701,8 +701,7 @@ fn is_send_genesis() {
 #[test]
 fn is_send_state() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-    let open = setup_open_block(&ctx, &mut txn);
+    let open = setup_open_block(&ctx);
     assert_eq!(open.send_block.is_send(), true);
     assert_eq!(open.open_block.is_send(), false);
 }
@@ -710,8 +709,7 @@ fn is_send_state() {
 #[test]
 fn is_send_legacy() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-    let open = setup_legacy_open_block(&ctx, &mut txn);
+    let open = setup_legacy_open_block(&ctx);
     assert_eq!(open.send_block.is_send(), true);
     assert_eq!(open.open_block.is_send(), false);
 }

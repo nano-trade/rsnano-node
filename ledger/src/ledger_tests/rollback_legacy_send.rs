@@ -66,10 +66,7 @@ fn update_confirmation_height_store() {
 #[test]
 fn rollback_dependent_blocks_too() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-
-    let open = setup_legacy_open_block(&ctx, &mut txn);
-    txn.commit();
+    let open = setup_legacy_open_block(&ctx);
 
     // Rollback send block. This requires the rollback of the open block first.
     ctx.ledger.rollback2(&open.send_block.hash()).unwrap();
@@ -100,10 +97,7 @@ fn rollback_dependent_blocks_too() {
 }
 
 fn rollback_send_block<'a>(ctx: &'a LedgerContext) -> LegacySendBlockResult<'a> {
-    let mut txn = ctx.ledger.rw_txn();
-    let send = setup_legacy_send_block(ctx, &mut txn);
-    txn.commit();
-
+    let send = setup_legacy_send_block(ctx);
     ctx.ledger.rollback2(&send.send_block.hash()).unwrap();
     send
 }

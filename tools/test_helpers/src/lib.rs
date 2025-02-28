@@ -93,13 +93,13 @@ impl System {
     }
 
     fn setup_node(&mut self, node: &Node) {
-        let mut tx = node.ledger.rw_txn();
-        for block in &mut self.initialization_blocks {
-            node.ledger.process(&mut tx, block).unwrap();
+        for block in &self.initialization_blocks {
+            node.ledger.process_one(block).unwrap();
         }
 
-        for block in &mut self.initialization_blocks_cemented {
-            node.ledger.process(&mut tx, block).unwrap();
+        for block in &self.initialization_blocks_cemented {
+            node.ledger.process_one(block).unwrap();
+            let mut tx = node.ledger.rw_txn();
             node.ledger.confirm(&mut tx, block.hash());
         }
     }

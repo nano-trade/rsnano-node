@@ -134,13 +134,11 @@ mod election_scheduler {
         let node = system.make_node();
 
         let mut lattice = UnsavedBlockLatticeBuilder::new();
-        let mut send1 = lattice
+        let send1 = lattice
             .genesis()
             .send(&*DEV_GENESIS_KEY, Amount::nano(1000));
 
-        node.ledger
-            .process(&mut node.ledger.rw_txn(), &mut send1)
-            .unwrap();
+        node.ledger.process_one(&send1).unwrap();
 
         node.election_schedulers
             .priority
@@ -156,14 +154,12 @@ mod election_scheduler {
         let mut lattice = UnsavedBlockLatticeBuilder::new();
 
         // Create a send block
-        let mut send1 = lattice
+        let send1 = lattice
             .genesis()
             .send(&*DEV_GENESIS_KEY, Amount::nano(1000));
 
         // Process the block
-        node.ledger
-            .process(&mut node.ledger.rw_txn(), &mut send1)
-            .unwrap();
+        node.ledger.process_one(&send1).unwrap();
 
         // Activate the account
         node.election_schedulers

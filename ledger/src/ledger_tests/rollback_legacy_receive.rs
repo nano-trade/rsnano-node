@@ -8,9 +8,7 @@ use crate::{
 #[test]
 fn clear_successor() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-    let receive = setup_legacy_receive_block(&ctx, &mut txn);
-    txn.commit();
+    let receive = setup_legacy_receive_block(&ctx);
 
     ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
@@ -23,9 +21,7 @@ fn clear_successor() {
 #[test]
 fn update_account_info() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-    let receive = setup_legacy_receive_block(&ctx, &mut txn);
-    txn.commit();
+    let receive = setup_legacy_receive_block(&ctx);
 
     ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
@@ -43,9 +39,7 @@ fn update_account_info() {
 #[test]
 fn rollback_pending_info() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-    let receive = setup_legacy_receive_block(&ctx, &mut txn);
-    txn.commit();
+    let receive = setup_legacy_receive_block(&ctx);
 
     ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 
@@ -65,9 +59,7 @@ fn rollback_pending_info() {
 #[test]
 fn rollback_vote_weight() {
     let ctx = LedgerContext::empty();
-    let mut txn = ctx.ledger.rw_txn();
-    let receive = setup_legacy_receive_block(&ctx, &mut txn);
-    txn.commit();
+    let receive = setup_legacy_receive_block(&ctx);
 
     ctx.ledger.rollback2(&receive.receive_block.hash()).unwrap();
 

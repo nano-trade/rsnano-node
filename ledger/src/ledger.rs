@@ -658,7 +658,7 @@ impl Ledger {
         self.process(&mut tx, block)
     }
 
-    pub fn process(
+    fn process(
         &self,
         txn: &mut LmdbWriteTransaction,
         block: &Block,

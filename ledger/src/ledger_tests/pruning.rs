@@ -1,10 +1,8 @@
 use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
 
 use crate::{
-    ledger_constants::LEDGER_CONSTANTS_STUB,
-    ledger_tests::LedgerContext,
-    test_helpers::{upgrade_genesis_to_epoch_v1, upgrade_genesis_to_epoch_v1_2},
-    AnySet, LedgerSet, DEV_GENESIS_HASH,
+    ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext,
+    test_helpers::upgrade_genesis_to_epoch_v1, AnySet, LedgerSet, DEV_GENESIS_HASH,
 };
 
 #[test]
@@ -94,7 +92,7 @@ fn pruning_large_chain() {
         let send = genesis.send2().link(genesis.account()).build();
         ctx.ledger.process_one(&send).unwrap();
 
-        let receive = genesis.receive2(send.hash()).build();
+        let receive = genesis.receive(send.hash()).build();
         ctx.ledger.process_one(&receive).unwrap();
 
         last_hash = receive.hash();
@@ -130,7 +128,7 @@ fn pruning_source_rollback() {
     ctx.ledger.enable_pruning();
     let genesis = ctx.genesis_block_factory();
 
-    upgrade_genesis_to_epoch_v1_2(&ctx);
+    upgrade_genesis_to_epoch_v1(&ctx);
 
     let send1 = genesis
         .send2()

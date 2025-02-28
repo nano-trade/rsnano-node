@@ -94,30 +94,35 @@ fn multiple_accounts() {
 
     // Check confirmation heights of all the accounts (except genesis) are uninitialized (0),
     // as we have any just added them to the ledger and not processed any live transactions yet.
-    let mut tx = node.ledger.rw_txn();
     assert_eq!(
         node.ledger
-            .get_confirmation_height(&tx, &DEV_GENESIS_ACCOUNT)
+            .confirmed()
+            .get_conf_info(&DEV_GENESIS_ACCOUNT)
             .unwrap()
             .height,
         1
     );
     assert!(node
         .ledger
-        .get_confirmation_height(&tx, &key1.public_key().as_account())
+        .confirmed()
+        .get_conf_info(&key1.public_key().as_account())
         .is_none());
     assert!(node
         .ledger
-        .get_confirmation_height(&tx, &key2.public_key().as_account())
+        .confirmed()
+        .get_conf_info(&key2.public_key().as_account())
         .is_none());
     assert!(node
         .ledger
-        .get_confirmation_height(&tx, &key3.public_key().as_account())
+        .confirmed()
+        .get_conf_info(&key3.public_key().as_account())
         .is_none());
 
     // The nodes process a live receive which propagates across to all accounts
     let receive3 = lattice.account(&key3).receive(&send6);
-    node.ledger.process(&mut tx, &receive3).unwrap();
+    node.ledger.process_one(&receive3).unwrap();
+
+    let mut tx = node.ledger.rw_txn();
     let confirmed = node.ledger.confirm(&mut tx, receive3.hash());
     tx.commit();
 

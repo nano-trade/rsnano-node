@@ -32,7 +32,7 @@ fn one() {
         .unwrap();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
-    let mut send1 = lattice
+    let send1 = lattice
         .genesis()
         .send(&*DEV_GENESIS_KEY, Amount::nano(1000));
 
@@ -61,9 +61,7 @@ fn one() {
     );
 
     // Process and confirm
-    node.ledger
-        .process(&mut node.ledger.rw_txn(), &mut send1)
-        .unwrap();
+    node.ledger.process_one(&send1).unwrap();
     node.confirm(send1.hash());
 
     // In the ledger but no vote generated yet
