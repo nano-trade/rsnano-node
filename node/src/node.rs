@@ -56,7 +56,7 @@ use crate::{
     representatives::{
         OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
     },
-    stats::adapters::{LedgerStats, NetworkStats},
+    stats::adapters::NetworkStats,
     telemetry::{
         TelementryConfig, TelementryExt, Telemetry, TelemetryFactory, BUILD_INFO, VERSION_STRING,
     },
@@ -260,14 +260,14 @@ impl Node {
             store.cache.clone(),
         ));
 
-        let mut ledger = Ledger::new(
+        let ledger = Ledger::new(
             store,
             network_params.ledger.clone(),
             config.representative_vote_weight_minimum,
             rep_weights.clone(),
+            stats.clone(),
         )
         .expect("Could not initialize ledger");
-        ledger.set_observer(Arc::new(LedgerStats::new(stats.clone())));
         let ledger = Arc::new(ledger);
 
         log_bootstrap_weights(&ledger.rep_weights);

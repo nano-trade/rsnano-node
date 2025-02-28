@@ -7,10 +7,10 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
-    Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo, Epoch,
-    Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
+    Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
+    PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
-use rsnano_stats::DetailType;
+use rsnano_stats::{DetailType, Stats};
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
@@ -101,32 +101,14 @@ impl From<BlockStatus> for DetailType {
     }
 }
 
-pub trait LedgerObserver: Send + Sync {
-    fn blocks_cemented(&self, _cemented_count: u64) {}
-    fn block_rolled_back(&self, _block_type: BlockSubType) {}
-    fn block_rolled_back2(&self, _block: &Block, _is_epoch: bool) {}
-    fn block_added(&self, _block: &Block, _is_epoch: bool) {}
-    fn dependent_unconfirmed(&self) {}
-}
-
-pub struct NullLedgerObserver {}
-
-impl NullLedgerObserver {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl LedgerObserver for NullLedgerObserver {}
-
 pub struct Ledger {
     pub store: Arc<LmdbStore>,
     pub rep_weights_updater: RepWeightsUpdater,
     pub rep_weights: Arc<RepWeightCache>,
     pub constants: LedgerConstants,
-    pub observer: Arc<dyn LedgerObserver>,
     pruning: AtomicBool,
     pub write_queue: Arc<WriteQueue>,
+    pub(crate) stats: Arc<Stats>,
 }
 
 pub struct NullLedgerBuilder {
@@ -222,6 +204,7 @@ impl NullLedgerBuilder {
             LedgerConstants::unit_test(),
             self.min_rep_weight,
             Arc::new(RepWeightCache::new()),
+            Arc::new(Stats::default()),
         )
         .unwrap()
     }
@@ -234,6 +217,7 @@ impl Ledger {
             LedgerConstants::unit_test(),
             Amount::zero(),
             Arc::new(RepWeightCache::new()),
+            Arc::new(Stats::default()),
         )
         .unwrap()
     }
@@ -247,6 +231,7 @@ impl Ledger {
         constants: LedgerConstants,
         min_rep_weight: Amount,
         rep_weights: Arc<RepWeightCache>,
+        stats: Arc<Stats>,
     ) -> anyhow::Result<Self> {
         let rep_weights_updater =
             RepWeightsUpdater::new(store.rep_weight.clone(), min_rep_weight, &rep_weights);
@@ -256,18 +241,14 @@ impl Ledger {
             rep_weights_updater,
             store,
             constants,
-            observer: Arc::new(NullLedgerObserver::new()),
             pruning: AtomicBool::new(false),
             write_queue: Arc::new(WriteQueue::new()),
+            stats,
         };
 
         ledger.initialize(&GenerateCacheFlags::new())?;
 
         Ok(ledger)
-    }
-
-    pub fn set_observer(&mut self, observer: Arc<dyn LedgerObserver>) {
-        self.observer = observer;
     }
 
     pub fn read_txn(&self) -> LmdbReadTransaction {
@@ -607,7 +588,7 @@ impl Ledger {
         target_hash: BlockHash,
         max_blocks: usize,
     ) -> Vec<SavedBlock> {
-        BlockCementer::new(&self.store, self.observer.as_ref(), &self.constants).confirm(
+        BlockCementer::new(&self.store, &self.constants, &self.stats).confirm(
             txn,
             target_hash,
             max_blocks,

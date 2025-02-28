@@ -1,3 +1,12 @@
+use std::sync::{atomic::Ordering, Arc};
+
+use rsnano_core::{
+    utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
+    Account, Amount, BlockHash, PrivateKey, PublicKey, QualifiedRoot, Root, SavedAccountChain,
+    SavedBlock, TestBlockBuilder, DEV_GENESIS_KEY,
+};
+use rsnano_stats::Stats;
+
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     test_helpers::{
@@ -6,12 +15,6 @@ use crate::{
     AnySet, ConfirmedSet, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_HASH,
 };
-use rsnano_core::{
-    utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
-    Account, Amount, BlockHash, PrivateKey, PublicKey, QualifiedRoot, Root, SavedAccountChain,
-    SavedBlock, TestBlockBuilder, DEV_GENESIS_KEY,
-};
-use std::sync::{atomic::Ordering, Arc};
 
 mod empty_ledger;
 mod pruning;
@@ -626,6 +629,7 @@ fn ledger_cache() {
                 LEDGER_CONSTANTS_STUB.clone(),
                 Amount::zero(),
                 Arc::new(RepWeightCache::new()),
+                Arc::new(Stats::default()),
             )
             .unwrap();
             check_impl(&new_ledger, expected);

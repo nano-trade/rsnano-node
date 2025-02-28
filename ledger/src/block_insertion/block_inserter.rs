@@ -48,9 +48,6 @@ impl<'a> BlockInserter<'a> {
         self.insert_new_pending_info();
         self.update_representative_cache();
         self.ledger
-            .observer
-            .block_added(self.block, self.instructions.is_epoch_block);
-        self.ledger
             .store
             .cache
             .block_count

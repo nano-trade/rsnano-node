@@ -1,6 +1,7 @@
 use super::rollback_planner::RollbackInstructions;
 use crate::Ledger;
 use rsnano_core::{Amount, PublicKey};
+use rsnano_stats::StatType;
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::atomic::Ordering;
 
@@ -36,8 +37,8 @@ impl<'a> RollbackInstructionsExecutor<'a> {
             .fetch_sub(1, Ordering::SeqCst);
 
         self.ledger
-            .observer
-            .block_rolled_back(self.instructions.block_sub_type);
+            .stats
+            .inc(StatType::Rollback, self.instructions.block_sub_type.into());
     }
 
     fn update_block_table(&mut self) {

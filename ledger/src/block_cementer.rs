@@ -1,5 +1,6 @@
-use crate::{LedgerConstants, LedgerObserver};
+use crate::LedgerConstants;
 use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
 
@@ -7,19 +8,19 @@ use std::{collections::VecDeque, sync::atomic::Ordering};
 pub(crate) struct BlockCementer<'a> {
     constants: &'a LedgerConstants,
     store: &'a LmdbStore,
-    observer: &'a dyn LedgerObserver,
+    stats: &'a Stats,
 }
 
 impl<'a> BlockCementer<'a> {
     pub(crate) fn new(
         store: &'a LmdbStore,
-        observer: &'a dyn LedgerObserver,
         constants: &'a LedgerConstants,
+        stats: &'a Stats,
     ) -> Self {
         Self {
             store,
-            observer,
             constants,
+            stats,
         }
     }
 
@@ -40,7 +41,10 @@ impl<'a> BlockCementer<'a> {
                 block.dependent_blocks(&self.constants.epochs, &self.constants.genesis_account);
             for dependent in dependents.iter() {
                 if !dependent.is_zero() && !self.is_confirmed(txn, dependent) {
-                    self.observer.dependent_unconfirmed();
+                    self.stats.inc(
+                        StatType::ConfirmationHeight,
+                        DetailType::DependentUnconfirmed,
+                    );
 
                     stack.push_back(*dependent);
 
@@ -68,7 +72,12 @@ impl<'a> BlockCementer<'a> {
                         .cemented_count
                         .fetch_add(1, Ordering::SeqCst);
 
-                    self.observer.blocks_cemented(1);
+                    self.stats.add_dir(
+                        StatType::ConfirmationHeight,
+                        DetailType::BlocksConfirmed,
+                        Direction::In,
+                        1,
+                    );
 
                     result.push(block);
                 }
