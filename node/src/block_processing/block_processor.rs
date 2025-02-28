@@ -463,33 +463,25 @@ impl BlockProcessorLoopImpl {
 
         let mut write_guard = self.ledger.write_queue.wait(Writer::BlockProcessor);
         let mut tx = self.ledger.rw_txn();
-
-        // Processing blocks
-        let mut number_of_blocks_processed = 0;
-        let mut number_of_forced_processed = 0;
-
         let mut processed = Vec::new();
+
         for ctx in batch {
             let force = ctx.source == BlockSource::Forced;
 
             (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
 
             if force {
-                number_of_forced_processed += 1;
                 self.rollback_competitor(&mut tx, &ctx.block);
             }
-
-            number_of_blocks_processed += 1;
 
             let result = self.process_one(&mut tx, &ctx);
             processed.push((result, ctx));
         }
 
-        if number_of_blocks_processed != 0 && timer.elapsed() > Duration::from_millis(100) {
+        if processed.len() > 0 && timer.elapsed() > Duration::from_millis(100) {
             debug!(
-                "Processed {} blocks ({} blocks were forced) in {} ms",
-                number_of_blocks_processed,
-                number_of_forced_processed,
+                "Processed {} blocks in {} ms",
+                processed.len(),
                 timer.elapsed().as_millis(),
             );
         }
