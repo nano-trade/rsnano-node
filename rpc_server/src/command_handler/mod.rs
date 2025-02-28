@@ -8,7 +8,6 @@ use rsnano_core::{Account, AccountInfo, BlockHash, SavedBlock};
 use rsnano_ledger::AnySet2;
 use rsnano_node::Node;
 use rsnano_rpc_messages::{RpcCommand, RpcError, StatsType};
-use rsnano_store_lmdb::Transaction;
 use serde_json::{to_value, Value};
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;

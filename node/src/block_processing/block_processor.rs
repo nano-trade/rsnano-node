@@ -4,11 +4,11 @@ use super::{
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{
     utils::{ContainerInfo, FairQueue, FairQueueInfo},
-    Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
+    Block, BlockHash, BlockType, Epoch, Networks, QualifiedRoot, SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
-use rsnano_store_lmdb::LmdbWriteTransaction;
+use rsnano_store_lmdb::{LmdbWriteTransaction, Transaction};
 use rsnano_work::WorkThresholds;
 use std::{
     collections::VecDeque,
@@ -457,7 +457,7 @@ impl BlockProcessorLoopImpl {
                 }
 
                 // Here we check that the block is still OK to rollback, there could be a delay between gathering the targets and performing the rollbacks
-                if let Some(block) = self.ledger.any().get_block(&tx, hash) {
+                if let Some(block) = self.ledger.store.block.get(&tx, hash) {
                     debug!(
                         "Rolling back: {}, account: {}",
                         hash,
@@ -654,17 +654,15 @@ impl BlockProcessorLoopImpl {
         result
     }
 
-    fn rollback_competitor(&self, transaction: &mut LmdbWriteTransaction, fork_block: &Block) {
+    fn rollback_competitor(&self, tx: &mut LmdbWriteTransaction, fork_block: &Block) {
         let hash = fork_block.hash();
-        if let Some(successor) = self
-            .ledger
-            .any()
-            .block_successor_by_qualified_root(transaction, &fork_block.qualified_root())
+        if let Some(successor) =
+            self.block_successor_by_qualified_root(tx, &fork_block.qualified_root())
         {
             if successor != hash {
                 // Replace our block with the winner and roll back any dependent blocks
                 debug!("Rolling back: {} and replacing with: {}", successor, hash);
-                let rollback_list = match self.ledger.rollback(transaction, &successor) {
+                let rollback_list = match self.ledger.rollback(tx, &successor) {
                     Ok(rollback_list) => {
                         self.stats.inc(StatType::Ledger, DetailType::Rollback);
                         debug!("Blocks rolled back: {}", rollback_list.len());
@@ -687,6 +685,22 @@ impl BlockProcessorLoopImpl {
                         .notify_rollback(rollback_list, fork_block.qualified_root());
                 }
             }
+        }
+    }
+
+    fn block_successor_by_qualified_root(
+        &self,
+        tx: &dyn Transaction,
+        root: &QualifiedRoot,
+    ) -> Option<BlockHash> {
+        if !root.previous.is_zero() {
+            self.ledger.store.block.successor(tx, &root.previous)
+        } else {
+            self.ledger
+                .store
+                .account
+                .get(tx, &root.root.into())
+                .map(|i| i.open_block)
         }
     }
 

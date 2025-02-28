@@ -621,23 +621,6 @@ impl<'a> AnySet<'a> {
             .unwrap_or_default()
     }
 
-    pub fn block_successor(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<BlockHash> {
-        self.block_successor_by_qualified_root(tx, &QualifiedRoot::new(hash.into(), *hash))
-    }
-
-    pub fn block_successor_by_qualified_root(
-        &self,
-        tx: &dyn Transaction,
-        root: &QualifiedRoot,
-    ) -> Option<BlockHash> {
-        if !root.previous.is_zero() {
-            self.store.block.successor(tx, &root.previous)
-        } else {
-            self.get_account(tx, &root.root.into())
-                .map(|i| i.open_block)
-        }
-    }
-
     pub fn get_pending(&self, tx: &dyn Transaction, key: &PendingKey) -> Option<PendingInfo> {
         self.store.pending.get(tx, key)
     }

@@ -371,7 +371,7 @@ impl ConfirmingSetThread {
                         .inc(StatType::ConfirmingSet, DetailType::Cementing);
 
                     // The block might be rolled back before it's fully cemented
-                    if !self.ledger.any().block_exists(&tx, &hash) {
+                    if !self.ledger.store.block.exists(&tx, &hash) {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::MissingBlock);
                         break;
