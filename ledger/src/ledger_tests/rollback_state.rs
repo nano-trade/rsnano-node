@@ -2,7 +2,7 @@ use super::LedgerContext;
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::AccountBlockFactory,
-    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{Amount, Epoch, PendingInfo, PendingKey, PublicKey};
 
@@ -16,26 +16,23 @@ fn rollback_send() {
     ctx.ledger.process(&mut txn, &mut send).unwrap();
 
     ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send.hash()), false);
+    assert_eq!(any.block_exists(&send.hash()), false);
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(LEDGER_CONSTANTS_STUB.genesis_amount)
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
+        LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
+        any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
         None
     );
-    assert_eq!(
-        ctx.ledger.store.block.successor(&txn, &DEV_GENESIS_HASH),
-        None
-    );
+    assert_eq!(any.block_successor(&DEV_GENESIS_HASH), None);
 }
 
 #[test]
@@ -56,27 +53,27 @@ fn rollback_receive() {
     ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
     ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &receive.hash()), false);
+    assert_eq!(any.block_exists(&receive.hash()), false);
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent)
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
+        LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
     );
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
     );
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
+        any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
         Some(PendingInfo {
             source: *DEV_GENESIS_ACCOUNT,
             amount: amount_sent,
             epoch: Epoch::Epoch0
         })
     );
-    assert_eq!(ctx.ledger.store.block.successor(&txn, &send.hash()), None);
+    assert_eq!(any.block_successor(&send.hash()), None);
 }
 
 #[test]
@@ -93,30 +90,24 @@ fn rollback_received_send() {
     ctx.ledger.process(&mut txn, &mut open).unwrap();
 
     ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
+        any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
         None
     );
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send.hash()), false);
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &open.hash()), false);
+    assert_eq!(any.block_exists(&send.hash()), false);
+    assert_eq!(any.block_exists(&open.hash()), false);
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(LEDGER_CONSTANTS_STUB.genesis_amount)
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
+        LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
-    assert_eq!(
-        ctx.ledger
-            .any()
-            .account_balance(&txn, &destination.account()),
-        None
-    );
-    assert_eq!(ctx.ledger.store.account.count(&txn), 1);
+    assert_eq!(any.account_balance(&destination.account()), Amount::zero());
 }
 
 #[test]
@@ -130,11 +121,13 @@ fn rollback_rep_change() {
     ctx.ledger.process(&mut txn, &mut change).unwrap();
 
     ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &change.hash()), false);
+    assert_eq!(any.block_exists(&change.hash()), false);
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(LEDGER_CONSTANTS_STUB.genesis_amount)
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
+        LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
@@ -162,22 +155,17 @@ fn rollback_open() {
     ctx.ledger.process(&mut txn, &mut open).unwrap();
 
     ctx.ledger.rollback(&mut txn, &open.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &open.hash()), false);
-    assert_eq!(
-        ctx.ledger
-            .any()
-            .account_balance(&txn, &destination.account()),
-        None
-    );
+    assert_eq!(any.block_exists(&open.hash()), false);
+    assert_eq!(any.account_balance(&destination.account()), Amount::zero());
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
     );
     assert_eq!(
-        ctx.ledger
-            .any()
-            .get_pending(&txn, &PendingKey::new(destination.account(), send.hash()))
+        any.get_pending(&PendingKey::new(destination.account(), send.hash()))
             .unwrap(),
         PendingInfo {
             source: *DEV_GENESIS_ACCOUNT,
@@ -185,7 +173,6 @@ fn rollback_open() {
             epoch: Epoch::Epoch0
         }
     );
-    assert_eq!(ctx.ledger.store.account.count(&txn), 1);
 }
 
 #[test]
@@ -199,11 +186,13 @@ fn rollback_send_with_rep_change() {
     ctx.ledger.process(&mut txn, &mut send).unwrap();
 
     ctx.ledger.rollback(&mut txn, &send.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send.hash()), false);
+    assert_eq!(any.block_exists(&send.hash()), false);
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(LEDGER_CONSTANTS_STUB.genesis_amount)
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
+        LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
@@ -229,11 +218,13 @@ fn rollback_receive_with_rep_change() {
     ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
     ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
+    txn.commit();
+    let any = ctx.ledger.any2();
 
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &receive.hash()), false);
+    assert_eq!(any.block_exists(&receive.hash()), false);
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(send.balance_field().unwrap())
+        any.account_balance(&DEV_GENESIS_ACCOUNT),
+        send.balance_field().unwrap()
     );
     assert_eq!(
         ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),

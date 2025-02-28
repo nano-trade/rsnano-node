@@ -1,6 +1,6 @@
 use rsnano_core::Amount;
 
-use crate::{ledger_constants::DEV_GENESIS_PUB_KEY, ledger_tests::LedgerContext};
+use crate::{ledger_constants::DEV_GENESIS_PUB_KEY, ledger_tests::LedgerContext, AnySet2};
 
 #[test]
 fn rollback_dependent_blocks_too() {
@@ -15,8 +15,9 @@ fn rollback_dependent_blocks_too() {
     ctx.ledger.process(&mut txn, &mut send).unwrap();
 
     ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
+    txn.commit();
 
-    assert_eq!(ctx.ledger.any().get_block(&txn, &send.hash()), None);
+    assert_eq!(ctx.ledger.any2().get_block(&send.hash()), None);
 
     assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
 }

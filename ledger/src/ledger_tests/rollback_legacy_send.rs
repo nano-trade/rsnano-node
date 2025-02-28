@@ -1,11 +1,11 @@
-use rsnano_core::PendingKey;
+use rsnano_core::{Amount, PendingKey};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::setup_legacy_open_block,
     test_helpers::{setup_legacy_send_block, LegacySendBlockResult},
-    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet2, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 
 use super::LedgerContext;
@@ -43,11 +43,12 @@ fn remove_from_pending_store() {
     let mut txn = ctx.ledger.rw_txn();
 
     let send = rollback_send_block(&ctx, &mut txn);
+    txn.commit();
 
-    let pending = ctx.ledger.any().get_pending(
-        &txn,
-        &PendingKey::new(send.destination.account(), send.send_block.hash()),
-    );
+    let pending = ctx.ledger.any2().get_pending(&PendingKey::new(
+        send.destination.account(),
+        send.send_block.hash(),
+    ));
     assert_eq!(pending, None);
 }
 
@@ -78,28 +79,30 @@ fn rollback_dependent_blocks_too() {
     ctx.ledger
         .rollback(&mut txn, &open.send_block.hash())
         .unwrap();
+    txn.commit();
 
     assert_eq!(
-        ctx.ledger.any().account_balance(&txn, &DEV_GENESIS_ACCOUNT),
-        Some(LEDGER_CONSTANTS_STUB.genesis_amount)
+        ctx.ledger.any2().account_balance(&DEV_GENESIS_ACCOUNT),
+        LEDGER_CONSTANTS_STUB.genesis_amount
     );
 
     assert_eq!(
         ctx.ledger
-            .any()
-            .account_balance(&txn, &open.destination.account()),
-        None
+            .any2()
+            .account_balance(&open.destination.account()),
+        Amount::zero()
     );
 
     assert!(ctx
         .ledger
-        .account_info(&txn, &open.destination.account())
+        .any2()
+        .get_account(&open.destination.account())
         .is_none());
 
-    let pending = ctx.ledger.any().get_pending(
-        &txn,
-        &PendingKey::new(open.destination.account(), *DEV_GENESIS_HASH),
-    );
+    let pending = ctx.ledger.any2().get_pending(&PendingKey::new(
+        open.destination.account(),
+        *DEV_GENESIS_HASH,
+    ));
     assert_eq!(pending, None);
 }
 
