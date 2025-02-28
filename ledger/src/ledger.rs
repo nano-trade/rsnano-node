@@ -30,7 +30,7 @@ use std::{
     },
     time::{Duration, Instant, SystemTime},
 };
-use tracing::debug;
+use tracing::{debug, error};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
@@ -618,6 +618,41 @@ impl Ledger {
         hash
     }
 
+    pub fn process_batch<'a>(
+        &self,
+        batch: impl IntoIterator<Item = (&'a Block, bool)>,
+    ) -> BatchProcessResult {
+        let mut write_guard = self.write_queue.wait(Writer::BlockProcessor);
+        let mut tx = self.rw_txn();
+        let mut processed = Vec::new();
+        let mut rolled_back = Vec::new();
+
+        for (block, force) in batch.into_iter() {
+            (write_guard, tx) = self.refresh_if_needed(write_guard, tx);
+
+            if force {
+                let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
+                if !rolled_back_blocks.is_empty() {
+                    rolled_back.push((rolled_back_blocks, block.qualified_root()));
+                }
+            }
+
+            match self.process(&mut tx, block) {
+                Ok(saved_block) => {
+                    processed.push((BlockStatus::Progress, Some(saved_block)));
+                }
+                Err(status) => {
+                    processed.push((status, None));
+                }
+            }
+        }
+
+        BatchProcessResult {
+            processed,
+            rolled_back,
+        }
+    }
+
     pub fn process(
         &self,
         txn: &mut LmdbWriteTransaction,
@@ -634,6 +669,55 @@ impl Ledger {
         let instructions = validator.validate()?;
         let inserted = BlockInserter::new(self, txn, block, &instructions).insert();
         Ok(inserted)
+    }
+
+    fn rollback_competitor(
+        &self,
+        tx: &mut LmdbWriteTransaction,
+        fork_block: &Block,
+    ) -> Vec<SavedBlock> {
+        let mut rollback_list = Vec::new();
+        let hash = fork_block.hash();
+        if let Some(successor) =
+            self.block_successor_by_qualified_root(tx, &fork_block.qualified_root())
+        {
+            if successor != hash {
+                // Replace our block with the winner and roll back any dependent blocks
+                debug!("Rolling back: {} and replacing with: {}", successor, hash);
+                rollback_list = match self.rollback(tx, &successor) {
+                    Ok(rollback_list) => {
+                        self.stats.inc(StatType::Ledger, DetailType::Rollback);
+                        debug!("Blocks rolled back: {}", rollback_list.len());
+                        rollback_list
+                    }
+                    Err((e, rollback_list)) => {
+                        self.stats.inc(StatType::Ledger, DetailType::RollbackFailed);
+                        error!(
+                            ?e,
+                            "Failed to roll back: {} because it or a successor was confirmed",
+                            successor
+                        );
+                        rollback_list
+                    }
+                };
+            }
+        }
+        rollback_list
+    }
+
+    fn block_successor_by_qualified_root(
+        &self,
+        tx: &dyn Transaction,
+        root: &QualifiedRoot,
+    ) -> Option<BlockHash> {
+        if !root.previous.is_zero() {
+            self.store.block.successor(tx, &root.previous)
+        } else {
+            self.store
+                .account
+                .get(tx, &root.root.into())
+                .map(|i| i.open_block)
+        }
     }
 
     pub fn get_block(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
@@ -732,4 +816,9 @@ impl Ledger {
 pub struct BatchRollbackResult {
     pub processed: Vec<(Vec<SavedBlock>, QualifiedRoot)>,
     pub processed_hashes: Vec<BlockHash>,
+}
+
+pub struct BatchProcessResult {
+    pub processed: Vec<(BlockStatus, Option<SavedBlock>)>,
+    pub rolled_back: Vec<(Vec<SavedBlock>, QualifiedRoot)>,
 }
