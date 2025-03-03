@@ -17,9 +17,8 @@ use rsnano_store_lmdb::{
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LedgerCache,
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
-    LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction,
-    LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats,
-    Transaction, WriteQueue,
+    LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore,
+    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction, WriteQueue,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -252,16 +251,14 @@ impl Ledger {
         Ok(ledger)
     }
 
-    pub fn read_txn(&self) -> LmdbReadTransaction {
-        self.store.tx_begin_read()
-    }
-
-    pub fn rw_txn(&self, writer: Writer) -> LmdbWriteTransaction {
-        self.store.tx_begin_write(writer)
-    }
-
     fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
-        if self.store.account.iter(&self.read_txn()).next().is_none() {
+        if self
+            .store
+            .account
+            .iter(&self.store.tx_begin_read())
+            .next()
+            .is_none()
+        {
             let mut tx = self.store.tx_begin_write(Writer::Generic);
             self.add_genesis_block(&mut tx);
         }
@@ -351,12 +348,12 @@ impl Ledger {
     }
 
     pub fn confirmed(&self) -> OwningConfirmedSet<'_> {
-        let tx = self.read_txn();
+        let tx = self.store.tx_begin_read();
         OwningConfirmedSet::new(&self.store, tx)
     }
 
     pub fn unconfirmed(&self) -> impl LedgerSet + use<'_> {
-        let tx = self.read_txn();
+        let tx = self.store.tx_begin_read();
         OwningUnconfirmedSet::new(&self.store, tx)
     }
 

@@ -648,7 +648,7 @@ fn ledger_cache() {
         cache_check(&ctx.ledger, &expected);
 
         {
-            let mut txn = ctx.ledger.rw_txn(Writer::Testing);
+            let mut txn = ctx.ledger.store.tx_begin_write(Writer::Testing);
             ctx.ledger.store.pruned.put(&mut txn, &open.hash());
             ctx.ledger
                 .store
@@ -750,7 +750,7 @@ fn configured_peers_response() {
     let endpoint = TEST_ENDPOINT_1;
     let now = new_test_timestamp();
     let ledger = Ledger::new_null_builder().peers([(endpoint, now)]).finish();
-    let tx = ledger.read_txn();
+    let tx = ledger.store.tx_begin_read();
     assert_eq!(ledger.store.peer.iter(&tx).next().unwrap(), (endpoint, now));
 }
 

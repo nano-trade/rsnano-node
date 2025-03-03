@@ -35,7 +35,7 @@ impl PeerCacheConnector {
     }
 
     fn load_peers_from_cache(&self) -> Vec<SocketAddrV6> {
-        let tx = self.ledger.read_txn();
+        let tx = self.ledger.store.tx_begin_read();
         self.ledger
             .store
             .peer
