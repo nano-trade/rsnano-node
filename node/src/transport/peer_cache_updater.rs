@@ -94,7 +94,7 @@ impl PeerCacheUpdater {
 impl Runnable for PeerCacheUpdater {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::PeerHistory, DetailType::Loop);
-        let mut tx = self.ledger.rw_txn(Writer::Generic);
+        let mut tx = self.ledger.store.tx_begin_write(Writer::Generic);
         self.save_peers(&mut tx);
         self.delete_old_peers(&mut tx);
     }

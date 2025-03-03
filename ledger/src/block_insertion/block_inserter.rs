@@ -185,7 +185,7 @@ mod tests {
         block: &mut Block,
         instructions: &BlockInsertInstructions,
     ) -> InsertResult {
-        let mut txn = ledger.rw_txn(Writer::Testing);
+        let mut txn = ledger.store.tx_begin_write(Writer::Testing);
         let saved_blocks = ledger.store.block.track_puts();
         let saved_accounts = ledger.store.account.track_puts();
         let saved_pending = ledger.store.pending.track_puts();

@@ -368,10 +368,7 @@ fn vote_by_hash_bundle() {
     }
 
     // Confirm the last block to confirm the entire chain
-    node.ledger.confirm(
-        &mut node.ledger.rw_txn(Writer::Testing),
-        blocks.last().unwrap().hash(),
-    );
+    node.ledger.confirm(blocks.last().unwrap().hash());
 
     // Insert the genesis key and a new key into the wallet
     node.wallets

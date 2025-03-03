@@ -49,7 +49,7 @@ impl LedgerContext {
     }
 
     pub fn inc_confirmation_height(&self, account: &Account) {
-        let mut txn = self.ledger.rw_txn(Writer::Testing);
+        let mut txn = self.ledger.store.tx_begin_write(Writer::Testing);
         let frontier = self.ledger.any().get_account(account).unwrap().head;
         let mut height = self
             .ledger

@@ -360,9 +360,7 @@ mod dependents_confirmed {
             .link(destination.account())
             .build();
         ctx.ledger.process_one(&send).unwrap();
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send.hash());
-        txn.commit();
+        ctx.ledger.confirm(send.hash());
 
         let open = destination.open(send.hash()).build();
         ctx.ledger.process_one(&open).unwrap();
@@ -387,9 +385,7 @@ mod dependents_confirmed {
             .link(destination.account())
             .build();
         ctx.ledger.process_one(&send1).unwrap();
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send1.hash());
-        txn.commit();
+        ctx.ledger.confirm(send1.hash());
 
         let send2 = ctx
             .genesis_block_factory()
@@ -401,9 +397,7 @@ mod dependents_confirmed {
         let open = destination.open(send1.hash()).build();
         ctx.ledger.process_one(&open).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, open.hash());
-        txn.commit();
+        ctx.ledger.confirm(open.hash());
 
         let receive = destination.receive(send2.hash()).build();
         ctx.ledger.process_one(&receive).unwrap();
@@ -429,9 +423,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send1).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send1.hash());
-        txn.commit();
+        ctx.ledger.confirm(send1.hash());
 
         let send2 = ctx
             .genesis_block_factory()
@@ -440,9 +432,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send2).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send2.hash());
-        txn.commit();
+        ctx.ledger.confirm(send2.hash());
 
         let open = destination.open(send1.hash()).build();
         ctx.ledger.process_one(&open).unwrap();
@@ -471,9 +461,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send1).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send1.hash());
-        txn.commit();
+        ctx.ledger.confirm(send1.hash());
 
         let send2 = ctx
             .genesis_block_factory()
@@ -482,16 +470,12 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send2).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send2.hash());
-        txn.commit();
+        ctx.ledger.confirm(send2.hash());
 
         let open = destination.open(send1.hash()).build();
         ctx.ledger.process_one(&open).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, open.hash());
-        txn.commit();
+        ctx.ledger.confirm(open.hash());
 
         let receive = destination.receive(send2.hash()).build();
         ctx.ledger.process_one(&receive).unwrap();
@@ -519,9 +503,7 @@ mod dependents_confirmed {
 
         ctx.ledger.process_one(&send1).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-        ctx.ledger.confirm(&mut txn, send1.hash());
-        txn.commit();
+        ctx.ledger.confirm(send1.hash());
 
         let send2 = ctx
             .genesis_block_factory()
@@ -530,9 +512,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send2).unwrap();
 
-        txn.renew();
-        ctx.ledger.confirm(&mut txn, send2.hash());
-        txn.commit();
+        ctx.ledger.confirm(send2.hash());
 
         assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 2);
 
@@ -583,9 +563,7 @@ fn block_confirmed() {
         false
     );
 
-    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
-    ctx.ledger.confirm(&mut txn, send.hash());
-    txn.commit();
+    ctx.ledger.confirm(send.hash());
 
     assert_eq!(
         ctx.ledger.confirmed().block_exists_or_pruned(&send.hash()),

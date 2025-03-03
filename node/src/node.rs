@@ -1415,8 +1415,7 @@ impl Node {
     }
 
     pub fn confirm(&self, hash: BlockHash) {
-        let mut tx = self.ledger.rw_txn(Writer::Testing);
-        self.ledger.confirm(&mut tx, hash);
+        self.ledger.confirm(hash);
     }
 
     pub fn block_confirmed(&self, hash: &BlockHash) -> bool {

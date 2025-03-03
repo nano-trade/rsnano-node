@@ -102,8 +102,7 @@ impl System {
 
         for block in &self.initialization_blocks_cemented {
             node.ledger.process_one(block).unwrap();
-            let mut tx = node.ledger.rw_txn(Writer::Testing);
-            node.ledger.confirm(&mut tx, block.hash());
+            node.ledger.confirm(block.hash());
         }
     }
 

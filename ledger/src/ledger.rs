@@ -425,7 +425,7 @@ impl Ledger {
         let mut transaction_write_count = 0;
         // TODO break loop if node stopped
         if !targets.is_empty() {
-            let mut tx = self.rw_txn(Writer::Pruning);
+            let mut tx = self.store.tx_begin_write(Writer::Pruning);
             while !targets.is_empty() && transaction_write_count < batch_size {
                 let pruning_hash = targets.front().unwrap();
                 let account_pruned_count =
@@ -438,7 +438,7 @@ impl Ledger {
     }
 
     pub fn prune_one(&self, target: &BlockHash, batch_size: usize) -> usize {
-        let mut tx = self.rw_txn(Writer::Pruning);
+        let mut tx = self.store.tx_begin_write(Writer::Pruning);
         self.pruning_action(&mut tx, target, batch_size as u64) as usize
     }
 
@@ -493,7 +493,7 @@ impl Ledger {
         &self,
         block: &BlockHash,
     ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
-        let mut tx = self.rw_txn(Writer::BoundedBacklog);
+        let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
         self.rollback_with_tx(&mut tx, block)
     }
 
@@ -522,7 +522,7 @@ impl Ledger {
         let mut processed = Vec::new();
         let mut processed_hashes = Vec::new();
         {
-            let mut tx = self.rw_txn(Writer::BoundedBacklog);
+            let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
 
             for hash in targets {
                 // Skip the rollback if the block is being used by the node, this should be race free as it's checked while holding the ledger write lock
@@ -613,7 +613,7 @@ impl Ledger {
     }
 
     pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockStatus> {
-        let mut tx = self.rw_txn(Writer::BlockProcessor);
+        let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
         self.process(&mut tx, block)
     }
 
@@ -682,8 +682,9 @@ impl Ledger {
         }
     }
 
-    pub fn confirm(&self, txn: &mut LmdbWriteTransaction, hash: BlockHash) -> Vec<SavedBlock> {
-        self.confirm_max(txn, hash, 1024 * 128)
+    pub fn confirm(&self, hash: BlockHash) -> Vec<SavedBlock> {
+        let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
+        self.confirm_max(&mut tx, hash, 1024 * 128)
     }
 
     /// Both stack and result set are bounded to limit maximum memory usage
