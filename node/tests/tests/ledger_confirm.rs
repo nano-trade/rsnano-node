@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet, LedgerSet, Writer,
-    DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT,
+    DEV_GENESIS_PUB_KEY,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{assert_timely_eq, System};

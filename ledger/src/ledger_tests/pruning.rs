@@ -1,5 +1,4 @@
 use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
-use rsnano_store_lmdb::Writer;
 
 use crate::{
     ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext,

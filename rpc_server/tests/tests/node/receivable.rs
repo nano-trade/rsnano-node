@@ -2,7 +2,7 @@ use rsnano_core::{
     Account, Amount, Block, PublicKey, RawKey, StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    AnySet, LedgerSet, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{wallets::WalletsExt, Node};
 use rsnano_rpc_messages::{ReceivableArgs, ReceivableResponse};

@@ -271,8 +271,6 @@ fn state_account() {
 }
 
 mod dependents_confirmed {
-    use rsnano_store_lmdb::Writer;
-
     use super::*;
     use crate::{ledger_constants::DEV_GENESIS_BLOCK, AnySet};
 

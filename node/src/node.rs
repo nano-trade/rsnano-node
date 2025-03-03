@@ -15,7 +15,7 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, WorkNonce,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache, Writer};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
