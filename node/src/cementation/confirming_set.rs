@@ -359,7 +359,7 @@ impl ConfirmingSetThread {
                 let mut cemented_count = 0;
                 let mut success = false;
                 loop {
-                    (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
+                    self.ledger.refresh_if_needed(&mut write_guard, &mut tx);
 
                     // Cementing deep dependency chains might take a long time, allow for graceful shutdown, ignore notifications
                     if self.stopped.load(Ordering::Relaxed) {

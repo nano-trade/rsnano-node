@@ -8,7 +8,7 @@ use crate::{
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
-    PendingInfo, PendingKey, PublicKey, QualifiedRoot, SavedBlock,
+    PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::{
@@ -345,21 +345,12 @@ impl Ledger {
             .put(txn, genesis_account.into(), Amount::MAX);
     }
 
-    pub fn refresh_if_needed(
-        &self,
-        write_guard: WriteGuard,
-        mut tx: LmdbWriteTransaction,
-    ) -> (WriteGuard, LmdbWriteTransaction) {
+    pub fn refresh_if_needed(&self, write_guard: &mut WriteGuard, tx: &mut LmdbWriteTransaction) {
         if tx.elapsed() > Duration::from_millis(500) {
             let writer = write_guard.writer;
             tx.commit();
-            drop(write_guard);
-
-            let write_guard = self.write_queue.wait(writer);
+            *write_guard = self.write_queue.wait(writer);
             tx.renew();
-            (write_guard, tx)
-        } else {
-            (write_guard, tx)
         }
     }
 
@@ -612,7 +603,7 @@ impl Ledger {
         let mut rolled_back = Vec::new();
 
         for (block, force) in batch.into_iter() {
-            (write_guard, tx) = self.refresh_if_needed(write_guard, tx);
+            self.refresh_if_needed(&mut write_guard, &mut tx);
 
             if force {
                 let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
@@ -726,6 +717,69 @@ impl Ledger {
             target_hash,
             max_blocks,
         )
+    }
+
+    pub fn verify_votes(
+        &self,
+        candidates: VecDeque<(Root, BlockHash)>,
+        is_final: bool,
+    ) -> VecDeque<(Root, BlockHash)> {
+        let mut verified = VecDeque::new();
+
+        if is_final {
+            let mut write_guard = self.write_queue.wait(Writer::VotingFinal);
+            let mut tx = self.rw_txn();
+            for (root, hash) in &candidates {
+                self.refresh_if_needed(&mut write_guard, &mut tx);
+                if self.should_vote_final(&mut tx, root, hash) {
+                    verified.push_back((*root, *hash));
+                }
+            }
+        } else {
+            let mut any = self.any();
+            for (root, hash) in &candidates {
+                if any.should_refresh() {
+                    any = self.any();
+                }
+                if self.should_vote_non_final(&any, root, hash) {
+                    verified.push_back((*root, *hash));
+                }
+            }
+        };
+
+        verified
+    }
+
+    fn should_vote_non_final(&self, any: &impl AnySet, root: &Root, hash: &BlockHash) -> bool {
+        let Some(block) = any.get_block(hash) else {
+            return false;
+        };
+        debug_assert!(block.root() == *root);
+        any.dependents_confirmed(&block)
+    }
+
+    fn should_vote_final(
+        &self,
+        txn: &mut LmdbWriteTransaction,
+        root: &Root,
+        hash: &BlockHash,
+    ) -> bool {
+        let now = Instant::now();
+        let any = BorrowingAnySet {
+            constants: &self.constants,
+            store: self.store.as_ref(),
+            tx: txn,
+            started: &now,
+        };
+        let Some(block) = any.get_block(hash) else {
+            return false;
+        };
+        debug_assert!(block.root() == *root);
+        any.dependents_confirmed(&block)
+            && self
+                .store
+                .final_vote
+                .put(txn, &block.qualified_root(), hash)
     }
 
     pub fn cemented_count(&self) -> u64 {

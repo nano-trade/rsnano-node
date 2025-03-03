@@ -13,12 +13,11 @@ use rsnano_core::{
     utils::{milliseconds_since_epoch, ContainerInfo},
     BlockHash, Root, SavedBlock, Vote,
 };
-use rsnano_ledger::{AnySet, Ledger, Writer};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{Channel, ChannelId, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
-use rsnano_store_lmdb::LmdbWriteTransaction;
 
 use super::{LocalVoteHistory, VoteSpacing};
 use crate::{
@@ -376,32 +375,7 @@ impl SharedState {
     }
 
     fn process_batch(&self, batch: VecDeque<(Root, BlockHash)>) {
-        let mut verified = VecDeque::new();
-
-        if self.is_final {
-            let mut write_guard = self.ledger.write_queue.wait(Writer::VotingFinal);
-            let mut tx = self.ledger.rw_txn();
-            let mut any = self.ledger.any();
-            for (root, hash) in &batch {
-                (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
-                if any.should_refresh() {
-                    any = self.ledger.any();
-                }
-                if self.should_vote_final(&mut tx, &any, root, hash) {
-                    verified.push_back((*root, *hash));
-                }
-            }
-        } else {
-            let mut any = self.ledger.any();
-            for (root, hash) in &batch {
-                if any.should_refresh() {
-                    any = self.ledger.any();
-                }
-                if self.should_vote_non_final(&any, root, hash) {
-                    verified.push_back((*root, *hash));
-                }
-            }
-        };
+        let verified = self.ledger.verify_votes(batch, self.is_final);
 
         // Submit verified candidates to the main processing thread
         if !verified.is_empty() {
@@ -415,33 +389,6 @@ impl SharedState {
                 self.condition.notify_all();
             }
         }
-    }
-
-    fn should_vote_non_final(&self, any: &impl AnySet, root: &Root, hash: &BlockHash) -> bool {
-        let Some(block) = any.get_block(hash) else {
-            return false;
-        };
-        debug_assert!(block.root() == *root);
-        any.dependents_confirmed(&block)
-    }
-
-    fn should_vote_final(
-        &self,
-        txn: &mut LmdbWriteTransaction,
-        any: &impl AnySet,
-        root: &Root,
-        hash: &BlockHash,
-    ) -> bool {
-        let Some(block) = any.get_block(hash) else {
-            return false;
-        };
-        debug_assert!(block.root() == *root);
-        any.dependents_confirmed(&block)
-            && self
-                .ledger
-                .store
-                .final_vote
-                .put(txn, &block.qualified_root(), hash)
     }
 }
 
