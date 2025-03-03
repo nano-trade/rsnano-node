@@ -236,6 +236,7 @@ mod tests {
         consideration_count = 999
         cooldown = 999
         priorities_max = 999
+        blocking_decay = 999
 
         [node.bootstrap_server]
         max_queue = 999
@@ -771,6 +772,14 @@ mod tests {
                 .candidate_accounts
                 .priorities_max,
             default_cfg.node.bootstrap.candidate_accounts.priorities_max
+        );
+        assert_ne!(
+            deserialized
+                .node
+                .bootstrap
+                .candidate_accounts
+                .blocking_decay,
+            default_cfg.node.bootstrap.candidate_accounts.blocking_decay
         );
 
         // Bootstrap Server section

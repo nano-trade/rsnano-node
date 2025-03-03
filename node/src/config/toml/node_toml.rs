@@ -482,6 +482,7 @@ mod tests {
             consideration_count: Some(201),
             cooldown: Some(203),
             priorities_max: Some(204),
+            blocking_decay: None,
         };
 
         let ascending_toml = BootstrapToml {

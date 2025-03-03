@@ -12,6 +12,7 @@ pub struct CandidateAccountsConfig {
     pub consideration_count: usize,
     pub priorities_max: usize,
     pub blocking_max: usize,
+    pub blocking_decay: Duration,
     pub cooldown: Duration,
 }
 
@@ -21,6 +22,7 @@ impl Default for CandidateAccountsConfig {
             consideration_count: 4,
             priorities_max: 256 * 1024,
             blocking_max: 256 * 1024,
+            blocking_decay: Duration::from_secs(60 * 15),
             cooldown: Duration::from_secs(3),
         }
     }
@@ -209,8 +211,9 @@ impl CandidateAccounts {
     }
 
     /// Should be called periodically to remove old entries from the blocking set
-    pub fn decay_blocking(&mut self, now: Timestamp) {
-        todo!()
+    pub fn decay_blocking(&mut self, now: Timestamp) -> usize {
+        let cutoff = now - self.config.blocking_decay;
+        self.blocking.remove_older_than(cutoff)
     }
 
     #[allow(dead_code)]

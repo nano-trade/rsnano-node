@@ -46,6 +46,7 @@ impl From<&BootstrapConfig> for BootstrapToml {
 #[derive(Clone, Deserialize, Serialize)]
 pub struct AccountSetsToml {
     pub blocking_max: Option<usize>,
+    pub blocking_decay: Option<usize>,
     pub consideration_count: Option<usize>,
     pub cooldown: Option<u64>,
     pub priorities_max: Option<usize>,
@@ -58,6 +59,7 @@ impl Default for AccountSetsToml {
             consideration_count: Some(config.consideration_count),
             priorities_max: Some(config.priorities_max),
             blocking_max: Some(config.blocking_max),
+            blocking_decay: Some(config.blocking_decay.as_secs() as usize),
             cooldown: Some(config.cooldown.as_millis() as u64),
         }
     }
@@ -70,6 +72,7 @@ impl From<&CandidateAccountsConfig> for AccountSetsToml {
             priorities_max: Some(value.priorities_max),
             blocking_max: Some(value.blocking_max),
             cooldown: Some(value.cooldown.as_millis() as u64),
+            blocking_decay: Some(value.blocking_decay.as_secs() as usize),
         }
     }
 }
@@ -89,6 +92,9 @@ impl From<&AccountSetsToml> for CandidateAccountsConfig {
         }
         if let Some(cooldown) = &toml.cooldown {
             config.cooldown = Duration::from_millis(*cooldown);
+        }
+        if let Some(decay) = &toml.blocking_decay {
+            config.blocking_decay = Duration::from_secs(*decay as u64);
         }
         config
     }
