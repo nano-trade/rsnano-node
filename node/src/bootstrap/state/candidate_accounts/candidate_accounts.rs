@@ -162,7 +162,7 @@ impl CandidateAccounts {
         self.priorities.remove(account).is_some()
     }
 
-    pub fn block(&mut self, account: Account, dependency: BlockHash) -> bool {
+    pub fn block(&mut self, account: Account, dependency: BlockHash, now: Timestamp) -> bool {
         debug_assert!(!account.is_zero());
 
         let removed = self.priorities.remove(&account);
@@ -172,6 +172,7 @@ impl CandidateAccounts {
                 account,
                 dependency,
                 dependency_account: Account::zero(),
+                added: now,
             });
 
             self.trim_overflow();
@@ -205,6 +206,11 @@ impl CandidateAccounts {
         }
 
         false
+    }
+
+    /// Should be called periodically to remove old entries from the blocking set
+    pub fn decay_blocking(&mut self, now: Timestamp) {
+        todo!()
     }
 
     #[allow(dead_code)]
@@ -400,7 +406,7 @@ mod tests {
         let hash = BlockHash::from(2);
         candidates.priority_up(&account);
 
-        candidates.block(account, hash);
+        candidates.block(account, hash, Timestamp::new_test_instance());
 
         assert!(candidates.blocked(&account));
         assert_eq!(candidates.priority(&account), Priority::ZERO);
@@ -409,7 +415,11 @@ mod tests {
     #[test]
     fn blocking_unknown_account_does_nothing() {
         let mut candidates = CandidateAccounts::default();
-        let blocked = candidates.block(Account::from(1), BlockHash::from(2));
+        let blocked = candidates.block(
+            Account::from(1),
+            BlockHash::from(2),
+            Timestamp::new_test_instance(),
+        );
         assert!(!blocked);
         assert_eq!(candidates.blocked_len(), 0);
     }
@@ -421,7 +431,7 @@ mod tests {
         let hash = BlockHash::from(2);
         candidates.priority_up(&account);
 
-        candidates.block(account, hash);
+        candidates.block(account, hash, Timestamp::new_test_instance());
 
         assert!(candidates.unblock(account, None));
         assert_eq!(candidates.blocked(&account), false);
@@ -445,7 +455,7 @@ mod tests {
         let account = Account::from(1);
         let hash = BlockHash::from(2);
         candidates.priority_set_initial(&account);
-        candidates.block(account, hash);
+        candidates.block(account, hash, Timestamp::new_test_instance());
 
         let unblocked = candidates.unblock(account, Some(BlockHash::from(3)));
         assert!(!unblocked);
@@ -459,7 +469,7 @@ mod tests {
         let dependency = BlockHash::from(2);
         let unknown_dependency = BlockHash::from(3);
         candidates.priority_set_initial(&account);
-        candidates.block(account, dependency);
+        candidates.block(account, dependency, Timestamp::new_test_instance());
 
         let unblocked = candidates.unblock(account, Some(unknown_dependency));
         assert!(!unblocked);
@@ -484,7 +494,7 @@ mod tests {
             CandidateAccounts::PRIORITY_INITIAL
         );
 
-        candidates.block(account, hash);
+        candidates.block(account, hash, Timestamp::new_test_instance());
         candidates.unblock(account, None);
 
         assert_eq!(
@@ -574,7 +584,7 @@ mod tests {
         let mut candidates = CandidateAccounts::default();
         let account = Account::from(1);
         candidates.priority_set_initial(&account);
-        candidates.block(account, BlockHash::from(2));
+        candidates.block(account, BlockHash::from(2), Timestamp::new_test_instance());
         let result = candidates.priority_up(&account);
         assert_eq!(result, PriorityUpResult::AccountBlocked);
         assert_eq!(candidates.blocked_len(), 1);
@@ -603,7 +613,7 @@ mod tests {
         let mut candidates = CandidateAccounts::default();
         let account = Account::from(1);
         candidates.priority_set_initial(&account);
-        candidates.block(account, BlockHash::from(2));
+        candidates.block(account, BlockHash::from(2), Timestamp::new_test_instance());
         let success = candidates.priority_set(&account, Priority::new(42.0));
 
         assert_eq!(success, false);
@@ -690,9 +700,9 @@ mod tests {
         candidates.priority_up(&account1);
         candidates.priority_up(&account2);
         candidates.priority_up(&account3);
-        candidates.block(account1, BlockHash::from(1));
-        candidates.block(account2, BlockHash::from(2));
-        candidates.block(account3, BlockHash::from(3));
+        candidates.block(account1, BlockHash::from(1), Timestamp::new_test_instance());
+        candidates.block(account2, BlockHash::from(2), Timestamp::new_test_instance());
+        candidates.block(account3, BlockHash::from(3), Timestamp::new_test_instance());
 
         assert_eq!(candidates.blocked_len(), 2);
         assert!(candidates.blocked(&account2));
@@ -791,7 +801,7 @@ mod tests {
         let account = Account::from(1);
         let dependency = BlockHash::from(2);
         candidates.priority_set_initial(&account);
-        candidates.block(account, dependency);
+        candidates.block(account, dependency, Timestamp::new_test_instance());
         assert_eq!(candidates.next_blocking(|_| true), dependency);
     }
 
@@ -805,9 +815,17 @@ mod tests {
         candidates.priority_set_initial(&account1);
         candidates.priority_set_initial(&account2);
         candidates.priority_set_initial(&account3);
-        candidates.block(account1, BlockHash::from(1000));
-        candidates.block(account2, dependency);
-        candidates.block(account3, BlockHash::from(2000));
+        candidates.block(
+            account1,
+            BlockHash::from(1000),
+            Timestamp::new_test_instance(),
+        );
+        candidates.block(account2, dependency, Timestamp::new_test_instance());
+        candidates.block(
+            account3,
+            BlockHash::from(2000),
+            Timestamp::new_test_instance(),
+        );
         assert_eq!(candidates.next_blocking(|h| *h == dependency), dependency);
     }
 
@@ -825,7 +843,7 @@ mod tests {
         let dependency_account = Account::from(2);
         let dependency = BlockHash::from(100);
         candidates.priority_set_initial(&account);
-        candidates.block(account, dependency);
+        candidates.block(account, dependency, Timestamp::new_test_instance());
         candidates.dependency_update(&dependency, dependency_account);
 
         let inserted = candidates.sync_dependencies();
@@ -841,7 +859,7 @@ mod tests {
         let dependency_account = Account::from(2);
         let dependency = BlockHash::from(100);
         candidates.priority_set_initial(&account);
-        candidates.block(account, dependency);
+        candidates.block(account, dependency, Timestamp::new_test_instance());
         candidates.dependency_update(&dependency, dependency_account);
         candidates.priority_set_initial(&dependency_account);
 
@@ -861,7 +879,7 @@ mod tests {
         let dependency_account = Account::from(2);
         let dependency = BlockHash::from(100);
         candidates.priority_set_initial(&account);
-        candidates.block(account, dependency);
+        candidates.block(account, dependency, Timestamp::new_test_instance());
         candidates.dependency_update(&dependency, dependency_account);
         candidates.priority_set_initial(&Account::from(9999));
         candidates.priority_set_initial(&Account::from(8888));
@@ -884,11 +902,11 @@ mod tests {
         assert!(!candidates.blocked_half_full());
 
         candidates.priority_set_initial(&account1);
-        candidates.block(account1, BlockHash::from(1));
+        candidates.block(account1, BlockHash::from(1), Timestamp::new_test_instance());
         assert!(!candidates.blocked_half_full());
 
         candidates.priority_set_initial(&account2);
-        candidates.block(account2, BlockHash::from(2));
+        candidates.block(account2, BlockHash::from(2), Timestamp::new_test_instance());
         assert!(candidates.blocked_half_full());
     }
 
@@ -898,9 +916,17 @@ mod tests {
         candidates.priority_set_initial(&Account::from(1));
         candidates.priority_set_initial(&Account::from(2));
         candidates.priority_set_initial(&Account::from(3));
-        candidates.block(Account::from(2), BlockHash::from(3));
+        candidates.block(
+            Account::from(2),
+            BlockHash::from(3),
+            Timestamp::new_test_instance(),
+        );
         candidates.dependency_update(&BlockHash::from(3), Account::from(1000));
-        candidates.block(Account::from(3), BlockHash::from(4));
+        candidates.block(
+            Account::from(3),
+            BlockHash::from(4),
+            Timestamp::new_test_instance(),
+        );
         let info = candidates.container_info();
         assert_eq!(
             info,

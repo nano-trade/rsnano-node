@@ -65,6 +65,7 @@ mod tests {
     use crate::bootstrap::progress;
     use rsnano_core::{Account, BlockHash};
     use rsnano_network::{bandwidth_limiter::RateLimiter, Network};
+    use rsnano_nullable_clock::Timestamp;
     use std::sync::RwLock;
 
     #[test]
@@ -77,7 +78,9 @@ mod tests {
         let account = Account::from(1);
         let dependency = BlockHash::from(2);
         state.candidate_accounts.priority_up(&account);
-        state.candidate_accounts.block(account, dependency);
+        state
+            .candidate_accounts
+            .block(account, dependency, Timestamp::new_test_instance());
 
         let result = progress(&mut requester, &mut state);
 
@@ -118,7 +121,9 @@ mod tests {
         let account = Account::from(1);
         let dependency = BlockHash::from(2);
         state.candidate_accounts.priority_up(&account);
-        state.candidate_accounts.block(account, dependency);
+        state
+            .candidate_accounts
+            .block(account, dependency, Timestamp::new_test_instance());
 
         let result = requester.poll(&mut state);
         assert!(matches!(result, PollResult::Finished(_)));

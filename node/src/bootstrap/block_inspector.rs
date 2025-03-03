@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, BlockStatus, Ledger};
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::state::{BootstrapState, PriorityUpResult};
@@ -12,6 +13,7 @@ pub(super) struct BlockInspector {
     state: Arc<Mutex<BootstrapState>>,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
+    clock: Arc<SteadyClock>,
 }
 
 impl BlockInspector {
@@ -19,11 +21,13 @@ impl BlockInspector {
         state: Arc<Mutex<BootstrapState>>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             state,
             ledger,
             stats,
+            clock,
         }
     }
 
@@ -141,7 +145,10 @@ impl BlockInspector {
 
                     if !account.is_zero() && !source.is_zero() {
                         // Mark account as blocked because it is missing the source block
-                        let blocked = state.candidate_accounts.block(*account, source);
+                        let blocked =
+                            state
+                                .candidate_accounts
+                                .block(*account, source, self.clock.now());
                         if blocked {
                             self.stats.inc(
                                 StatType::BootstrapAccountSets,

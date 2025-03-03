@@ -1,4 +1,5 @@
 use rsnano_core::{Account, BlockHash};
+use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::{BTreeMap, VecDeque},
     mem::size_of,
@@ -8,7 +9,20 @@ use std::{
 pub(super) struct BlockingEntry {
     pub account: Account,
     pub dependency: BlockHash,
+    /// Account that contains the dependency block, fetched via a background dependency walker
     pub dependency_account: Account,
+    pub added: Timestamp,
+}
+
+impl BlockingEntry {
+    pub fn new_test_instance() -> Self {
+        Self {
+            account: Account::from(5),
+            dependency: BlockHash::from(100),
+            dependency_account: Account::from(13),
+            added: Timestamp::new_test_instance(),
+        }
+    }
 }
 
 /// A blocked account is an account that has failed to insert a new block because the source block is not currently present in the ledger
@@ -19,6 +33,7 @@ pub(super) struct BlockingContainer {
     sequenced: VecDeque<Account>,
     by_dependency: BTreeMap<BlockHash, Vec<Account>>,
     by_dependency_account: BTreeMap<Account, Vec<Account>>,
+    by_timestamp: BTreeMap<Timestamp, Vec<Account>>,
 }
 
 impl BlockingContainer {
@@ -38,6 +53,7 @@ impl BlockingContainer {
         let account = entry.account;
         let dependency = entry.dependency;
         let dependency_account = entry.dependency_account;
+        let timestamp = entry.added;
         if self.by_account.contains_key(&account) {
             return false;
         }
@@ -50,6 +66,10 @@ impl BlockingContainer {
             .push(account);
         self.by_dependency_account
             .entry(dependency_account)
+            .or_default()
+            .push(account);
+        self.by_timestamp
+            .entry(timestamp)
             .or_default()
             .push(account);
         true
@@ -96,6 +116,23 @@ impl BlockingContainer {
         let entry = self.by_account.remove(account)?;
         self.remove_indexes(&entry);
         Some(entry)
+    }
+
+    pub fn remove_older_than(&mut self, cutoff: Timestamp) -> usize {
+        let mut removed = 0;
+        while let Some((timestamp, accounts)) = self.by_timestamp.first_key_value() {
+            if *timestamp >= cutoff {
+                // Entries are sorted by timestamp, no need to continue
+                break;
+            }
+            let accounts = accounts.clone();
+            for account in &accounts {
+                self.remove(account);
+            }
+            removed += accounts.len();
+        }
+
+        removed
     }
 
     pub fn modify_dependency_account(
@@ -152,6 +189,12 @@ impl BlockingContainer {
         } else {
             self.by_dependency_account.remove(&entry.dependency_account);
         }
+        let accounts = self.by_timestamp.get_mut(&entry.added).unwrap();
+        if accounts.len() > 1 {
+            accounts.retain(|i| *i != entry.account);
+        } else {
+            self.by_timestamp.remove(&entry.added);
+        }
     }
 
     pub fn clear(&mut self) {
@@ -159,11 +202,14 @@ impl BlockingContainer {
         self.sequenced.clear();
         self.by_dependency.clear();
         self.by_dependency_account.clear();
+        self.by_timestamp.clear();
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[test]
@@ -187,11 +233,7 @@ mod tests {
     fn insert_one() {
         let mut blocking = BlockingContainer::default();
 
-        let entry = BlockingEntry {
-            account: Account::from(5),
-            dependency: BlockHash::from(100),
-            dependency_account: Account::from(13),
-        };
+        let entry = BlockingEntry::new_test_instance();
         let inserted = blocking.insert(entry.clone());
 
         assert_eq!(inserted, true);
@@ -209,11 +251,7 @@ mod tests {
     fn dont_insert_if_account_already_present() {
         let mut blocking = BlockingContainer::default();
 
-        let entry = BlockingEntry {
-            account: Account::from(5),
-            dependency: BlockHash::from(100),
-            dependency_account: Account::from(13),
-        };
+        let entry = BlockingEntry::new_test_instance();
         blocking.insert(entry.clone());
 
         let inserted = blocking.insert(entry.clone());
@@ -223,15 +261,27 @@ mod tests {
     }
 
     #[test]
+    fn clear() {
+        let mut blocking = BlockingContainer::default();
+
+        let entry = BlockingEntry::new_test_instance();
+        blocking.insert(entry.clone());
+        blocking.clear();
+        assert_eq!(blocking.by_timestamp.len(), 0);
+        assert_eq!(blocking.by_account.len(), 0);
+        assert_eq!(blocking.by_dependency.len(), 0);
+        assert_eq!(blocking.by_dependency_account.len(), 0);
+    }
+
+    #[test]
     fn next() {
         let mut blocking = BlockingContainer::default();
 
         let entry = BlockingEntry {
-            account: Account::from(5),
-            dependency: BlockHash::from(100),
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         };
-        blocking.insert(entry.clone());
+        blocking.insert(entry);
 
         assert!(blocking.next(|_| true).is_some());
     }
@@ -241,9 +291,8 @@ mod tests {
         let mut blocking = BlockingContainer::default();
 
         let entry = BlockingEntry {
-            account: Account::from(5),
-            dependency: BlockHash::from(100),
             dependency_account: Account::from(13),
+            ..BlockingEntry::new_test_instance()
         };
         blocking.insert(entry.clone());
 
@@ -258,18 +307,21 @@ mod tests {
             account: Account::from(1000),
             dependency: BlockHash::from(100),
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         });
 
         blocking.insert(BlockingEntry {
             account: Account::from(2000),
             dependency: BlockHash::from(200),
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         });
 
         blocking.insert(BlockingEntry {
             account: Account::from(3000),
             dependency: BlockHash::from(300),
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         });
 
         assert_eq!(
@@ -286,12 +338,14 @@ mod tests {
             account: Account::from(1000),
             dependency: BlockHash::from(100),
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         });
 
         blocking.insert(BlockingEntry {
             account: Account::from(2000),
             dependency: BlockHash::from(200),
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         });
 
         assert_eq!(blocking.pop_oldest().unwrap().account, Account::from(1000));
@@ -308,6 +362,7 @@ mod tests {
             account: Account::from(1000),
             dependency,
             dependency_account: Account::zero(),
+            ..BlockingEntry::new_test_instance()
         });
 
         let new_dep_account = Account::from(5000);
@@ -340,11 +395,13 @@ mod tests {
             account: 1000.into(),
             dependency: 100.into(),
             dependency_account,
+            ..BlockingEntry::new_test_instance()
         };
         let entry2 = BlockingEntry {
             account: 2000.into(),
             dependency: 200.into(),
             dependency_account,
+            ..BlockingEntry::new_test_instance()
         };
         blocking.insert(entry1.clone());
         blocking.insert(entry2.clone());
@@ -374,6 +431,7 @@ mod tests {
             account: 1000.into(),
             dependency: 100.into(),
             dependency_account,
+            ..BlockingEntry::new_test_instance()
         };
         blocking.insert(entry.clone());
 
@@ -394,16 +452,19 @@ mod tests {
             account: 1.into(),
             dependency: 100.into(),
             dependency_account: 10.into(),
+            ..BlockingEntry::new_test_instance()
         };
         let entry2 = BlockingEntry {
             account: 2.into(),
             dependency: 200.into(),
             dependency_account: 20.into(),
+            ..BlockingEntry::new_test_instance()
         };
         let entry3 = BlockingEntry {
             account: 3.into(),
             dependency: 300.into(),
             dependency_account: 30.into(),
+            ..BlockingEntry::new_test_instance()
         };
 
         container.insert(entry1);
@@ -425,16 +486,19 @@ mod tests {
             account: 1.into(),
             dependency: same_dependency,
             dependency_account: 10.into(),
+            ..BlockingEntry::new_test_instance()
         };
         let entry2 = BlockingEntry {
             account: 2.into(),
             dependency: same_dependency,
             dependency_account: 20.into(),
+            ..BlockingEntry::new_test_instance()
         };
         let entry3 = BlockingEntry {
             account: 3.into(),
             dependency: 300.into(),
             dependency_account: 30.into(),
+            ..BlockingEntry::new_test_instance()
         };
 
         container.insert(entry1.clone());
@@ -447,5 +511,43 @@ mod tests {
             container.by_dependency.get(&same_dependency).unwrap().len(),
             1
         );
+    }
+
+    #[test]
+    fn remove_old_entries() {
+        let mut container = BlockingContainer::default();
+        let ts = Timestamp::new_test_instance();
+
+        let entry1 = BlockingEntry {
+            account: 1.into(),
+            added: ts,
+            ..BlockingEntry::new_test_instance()
+        };
+        let entry2 = BlockingEntry {
+            account: 2.into(),
+            added: ts + Duration::from_secs(1),
+            ..BlockingEntry::new_test_instance()
+        };
+        let entry3 = BlockingEntry {
+            account: 3.into(),
+            added: ts + Duration::from_secs(2),
+            ..BlockingEntry::new_test_instance()
+        };
+        let entry4 = BlockingEntry {
+            account: 4.into(),
+            added: ts + Duration::from_secs(3),
+            ..BlockingEntry::new_test_instance()
+        };
+        container.insert(entry1.clone());
+        container.insert(entry2.clone());
+        container.insert(entry3.clone());
+        container.insert(entry4.clone());
+
+        let removed = container.remove_older_than(entry3.added);
+
+        assert_eq!(removed, 2);
+        assert_eq!(container.len(), 2);
+        assert!(container.contains(&entry3.account));
+        assert!(container.contains(&entry4.account));
     }
 }

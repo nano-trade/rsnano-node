@@ -187,9 +187,11 @@ mod tests {
             guard
                 .candidate_accounts
                 .priority_set_initial(&blocked_account);
-            guard
-                .candidate_accounts
-                .block(blocked_account, unknown_source);
+            guard.candidate_accounts.block(
+                blocked_account,
+                unknown_source,
+                Timestamp::new_test_instance(),
+            );
         }
 
         assert!(fixture.processor.process(&query, &response));
@@ -241,9 +243,11 @@ mod tests {
             guard
                 .candidate_accounts
                 .priority_set_initial(&blocked_account);
-            guard
-                .candidate_accounts
-                .block(blocked_account, unknown_source);
+            guard.candidate_accounts.block(
+                blocked_account,
+                unknown_source,
+                Timestamp::new_test_instance(),
+            );
             guard
                 .candidate_accounts
                 .dependency_update(&unknown_source, source_account);
