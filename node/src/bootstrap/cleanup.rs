@@ -28,6 +28,13 @@ impl BootstrapCleanup {
         self.stats.inc(StatType::Bootstrap, DetailType::LoopCleanup);
         state.scoring.decay();
 
+        let decayed = state.candidate_accounts.decay_blocking(now);
+        self.stats.add(
+            StatType::BootstrapAccountSets,
+            DetailType::BlockingDecayed,
+            decayed as u64,
+        );
+
         self.erase_timed_out_requests(state, now);
         self.reinsert_known_dependencies(state);
     }

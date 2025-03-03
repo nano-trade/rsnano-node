@@ -513,6 +513,7 @@ pub enum DetailType {
     Deprioritize,
     DeprioritizeFailed,
     SyncDependencies,
+    BlockingDecayed,
     DependencySynced,
 
     RequestBlocks,
