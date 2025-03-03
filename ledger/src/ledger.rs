@@ -1,6 +1,7 @@
 use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
+    vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
     RepWeightCache, RepWeightsUpdater, Writer,
@@ -346,8 +347,7 @@ impl Ledger {
     }
 
     pub fn any(&self) -> OwningAnySet {
-        let tx = self.read_txn();
-        OwningAnySet::new(&self.store, tx, &self.constants)
+        OwningAnySet::new(&self.store, &self.constants)
     }
 
     pub fn confirmed(&self) -> OwningConfirmedSet<'_> {
@@ -706,59 +706,11 @@ impl Ledger {
         candidates: VecDeque<(Root, BlockHash)>,
         is_final: bool,
     ) -> VecDeque<(Root, BlockHash)> {
-        let mut verified = VecDeque::new();
-
-        if is_final {
-            let mut tx = self.store.tx_begin_write(Writer::VotingFinal);
-            for (root, hash) in &candidates {
-                tx.refresh_if_needed();
-                if self.should_vote_final(&mut tx, root, hash) {
-                    verified.push_back((*root, *hash));
-                }
-            }
-        } else {
-            let mut any = self.any();
-            for (root, hash) in &candidates {
-                if any.should_refresh() {
-                    any = self.any();
-                }
-                if self.should_vote_non_final(&any, root, hash) {
-                    verified.push_back((*root, *hash));
-                }
-            }
-        };
-
-        verified
-    }
-
-    fn should_vote_non_final(&self, any: &impl AnySet, root: &Root, hash: &BlockHash) -> bool {
-        let Some(block) = any.get_block(hash) else {
-            return false;
-        };
-        debug_assert!(block.root() == *root);
-        any.dependents_confirmed(&block)
-    }
-
-    fn should_vote_final(
-        &self,
-        txn: &mut LmdbWriteTransaction,
-        root: &Root,
-        hash: &BlockHash,
-    ) -> bool {
-        let any = BorrowingAnySet {
+        let verifier = VoteVerifier {
             constants: &self.constants,
-            store: self.store.as_ref(),
-            tx: txn,
+            store: &self.store,
         };
-        let Some(block) = any.get_block(hash) else {
-            return false;
-        };
-        debug_assert!(block.root() == *root);
-        any.dependents_confirmed(&block)
-            && self
-                .store
-                .final_vote
-                .put(txn, &block.qualified_root(), hash)
+        verifier.verify_votes(candidates, is_final)
     }
 
     pub fn cemented_count(&self) -> u64 {

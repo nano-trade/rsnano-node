@@ -87,11 +87,8 @@ pub struct OwningAnySet<'a> {
 }
 
 impl<'a> OwningAnySet<'a> {
-    pub(crate) fn new(
-        store: &'a LmdbStore,
-        tx: LmdbReadTransaction,
-        constants: &'a LedgerConstants,
-    ) -> Self {
+    pub(crate) fn new(store: &'a LmdbStore, constants: &'a LedgerConstants) -> Self {
+        let tx = store.tx_begin_read();
         Self {
             store,
             tx,
