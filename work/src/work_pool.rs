@@ -18,7 +18,7 @@ use super::{
 };
 
 pub struct WorkPoolBuilder {
-    thread_count: Option<usize>,
+    cpu_thread_count: Option<usize>,
     thresholds: Option<WorkThresholds>,
     cpu_rate_limiter: Option<Duration>,
     enable_gpu: bool,
@@ -27,19 +27,19 @@ pub struct WorkPoolBuilder {
 
 impl WorkPoolBuilder {
     pub fn threads(mut self, count: usize) -> Self {
-        self.thread_count = Some(count);
+        self.cpu_thread_count = Some(count);
         self
     }
 
     pub fn gpu_only(mut self) -> Self {
         self.enable_gpu = true;
-        self.thread_count = Some(1);
+        self.cpu_thread_count = Some(0);
         self
     }
 
     pub fn one_cpu_only(mut self) -> Self {
         self.enable_gpu = false;
-        self.thread_count = Some(1);
+        self.cpu_thread_count = Some(1);
         self
     }
 
@@ -69,7 +69,7 @@ impl WorkPoolBuilder {
     }
 
     pub fn finish(self) -> WorkPool {
-        let thread_count = self.thread_count.unwrap_or_else(|| get_cpu_count());
+        let thread_count = self.cpu_thread_count.unwrap_or_else(|| get_cpu_count());
         let thresholds = self
             .thresholds
             .unwrap_or_else(|| WorkThresholds::publish_full().clone());
@@ -116,7 +116,7 @@ impl WorkPool {
 
     pub fn builder() -> WorkPoolBuilder {
         WorkPoolBuilder {
-            thread_count: None,
+            cpu_thread_count: None,
             thresholds: None,
             cpu_rate_limiter: None,
             enable_gpu: false,
@@ -166,25 +166,21 @@ impl WorkPool {
         opencl_config: OpenClConfig,
     ) {
         #[cfg(feature = "opencl")]
-        let mut gpu_work = if enable_open_cl {
-            match GpuWorkGenerator::new(opencl_config) {
-                Ok(gpu) => Some(gpu),
-                Err(e) => {
-                    tracing::warn!("Error initializing GPU: {:?}", e);
-                    None
+        {
+            if enable_open_cl {
+                match GpuWorkGenerator::new(opencl_config) {
+                    Ok(gpu) => {
+                        self.threads.push(self.spawn_worker_thread(gpu));
+                        self.has_open_cl = true;
+                    }
+                    Err(e) => {
+                        tracing::warn!("Error initializing GPU: {:?}", e);
+                    }
                 }
             }
-        } else {
-            None
-        };
+        }
 
         for _ in 0..thread_count {
-            #[cfg(feature = "opencl")]
-            if let Some(gpu) = gpu_work.take() {
-                self.threads.push(self.spawn_worker_thread(gpu));
-                self.has_open_cl = true;
-                continue;
-            }
             self.threads.push(self.spawn_cpu_worker_thread())
         }
     }
@@ -270,6 +266,10 @@ impl WorkPool {
 
     pub fn generate_dev(&self, root: Root) -> Option<WorkNonce> {
         self.generate(root, self.work_thresholds.base)
+    }
+
+    pub fn generate_send(&self, root: Root) -> Option<WorkNonce> {
+        self.generate(root, self.work_thresholds.threshold_base())
     }
 
     pub fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
