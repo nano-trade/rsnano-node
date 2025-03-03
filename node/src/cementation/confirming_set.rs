@@ -8,12 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tracing::debug;
-
 use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
-use rsnano_ledger::{BlockStatus, Ledger, Writer};
+use rsnano_ledger::{BlockStatus, CementingObserver, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
-use rsnano_store_lmdb::{LmdbWriteTransaction, Transaction};
 
 use super::ordered_entries::{Entry, OrderedEntries};
 use crate::{
@@ -324,124 +321,18 @@ impl ConfirmingSetThread {
         }));
     }
 
-    /// We might need to issue multiple notifications if the block we're confirming implicitly confirms more
-    fn notify_maybe(&self, tx: &mut LmdbWriteTransaction, cemented: &mut VecDeque<Context>) {
-        if cemented.len() >= self.config.max_blocks {
-            self.stats
-                .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
-            tx.commit();
+    fn run_batch(&self, mut batch: VecDeque<Entry>) {
+        let mut notifier = CementedNotifier::new(self);
+        let b = batch.drain(..).map(|i| (i.hash, i));
+        self.ledger
+            .confirm_batch(b, &self.stopped, self.config.max_blocks, &mut notifier);
 
-            self.notify(cemented);
-
-            tx.renew();
-        }
-    }
-
-    fn run_batch(&self, batch: VecDeque<Entry>) {
-        let mut cemented = VecDeque::new();
-        let mut already_cemented = VecDeque::new();
-
-        {
-            let mut tx = self.ledger.store.tx_begin_write(Writer::ConfirmationHeight);
-
-            for entry in batch {
-                let hash = entry.hash;
-                let election = entry.election.clone();
-                let mut cemented_count = 0;
-                let mut success = false;
-                loop {
-                    tx.refresh_if_needed();
-
-                    // Cementing deep dependency chains might take a long time, allow for graceful shutdown, ignore notifications
-                    if self.stopped.load(Ordering::Relaxed) {
-                        return;
-                    }
-
-                    // Issue notifications here, so that `cemented` set is not too large before we add more blocks
-                    self.notify_maybe(&mut tx, &mut cemented);
-
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::Cementing);
-
-                    // The block might be rolled back before it's fully cemented
-                    if !self.ledger.store.block.exists(&tx, &hash) {
-                        self.stats
-                            .inc(StatType::ConfirmingSet, DetailType::MissingBlock);
-                        break;
-                    }
-
-                    let added = self
-                        .ledger
-                        .confirm_max(&mut tx, hash, self.config.max_blocks);
-                    let added_len = added.len();
-                    if !added.is_empty() {
-                        // Confirming this block may implicitly confirm more
-                        self.stats.add(
-                            StatType::ConfirmingSet,
-                            DetailType::Cemented,
-                            added_len as u64,
-                        );
-                        cemented_count += added.len();
-                        for block in added {
-                            cemented.push_back(Context {
-                                block,
-                                confirmation_root: hash,
-                                election: election.clone(),
-                            });
-                        }
-                    } else {
-                        self.stats
-                            .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
-                        already_cemented.push_back(hash);
-                    }
-
-                    success = {
-                        if let Some(block) = self.ledger.store.block.get(&tx, &hash) {
-                            if let Some(conf_info) = self
-                                .ledger
-                                .store
-                                .confirmation_height
-                                .get(&tx, &block.account())
-                            {
-                                block.height() <= conf_info.height
-                            } else {
-                                false
-                            }
-                        } else {
-                            false
-                        }
-                    };
-
-                    if success {
-                        break;
-                    }
-                }
-
-                if success {
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::CementedHash);
-                    debug!(
-                        "Cemented block: {} (total cemented: {})",
-                        hash, cemented_count
-                    );
-                } else {
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::CementingFailed);
-                    debug!("Failed to cement block: {}", hash);
-
-                    // Requeue failed blocks for processing later
-                    // Add them to the deferred set while still holding the exclusive database write transaction to avoid block processor races
-                    self.mutex.lock().unwrap().deferred.push_back(entry);
-                }
-            }
-        }
-
-        self.notify(&mut cemented);
+        self.notify(&mut notifier.cemented);
 
         {
             let mut guard = self.observers.lock().unwrap();
             for callback in &mut guard.already_cemented {
-                callback(&already_cemented)
+                callback(&notifier.already_cemented)
             }
         }
 
@@ -538,6 +429,49 @@ pub(crate) struct Context {
     pub block: SavedBlock,
     pub confirmation_root: BlockHash,
     pub election: Option<Arc<Election>>,
+}
+
+struct CementedNotifier<'a> {
+    confirming_set: &'a ConfirmingSetThread,
+    cemented: VecDeque<Context>,
+    already_cemented: VecDeque<BlockHash>,
+}
+
+impl<'a> CementedNotifier<'a> {
+    fn new(confirming_set: &'a ConfirmingSetThread) -> Self {
+        Self {
+            confirming_set,
+            cemented: Default::default(),
+            already_cemented: Default::default(),
+        }
+    }
+}
+
+impl<'a> CementingObserver<Entry> for CementedNotifier<'a> {
+    fn cemented(&mut self, block: SavedBlock, root: &BlockHash, context: &Entry) {
+        self.cemented.push_back(Context {
+            block,
+            confirmation_root: *root,
+            election: context.election.clone(),
+        });
+    }
+
+    fn already_cemented(&mut self, hash: &BlockHash) {
+        self.already_cemented.push_back(*hash);
+    }
+
+    fn max_blocks_reached(&mut self) {
+        self.confirming_set.notify(&mut self.cemented);
+    }
+
+    fn cementing_failed(&mut self, _hash: &BlockHash, context: Entry) {
+        self.confirming_set
+            .mutex
+            .lock()
+            .unwrap()
+            .deferred
+            .push_back(context);
+    }
 }
 
 #[cfg(test)]

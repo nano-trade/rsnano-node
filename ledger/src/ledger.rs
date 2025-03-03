@@ -689,7 +689,7 @@ impl Ledger {
 
     /// Both stack and result set are bounded to limit maximum memory usage
     /// Callers must ensure that the target block was confirmed, and if not, call this function multiple times
-    pub fn confirm_max(
+    fn confirm_max(
         &self,
         txn: &mut LmdbWriteTransaction,
         target_hash: BlockHash,
@@ -700,6 +700,102 @@ impl Ledger {
             target_hash,
             max_blocks,
         )
+    }
+
+    pub fn confirm_batch<'a, O, T>(
+        &self,
+        batch: impl IntoIterator<Item = (BlockHash, T)>,
+        stopped: &AtomicBool,
+        max_blocks: usize,
+        observer: &mut O,
+    ) where
+        O: CementingObserver<T>,
+    {
+        let mut blocks_cemented = 0;
+        {
+            let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
+
+            for (hash, context) in batch.into_iter() {
+                let mut success = false;
+                loop {
+                    tx.refresh_if_needed();
+
+                    // Cementing deep dependency chains might take a long time, allow for graceful shutdown, ignore notifications
+                    if stopped.load(Ordering::Relaxed) {
+                        return;
+                    }
+
+                    // Issue notifications here, so that `cemented` set is not too large before we add more blocks
+                    if blocks_cemented >= max_blocks {
+                        tx.commit();
+                        blocks_cemented = 0;
+                        self.stats
+                            .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
+                        observer.max_blocks_reached();
+                        tx.renew();
+                    }
+
+                    self.stats
+                        .inc(StatType::ConfirmingSet, DetailType::Cementing);
+
+                    // The block might be rolled back before it's fully cemented
+                    if !self.store.block.exists(&tx, &hash) {
+                        self.stats
+                            .inc(StatType::ConfirmingSet, DetailType::MissingBlock);
+                        break;
+                    }
+
+                    let added = self.confirm_max(&mut tx, hash, max_blocks);
+
+                    if !added.is_empty() {
+                        // Confirming this block may implicitly confirm more
+                        self.stats.add(
+                            StatType::ConfirmingSet,
+                            DetailType::Cemented,
+                            added.len() as u64,
+                        );
+                        blocks_cemented += added.len();
+                        for block in added {
+                            observer.cemented(block, &hash, &context)
+                        }
+                    } else {
+                        self.stats
+                            .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
+                        observer.already_cemented(&hash);
+                    }
+
+                    success = {
+                        if let Some(block) = self.store.block.get(&tx, &hash) {
+                            if let Some(conf_info) =
+                                self.store.confirmation_height.get(&tx, &block.account())
+                            {
+                                block.height() <= conf_info.height
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    };
+
+                    if success {
+                        break;
+                    }
+                }
+
+                if success {
+                    self.stats
+                        .inc(StatType::ConfirmingSet, DetailType::CementedHash);
+                } else {
+                    self.stats
+                        .inc(StatType::ConfirmingSet, DetailType::CementingFailed);
+
+                    // Requeue failed blocks for processing later
+                    // Add them to the deferred set while still holding the exclusive database write transaction to avoid block processor races
+                    observer.cementing_failed(&hash, context);
+                }
+            }
+        }
     }
 
     pub fn verify_votes(
@@ -776,4 +872,11 @@ pub struct BatchRollbackResult {
 pub struct BatchProcessResult {
     pub processed: Vec<(BlockStatus, Option<SavedBlock>)>,
     pub rolled_back: Vec<(Vec<SavedBlock>, QualifiedRoot)>,
+}
+
+pub trait CementingObserver<T> {
+    fn cemented(&mut self, block: SavedBlock, root: &BlockHash, context: &T);
+    fn already_cemented(&mut self, hash: &BlockHash);
+    fn max_blocks_reached(&mut self);
+    fn cementing_failed(&mut self, hash: &BlockHash, context: T);
 }
