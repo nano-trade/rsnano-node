@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rsnano_core::{Account, Amount, ConfirmationHeightInfo, Networks};
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbStore, TestDbFile};
+use rsnano_store_lmdb::{LmdbStore, TestDbFile, Writer};
 use rsnano_work::WorkThresholds;
 
 use crate::{
@@ -49,7 +49,7 @@ impl LedgerContext {
     }
 
     pub fn inc_confirmation_height(&self, account: &Account) {
-        let mut txn = self.ledger.rw_txn();
+        let mut txn = self.ledger.rw_txn(Writer::Testing);
         let frontier = self.ledger.any().get_account(account).unwrap().head;
         let mut height = self
             .ledger

@@ -238,6 +238,9 @@ pub struct LmdbWriteTransaction {
     #[cfg(feature = "output_tracking")]
     clear_listener: OutputListener<LmdbDatabase>,
     start: Instant,
+    write_queue: Arc<WriteQueue>,
+    guard: Option<WriteGuard>,
+    writer: Writer,
 }
 
 impl LmdbWriteTransaction {
@@ -245,6 +248,8 @@ impl LmdbWriteTransaction {
         txn_id: u64,
         env: &'a LmdbEnvironment,
         callbacks: Arc<dyn TransactionTracker>,
+        write_queue: Arc<WriteQueue>,
+        writer: Writer,
     ) -> lmdb::Result<Self> {
         let env =
             unsafe { std::mem::transmute::<&'a LmdbEnvironment, &'static LmdbEnvironment>(env) };
@@ -260,6 +265,9 @@ impl LmdbWriteTransaction {
             #[cfg(feature = "output_tracking")]
             clear_listener: OutputListener::new(),
             start: Instant::now(),
+            write_queue,
+            guard: None,
+            writer,
         };
         tx.renew();
         Ok(tx)
@@ -287,7 +295,10 @@ impl LmdbWriteTransaction {
         let t = mem::replace(&mut self.txn, RwTxnState::Transitioning);
         self.txn = match t {
             RwTxnState::Active(_) => panic!("Cannot renew active RwTransaction"),
-            RwTxnState::Inactive => RwTxnState::Active(self.env.begin_rw_txn().unwrap()),
+            RwTxnState::Inactive => {
+                self.guard = Some(self.write_queue.wait(self.writer));
+                RwTxnState::Active(self.env.begin_rw_txn().unwrap())
+            }
             RwTxnState::Transitioning => unreachable!(),
         };
         self.callbacks.txn_start(self.txn_id, true);
@@ -300,6 +311,7 @@ impl LmdbWriteTransaction {
             RwTxnState::Inactive => {}
             RwTxnState::Active(t) => {
                 t.commit().unwrap();
+                drop(self.guard.take());
                 self.callbacks.txn_end(self.txn_id, true);
             }
             RwTxnState::Transitioning => unreachable!(),

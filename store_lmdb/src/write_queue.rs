@@ -9,6 +9,7 @@ use std::{
 /** Distinct areas write locking is done, order is irrelevant */
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Writer {
+    Generic,
     ConfirmationHeight,
     BlockProcessor,
     Pruning,

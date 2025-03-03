@@ -1415,8 +1415,7 @@ impl Node {
     }
 
     pub fn confirm(&self, hash: BlockHash) {
-        let _guard = self.ledger.store.write_queue.wait(Writer::Testing);
-        let mut tx = self.ledger.rw_txn();
+        let mut tx = self.ledger.rw_txn(Writer::Testing);
         self.ledger.confirm(&mut tx, hash);
     }
 

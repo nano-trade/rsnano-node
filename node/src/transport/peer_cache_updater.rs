@@ -6,7 +6,7 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{Ledger, Writer};
 use rsnano_network::{Channel, Network};
 use rsnano_nullable_clock::SystemTimeFactory;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -94,7 +94,7 @@ impl PeerCacheUpdater {
 impl Runnable for PeerCacheUpdater {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::PeerHistory, DetailType::Loop);
-        let mut tx = self.ledger.rw_txn();
+        let mut tx = self.ledger.rw_txn(Writer::Generic);
         self.save_peers(&mut tx);
         self.delete_old_peers(&mut tx);
     }

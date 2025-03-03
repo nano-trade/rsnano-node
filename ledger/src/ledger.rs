@@ -255,13 +255,14 @@ impl Ledger {
         self.store.tx_begin_read()
     }
 
-    pub fn rw_txn(&self) -> LmdbWriteTransaction {
-        self.store.tx_begin_write()
+    pub fn rw_txn(&self, writer: Writer) -> LmdbWriteTransaction {
+        self.store.tx_begin_write(writer)
     }
 
     fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
         if self.store.account.iter(&self.read_txn()).next().is_none() {
-            self.add_genesis_block(&mut self.rw_txn());
+            let mut tx = self.store.tx_begin_write(Writer::Generic);
+            self.add_genesis_block(&mut tx);
         }
 
         if generate_cache.reps || generate_cache.account_count || generate_cache.block_count {
@@ -344,15 +345,6 @@ impl Ledger {
             .put(txn, genesis_account.into(), Amount::MAX);
     }
 
-    pub fn refresh_if_needed(&self, write_guard: &mut WriteGuard, tx: &mut LmdbWriteTransaction) {
-        if tx.elapsed() > Duration::from_millis(500) {
-            let writer = write_guard.writer;
-            tx.commit();
-            *write_guard = self.store.write_queue.wait(writer);
-            tx.renew();
-        }
-    }
-
     pub fn any(&self) -> OwningAnySet {
         let tx = self.read_txn();
         OwningAnySet::new(&self.store, tx, &self.constants)
@@ -433,8 +425,7 @@ impl Ledger {
         let mut transaction_write_count = 0;
         // TODO break loop if node stopped
         if !targets.is_empty() {
-            let _write_guard = self.store.write_queue.wait(Writer::Pruning);
-            let mut tx = self.rw_txn();
+            let mut tx = self.rw_txn(Writer::Pruning);
             while !targets.is_empty() && transaction_write_count < batch_size {
                 let pruning_hash = targets.front().unwrap();
                 let account_pruned_count =
@@ -447,8 +438,7 @@ impl Ledger {
     }
 
     pub fn prune_one(&self, target: &BlockHash, batch_size: usize) -> usize {
-        let _write_guard = self.store.write_queue.wait(Writer::Pruning);
-        let mut tx = self.rw_txn();
+        let mut tx = self.rw_txn(Writer::Pruning);
         self.pruning_action(&mut tx, target, batch_size as u64) as usize
     }
 
@@ -506,7 +496,7 @@ impl Ledger {
         &self,
         block: &BlockHash,
     ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
-        let mut tx = self.rw_txn();
+        let mut tx = self.rw_txn(Writer::BoundedBacklog);
         self.rollback_with_tx(&mut tx, block)
     }
 
@@ -535,8 +525,7 @@ impl Ledger {
         let mut processed = Vec::new();
         let mut processed_hashes = Vec::new();
         {
-            let _guard = self.store.write_queue.wait(Writer::BoundedBacklog);
-            let mut tx = self.rw_txn();
+            let mut tx = self.rw_txn(Writer::BoundedBacklog);
 
             for hash in targets {
                 // Skip the rollback if the block is being used by the node, this should be race free as it's checked while holding the ledger write lock
@@ -596,13 +585,12 @@ impl Ledger {
         &self,
         batch: impl IntoIterator<Item = (&'a Block, bool)>,
     ) -> BatchProcessResult {
-        let mut write_guard = self.store.write_queue.wait(Writer::BlockProcessor);
-        let mut tx = self.rw_txn();
+        let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
         let mut processed = Vec::new();
         let mut rolled_back = Vec::new();
 
         for (block, force) in batch.into_iter() {
-            self.refresh_if_needed(&mut write_guard, &mut tx);
+            tx.refresh_if_needed();
 
             if force {
                 let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
@@ -628,7 +616,7 @@ impl Ledger {
     }
 
     pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockStatus> {
-        let mut tx = self.rw_txn();
+        let mut tx = self.rw_txn(Writer::BlockProcessor);
         self.process(&mut tx, block)
     }
 
@@ -726,10 +714,9 @@ impl Ledger {
         let mut verified = VecDeque::new();
 
         if is_final {
-            let mut write_guard = self.store.write_queue.wait(Writer::VotingFinal);
-            let mut tx = self.rw_txn();
+            let mut tx = self.store.tx_begin_write(Writer::VotingFinal);
             for (root, hash) in &candidates {
-                self.refresh_if_needed(&mut write_guard, &mut tx);
+                tx.refresh_if_needed();
                 if self.should_vote_final(&mut tx, root, hash) {
                     verified.push_back((*root, *hash));
                 }

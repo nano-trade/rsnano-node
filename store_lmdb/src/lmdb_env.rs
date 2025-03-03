@@ -1,6 +1,6 @@
 use crate::{
     LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, NullTransactionTracker, SyncStrategy,
-    TransactionTracker,
+    TransactionTracker, WriteQueue, Writer,
 };
 use anyhow::bail;
 use lmdb::EnvironmentFlags;
@@ -72,6 +72,7 @@ pub struct LmdbEnv {
     pub environment: LmdbEnvironment,
     next_txn_id: AtomicU64,
     txn_tracker: Arc<dyn TransactionTracker>,
+    pub write_queue: Arc<WriteQueue>,
     env_id: usize,
 }
 
@@ -107,6 +108,7 @@ impl LmdbEnv {
             next_txn_id: AtomicU64::new(0),
             txn_tracker: Arc::new(NullTransactionTracker::new()),
             env_id,
+            write_queue: Arc::new(WriteQueue::new()),
         }
     }
 
@@ -120,6 +122,7 @@ impl LmdbEnv {
             next_txn_id: AtomicU64::new(0),
             txn_tracker,
             env_id: NEXT_ENV_ID.fetch_add(1, Ordering::SeqCst),
+            write_queue: Arc::new(WriteQueue::new()),
         };
         let alive = ENV_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
         debug!(env_id = env.env_id, alive, ?path, "LMDB env created",);
@@ -181,11 +184,19 @@ impl LmdbEnv {
     }
 
     pub fn tx_begin_write(&self) -> LmdbWriteTransaction {
-        // For IO threads, we do not want them to block on creating write transactions.
-        debug_assert!(std::thread::current().name() != Some("I/O"));
+        self.tx_begin_write_for(Writer::Generic)
+    }
+
+    pub fn tx_begin_write_for(&self, writer: Writer) -> LmdbWriteTransaction {
         let txn_id = self.next_txn_id.fetch_add(1, Ordering::Relaxed);
-        LmdbWriteTransaction::new(txn_id, &self.environment, self.create_txn_callbacks())
-            .expect("Could not create LMDB read-write transaction")
+        LmdbWriteTransaction::new(
+            txn_id,
+            &self.environment,
+            self.create_txn_callbacks(),
+            self.write_queue.clone(),
+            writer,
+        )
+        .expect("Could not create LMDB read-write transaction")
     }
 
     pub fn file_path(&self) -> anyhow::Result<PathBuf> {

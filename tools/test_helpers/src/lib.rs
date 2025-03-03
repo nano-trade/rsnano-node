@@ -4,7 +4,8 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    AnySet, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    AnySet, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
@@ -101,7 +102,7 @@ impl System {
 
         for block in &self.initialization_blocks_cemented {
             node.ledger.process_one(block).unwrap();
-            let mut tx = node.ledger.rw_txn();
+            let mut tx = node.ledger.rw_txn(Writer::Testing);
             node.ledger.confirm(&mut tx, block.hash());
         }
     }

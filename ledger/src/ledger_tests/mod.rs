@@ -6,6 +6,7 @@ use rsnano_core::{
     SavedBlock, TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
+use rsnano_store_lmdb::Writer;
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
@@ -270,6 +271,8 @@ fn state_account() {
 }
 
 mod dependents_confirmed {
+    use rsnano_store_lmdb::Writer;
+
     use super::*;
     use crate::{ledger_constants::DEV_GENESIS_BLOCK, AnySet};
 
@@ -357,7 +360,7 @@ mod dependents_confirmed {
             .link(destination.account())
             .build();
         ctx.ledger.process_one(&send).unwrap();
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send.hash());
         txn.commit();
 
@@ -384,7 +387,7 @@ mod dependents_confirmed {
             .link(destination.account())
             .build();
         ctx.ledger.process_one(&send1).unwrap();
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send1.hash());
         txn.commit();
 
@@ -398,7 +401,7 @@ mod dependents_confirmed {
         let open = destination.open(send1.hash()).build();
         ctx.ledger.process_one(&open).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, open.hash());
         txn.commit();
 
@@ -426,7 +429,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send1).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send1.hash());
         txn.commit();
 
@@ -437,7 +440,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send2).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send2.hash());
         txn.commit();
 
@@ -468,7 +471,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send1).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send1.hash());
         txn.commit();
 
@@ -479,14 +482,14 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send2).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send2.hash());
         txn.commit();
 
         let open = destination.open(send1.hash()).build();
         ctx.ledger.process_one(&open).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, open.hash());
         txn.commit();
 
@@ -516,7 +519,7 @@ mod dependents_confirmed {
 
         ctx.ledger.process_one(&send1).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        let mut txn = ctx.ledger.rw_txn(Writer::Testing);
         ctx.ledger.confirm(&mut txn, send1.hash());
         txn.commit();
 
@@ -527,7 +530,7 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process_one(&send2).unwrap();
 
-        let mut txn = ctx.ledger.rw_txn();
+        txn.renew();
         ctx.ledger.confirm(&mut txn, send2.hash());
         txn.commit();
 
@@ -580,7 +583,7 @@ fn block_confirmed() {
         false
     );
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, send.hash());
     txn.commit();
 
@@ -669,7 +672,7 @@ fn ledger_cache() {
         cache_check(&ctx.ledger, &expected);
 
         {
-            let mut txn = ctx.ledger.rw_txn();
+            let mut txn = ctx.ledger.rw_txn(Writer::Testing);
             ctx.ledger.store.pruned.put(&mut txn, &open.hash());
             ctx.ledger
                 .store

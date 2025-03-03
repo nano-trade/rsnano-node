@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT,
-    DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet, LedgerSet, Writer,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{assert_timely_eq, System};
@@ -20,7 +20,7 @@ fn single() {
     let send1 = lattice.genesis().send(&key1, 100);
     node.process(send1.clone());
     assert_eq!(node.ledger.confirmed().block_exists(&send1.hash()), false);
-    let mut tx = node.ledger.rw_txn();
+    let mut tx = node.ledger.rw_txn(Writer::Testing);
     node.ledger.confirm(&mut tx, send1.hash());
     tx.commit();
 
@@ -122,7 +122,7 @@ fn multiple_accounts() {
     let receive3 = lattice.account(&key3).receive(&send6);
     node.ledger.process_one(&receive3).unwrap();
 
-    let mut tx = node.ledger.rw_txn();
+    let mut tx = node.ledger.rw_txn(Writer::Testing);
     let confirmed = node.ledger.confirm(&mut tx, receive3.hash());
     tx.commit();
 
@@ -233,7 +233,7 @@ fn send_receive_between_2_accounts() {
         receive4.clone(),
     ]);
 
-    let mut tx = node.ledger.rw_txn();
+    let mut tx = node.ledger.rw_txn(Writer::Testing);
     let confirmed = node.ledger.confirm(&mut tx, receive4.hash());
     assert_eq!(confirmed.len(), 10);
     assert_eq!(
@@ -277,7 +277,7 @@ fn send_receive_self() {
         send4.clone(),
     ]);
 
-    let mut tx = node.ledger.rw_txn();
+    let mut tx = node.ledger.rw_txn(Writer::Testing);
     let confirmed = node.ledger.confirm(&mut tx, receive3.hash());
     tx.commit();
 
@@ -342,7 +342,7 @@ fn all_block_types() {
         state_send4,
         state_receive3,
     ]);
-    let mut tx = node.ledger.rw_txn();
+    let mut tx = node.ledger.rw_txn(Writer::Testing);
     let confirmed = node.ledger.confirm(&mut tx, state_send2.hash());
     assert_eq!(confirmed.len(), 15);
     assert_eq!(node.ledger.cemented_count(), 16);

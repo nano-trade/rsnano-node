@@ -2,7 +2,7 @@ use crate::{
     EnvOptions, LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase,
     LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore,
     LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore,
-    LmdbWriteTransaction, NullTransactionTracker, TransactionTracker, WriteQueue,
+    LmdbWriteTransaction, NullTransactionTracker, TransactionTracker, WriteQueue, Writer,
     STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -135,7 +135,7 @@ impl LmdbStore {
     fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
         let env = Arc::new(env);
         Ok(Self {
-            write_queue: Arc::new(WriteQueue::new()),
+            write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
             block: Arc::new(LmdbBlockStore::new(env.clone())?),
             account: Arc::new(LmdbAccountStore::new(env.clone())?),
@@ -191,8 +191,8 @@ impl LmdbStore {
         self.env.tx_begin_read()
     }
 
-    pub fn tx_begin_write(&self) -> LmdbWriteTransaction {
-        self.env.tx_begin_write()
+    pub fn tx_begin_write(&self, writer: Writer) -> LmdbWriteTransaction {
+        self.env.tx_begin_write_for(writer)
     }
 }
 

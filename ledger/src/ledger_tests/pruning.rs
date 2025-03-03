@@ -1,4 +1,5 @@
 use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
+use rsnano_store_lmdb::Writer;
 
 use crate::{
     ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext,
@@ -18,7 +19,7 @@ fn pruning_action() {
         .build();
     ctx.ledger.process_one(&send1).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, send1.hash());
     txn.commit();
 
@@ -29,7 +30,7 @@ fn pruning_action() {
         .build();
     ctx.ledger.process_one(&send2).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    txn.renew();
     ctx.ledger.confirm(&mut txn, send2.hash());
     txn.commit();
 
@@ -70,7 +71,7 @@ fn pruning_action() {
 
     // Middle block pruning
     assert!(any.block_exists(&send2.hash()));
-    txn = ctx.ledger.rw_txn();
+    txn.renew();
     ctx.ledger.confirm(&mut txn, send2.hash());
     txn.commit();
     assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 1);
@@ -98,7 +99,7 @@ fn pruning_large_chain() {
         last_hash = receive.hash();
     }
     assert_eq!(ctx.ledger.block_count(), send_receive_pairs * 2 + 1);
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, last_hash);
     txn.commit();
 
@@ -108,7 +109,7 @@ fn pruning_large_chain() {
         send_receive_pairs as usize * 2
     );
 
-    txn = ctx.ledger.rw_txn();
+    txn.renew();
     assert!(ctx.ledger.store.pruned.exists(&txn, &last_hash));
     assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
     assert_eq!(ctx.ledger.store.block.exists(&txn, &last_hash), false);
@@ -146,7 +147,7 @@ fn pruning_source_rollback() {
         .build();
     ctx.ledger.process_one(&send2).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, send2.hash());
     txn.commit();
 
@@ -214,7 +215,7 @@ fn pruning_source_rollback_legacy() {
         .build();
     ctx.ledger.process_one(&mut send3).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, send2.hash());
     txn.commit();
 
@@ -315,7 +316,7 @@ fn pruning_legacy_blocks() {
         .build();
     ctx.ledger.process_one(&send3).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, change1.hash());
     ctx.ledger.confirm(&mut txn, open1.hash());
     txn.commit();
@@ -324,7 +325,7 @@ fn pruning_legacy_blocks() {
     assert_eq!(ctx.ledger.prune_one(&change1.hash(), 2), 3);
     assert_eq!(ctx.ledger.prune_one(&open1.hash(), 1), 1);
 
-    txn = ctx.ledger.rw_txn();
+    txn.renew();
     assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
     assert_eq!(ctx.ledger.store.block.exists(&txn, &send1.hash()), false);
     assert_eq!(ctx.ledger.store.pruned.exists(&txn, &send1.hash()), true);
@@ -354,7 +355,7 @@ fn pruning_safe_functions() {
     let send2 = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send2).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, send1.hash());
     txn.commit();
 
@@ -386,7 +387,7 @@ fn hash_root_random() {
     let send2 = genesis.send().link(genesis.account()).build();
     ctx.ledger.process_one(&send2).unwrap();
 
-    let mut txn = ctx.ledger.rw_txn();
+    let mut txn = ctx.ledger.rw_txn(Writer::Testing);
     ctx.ledger.confirm(&mut txn, send1.hash());
     txn.commit();
 

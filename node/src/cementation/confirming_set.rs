@@ -13,7 +13,7 @@ use tracing::debug;
 use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
 use rsnano_ledger::{BlockStatus, Ledger, WriteGuard, Writer};
 use rsnano_stats::{DetailType, StatType, Stats};
-use rsnano_store_lmdb::LmdbWriteTransaction;
+use rsnano_store_lmdb::{LmdbWriteTransaction, Transaction};
 
 use super::ordered_entries::{Entry, OrderedEntries};
 use crate::{
@@ -325,28 +325,16 @@ impl ConfirmingSetThread {
     }
 
     /// We might need to issue multiple notifications if the block we're confirming implicitly confirms more
-    fn notify_maybe(
-        &self,
-        mut write_guard: WriteGuard,
-        mut tx: LmdbWriteTransaction,
-        cemented: &mut VecDeque<Context>,
-    ) -> (WriteGuard, LmdbWriteTransaction) {
+    fn notify_maybe(&self, tx: &mut LmdbWriteTransaction, cemented: &mut VecDeque<Context>) {
         if cemented.len() >= self.config.max_blocks {
             self.stats
                 .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
-            drop(write_guard);
             tx.commit();
 
             self.notify(cemented);
 
-            write_guard = self
-                .ledger
-                .store
-                .write_queue
-                .wait(Writer::ConfirmationHeight);
             tx.renew();
         }
-        (write_guard, tx)
     }
 
     fn run_batch(&self, batch: VecDeque<Entry>) {
@@ -354,12 +342,7 @@ impl ConfirmingSetThread {
         let mut already_cemented = VecDeque::new();
 
         {
-            let mut write_guard = self
-                .ledger
-                .store
-                .write_queue
-                .wait(Writer::ConfirmationHeight);
-            let mut tx = self.ledger.rw_txn();
+            let mut tx = self.ledger.store.tx_begin_write(Writer::ConfirmationHeight);
 
             for entry in batch {
                 let hash = entry.hash;
@@ -367,7 +350,7 @@ impl ConfirmingSetThread {
                 let mut cemented_count = 0;
                 let mut success = false;
                 loop {
-                    self.ledger.refresh_if_needed(&mut write_guard, &mut tx);
+                    tx.refresh_if_needed();
 
                     // Cementing deep dependency chains might take a long time, allow for graceful shutdown, ignore notifications
                     if self.stopped.load(Ordering::Relaxed) {
@@ -375,7 +358,7 @@ impl ConfirmingSetThread {
                     }
 
                     // Issue notifications here, so that `cemented` set is not too large before we add more blocks
-                    (write_guard, tx) = self.notify_maybe(write_guard, tx, &mut cemented);
+                    self.notify_maybe(&mut tx, &mut cemented);
 
                     self.stats
                         .inc(StatType::ConfirmingSet, DetailType::Cementing);
