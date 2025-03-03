@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use rsnano_core::{AccountInfo, BlockHash, SavedBlock};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 
@@ -12,7 +10,6 @@ use super::{
 
 pub(crate) struct BlockRollbackPerformer<'a> {
     ledger: &'a Ledger,
-    started: Instant,
     pub txn: &'a mut LmdbWriteTransaction,
     pub rolled_back: Vec<SavedBlock>,
 }
@@ -21,7 +18,6 @@ impl<'a> BlockRollbackPerformer<'a> {
     pub(crate) fn new(ledger: &'a Ledger, txn: &'a mut LmdbWriteTransaction) -> Self {
         Self {
             ledger,
-            started: Instant::now(),
             txn,
             rolled_back: Vec::new(),
         }
@@ -55,7 +51,6 @@ impl<'a> BlockRollbackPerformer<'a> {
             constants: &self.ledger.constants,
             store: &self.ledger.store,
             tx: self.txn,
-            started: &self.started,
         }
     }
 

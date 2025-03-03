@@ -6,10 +6,7 @@ use rsnano_core::{
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
 };
-use std::{
-    ops::{Deref, RangeBounds, RangeFrom},
-    time::{Duration, Instant},
-};
+use std::ops::{Deref, RangeBounds, RangeFrom};
 
 use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};
 
@@ -87,7 +84,6 @@ pub struct OwningAnySet<'a> {
     store: &'a LmdbStore,
     tx: LmdbReadTransaction,
     constants: &'a LedgerConstants,
-    started: Instant,
 }
 
 impl<'a> OwningAnySet<'a> {
@@ -100,7 +96,6 @@ impl<'a> OwningAnySet<'a> {
             store,
             tx,
             constants,
-            started: Instant::now(),
         }
     }
 
@@ -109,7 +104,6 @@ impl<'a> OwningAnySet<'a> {
             store: self.store,
             tx: &self.tx,
             constants: self.constants,
-            started: &self.started,
         }
     }
 
@@ -171,6 +165,10 @@ impl<'a> OwningAnySet<'a> {
             .rep_weight
             .get(&self.tx, &representative)
             .unwrap_or_default()
+    }
+
+    pub fn refresh_if_needed(&mut self) {
+        self.tx.refresh_if_needed();
     }
 }
 
@@ -334,7 +332,6 @@ pub(crate) struct BorrowingAnySet<'a> {
     pub constants: &'a LedgerConstants,
     pub store: &'a LmdbStore,
     pub tx: &'a dyn Transaction,
-    pub started: &'a Instant,
 }
 
 impl<'a> BorrowingAnySet<'a> {
@@ -423,7 +420,7 @@ impl<'a> AnySet for BorrowingAnySet<'a> {
     }
 
     fn should_refresh(&self) -> bool {
-        self.started.elapsed() > Duration::from_millis(500)
+        self.tx.is_refresh_needed()
     }
 
     fn block_successor(&self, hash: &BlockHash) -> Option<BlockHash> {

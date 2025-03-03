@@ -3,7 +3,7 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, WriteGuard, Writer,
+    RepWeightCache, RepWeightsUpdater, Writer,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
@@ -28,7 +28,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::{Duration, Instant, SystemTime},
+    time::SystemTime,
 };
 use tracing::{debug, error};
 
@@ -452,12 +452,10 @@ impl Ledger {
         let mut pruned_count = 0;
         let mut hash = *hash;
         let genesis_hash = self.constants.genesis_block.hash();
-        let started = Instant::now();
         let mut any = BorrowingAnySet {
             constants: &self.constants,
             store: &self.store,
             tx: txn,
-            started: &started,
         };
 
         while !hash.is_zero() && hash != genesis_hash {
@@ -476,7 +474,6 @@ impl Ledger {
                     constants: &self.constants,
                     store: &self.store,
                     tx: txn,
-                    started: &started,
                 };
             } else if self.store.pruned.exists(txn, &hash) {
                 hash = BlockHash::zero();
@@ -625,12 +622,10 @@ impl Ledger {
         txn: &mut LmdbWriteTransaction,
         block: &Block,
     ) -> Result<SavedBlock, BlockStatus> {
-        let started = Instant::now();
         let any = BorrowingAnySet {
             constants: &self.constants,
             store: &self.store,
             tx: txn,
-            started: &started,
         };
         let validator = BlockValidatorFactory::new(&any, &self.constants, block).create_validator();
         let instructions = validator.validate()?;
@@ -750,12 +745,10 @@ impl Ledger {
         root: &Root,
         hash: &BlockHash,
     ) -> bool {
-        let now = Instant::now();
         let any = BorrowingAnySet {
             constants: &self.constants,
             store: self.store.as_ref(),
             tx: txn,
-            started: &now,
         };
         let Some(block) = any.get_block(hash) else {
             return false;
