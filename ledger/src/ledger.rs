@@ -3,7 +3,7 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, WriteGuard, WriteQueue, Writer,
+    RepWeightCache, RepWeightsUpdater, WriteGuard, Writer,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
@@ -18,7 +18,7 @@ use rsnano_store_lmdb::{
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
     LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction,
     LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats,
-    Transaction,
+    Transaction, WriteQueue,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -186,6 +186,7 @@ impl NullLedgerBuilder {
         );
 
         let store = LmdbStore {
+            write_queue: Arc::new(WriteQueue::new()),
             cache: Arc::new(LedgerCache::new()),
             env: env.clone(),
             account: Arc::new(LmdbAccountStore::new(env.clone()).unwrap()),

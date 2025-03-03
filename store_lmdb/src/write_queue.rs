@@ -1,6 +1,9 @@
 use std::{
     collections::VecDeque,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Condvar, Mutex,
+    },
 };
 
 /** Distinct areas write locking is done, order is irrelevant */
@@ -55,10 +58,11 @@ impl Drop for WriteGuard {
 pub struct WriteQueue {
     data: Arc<WriteQueueData>,
     guard_finish_callback: Arc<dyn Fn() + Send + Sync>,
+    next: AtomicU64,
 }
 
 struct WriteQueueData {
-    queue: Mutex<VecDeque<Writer>>,
+    queue: Mutex<VecDeque<(Writer, u64)>>,
     condition: Condvar,
 }
 
@@ -78,29 +82,101 @@ impl WriteQueue {
                 guard.pop_front();
                 data_clone.condition.notify_all();
             }),
+            next: AtomicU64::new(0),
         }
     }
 
     /// Blocks until we are at the head of the queue and blocks other waiters until write_guard goes out of scope
     pub fn wait(&self, writer: Writer) -> WriteGuard {
         let mut lk = self.data.queue.lock().unwrap();
-        assert!(lk.iter().all(|i| *i != writer));
-        lk.push_back(writer);
+        let id = self.next.fetch_add(1, Ordering::Relaxed);
+        lk.push_back((writer, id));
 
         let _result = self
             .data
             .condition
-            .wait_while(lk, |queue| queue.front() != Some(&writer));
+            .wait_while(lk, |queue| queue.front() != Some(&(writer, id)));
 
         self.create_write_guard(writer)
     }
 
     /// Returns true if this writer is anywhere in the queue. Currently only used in tests
     pub fn contains(&self, writer: Writer) -> bool {
-        self.data.queue.lock().unwrap().contains(&writer)
+        self.data
+            .queue
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(w, _)| *w == writer)
     }
 
     fn create_write_guard(&self, writer: Writer) -> WriteGuard {
         WriteGuard::new(writer, self.guard_finish_callback.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        thread::{self, sleep},
+        time::Duration,
+    };
+
+    use rsnano_core::utils::OneShotNotification;
+
+    use super::*;
+
+    #[test]
+    fn first_request_succeeds() {
+        let queue = WriteQueue::new();
+        let guard = queue.wait(Writer::Pruning);
+        assert!(queue.contains(Writer::Pruning));
+        drop(guard);
+        assert!(!queue.contains(Writer::Pruning));
+    }
+
+    #[test]
+    fn second_request_waits() {
+        let queue = WriteQueue::new();
+        let guard = queue.wait(Writer::Pruning);
+        let started = OneShotNotification::new();
+        let ended = OneShotNotification::new();
+        let second_wait_finished = AtomicBool::new(false);
+        thread::scope(|s| {
+            s.spawn(|| {
+                started.notify(());
+                queue.wait(Writer::BlockProcessor);
+                second_wait_finished.store(true, Ordering::SeqCst);
+                ended.notify(());
+            });
+            started.wait();
+            sleep(Duration::from_millis(1));
+            assert_eq!(second_wait_finished.load(Ordering::SeqCst), false);
+            drop(guard);
+            ended.wait();
+        });
+    }
+
+    #[test]
+    fn can_request_same_writer_twice() {
+        let queue = WriteQueue::new();
+        let guard = queue.wait(Writer::Pruning);
+        let started = OneShotNotification::new();
+        let ended = OneShotNotification::new();
+        let second_wait_finished = AtomicBool::new(false);
+        thread::scope(|s| {
+            s.spawn(|| {
+                started.notify(());
+                queue.wait(Writer::Pruning);
+                second_wait_finished.store(true, Ordering::SeqCst);
+                ended.notify(());
+            });
+            started.wait();
+            sleep(Duration::from_millis(1));
+            assert_eq!(second_wait_finished.load(Ordering::SeqCst), false);
+            drop(guard);
+            ended.wait();
+        });
     }
 }
