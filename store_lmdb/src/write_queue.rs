@@ -4,7 +4,7 @@ use std::{
 };
 
 /** Distinct areas write locking is done, order is irrelevant */
-#[derive(FromPrimitive, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Writer {
     ConfirmationHeight,
     BlockProcessor,
@@ -101,6 +101,6 @@ impl WriteQueue {
     }
 
     fn create_write_guard(&self, writer: Writer) -> WriteGuard {
-        WriteGuard::new(writer, Arc::clone(&self.guard_finish_callback))
+        WriteGuard::new(writer, self.guard_finish_callback.clone())
     }
 }

@@ -17,7 +17,6 @@ mod rep_weight_cache;
 mod rep_weights_updater;
 mod representative_block_finder;
 pub mod test_helpers;
-mod write_queue;
 
 #[cfg(test)]
 mod ledger_tests;
@@ -34,4 +33,4 @@ pub use ledger_sets::*;
 pub use rep_weight_cache::*;
 pub use rep_weights_updater::*;
 pub(crate) use representative_block_finder::RepresentativeBlockFinder;
-pub use write_queue::{WriteGuard, WriteQueue, Writer};
+pub use rsnano_store_lmdb::{WriteGuard, WriteQueue, Writer};

@@ -20,6 +20,7 @@ mod rep_weight_store;
 mod store;
 mod version_store;
 mod wallet_store;
+mod write_queue;
 
 pub use account_store::{ConfiguredAccountDatabaseBuilder, LmdbAccountStore};
 pub use block_store::{ConfiguredBlockDatabaseBuilder, LmdbBlockStore};
@@ -40,6 +41,7 @@ use rsnano_nullable_lmdb::{
 pub use store::{create_backup_file, LedgerCache, LmdbStore, MemoryStats};
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
+pub use write_queue::*;
 
 use primitive_types::U256;
 use rsnano_core::utils::get_cpu_count;
