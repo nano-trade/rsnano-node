@@ -108,7 +108,6 @@ pub struct Ledger {
     pub rep_weights: Arc<RepWeightCache>,
     pub constants: LedgerConstants,
     pruning: AtomicBool,
-    pub write_queue: Arc<WriteQueue>,
     pub(crate) stats: Arc<Stats>,
 }
 
@@ -243,7 +242,6 @@ impl Ledger {
             store,
             constants,
             pruning: AtomicBool::new(false),
-            write_queue: Arc::new(WriteQueue::new()),
             stats,
         };
 
@@ -349,7 +347,7 @@ impl Ledger {
         if tx.elapsed() > Duration::from_millis(500) {
             let writer = write_guard.writer;
             tx.commit();
-            *write_guard = self.write_queue.wait(writer);
+            *write_guard = self.store.write_queue.wait(writer);
             tx.renew();
         }
     }
@@ -434,7 +432,7 @@ impl Ledger {
         let mut transaction_write_count = 0;
         // TODO break loop if node stopped
         if !targets.is_empty() {
-            let _write_guard = self.write_queue.wait(Writer::Pruning);
+            let _write_guard = self.store.write_queue.wait(Writer::Pruning);
             let mut tx = self.rw_txn();
             while !targets.is_empty() && transaction_write_count < batch_size {
                 let pruning_hash = targets.front().unwrap();
@@ -448,7 +446,7 @@ impl Ledger {
     }
 
     pub fn prune_one(&self, target: &BlockHash, batch_size: usize) -> usize {
-        let _write_guard = self.write_queue.wait(Writer::Pruning);
+        let _write_guard = self.store.write_queue.wait(Writer::Pruning);
         let mut tx = self.rw_txn();
         self.pruning_action(&mut tx, target, batch_size as u64) as usize
     }
@@ -536,7 +534,7 @@ impl Ledger {
         let mut processed = Vec::new();
         let mut processed_hashes = Vec::new();
         {
-            let _guard = self.write_queue.wait(Writer::BoundedBacklog);
+            let _guard = self.store.write_queue.wait(Writer::BoundedBacklog);
             let mut tx = self.rw_txn();
 
             for hash in targets {
@@ -597,7 +595,7 @@ impl Ledger {
         &self,
         batch: impl IntoIterator<Item = (&'a Block, bool)>,
     ) -> BatchProcessResult {
-        let mut write_guard = self.write_queue.wait(Writer::BlockProcessor);
+        let mut write_guard = self.store.write_queue.wait(Writer::BlockProcessor);
         let mut tx = self.rw_txn();
         let mut processed = Vec::new();
         let mut rolled_back = Vec::new();
@@ -727,7 +725,7 @@ impl Ledger {
         let mut verified = VecDeque::new();
 
         if is_final {
-            let mut write_guard = self.write_queue.wait(Writer::VotingFinal);
+            let mut write_guard = self.store.write_queue.wait(Writer::VotingFinal);
             let mut tx = self.rw_txn();
             for (root, hash) in &candidates {
                 self.refresh_if_needed(&mut write_guard, &mut tx);

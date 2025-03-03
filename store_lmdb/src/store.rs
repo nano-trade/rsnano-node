@@ -2,8 +2,8 @@ use crate::{
     EnvOptions, LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase,
     LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore,
     LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore,
-    LmdbWriteTransaction, NullTransactionTracker, TransactionTracker, STORE_VERSION_CURRENT,
-    STORE_VERSION_MINIMUM,
+    LmdbWriteTransaction, NullTransactionTracker, TransactionTracker, WriteQueue,
+    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::{MDB_CP_COMPACT, MDB_SUCCESS};
@@ -52,6 +52,7 @@ impl LedgerCache {
 
 pub struct LmdbStore {
     pub env: Arc<LmdbEnv>,
+    pub write_queue: Arc<WriteQueue>,
     pub cache: Arc<LedgerCache>,
     pub block: Arc<LmdbBlockStore>,
     pub account: Arc<LmdbAccountStore>,
@@ -134,6 +135,7 @@ impl LmdbStore {
     fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
         let env = Arc::new(env);
         Ok(Self {
+            write_queue: Arc::new(WriteQueue::new()),
             cache: Arc::new(LedgerCache::new()),
             block: Arc::new(LmdbBlockStore::new(env.clone())?),
             account: Arc::new(LmdbAccountStore::new(env.clone())?),

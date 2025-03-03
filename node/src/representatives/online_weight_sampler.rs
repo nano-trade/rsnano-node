@@ -71,7 +71,7 @@ impl OnlineWeightSampler {
     /// Called periodically to sample online weight
     pub fn add_sample(&self, current_online_weight: Amount) {
         let now = SystemTime::now();
-        let _guard = self.ledger.write_queue.wait(Writer::OnlineReps);
+        let _guard = self.ledger.store.write_queue.wait(Writer::OnlineReps);
         let mut txn = self.ledger.rw_txn();
         self.sanitize_samples(&mut txn, now);
         self.insert_new_sample(&mut txn, current_online_weight, now);
@@ -79,7 +79,7 @@ impl OnlineWeightSampler {
 
     pub fn sanitize(&self) {
         let now = SystemTime::now();
-        let _guard = self.ledger.write_queue.wait(Writer::OnlineReps);
+        let _guard = self.ledger.store.write_queue.wait(Writer::OnlineReps);
         let mut txn = self.ledger.rw_txn();
         self.sanitize_samples(&mut txn, now);
     }

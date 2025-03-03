@@ -2110,7 +2110,7 @@ fn rollback_vote_self() {
 
     {
         // The write guard prevents the block processor from performing the rollback
-        let _write_guard = node.ledger.write_queue.wait(Writer::Testing);
+        let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
         assert_eq!(0, node.active.votes_with_weight(&election).len());
         // Vote with key to switch the winner

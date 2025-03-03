@@ -62,7 +62,7 @@ fn confirmed_history() {
     let election = start_election(&node, &send1.hash());
     {
         // The write guard prevents the confirmation height processor doing any writes
-        let _write_guard = node.ledger.write_queue.wait(Writer::Testing);
+        let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
         // Confirm send1
         node.active.force_confirm(&election);
@@ -73,7 +73,10 @@ fn confirmed_history() {
         assert_eq!(node.ledger.confirmed().block_exists(&send.hash()), false);
 
         assert_timely(Duration::from_secs(10), || {
-            node.ledger.write_queue.contains(Writer::ConfirmationHeight)
+            node.ledger
+                .store
+                .write_queue
+                .contains(Writer::ConfirmationHeight)
         });
 
         // Confirm that no inactive callbacks have been called when the
@@ -92,7 +95,11 @@ fn confirmed_history() {
     }
 
     assert_timely(Duration::from_secs(10), || {
-        !node.ledger.write_queue.contains(Writer::ConfirmationHeight)
+        !node
+            .ledger
+            .store
+            .write_queue
+            .contains(Writer::ConfirmationHeight)
     });
 
     assert_timely2(|| node.ledger.confirmed().block_exists(&send.hash()));

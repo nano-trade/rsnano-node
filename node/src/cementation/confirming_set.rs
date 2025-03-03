@@ -339,7 +339,11 @@ impl ConfirmingSetThread {
 
             self.notify(cemented);
 
-            write_guard = self.ledger.write_queue.wait(Writer::ConfirmationHeight);
+            write_guard = self
+                .ledger
+                .store
+                .write_queue
+                .wait(Writer::ConfirmationHeight);
             tx.renew();
         }
         (write_guard, tx)
@@ -350,7 +354,11 @@ impl ConfirmingSetThread {
         let mut already_cemented = VecDeque::new();
 
         {
-            let mut write_guard = self.ledger.write_queue.wait(Writer::ConfirmationHeight);
+            let mut write_guard = self
+                .ledger
+                .store
+                .write_queue
+                .wait(Writer::ConfirmationHeight);
             let mut tx = self.ledger.rw_txn();
 
             for entry in batch {

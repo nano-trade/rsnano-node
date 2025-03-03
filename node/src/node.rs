@@ -1340,7 +1340,6 @@ impl Node {
     }
 
     pub fn process_multi(&self, blocks: &[Block]) {
-        let _guard = self.ledger.write_queue.wait(Writer::Testing);
         for (i, block) in blocks.iter().enumerate() {
             match self.ledger.process_one(block) {
                 Ok(_) | Err(BlockStatus::Old) => {}
@@ -1416,7 +1415,7 @@ impl Node {
     }
 
     pub fn confirm(&self, hash: BlockHash) {
-        let _guard = self.ledger.write_queue.wait(Writer::Testing);
+        let _guard = self.ledger.store.write_queue.wait(Writer::Testing);
         let mut tx = self.ledger.rw_txn();
         self.ledger.confirm(&mut tx, hash);
     }
