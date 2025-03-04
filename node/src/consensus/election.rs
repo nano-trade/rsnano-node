@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    sync::{atomic::AtomicUsize, Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -11,21 +11,15 @@ use rsnano_stats::{DetailType, StatType};
 use super::ElectionStatus;
 use crate::utils::HardenedConstants;
 
-pub static NEXT_ELECTION_ID: AtomicUsize = AtomicUsize::new(1);
-
 pub struct Election {
-    pub id: usize,
     pub root: Root,
     pub qualified_root: QualifiedRoot,
-    pub election_start: Instant,
-    pub live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
 
     pub mutex: Mutex<ElectionData>,
 }
 
 impl Election {
     pub fn new(
-        id: usize,
         block: SavedBlock,
         behavior: ElectionBehavior,
         live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
@@ -57,20 +51,15 @@ impl Election {
             last_req: None,
             confirmation_request_count: 0,
             last_block: Instant::now(),
+            live_vote_callback,
+            election_start: Instant::now(),
         };
 
         Self {
-            id,
             mutex: Mutex::new(data),
             root,
             qualified_root,
-            election_start: Instant::now(),
-            live_vote_callback,
         }
-    }
-
-    pub fn duration(&self) -> Duration {
-        self.election_start.elapsed()
     }
 
     pub fn lock(&self) -> MutexGuard<ElectionData> {
@@ -81,7 +70,6 @@ impl Election {
 impl Debug for Election {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Election")
-            .field("id", &self.id)
             .field("qualified_root", &self.qualified_root)
             .finish()
     }
@@ -103,6 +91,8 @@ pub struct ElectionData {
     pub last_req: Option<Instant>,
     pub confirmation_request_count: u32,
     pub last_block: Instant,
+    pub live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
+    pub election_start: Instant,
 }
 
 impl ElectionData {
@@ -174,9 +164,9 @@ impl ElectionData {
         }
     }
 
-    pub fn update_status_to_confirmed(&mut self, election: &Election) {
+    pub fn update_status_to_confirmed(&mut self) {
         self.status.election_end = SystemTime::now();
-        self.status.election_duration = election.election_start.elapsed();
+        self.status.election_duration = self.duration();
         self.status.confirmation_request_count = self.confirmation_request_count;
         self.status.block_count = self.last_blocks.len() as u32;
         self.status.voter_count = self.last_votes.len() as u32;
@@ -236,6 +226,10 @@ impl ElectionData {
             Some(i) => i.elapsed(),
             None => Duration::from_secs(60 * 60 * 24 * 365), // Duration::MAX caused problems with C++
         }
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.election_start.elapsed()
     }
 }
 

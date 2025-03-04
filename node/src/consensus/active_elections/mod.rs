@@ -5,7 +5,7 @@ use std::{
     collections::{BTreeMap, VecDeque},
     mem::size_of,
     ops::Deref,
-    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock},
+    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -27,7 +27,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use super::{
     confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionData,
     ElectionState, ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier,
-    VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter, NEXT_ELECTION_ID,
+    VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter,
 };
 use crate::{
     block_processing::BlockContext,
@@ -620,13 +620,13 @@ impl ActiveElections {
             election.lock().behavior,
             election_state
         );
-
         drop(guard);
 
         // Track election duration
+        let election_duration = election.lock().duration();
         self.stats.sample(
             Sample::ActiveElectionDuration,
-            election.duration().as_millis() as i64,
+            election_duration.as_millis() as i64,
             (0, 1000 * 60 * 10),
         ); // 0-10 minutes range
 
@@ -808,9 +808,7 @@ impl ActiveElections {
         let mut result = false;
         match guard.state {
             ElectionState::Passive => {
-                if self.base_latency() * Self::PASSIVE_DURATION_FACTOR
-                    < election.election_start.elapsed()
-                {
+                if self.base_latency() * Self::PASSIVE_DURATION_FACTOR < guard.duration() {
                     guard
                         .state_change(ElectionState::Passive, ElectionState::Active)
                         .unwrap();
@@ -836,7 +834,7 @@ impl ActiveElections {
             }
         }
 
-        if !guard.is_confirmed() && guard.time_to_live() < election.election_start.elapsed() {
+        if !guard.is_confirmed() && guard.time_to_live() < guard.duration() {
             // It is possible the election confirmed while acquiring the mutex
             // state_change returning true would indicate it
             let state = guard.state;
@@ -868,11 +866,11 @@ impl ActiveElections {
     }
 
     fn try_confirm(&self, election: &Arc<Election>, hash: &BlockHash) {
-        let guard = election.mutex.lock().unwrap();
+        let mut guard = election.mutex.lock().unwrap();
         if let Some(winner) = &guard.status.winner {
             if winner.hash() == *hash {
                 if !guard.is_confirmed() {
-                    self.vote_applier.confirm_once(guard, election);
+                    self.vote_applier.confirm_once(&mut guard, election);
                 }
             }
         }
@@ -880,8 +878,8 @@ impl ActiveElections {
 
     pub fn force_confirm(&self, election: &Arc<Election>) {
         assert!(self.network_params.network.is_dev_network());
-        let guard = election.mutex.lock().unwrap();
-        self.vote_applier.confirm_once(guard, election);
+        let mut guard = election.mutex.lock().unwrap();
+        self.vote_applier.confirm_once(&mut guard, election);
     }
 
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
@@ -1019,9 +1017,7 @@ impl ActiveElections {
                     online_reps.lock().unwrap().vote_observed(rep, clock.now());
                 });
 
-                let id = NEXT_ELECTION_ID.fetch_add(1, Ordering::Relaxed);
                 let election = Arc::new(Election::new(
-                    id,
                     block,
                     election_behavior,
                     Some(live_vote_callback),

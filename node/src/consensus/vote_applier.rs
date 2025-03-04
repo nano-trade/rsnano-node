@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{atomic::Ordering, Arc, Mutex, MutexGuard, RwLock, Weak},
+    sync::{Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
 
@@ -157,7 +157,7 @@ pub trait VoteApplierExt {
         vote_source: VoteSource,
     ) -> VoteCode;
     fn confirm_if_quorum(&self, election_lock: MutexGuard<ElectionData>, election: &Arc<Election>);
-    fn confirm_once(&self, election_lock: MutexGuard<ElectionData>, election: &Arc<Election>);
+    fn confirm_once(&self, election_lock: &mut ElectionData, election: &Arc<Election>);
 }
 
 impl VoteApplierExt for Arc<VoteApplier> {
@@ -176,7 +176,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             return VoteCode::Indeterminate;
         }
 
-        let mut guard = election.mutex.lock().unwrap();
+        let mut guard = election.lock();
 
         if let Some(last_vote) = guard.last_votes.get(rep) {
             if last_vote.timestamp > timestamp {
@@ -204,7 +204,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             .insert(*rep, VoteInfo::new(timestamp, *block_hash));
 
         if vote_source != VoteSource::Cache {
-            if let Some(callback) = &election.live_vote_callback {
+            if let Some(callback) = &guard.live_vote_callback {
                 callback(*rep);
             }
         }
@@ -268,17 +268,17 @@ impl VoteApplierExt for Arc<VoteApplier> {
                     BlockSource::Election,
                     ChannelId::LOOPBACK,
                 );
-                self.confirm_once(election_lock, election);
+                self.confirm_once(&mut election_lock, election);
             }
         }
     }
 
-    fn confirm_once(&self, mut election_lock: MutexGuard<ElectionData>, election: &Arc<Election>) {
+    fn confirm_once(&self, election_lock: &mut ElectionData, election: &Arc<Election>) {
         let just_confirmed = election_lock.state != ElectionState::Confirmed;
         election_lock.state = ElectionState::Confirmed;
 
         if just_confirmed {
-            election_lock.update_status_to_confirmed(election);
+            election_lock.update_status_to_confirmed();
             let status = election_lock.status.clone();
 
             self.recently_confirmed.put(
