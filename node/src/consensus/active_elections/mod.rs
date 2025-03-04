@@ -1,6 +1,8 @@
+mod root_container;
+
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     mem::size_of,
     ops::Deref,
     sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock},
@@ -9,6 +11,7 @@ use std::{
 };
 
 use bounded_vec_deque::BoundedVecDeque;
+use root_container::{Entry, RootContainer};
 use tracing::{debug, trace};
 
 use rsnano_core::{
@@ -127,7 +130,7 @@ impl ActiveElections {
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
-                roots: OrderedRoots::default(),
+                roots: RootContainer::default(),
                 stopped: false,
                 manual_count: 0,
                 priority_count: 0,
@@ -772,7 +775,7 @@ impl ActiveElections {
         self.mutex.lock().unwrap()
     }
 
-    // Returns a list of elections sorted by difficulty
+    /// Returns a list of elections sorted by difficulty
     pub fn list_active(&self, max: usize) -> Vec<Arc<Election>> {
         self.mutex
             .lock()
@@ -892,7 +895,7 @@ impl ActiveElections {
         .into();
 
         ContainerInfo::builder()
-            .leaf("roots", guard.roots.len(), OrderedRoots::ELEMENT_SIZE)
+            .leaf("roots", guard.roots.len(), RootContainer::ELEMENT_SIZE)
             .leaf(
                 "normal",
                 guard.count_by_behavior(ElectionBehavior::Priority),
@@ -960,7 +963,7 @@ impl From<Amount> for TallyKey {
 }
 
 pub struct ActiveElectionsState {
-    roots: OrderedRoots,
+    roots: RootContainer,
     stopped: bool,
     manual_count: usize,
     priority_count: usize,
@@ -989,48 +992,6 @@ impl ActiveElectionsState {
 
     pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
         self.roots.get(root).map(|i| i.election.clone())
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct OrderedRoots {
-    by_root: HashMap<QualifiedRoot, Entry>,
-    sequenced: Vec<QualifiedRoot>,
-}
-
-impl OrderedRoots {
-    pub const ELEMENT_SIZE: usize = size_of::<QualifiedRoot>() * 2 + size_of::<Arc<Election>>();
-
-    pub fn insert(&mut self, entry: Entry) {
-        let root = entry.root.clone();
-        if self.by_root.insert(root.clone(), entry).is_none() {
-            self.sequenced.push(root);
-        }
-    }
-
-    pub fn get(&self, root: &QualifiedRoot) -> Option<&Entry> {
-        self.by_root.get(root)
-    }
-
-    pub fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
-        let erased = self.by_root.remove(root);
-        if erased.is_some() {
-            self.sequenced.retain(|x| x != root)
-        }
-        erased
-    }
-
-    pub fn clear(&mut self) {
-        self.sequenced.clear();
-        self.by_root.clear();
-    }
-
-    pub fn len(&self) -> usize {
-        self.sequenced.len()
-    }
-
-    pub fn iter_sequenced(&self) -> impl Iterator<Item = &Entry> {
-        self.sequenced.iter().map(|r| self.by_root.get(r).unwrap())
     }
 }
 
@@ -1365,12 +1326,6 @@ pub struct ActiveElectionsInfo {
     pub priority: usize,
     pub hinted: usize,
     pub optimistic: usize,
-}
-
-pub(crate) struct Entry {
-    root: QualifiedRoot,
-    election: Arc<Election>,
-    erased_callback: Option<ErasedCallback>,
 }
 
 pub(crate) type ErasedCallback = Box<dyn Fn(&Arc<Election>) + Send + Sync>;
