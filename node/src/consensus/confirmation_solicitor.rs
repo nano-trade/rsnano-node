@@ -95,11 +95,11 @@ impl ConfirmationSolicitor {
     }
 
     /// Add an election that needs to be confirmed. Returns false if successfully added
-    pub fn add(&mut self, election: &Election, guard: &MutexGuard<ElectionData>) -> bool {
+    pub fn add(&mut self, election: &ElectionData) -> bool {
         debug_assert!(self.prepared);
         let mut error = true;
         let mut count = 0;
-        let winner = guard.status.winner.as_ref().unwrap();
+        let winner = election.status.winner.as_ref().unwrap();
         let hash = winner.hash();
         let mut to_remove = Vec::new();
         for rep in &self.representative_requests {
@@ -107,10 +107,10 @@ impl ConfirmationSolicitor {
                 break;
             }
             let mut full_queue = false;
-            let existing = guard.last_votes.get(&rep.rep_key);
+            let existing = election.last_votes.get(&rep.rep_key);
             let exists = existing.is_some();
             let is_final = if let Some(existing) = existing {
-                !election.is_quorum.load(Ordering::SeqCst) || existing.timestamp == u64::MAX
+                !election.is_quorum || existing.timestamp == u64::MAX
             } else {
                 false
             };

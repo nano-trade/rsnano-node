@@ -824,7 +824,7 @@ impl ActiveElections {
             ElectionState::Active => {
                 self.try_broadcast_vote(election, &mut guard);
                 self.broadcast_block(solicitor, election, &mut guard);
-                self.send_confirm_req(solicitor, election, &guard);
+                self.send_confirm_req(solicitor, &mut guard);
             }
             ElectionState::Confirmed => {
                 result = true; // Return true to indicate this election should be cleaned up
@@ -861,12 +861,11 @@ impl ActiveElections {
     fn send_confirm_req(
         &self,
         solicitor: &mut ConfirmationSolicitor,
-        election: &Election,
-        election_guard: &MutexGuard<ElectionData>,
+        election_guard: &mut ElectionData,
     ) {
-        if self.confirm_req_time(election_guard) < election.last_confirm_request_elapsed() {
-            if !solicitor.add(election, election_guard) {
-                election.confirm_request_sent();
+        if self.confirm_req_time(election_guard) < election_guard.last_confirm_request_elapsed() {
+            if !solicitor.add(election_guard) {
+                election_guard.confirm_request_sent();
                 self.stats
                     .inc(StatType::Election, DetailType::ConfirmationRequest);
             }

@@ -57,7 +57,7 @@ fn batches() {
             );
 
             let data = election.mutex.lock().unwrap();
-            assert_eq!(solicitor.add(&election, &data), false);
+            assert_eq!(solicitor.add(&data), false);
         }
         // Reached the maximum amount of requests for the channel
         let election = Election::new(
@@ -137,7 +137,7 @@ fn different_hashes() {
     data.last_votes
         .insert(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
     // Ensure the request and broadcast goes through
-    assert_eq!(solicitor.add(&election, &data), false);
+    assert_eq!(solicitor.add(&data), false);
     solicitor.broadcast(&data).unwrap();
     // One publish through directed broadcasting and another through random flooding
 
@@ -202,7 +202,7 @@ fn bypass_max_requests_cap() {
             .insert(rep.rep_key, VoteInfo::new(1, 1.into()));
     }
     // Ensure the request and broadcast goes through
-    assert_eq!(solicitor.add(&election, &data), false);
+    assert_eq!(solicitor.add(&data), false);
     solicitor.broadcast(&data).unwrap();
     drop(data);
     // All requests went through, the last one would normally not go through due to the cap but a vote for a different hash does not count towards the cap

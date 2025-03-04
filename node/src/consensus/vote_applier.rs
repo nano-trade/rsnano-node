@@ -249,7 +249,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         }
 
         if self.have_quorum(&tally) {
-            if !election.is_quorum.swap(true, Ordering::SeqCst)
+            if election_lock.swap_quorum_on()
                 && self.node_config.enable_voting
                 && self.wallets.voting_reps_count() > 0
             {

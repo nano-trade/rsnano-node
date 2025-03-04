@@ -1,10 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    sync::{
-        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
-        Mutex, RwLock,
-    },
+    sync::{atomic::AtomicUsize, Mutex, RwLock},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -26,11 +23,8 @@ pub struct Election {
     pub live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
 
     pub mutex: Mutex<ElectionData>,
-    pub is_quorum: AtomicBool,
-    pub confirmation_request_count: AtomicU32,
     // These are modified while not holding the mutex from transition_time only
     last_block: RwLock<Instant>,
-    pub last_req: RwLock<Option<Instant>>,
 }
 
 impl Election {
@@ -66,6 +60,9 @@ impl Election {
             last_vote: None,
             last_block_hash: BlockHash::zero(),
             behavior,
+            is_quorum: false,
+            last_req: None,
+            confirmation_request_count: 0,
         };
 
         Self {
@@ -73,11 +70,8 @@ impl Election {
             mutex: Mutex::new(data),
             root,
             qualified_root,
-            is_quorum: AtomicBool::new(false),
-            confirmation_request_count: AtomicU32::new(0),
             last_block: RwLock::new(Instant::now()),
             election_start: Instant::now(),
-            last_req: RwLock::new(None),
             live_vote_callback,
             height,
         }
@@ -119,19 +113,6 @@ impl Election {
         let mut guard = self.mutex.lock().unwrap();
         let current = guard.state;
         let _ = guard.state_change(current, ElectionState::Cancelled);
-    }
-
-    pub fn confirm_request_sent(&self) {
-        *self.last_req.write().unwrap() = Some(Instant::now());
-        self.confirmation_request_count
-            .fetch_add(1, Ordering::SeqCst);
-    }
-
-    pub fn last_confirm_request_elapsed(&self) -> Duration {
-        match self.last_req.read().unwrap().as_ref() {
-            Some(i) => i.elapsed(),
-            None => Duration::MAX,
-        }
     }
 
     pub fn set_last_block(&self) {
@@ -195,9 +176,21 @@ pub struct ElectionData {
     pub last_vote: Option<Instant>,
     pub last_block_hash: BlockHash,
     pub behavior: ElectionBehavior,
+    pub is_quorum: bool,
+    pub last_req: Option<Instant>,
+    pub confirmation_request_count: u32,
 }
 
 impl ElectionData {
+    pub fn swap_quorum_on(&mut self) -> bool {
+        if !self.is_quorum {
+            self.is_quorum = true;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn is_confirmed(&self) -> bool {
         matches!(
             self.state,
@@ -205,11 +198,22 @@ impl ElectionData {
         )
     }
 
+    pub fn confirm_request_sent(&mut self) {
+        self.last_req = Some(Instant::now());
+        self.confirmation_request_count += 1;
+    }
+
+    pub fn last_confirm_request_elapsed(&self) -> Duration {
+        match self.last_req {
+            Some(i) => i.elapsed(),
+            None => Duration::MAX,
+        }
+    }
+
     pub fn update_status_to_confirmed(&mut self, election: &Election) {
         self.status.election_end = SystemTime::now();
         self.status.election_duration = election.election_start.elapsed();
-        self.status.confirmation_request_count =
-            election.confirmation_request_count.load(Ordering::SeqCst);
+        self.status.confirmation_request_count = self.confirmation_request_count;
         self.status.block_count = self.last_blocks.len() as u32;
         self.status.voter_count = self.last_votes.len() as u32;
     }
