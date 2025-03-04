@@ -298,7 +298,7 @@ mod election_scheduler {
         let block = blocks.last().unwrap();
         assert_timely2(|| node.vote_router.active(&block.hash()));
         let election = node.active.election(&block.qualified_root()).unwrap();
-        assert_eq!(election.behavior(), ElectionBehavior::Optimistic);
+        assert_eq!(election.lock().behavior, ElectionBehavior::Optimistic);
         assert_timely_eq2(
             || election.mutex.lock().unwrap().status.vote_broadcast_count,
             1,
@@ -312,7 +312,7 @@ mod election_scheduler {
             .insert(block.clone(), ElectionBehavior::Priority, None);
 
         // Verify priority transition
-        assert_eq!(election.behavior(), ElectionBehavior::Priority);
+        assert_eq!(election.lock().behavior, ElectionBehavior::Priority);
         assert_eq!(
             1,
             node.stats.count(

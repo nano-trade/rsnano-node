@@ -24,8 +24,6 @@ pub struct Election {
 }
 
 impl Election {
-    pub const PASSIVE_DURATION_FACTOR: u32 = 5;
-
     pub fn new(
         id: usize,
         block: SavedBlock,
@@ -75,11 +73,7 @@ impl Election {
         self.election_start.elapsed()
     }
 
-    pub fn behavior(&self) -> ElectionBehavior {
-        self.mutex.lock().unwrap().behavior
-    }
-
-    pub fn lock(&'_ self) -> MutexGuard<'_, ElectionData> {
+    pub fn lock(&self) -> MutexGuard<ElectionData> {
         self.mutex.lock().unwrap()
     }
 }

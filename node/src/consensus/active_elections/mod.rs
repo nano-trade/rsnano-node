@@ -106,6 +106,8 @@ pub struct ActiveElections {
 }
 
 impl ActiveElections {
+    const PASSIVE_DURATION_FACTOR: u32 = 5;
+
     pub(crate) fn new(
         network_params: NetworkParams,
         wallets: Arc<Wallets>,
@@ -570,14 +572,13 @@ impl ActiveElections {
         election: &'a Arc<Election>,
     ) {
         // Keep track of election count by election type
-        debug_assert!(guard.count_by_behavior(election.behavior()) > 0);
-        *guard.count_by_behavior_mut(election.behavior()) -= 1;
+        *guard.count_by_behavior_mut(election.lock().behavior) -= 1;
 
         let election_winner: BlockHash;
         let election_state;
         let blocks;
         {
-            let election_guard = election.mutex.lock().unwrap();
+            let election_guard = election.lock();
             blocks = election_guard.last_blocks.clone();
             election_winner = election_guard.status.winner.as_ref().unwrap().hash();
             election_state = election_guard.state;
@@ -604,7 +605,8 @@ impl ActiveElections {
         );
         self.stats
             .inc(StatType::ActiveElectionsStopped, state.into());
-        self.stats.inc(state.into(), election.behavior().into());
+        self.stats
+            .inc(state.into(), election.lock().behavior.into());
 
         trace!(election = ?election, "active stopped");
 
@@ -615,7 +617,7 @@ impl ActiveElections {
                 .map(|k| k.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            election.behavior(),
+            election.lock().behavior,
             election_state
         );
 
@@ -806,7 +808,7 @@ impl ActiveElections {
         let mut result = false;
         match guard.state {
             ElectionState::Passive => {
-                if self.base_latency() * Election::PASSIVE_DURATION_FACTOR
+                if self.base_latency() * Self::PASSIVE_DURATION_FACTOR
                     < election.election_start.elapsed()
                 {
                     guard
@@ -989,7 +991,7 @@ impl ActiveElections {
             election_result = Some(existing.election.clone());
 
             // Upgrade to priority election to enable immediate vote broadcasting.
-            let previous_behavior = existing.election.behavior();
+            let previous_behavior = existing.election.lock().behavior;
             if election_behavior == ElectionBehavior::Priority
                 && previous_behavior != ElectionBehavior::Priority
             {

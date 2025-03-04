@@ -35,7 +35,10 @@ pub fn activate_one() {
         election.is_some()
     });
 
-    assert_eq!(election.unwrap().behavior(), ElectionBehavior::Optimistic);
+    assert_eq!(
+        election.unwrap().lock().behavior,
+        ElectionBehavior::Optimistic
+    );
 }
 
 /*
@@ -68,7 +71,10 @@ pub fn activate_one_zero_conf() {
         election.is_some()
     });
 
-    assert_eq!(election.unwrap().behavior(), ElectionBehavior::Optimistic);
+    assert_eq!(
+        election.unwrap().lock().behavior,
+        ElectionBehavior::Optimistic
+    );
 }
 
 /*
@@ -99,7 +105,8 @@ pub fn activate_many() {
                 return false;
             };
 
-            election.behavior() == ElectionBehavior::Optimistic
+            let behavior = election.lock().behavior;
+            behavior == ElectionBehavior::Optimistic
         })
     });
 }
