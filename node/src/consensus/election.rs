@@ -120,14 +120,16 @@ impl Election {
         let _ = guard.state_change(current, ElectionState::Cancelled);
     }
 
-    pub fn set_last_req(&self) {
+    pub fn confirm_request_sent(&self) {
         *self.last_req.write().unwrap() = Some(Instant::now());
+        self.confirmation_request_count
+            .fetch_add(1, Ordering::SeqCst);
     }
 
-    pub fn last_req_elapsed(&self) -> Duration {
+    pub fn last_confirm_request_elapsed(&self) -> Duration {
         match self.last_req.read().unwrap().as_ref() {
             Some(i) => i.elapsed(),
-            None => Duration::from_secs(60 * 60 * 24 * 365), // Duration::MAX caused problems with C++
+            None => Duration::MAX,
         }
     }
 

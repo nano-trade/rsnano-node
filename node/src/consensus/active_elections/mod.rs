@@ -863,15 +863,22 @@ impl ActiveElections {
         election: &Election,
         election_guard: &MutexGuard<ElectionData>,
     ) {
-        if self.confirm_req_time(election_guard) < election.last_req_elapsed() {
+        if self.confirm_req_time(election_guard) < election.last_confirm_request_elapsed() {
             if !solicitor.add(election, election_guard) {
-                election.set_last_req();
-                election
-                    .confirmation_request_count
-                    .fetch_add(1, Ordering::SeqCst);
-
+                election.confirm_request_sent();
                 self.stats
                     .inc(StatType::Election, DetailType::ConfirmationRequest);
+            }
+        }
+    }
+
+    fn try_confirm(&self, election: &Arc<Election>, hash: &BlockHash) {
+        let guard = election.mutex.lock().unwrap();
+        if let Some(winner) = &guard.status.winner {
+            if winner.hash() == *hash {
+                if !guard.is_confirmed() {
+                    self.vote_applier.confirm_once(guard, election);
+                }
             }
         }
     }
@@ -992,7 +999,6 @@ pub trait ActiveElectionsExt {
     fn start(&self);
     fn stop(&self);
     fn force_confirm(&self, election: &Arc<Election>);
-    fn try_confirm(&self, election: &Arc<Election>, hash: &BlockHash);
 
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     fn block_cemented(
@@ -1041,9 +1047,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                         // TODO: This could be offloaded to a separate notification worker, profiling is needed
                         let mut any = active.ledger.any();
                         for (status, votes) in results {
-                            if any.should_refresh() {
-                                any = active.ledger.any();
-                            }
+                            any.refresh_if_needed();
                             active.notify_observers(&any, &status, &votes);
                         }
                     }
@@ -1096,17 +1100,6 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         assert!(self.network_params.network.is_dev_network());
         let guard = election.mutex.lock().unwrap();
         self.vote_applier.confirm_once(guard, election);
-    }
-
-    fn try_confirm(&self, election: &Arc<Election>, hash: &BlockHash) {
-        let guard = election.mutex.lock().unwrap();
-        if let Some(winner) = &guard.status.winner {
-            if winner.hash() == *hash {
-                if !guard.is_confirmed() {
-                    self.vote_applier.confirm_once(guard, election);
-                }
-            }
-        }
     }
 
     fn block_cemented(
@@ -1237,15 +1230,19 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 inserted = true;
                 let online_reps = self.online_reps.clone();
                 let clock = self.steady_clock.clone();
-                let observer_rep_cb = Box::new(move |rep| {
+                let live_vote_callback = Box::new(move |rep| {
                     // TODO: Is this neccessary? Move this outside of the election class
                     // Representative is defined as online if replying to live votes or rep_crawler queries
                     online_reps.lock().unwrap().vote_observed(rep, clock.now());
                 });
 
                 let id = NEXT_ELECTION_ID.fetch_add(1, Ordering::Relaxed);
-                let election =
-                    Arc::new(Election::new(id, block, election_behavior, observer_rep_cb));
+                let election = Arc::new(Election::new(
+                    id,
+                    block,
+                    election_behavior,
+                    live_vote_callback,
+                ));
                 guard.roots.insert(Entry {
                     root,
                     election: election.clone(),
