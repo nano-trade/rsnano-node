@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
-    sync::{Mutex, MutexGuard},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -16,56 +15,6 @@ use super::{ElectionStatus, TallyKey};
 use crate::utils::HardenedConstants;
 
 pub struct Election {
-    pub mutex: Mutex<ElectionData>,
-}
-
-impl Election {
-    pub fn new(
-        block: SavedBlock,
-        behavior: ElectionBehavior,
-        live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
-    ) -> Self {
-        let data = ElectionData {
-            root: block.root(),
-            qualified_root: block.qualified_root(),
-            status: ElectionStatus {
-                winner: Some(rsnano_core::MaybeSavedBlock::Saved(block.clone())),
-                election_end: SystemTime::now(),
-                block_count: 1,
-                election_status_type: super::ElectionStatusType::Ongoing,
-                ..Default::default()
-            },
-            last_votes: HashMap::from([(
-                HardenedConstants::get().not_an_account_key,
-                VoteInfo::new(0, block.hash()),
-            )]),
-            last_blocks: HashMap::from([(block.hash(), MaybeSavedBlock::Saved(block))]),
-            state: ElectionState::Passive,
-            state_start: Instant::now(),
-            last_tally: HashMap::new(),
-            final_weight: Amount::zero(),
-            last_vote: None,
-            last_block_hash: BlockHash::zero(),
-            behavior,
-            is_quorum: false,
-            last_req: None,
-            confirmation_request_count: 0,
-            last_block: Instant::now(),
-            live_vote_callback,
-            election_start: Instant::now(),
-        };
-
-        Self {
-            mutex: Mutex::new(data),
-        }
-    }
-
-    pub fn lock(&self) -> MutexGuard<ElectionData> {
-        self.mutex.lock().unwrap()
-    }
-}
-
-pub struct ElectionData {
     pub root: Root,
     pub qualified_root: QualifiedRoot,
     pub status: ElectionStatus,
@@ -87,7 +36,7 @@ pub struct ElectionData {
     pub election_start: Instant,
 }
 
-impl ElectionData {
+impl Election {
     pub fn new(
         block: SavedBlock,
         behavior: ElectionBehavior,

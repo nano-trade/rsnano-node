@@ -10,7 +10,7 @@ use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NetworkParams, NodeConfig, NodeFlags},
-    consensus::ElectionData,
+    consensus::Election,
     unique_path,
     wallets::WalletsExt,
     Node, NodeBuilder,
@@ -387,7 +387,7 @@ pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
         .0
 }
 
-pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Mutex<ElectionData>> {
+pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Mutex<Election>> {
     assert_timely_msg(
         Duration::from_secs(5),
         || node.block_exists(hash),

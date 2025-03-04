@@ -6,7 +6,7 @@ use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
 use rsnano_node::{
     config::{NodeFlags, DEV_NETWORK_PARAMS},
-    consensus::{ConfirmationSolicitor, ElectionBehavior, ElectionData, VoteInfo},
+    consensus::{ConfirmationSolicitor, Election, ElectionBehavior, VoteInfo},
     representatives::PeeredRepInfo,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
@@ -49,11 +49,11 @@ fn batches() {
 
     {
         for _ in 0..ConfirmReq::HASHES_MAX {
-            let election = ElectionData::new(send.clone(), ElectionBehavior::Priority, None);
+            let election = Election::new(send.clone(), ElectionBehavior::Priority, None);
             assert_eq!(solicitor.add(&election), false);
         }
         // Reached the maximum amount of requests for the channel
-        let election = ElectionData::new(send.clone(), ElectionBehavior::Priority, None);
+        let election = Election::new(send.clone(), ElectionBehavior::Priority, None);
         // Broadcasting should be immediate
         assert_eq!(
             0,
@@ -113,7 +113,7 @@ fn different_hashes() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let election = Mutex::new(ElectionData::new(
+    let election = Mutex::new(Election::new(
         send.clone(),
         ElectionBehavior::Priority,
         None,
@@ -175,7 +175,7 @@ fn bypass_max_requests_cap() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let mut election = ElectionData::new(send.clone(), ElectionBehavior::Priority, None);
+    let mut election = Election::new(send.clone(), ElectionBehavior::Priority, None);
     // Add a vote for something else, not the winner
     for rep in &representatives {
         election

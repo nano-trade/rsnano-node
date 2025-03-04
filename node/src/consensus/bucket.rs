@@ -8,7 +8,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections, ElectionBehavior, ElectionData,
+    ActiveElections, Election, ElectionBehavior,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -211,7 +211,7 @@ impl BucketData {
 }
 
 struct ElectionEntry {
-    election: Arc<Mutex<ElectionData>>,
+    election: Arc<Mutex<Election>>,
     root: QualifiedRoot,
     priority: UnixTimestamp,
 }

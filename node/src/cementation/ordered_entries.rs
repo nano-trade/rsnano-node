@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use crate::consensus::ElectionData;
+use crate::consensus::Election;
 
 #[derive(Default)]
 pub(super) struct OrderedEntries {
@@ -72,6 +72,6 @@ impl OrderedEntries {
 
 pub(super) struct Entry {
     pub hash: BlockHash,
-    pub election: Option<Arc<Mutex<ElectionData>>>,
+    pub election: Option<Arc<Mutex<Election>>>,
     pub timestamp: Instant,
 }

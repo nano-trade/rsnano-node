@@ -25,7 +25,7 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    confirmation_solicitor::ConfirmationSolicitor, ElectionBehavior, ElectionData, ElectionState,
+    confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionState,
     ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier, VoteCache,
     VoteCacheProcessor, VoteGenerators, VoteRouter,
 };
@@ -303,7 +303,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn remove_block(&self, election_guard: &mut MutexGuard<ElectionData>, hash: &BlockHash) {
+    pub fn remove_block(&self, election_guard: &mut MutexGuard<Election>, hash: &BlockHash) {
         if election_guard.status.winner.as_ref().unwrap().hash() != *hash {
             if let Some(existing) = election_guard.last_blocks.remove(hash) {
                 election_guard.last_votes.retain(|_, v| v.hash != *hash);
@@ -386,10 +386,10 @@ impl ActiveElections {
 
     fn replace_by_weight<'a>(
         &self,
-        election: &'a Mutex<ElectionData>,
-        mut election_guard: MutexGuard<'a, ElectionData>,
+        election: &'a Mutex<Election>,
+        mut election_guard: MutexGuard<'a, Election>,
         hash: &BlockHash,
-    ) -> (bool, MutexGuard<'a, ElectionData>) {
+    ) -> (bool, MutexGuard<'a, Election>) {
         let mut replaced_block = BlockHash::zero();
         let winner_hash = election_guard.status.winner.as_ref().unwrap().hash();
         // Sort existing blocks tally
@@ -444,7 +444,7 @@ impl ActiveElections {
         (replaced, election_guard)
     }
 
-    fn publish(&self, block: &Block, election: &Mutex<ElectionData>) -> bool {
+    fn publish(&self, block: &Block, election: &Mutex<Election>) -> bool {
         let mut election_guard = election.lock().unwrap();
 
         // Do not insert new blocks if already confirmed
@@ -489,14 +489,14 @@ impl ActiveElections {
 
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    fn try_broadcast_vote(&self, election: &mut ElectionData) {
+    fn try_broadcast_vote(&self, election: &mut Election) {
         if election.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval {
             self.broadcast_vote_locked(election);
             election.set_last_vote();
         }
     }
 
-    fn broadcast_block(&self, solicitor: &mut ConfirmationSolicitor, election: &mut ElectionData) {
+    fn broadcast_block(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
         if self.broadcast_block_predicate(election) {
             if solicitor.broadcast(election).is_ok() {
                 let last_block_hash = election.last_block_hash;
@@ -517,7 +517,7 @@ impl ActiveElections {
 
     /// Broadcast vote for current election winner. Generates final vote if reached quorum or already confirmed
     /// Requires mutex lock
-    fn broadcast_vote_locked(&self, election: &mut ElectionData) {
+    fn broadcast_vote_locked(&self, election: &mut Election) {
         let last_vote_elapsed = election.last_vote_elapsed();
         if last_vote_elapsed < self.network_params.network.vote_broadcast_interval {
             return;
@@ -554,7 +554,7 @@ impl ActiveElections {
     fn cleanup_election<'a>(
         &self,
         mut guard: MutexGuard<'a, ActiveElectionsState>,
-        election: &'a Arc<Mutex<ElectionData>>,
+        election: &'a Arc<Mutex<Election>>,
     ) {
         // Keep track of election count by election type
         *guard.count_by_behavior_mut(election.lock().unwrap().behavior) -= 1;
@@ -657,7 +657,7 @@ impl ActiveElections {
     }
 
     /// Calculates time delay between broadcasting confirmation requests
-    fn confirm_req_time(&self, election_data: &ElectionData) -> Duration {
+    fn confirm_req_time(&self, election_data: &Election) -> Duration {
         match election_data.behavior {
             ElectionBehavior::Priority | ElectionBehavior::Manual | ElectionBehavior::Hinted => {
                 self.base_latency() * 5
@@ -666,7 +666,7 @@ impl ActiveElections {
         }
     }
 
-    fn broadcast_block_predicate(&self, election: &ElectionData) -> bool {
+    fn broadcast_block_predicate(&self, election: &Election) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
         if election.last_block_elapsed() < self.network_params.network.block_broadcast_interval {
             true
@@ -679,7 +679,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<ElectionData>>> {
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
         let guard = self.mutex.lock().unwrap();
         guard.election(root)
     }
@@ -734,7 +734,7 @@ impl ActiveElections {
     }
 
     /// Returns a list of elections sorted by difficulty
-    pub fn list_active(&self, max: usize) -> Vec<Arc<Mutex<ElectionData>>> {
+    pub fn list_active(&self, max: usize) -> Vec<Arc<Mutex<Election>>> {
         self.mutex
             .lock()
             .unwrap()
@@ -749,7 +749,7 @@ impl ActiveElections {
     fn list_active_impl(
         max: usize,
         guard: &MutexGuard<ActiveElectionsState>,
-    ) -> Vec<Arc<Mutex<ElectionData>>> {
+    ) -> Vec<Arc<Mutex<Election>>> {
         guard
             .roots
             .iter_sequenced()
@@ -772,7 +772,7 @@ impl ActiveElections {
     fn transition_time(
         &self,
         solicitor: &mut ConfirmationSolicitor,
-        election: &mut ElectionData,
+        election: &mut Election,
     ) -> bool {
         let mut result = false;
         match election.state {
@@ -823,7 +823,7 @@ impl ActiveElections {
     fn send_confirm_req(
         &self,
         solicitor: &mut ConfirmationSolicitor,
-        election_guard: &mut ElectionData,
+        election_guard: &mut Election,
     ) {
         if self.confirm_req_time(election_guard) < election_guard.last_confirm_request_elapsed() {
             if !solicitor.add(election_guard) {
@@ -834,7 +834,7 @@ impl ActiveElections {
         }
     }
 
-    fn try_confirm(&self, election: &Arc<Mutex<ElectionData>>, hash: &BlockHash) {
+    fn try_confirm(&self, election: &Arc<Mutex<Election>>, hash: &BlockHash) {
         let mut guard = election.lock().unwrap();
         if let Some(winner) = &guard.status.winner {
             if winner.hash() == *hash {
@@ -845,7 +845,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn force_confirm(&self, election: &Arc<Mutex<ElectionData>>) {
+    pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
         assert!(self.network_params.network.is_dev_network());
         let mut guard = election.lock().unwrap();
         self.vote_applier.confirm_once(&mut guard, election);
@@ -857,7 +857,7 @@ impl ActiveElections {
         guard: &mut ActiveElectionsState,
         block: &SavedBlock,
         confirmation_root: &BlockHash,
-        source_election: &Option<Arc<Mutex<ElectionData>>>,
+        source_election: &Option<Arc<Mutex<Election>>>,
     ) -> (ElectionStatus, Vec<VoteWithWeightInfo>) {
         // Dependent elections are implicitly confirmed when their block is cemented
         let dependent_election = guard.election(&block.qualified_root());
@@ -941,7 +941,7 @@ impl ActiveElections {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-    ) -> (bool, Option<Arc<Mutex<ElectionData>>>) {
+    ) -> (bool, Option<Arc<Mutex<Election>>>) {
         let mut election_result = None;
         let mut inserted = false;
 
@@ -987,7 +987,7 @@ impl ActiveElections {
                     online_reps.lock().unwrap().vote_observed(rep, clock.now());
                 });
 
-                let election = Arc::new(Mutex::new(ElectionData::new(
+                let election = Arc::new(Mutex::new(Election::new(
                     block,
                     election_behavior,
                     Some(live_vote_callback),
@@ -1194,7 +1194,7 @@ impl ActiveElectionsState {
         }
     }
 
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<ElectionData>>> {
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
         self.roots.get(root).map(|i| i.election.clone())
     }
 }

@@ -1,4 +1,4 @@
-use super::ElectionData;
+use super::Election;
 use crate::{config::NetworkParams, representatives::PeeredRepInfo, transport::MessageFlooder};
 use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message, Publish};
@@ -60,7 +60,7 @@ impl ConfirmationSolicitor {
     }
 
     /// Broadcast the winner of an election if the broadcast limit has not been reached. Returns false if the broadcast was performed
-    pub fn broadcast(&mut self, guard: &ElectionData) -> Result<(), ()> {
+    pub fn broadcast(&mut self, guard: &Election) -> Result<(), ()> {
         debug_assert!(self.prepared);
         self.rebroadcasted += 1;
         if self.rebroadcasted >= self.max_block_broadcasts {
@@ -95,7 +95,7 @@ impl ConfirmationSolicitor {
     }
 
     /// Add an election that needs to be confirmed. Returns false if successfully added
-    pub fn add(&mut self, election: &ElectionData) -> bool {
+    pub fn add(&mut self, election: &Election) -> bool {
         debug_assert!(self.prepared);
         let mut error = true;
         let mut count = 0;
