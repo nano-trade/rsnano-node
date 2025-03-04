@@ -1,20 +1,21 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::Debug,
     sync::{Mutex, MutexGuard},
     time::{Duration, Instant, SystemTime},
 };
 
-use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, Root, SavedBlock};
+use rsnano_core::{
+    Amount, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, Root, SavedBlock,
+    VoteWithWeightInfo,
+};
+use rsnano_ledger::RepWeightCache;
 use rsnano_stats::{DetailType, StatType};
 
-use super::ElectionStatus;
+use super::{ElectionStatus, TallyKey};
 use crate::utils::HardenedConstants;
 
 pub struct Election {
-    pub root: Root,
-    pub qualified_root: QualifiedRoot,
-
     pub mutex: Mutex<ElectionData>,
 }
 
@@ -53,26 +54,14 @@ impl Election {
             live_vote_callback,
             election_start: Instant::now(),
         };
-        let root = data.root;
-        let qualified_root = data.qualified_root.clone();
 
         Self {
             mutex: Mutex::new(data),
-            root,
-            qualified_root,
         }
     }
 
     pub fn lock(&self) -> MutexGuard<ElectionData> {
         self.mutex.lock().unwrap()
-    }
-}
-
-impl Debug for Election {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Election")
-            .field("qualified_root", &self.qualified_root)
-            .finish()
     }
 }
 
@@ -233,6 +222,33 @@ impl ElectionData {
 
     pub fn duration(&self) -> Duration {
         self.election_start.elapsed()
+    }
+
+    pub fn votes_with_weight(&self, rep_weights: &RepWeightCache) -> Vec<VoteWithWeightInfo> {
+        let mut sorted_votes: BTreeMap<TallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
+        for (&representative, info) in &self.last_votes {
+            if representative == HardenedConstants::get().not_an_account_key {
+                continue;
+            }
+            let weight = rep_weights.weight(&representative);
+            let vote_with_weight = VoteWithWeightInfo {
+                representative,
+                time: info.time,
+                timestamp: info.timestamp,
+                hash: info.hash,
+                weight,
+            };
+            sorted_votes
+                .entry(TallyKey(weight))
+                .or_default()
+                .push(vote_with_weight);
+        }
+        let result: Vec<_> = sorted_votes
+            .values_mut()
+            .map(|i| std::mem::take(i))
+            .flatten()
+            .collect();
+        result
     }
 }
 

@@ -2,7 +2,7 @@ mod root_container;
 
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, VecDeque},
+    collections::VecDeque,
     mem::size_of,
     ops::Deref,
     sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
@@ -36,7 +36,6 @@ use crate::{
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     transport::MessageFlooder,
-    utils::HardenedConstants,
     wallets::Wallets,
 };
 
@@ -598,8 +597,6 @@ impl ActiveElections {
         self.stats
             .inc(state.into(), election.lock().behavior.into());
 
-        trace!(election = ?election, "active stopped");
-
         debug!(
             "Erased election for blocks: {} (behavior: {:?}, state: {:?})",
             blocks
@@ -613,7 +610,14 @@ impl ActiveElections {
         drop(guard);
 
         // Track election duration
-        let election_duration = election.lock().duration();
+        let election_duration;
+        let qualified_root;
+        {
+            let el = election.lock();
+            election_duration = el.duration();
+            qualified_root = el.qualified_root.clone();
+        }
+
         self.stats.sample(
             Sample::ActiveElectionDuration,
             election_duration.as_millis() as i64,
@@ -622,7 +626,7 @@ impl ActiveElections {
 
         // Notify observers without holding the lock
         if let Some(callback) = entry.erased_callback {
-            callback(election)
+            callback(&qualified_root);
         }
 
         self.vacancy_updated();
@@ -680,34 +684,6 @@ impl ActiveElections {
         guard.election(root)
     }
 
-    pub fn votes_with_weight(&self, election: &Election) -> Vec<VoteWithWeightInfo> {
-        let mut sorted_votes: BTreeMap<TallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
-        let guard = election.mutex.lock().unwrap();
-        for (&representative, info) in &guard.last_votes {
-            if representative == HardenedConstants::get().not_an_account_key {
-                continue;
-            }
-            let weight = self.ledger.weight(&representative);
-            let vote_with_weight = VoteWithWeightInfo {
-                representative,
-                time: info.time,
-                timestamp: info.timestamp,
-                hash: info.hash,
-                weight,
-            };
-            sorted_votes
-                .entry(TallyKey(weight))
-                .or_default()
-                .push(vote_with_weight);
-        }
-        let result: Vec<_> = sorted_votes
-            .values_mut()
-            .map(|i| std::mem::take(i))
-            .flatten()
-            .collect();
-        result
-    }
-
     fn request_loop(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
@@ -740,13 +716,16 @@ impl ActiveElections {
          * Flushed elections are later re-activated via frontier confirmation
          */
         for election in elections {
-            let success = {
+            let success;
+            let root;
+            {
                 let mut election_guard = election.lock();
-                self.transition_time(&mut solicitor, &mut election_guard)
+                success = self.transition_time(&mut solicitor, &mut election_guard);
+                root = election_guard.qualified_root.clone();
             };
 
             if success {
-                self.erase(&election.qualified_root);
+                self.erase(&root);
             }
         }
 
@@ -897,10 +876,11 @@ impl ActiveElections {
         // Check if the currently cemented block was part of an election that triggered the confirmation
         let mut handled = false;
         if let Some(source_election) = source_election {
-            if source_election.qualified_root == block.qualified_root() {
-                status = source_election.lock().status.clone();
+            let source_election_guard = source_election.lock();
+            if source_election_guard.qualified_root == block.qualified_root() {
+                status = source_election_guard.status.clone();
                 debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
-                votes = self.votes_with_weight(source_election);
+                votes = source_election_guard.votes_with_weight(&self.ledger.rep_weights);
                 status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;
                 handled = true;
             }
@@ -1263,4 +1243,4 @@ pub struct ActiveElectionsInfo {
     pub optimistic: usize,
 }
 
-pub(crate) type ErasedCallback = Box<dyn Fn(&Arc<Election>) + Send + Sync>;
+pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;

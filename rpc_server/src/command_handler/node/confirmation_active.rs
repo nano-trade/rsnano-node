@@ -14,8 +14,9 @@ impl RpcCommandHandler {
         for election in active_elections {
             let req_count = election.mutex.lock().unwrap().confirmation_request_count;
             if req_count as u64 >= announcements {
-                if !election.lock().is_confirmed() {
-                    elections.push(election.qualified_root.clone());
+                let el = election.lock();
+                if !el.is_confirmed() {
+                    elections.push(el.qualified_root.clone());
                 } else {
                     confirmed += 1;
                 }

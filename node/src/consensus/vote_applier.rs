@@ -126,12 +126,13 @@ impl VoteApplier {
     ) {
         if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
             // Remove votes from election
-            let list_generated_votes = self.history.votes(&election.root, hash, false);
+            let root = election.lock().root;
+            let list_generated_votes = self.history.votes(&root, hash, false);
             for vote in list_generated_votes {
                 guard.last_votes.remove(&vote.voting_account);
             }
             // Clear votes cache
-            self.history.erase(&election.root);
+            self.history.erase(&root);
         }
     }
 
@@ -209,7 +210,6 @@ impl VoteApplierExt for Arc<VoteApplier> {
         self.stats.inc(StatType::Election, DetailType::Vote);
         self.stats.inc(StatType::ElectionVote, vote_source.into());
         tracing::trace!(
-            qualified_root = ?election.qualified_root,
             account = %rep,
             hash = %block_hash,
             timestamp,
@@ -254,7 +254,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             {
                 election_lock.status.vote_broadcast_count += 1;
                 self.vote_generators
-                    .generate_final_vote(&election.root, &status_winner_hash);
+                    .generate_final_vote(&election_lock.root, &status_winner_hash);
             }
             let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
             if election_lock.final_weight >= quorum_delta {

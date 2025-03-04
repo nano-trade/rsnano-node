@@ -166,12 +166,12 @@ impl BucketExt for Arc<Bucket> {
         }
 
         let self_w = Arc::downgrade(self);
-        let erase_callback = Box::new(move |election: &Arc<Election>| {
+        let erase_callback = Box::new(move |root: &QualifiedRoot| {
             let Some(self_l) = self_w.upgrade() else {
                 return;
             };
             let mut guard = self_l.data.lock().unwrap();
-            guard.elections.erase(&election.qualified_root);
+            guard.elections.erase(root);
         });
 
         let (inserted, election) =
@@ -180,8 +180,9 @@ impl BucketExt for Arc<Bucket> {
 
         if inserted {
             let election = election.unwrap();
+            let root = election.lock().qualified_root.clone();
             self.data.lock().unwrap().elections.insert(ElectionEntry {
-                root: election.qualified_root.clone(),
+                root,
                 election,
                 priority,
             });

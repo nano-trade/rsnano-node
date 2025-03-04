@@ -2097,7 +2097,13 @@ fn rollback_vote_self() {
         // The write guard prevents the block processor from performing the rollback
         let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
-        assert_eq!(0, node.active.votes_with_weight(&election).len());
+        assert_eq!(
+            0,
+            election
+                .lock()
+                .votes_with_weight(&node.ledger.rep_weights)
+                .len()
+        );
         // Vote with key to switch the winner
         node.active.vote_applier.vote(
             &election,
@@ -2106,7 +2112,13 @@ fn rollback_vote_self() {
             &fork.hash(),
             VoteSource::Live,
         );
-        assert_eq!(1, node.active.votes_with_weight(&election).len());
+        assert_eq!(
+            1,
+            election
+                .lock()
+                .votes_with_weight(&node.ledger.rep_weights)
+                .len()
+        );
         // The winner changed
         assert_eq!(election.lock().winner_hash().unwrap(), fork.hash(),);
 
@@ -2142,12 +2154,16 @@ fn rollback_vote_self() {
     // A vote is eventually generated from the local representative
     let is_genesis_vote = |info: &&VoteWithWeightInfo| info.representative == *DEV_GENESIS_PUB_KEY;
 
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.active.votes_with_weight(&election).len(),
+    assert_timely_eq2(
+        || {
+            election
+                .lock()
+                .votes_with_weight(&node.ledger.rep_weights)
+                .len()
+        },
         2,
     );
-    let votes_with_weight = node.active.votes_with_weight(&election);
+    let votes_with_weight = election.lock().votes_with_weight(&node.ledger.rep_weights);
     assert_eq!(1, votes_with_weight.iter().filter(is_genesis_vote).count());
     let vote = votes_with_weight.iter().find(is_genesis_vote).unwrap();
     assert_eq!(fork.hash(), vote.hash);
