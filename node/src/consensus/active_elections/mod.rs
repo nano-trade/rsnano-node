@@ -503,13 +503,12 @@ impl ActiveElections {
     fn broadcast_block(
         &self,
         solicitor: &mut ConfirmationSolicitor,
-        election: &Election,
         election_guard: &mut MutexGuard<ElectionData>,
     ) {
-        if self.broadcast_block_predicate(election, election_guard) {
+        if self.broadcast_block_predicate(election_guard) {
             if solicitor.broadcast(election_guard).is_ok() {
                 let last_block_hash = election_guard.last_block_hash;
-                election.set_last_block();
+                election_guard.set_last_block();
                 election_guard.last_block_hash =
                     election_guard.status.winner.as_ref().unwrap().hash();
 
@@ -675,13 +674,11 @@ impl ActiveElections {
         }
     }
 
-    fn broadcast_block_predicate(
-        &self,
-        election: &Election,
-        election_guard: &MutexGuard<ElectionData>,
-    ) -> bool {
+    fn broadcast_block_predicate(&self, election_guard: &MutexGuard<ElectionData>) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
-        if election.last_block_elapsed() < self.network_params.network.block_broadcast_interval {
+        if election_guard.last_block_elapsed()
+            < self.network_params.network.block_broadcast_interval
+        {
             true
         }
         // Or the current election winner has changed
@@ -823,12 +820,12 @@ impl ActiveElections {
             }
             ElectionState::Active => {
                 self.try_broadcast_vote(election, &mut guard);
-                self.broadcast_block(solicitor, election, &mut guard);
+                self.broadcast_block(solicitor, &mut guard);
                 self.send_confirm_req(solicitor, &mut guard);
             }
             ElectionState::Confirmed => {
                 result = true; // Return true to indicate this election should be cleaned up
-                self.broadcast_block(solicitor, election, &mut guard); // Ensure election winner is broadcasted
+                self.broadcast_block(solicitor, &mut guard); // Ensure election winner is broadcasted
                 guard
                     .state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
                     .unwrap();

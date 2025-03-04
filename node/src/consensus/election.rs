@@ -23,8 +23,6 @@ pub struct Election {
     pub live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
 
     pub mutex: Mutex<ElectionData>,
-    // These are modified while not holding the mutex from transition_time only
-    last_block: RwLock<Instant>,
 }
 
 impl Election {
@@ -63,6 +61,7 @@ impl Election {
             is_quorum: false,
             last_req: None,
             confirmation_request_count: 0,
+            last_block: Instant::now(),
         };
 
         Self {
@@ -70,7 +69,6 @@ impl Election {
             mutex: Mutex::new(data),
             root,
             qualified_root,
-            last_block: RwLock::new(Instant::now()),
             election_start: Instant::now(),
             live_vote_callback,
             height,
@@ -115,38 +113,12 @@ impl Election {
         let _ = guard.state_change(current, ElectionState::Cancelled);
     }
 
-    pub fn set_last_block(&self) {
-        *self.last_block.write().unwrap() = Instant::now();
-    }
-
-    pub fn last_block_elapsed(&self) -> Duration {
-        self.last_block.read().unwrap().elapsed()
-    }
-
-    pub fn age(&self) -> Duration {
-        self.mutex.lock().unwrap().state_start.elapsed()
-    }
-
-    pub fn failed(&self) -> bool {
-        self.mutex.lock().unwrap().state == ElectionState::ExpiredUnconfirmed
-    }
-
-    pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.mutex.lock().unwrap().last_blocks.contains_key(hash)
-    }
-
     pub fn vote_count(&self) -> usize {
         self.mutex.lock().unwrap().last_votes.len()
     }
 
     pub fn winner_hash(&self) -> Option<BlockHash> {
-        self.mutex
-            .lock()
-            .unwrap()
-            .status
-            .winner
-            .as_ref()
-            .map(|w| w.hash())
+        self.mutex.lock().unwrap().winner_hash()
     }
 
     pub fn behavior(&self) -> ElectionBehavior {
@@ -179,6 +151,7 @@ pub struct ElectionData {
     pub is_quorum: bool,
     pub last_req: Option<Instant>,
     pub confirmation_request_count: u32,
+    pub last_block: Instant,
 }
 
 impl ElectionData {
@@ -196,6 +169,18 @@ impl ElectionData {
             self.state,
             ElectionState::Confirmed | ElectionState::ExpiredConfirmed
         )
+    }
+
+    pub fn set_last_block(&mut self) {
+        self.last_block = Instant::now();
+    }
+
+    pub fn last_block_elapsed(&self) -> Duration {
+        self.last_block.elapsed()
+    }
+
+    pub fn winner_hash(&self) -> Option<BlockHash> {
+        self.status.winner.as_ref().map(|w| w.hash())
     }
 
     pub fn confirm_request_sent(&mut self) {
