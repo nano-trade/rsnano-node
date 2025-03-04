@@ -20,7 +20,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use super::{InsertResult, OnlineReps};
 use crate::{
     config::{NetworkParams, NodeConfig},
-    consensus::ActiveElections,
+    consensus::RecentlyConfirmedCache,
     transport::{
         keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
         MessageSender,
@@ -38,7 +38,7 @@ pub struct RepCrawler {
     network: Arc<RwLock<Network>>,
     condition: Condvar,
     ledger: Arc<Ledger>,
-    active: Arc<ActiveElections>,
+    recently_confirmed: Arc<RecentlyConfirmedCache>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
     message_sender: Mutex<MessageSender>,
@@ -57,7 +57,7 @@ impl RepCrawler {
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
-        active: Arc<ActiveElections>,
+        recently_confirmed: Arc<RecentlyConfirmedCache>,
         steady_clock: Arc<SteadyClock>,
         message_sender: MessageSender,
         keepalive_publisher: Arc<KeepalivePublisher>,
@@ -72,7 +72,7 @@ impl RepCrawler {
             network,
             condition: Condvar::new(),
             ledger,
-            active,
+            recently_confirmed,
             thread: Mutex::new(None),
             steady_clock,
             message_sender: Mutex::new(message_sender),
@@ -361,7 +361,7 @@ impl RepCrawler {
 
         for block in &random_blocks {
             // Avoid blocks that could still have live votes coming in
-            if self.active.recently_confirmed.hash_exists(&block.hash()) {
+            if self.recently_confirmed.hash_exists(&block.hash()) {
                 continue;
             }
 

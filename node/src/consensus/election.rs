@@ -19,17 +19,18 @@ pub static NEXT_ELECTION_ID: AtomicUsize = AtomicUsize::new(1);
 //TODO remove the many RwLocks
 pub struct Election {
     pub id: usize,
-    pub mutex: Mutex<ElectionData>,
     pub root: Root,
     pub qualified_root: QualifiedRoot,
+    height: u64,
+    pub election_start: Instant,
+    pub live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
+
+    pub mutex: Mutex<ElectionData>,
     pub is_quorum: AtomicBool,
     pub confirmation_request_count: AtomicU32,
     // These are modified while not holding the mutex from transition_time only
     last_block: RwLock<Instant>,
     pub last_req: RwLock<Option<Instant>>,
-    pub election_start: Instant,
-    pub live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
-    height: u64,
 }
 
 impl Election {
@@ -39,7 +40,7 @@ impl Election {
         id: usize,
         block: SavedBlock,
         behavior: ElectionBehavior,
-        live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
+        live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
     ) -> Self {
         let root = block.root();
         let qualified_root = block.qualified_root();
@@ -77,7 +78,7 @@ impl Election {
             last_block: RwLock::new(Instant::now()),
             election_start: Instant::now(),
             last_req: RwLock::new(None),
-            live_vote_action,
+            live_vote_callback,
             height,
         }
     }

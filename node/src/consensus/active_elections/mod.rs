@@ -84,7 +84,7 @@ pub struct ActiveElections {
     config: ActiveElectionsConfig,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
-    pub recently_confirmed: Arc<RecentlyConfirmedCache>,
+    recently_confirmed: Arc<RecentlyConfirmedCache>,
     /// Helper container for storing recently cemented elections (a block from election might be confirmed but not yet cemented by confirmation height processor)
     recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     vote_generators: Arc<VoteGenerators>,
@@ -99,7 +99,7 @@ pub struct ActiveElections {
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
     pub vote_applier: Arc<VoteApplier>,
-    pub vote_router: Arc<VoteRouter>,
+    vote_router: Arc<VoteRouter>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
     message_flooder: Mutex<MessageFlooder>,
     vacancy_updated_observers: RwLock<Vec<Box<dyn Fn() + Send + Sync>>>,
@@ -488,7 +488,11 @@ impl ActiveElections {
 
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    fn broadcast_vote(&self, election: &Election, election_guard: &mut MutexGuard<ElectionData>) {
+    fn try_broadcast_vote(
+        &self,
+        election: &Election,
+        election_guard: &mut MutexGuard<ElectionData>,
+    ) {
         if election_guard.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval
         {
             self.broadcast_vote_locked(election_guard, election);
@@ -818,7 +822,7 @@ impl ActiveElections {
                 }
             }
             ElectionState::Active => {
-                self.broadcast_vote(election, &mut guard);
+                self.try_broadcast_vote(election, &mut guard);
                 self.broadcast_block(solicitor, election, &mut guard);
                 self.send_confirm_req(solicitor, election, &guard);
             }
@@ -1084,7 +1088,7 @@ impl ActiveElections {
         // Votes are generated for inserted or ongoing elections
         if let Some(election) = &election_result {
             let mut guard = election.mutex.lock().unwrap();
-            self.broadcast_vote(election, &mut guard);
+            self.try_broadcast_vote(election, &mut guard);
         }
 
         (inserted, election_result)

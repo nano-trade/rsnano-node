@@ -696,7 +696,7 @@ impl Node {
             network_params.clone(),
             network.clone(),
             ledger.clone(),
-            active_elections.clone(),
+            recently_confirmed.clone(),
             steady_clock.clone(),
             message_sender.clone(),
             keepalive_publisher.clone(),
