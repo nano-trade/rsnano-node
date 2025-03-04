@@ -740,9 +740,13 @@ impl ActiveElections {
          * Flushed elections are later re-activated via frontier confirmation
          */
         for election in elections {
-            let mut election_guard = election.lock();
-            if self.transition_time(&mut solicitor, &mut election_guard) {
-                self.erase(&election_guard.qualified_root);
+            let success = {
+                let mut election_guard = election.lock();
+                self.transition_time(&mut solicitor, &mut election_guard)
+            };
+
+            if success {
+                self.erase(&election.qualified_root);
             }
         }
 
@@ -894,7 +898,7 @@ impl ActiveElections {
         let mut handled = false;
         if let Some(source_election) = source_election {
             if source_election.qualified_root == block.qualified_root() {
-                status = source_election.mutex.lock().unwrap().status.clone();
+                status = source_election.lock().status.clone();
                 debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
                 votes = self.votes_with_weight(source_election);
                 status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;

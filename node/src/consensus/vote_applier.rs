@@ -279,13 +279,13 @@ impl VoteApplierExt for Arc<VoteApplier> {
             let status = election_lock.status.clone();
 
             self.recently_confirmed.put(
-                election.qualified_root.clone(),
+                election_lock.qualified_root.clone(),
                 status.winner.as_ref().unwrap().hash(),
             );
 
             self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
             trace!(
-                qualified_root = ?election.qualified_root,
+                qualified_root = ?election_lock.qualified_root,
                 "election confirmed"
             );
 
