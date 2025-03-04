@@ -637,22 +637,18 @@ impl ActiveElections {
 
         for (hash, block) in blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
-            if !self.confirmed(election) || hash != election_winner {
+            if !election.lock().is_confirmed() || hash != election_winner {
                 let callbacks = self.active_stopped_observer.lock().unwrap();
                 for callback in callbacks.iter() {
                     (callback)(hash);
                 }
             }
 
-            if !self.confirmed(election) {
+            if !election.lock().is_confirmed() {
                 // Clear from publish filter
                 self.clear_publish_filter(&block);
             }
         }
-    }
-
-    pub fn confirmed(&self, election: &Election) -> bool {
-        election.mutex.lock().unwrap().is_confirmed()
     }
 
     /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations

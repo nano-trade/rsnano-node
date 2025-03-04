@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    sync::{atomic::AtomicUsize, Mutex, RwLock},
+    sync::{atomic::AtomicUsize, Mutex, MutexGuard},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -13,7 +13,6 @@ use crate::utils::HardenedConstants;
 
 pub static NEXT_ELECTION_ID: AtomicUsize = AtomicUsize::new(1);
 
-//TODO remove the many RwLocks
 pub struct Election {
     pub id: usize,
     pub root: Root,
@@ -123,6 +122,10 @@ impl Election {
 
     pub fn behavior(&self) -> ElectionBehavior {
         self.mutex.lock().unwrap().behavior
+    }
+
+    pub fn lock(&'_ self) -> MutexGuard<'_, ElectionData> {
+        self.mutex.lock().unwrap()
     }
 }
 

@@ -17,7 +17,7 @@ impl RpcCommandHandler {
             .election(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 
-        if self.node.active.confirmed(&election) {
+        if election.lock().is_confirmed() {
             bail!("Active confirmation not found");
         }
 

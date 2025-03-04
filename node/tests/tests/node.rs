@@ -440,14 +440,10 @@ fn confirm_quorum() {
         )
         .unwrap();
 
-    assert_timely_msg(
-        Duration::from_secs(2),
-        || node1.active.election(&send1.qualified_root()).is_some(),
-        "Election not found",
-    );
+    assert_timely2(|| node1.active.election(&send1.qualified_root()).is_some());
 
     let election = node1.active.election(&send1.qualified_root()).unwrap();
-    assert!(!node1.active.confirmed(&election));
+    assert!(!election.lock().is_confirmed());
     assert_eq!(1, election.mutex.lock().unwrap().last_votes.len());
     assert_eq!(Amount::zero(), node1.balance(&DEV_GENESIS_ACCOUNT));
 }
@@ -1798,14 +1794,10 @@ fn fork_open() {
 
     // wait for a second and check that the election did not get confirmed
     sleep(Duration::from_millis(1000));
-    assert_eq!(node.active.confirmed(&election), false);
+    assert_eq!(election.lock().is_confirmed(), false);
 
     // check that only the first block is saved to the ledger
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.block_exists(&open1.hash()),
-        "open1 not in ledger",
-    );
+    assert_timely2(|| node.block_exists(&open1.hash()));
     assert_eq!(node.block_exists(&open2.hash()), false);
 }
 
@@ -2404,7 +2396,7 @@ fn node_receive_quorum() {
     );
 
     let election = node1.active.election(&send.qualified_root()).unwrap();
-    assert!(!node1.active.confirmed(&election));
+    assert!(!election.lock().is_confirmed());
     assert_eq!(1, election.mutex.lock().unwrap().last_votes.len());
 
     let node2 = system.make_disconnected_node();

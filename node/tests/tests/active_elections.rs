@@ -271,7 +271,7 @@ fn non_final() {
         },
         Amount::MAX - Amount::raw(100),
     );
-    assert_eq!(node.active.confirmed(&election), false);
+    assert_eq!(election.lock().is_confirmed(), false);
 }
 
 #[test]
@@ -576,7 +576,7 @@ fn republish_winner() {
     node1
         .vote_processor_queue
         .vote(vote, None, VoteSource::Live);
-    assert_timely(Duration::from_secs(5), || node1.active.confirmed(&election));
+    assert_timely2(|| election.lock().is_confirmed());
 
     assert_eq!(fork.hash(), election.winner_hash().unwrap());
 
@@ -642,10 +642,10 @@ fn confirm_election_by_request() {
 
     // Ensure election on node2 did not get confirmed without us requesting votes
     sleep(Duration::from_secs(1));
-    assert_eq!(node2.active.confirmed(&election), false);
+    assert_eq!(election.lock().is_confirmed(), false);
 
     // Expect that node2 has nobody to send a confirmation_request to (no reps)
-    assert_eq!(election.mutex.lock().unwrap().confirmation_request_count, 0);
+    assert_eq!(election.lock().confirmation_request_count, 0);
 
     // Get random peer list from node2 -- so basically just node2
     let peers = node2.network.read().unwrap().sorted_channels();
@@ -659,22 +659,16 @@ fn confirm_election_by_request() {
     );
 
     // Expect a vote to come back
-    assert_timely(Duration::from_secs(5), || election.vote_count() >= 1);
+    assert_timely2(|| election.vote_count() >= 1);
 
     // There needs to be at least one request to get the election confirmed,
     // Rep has this block already confirmed so should reply with final vote only
-    assert_timely(Duration::from_secs(5), || {
-        election.mutex.lock().unwrap().confirmation_request_count >= 1
-    });
+    assert_timely2(|| election.mutex.lock().unwrap().confirmation_request_count >= 1);
 
     // Expect election was confirmed
-    assert_timely(Duration::from_secs(5), || node2.active.confirmed(&election));
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_confirmed(&send1.hash())
-    });
-    assert_timely(Duration::from_secs(5), || {
-        node2.block_confirmed(&send1.hash())
-    });
+    assert_timely2(|| election.lock().is_confirmed());
+    assert_timely2(|| node1.block_confirmed(&send1.hash()));
+    assert_timely2(|| node2.block_confirmed(&send1.hash()));
 }
 
 #[test]
@@ -873,7 +867,7 @@ fn dropped_cleanup() {
     assert!(node.active.election(&qual_root).is_some());
 
     // Now simulate dropping the election
-    assert!(!node.active.confirmed(&election));
+    assert!(!election.lock().is_confirmed());
     node.active.erase(&qual_root);
 
     // The filter must have been cleared
@@ -897,7 +891,7 @@ fn dropped_cleanup() {
 
     let election = start_election(&node, &hash);
     node.active.force_confirm(&election);
-    assert_timely(Duration::from_secs(5), || node.active.confirmed(&election));
+    assert_timely2(|| election.lock().is_confirmed());
     node.active.erase(&qual_root);
 
     // The filter should not have been cleared
@@ -1043,7 +1037,7 @@ fn conflicting_block_vote_existing_election() {
         node.active.election(&fork.qualified_root()).is_some()
     });
     let election = node.active.election(&fork.qualified_root()).unwrap();
-    assert_timely(Duration::from_secs(3), || node.active.confirmed(&election));
+    assert_timely2(|| election.lock().is_confirmed());
 }
 
 #[test]
