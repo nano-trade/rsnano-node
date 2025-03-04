@@ -1024,7 +1024,7 @@ impl ActiveElections {
                     id,
                     block,
                     election_behavior,
-                    live_vote_callback,
+                    Some(live_vote_callback),
                 ));
                 guard.roots.insert(Entry {
                     root,

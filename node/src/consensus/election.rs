@@ -18,7 +18,7 @@ pub struct Election {
     pub root: Root,
     pub qualified_root: QualifiedRoot,
     pub election_start: Instant,
-    pub live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
+    pub live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
 
     pub mutex: Mutex<ElectionData>,
 }
@@ -28,7 +28,7 @@ impl Election {
         id: usize,
         block: SavedBlock,
         behavior: ElectionBehavior,
-        live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
+        live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
     ) -> Self {
         let root = block.root();
         let qualified_root = block.qualified_root();
