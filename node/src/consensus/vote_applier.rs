@@ -118,13 +118,13 @@ impl VoteApplier {
         result
     }
 
-    pub fn remove_votes(&self, guard: &mut Election, hash: &BlockHash) {
+    pub fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
         if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
             // Remove votes from election
-            let root = guard.root;
+            let root = *election.root();
             let list_generated_votes = self.history.votes(&root, hash, false);
             for vote in list_generated_votes {
-                guard.last_votes.remove(&vote.voting_account);
+                election.last_votes.remove(&vote.voting_account);
             }
             // Clear votes cache
             self.history.erase(&root);
@@ -233,7 +233,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         let winner_hash = block.hash();
         election_lock.status.tally = amount.amount();
         election_lock.status.final_tally = election_lock.final_weight;
-        let status_winner_hash = election_lock.status.winner.as_ref().unwrap().hash();
+        let status_winner_hash = election_lock.winner_hash().unwrap();
         let mut sum = Amount::zero();
         for k in tally.keys() {
             sum += k.amount();
@@ -253,7 +253,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             {
                 election_lock.status.vote_broadcast_count += 1;
                 self.vote_generators
-                    .generate_final_vote(&election_lock.root, &status_winner_hash);
+                    .generate_final_vote(election_lock.root(), &status_winner_hash);
             }
             let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
             if election_lock.final_weight >= quorum_delta {
@@ -278,13 +278,13 @@ impl VoteApplierExt for Arc<VoteApplier> {
             let status = election_lock.status.clone();
 
             self.recently_confirmed.put(
-                election_lock.qualified_root.clone(),
+                election_lock.qualified_root().clone(),
                 status.winner.as_ref().unwrap().hash(),
             );
 
             self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
             trace!(
-                qualified_root = ?election_lock.qualified_root,
+                qualified_root = ?election_lock.qualified_root(),
                 "election confirmed"
             );
 

@@ -16,7 +16,7 @@ impl RpcCommandHandler {
             if req_count as u64 >= announcements {
                 let el = election.lock().unwrap();
                 if !el.is_confirmed() {
-                    elections.push(el.qualified_root.clone());
+                    elections.push(el.qualified_root().clone());
                 } else {
                     confirmed += 1;
                 }

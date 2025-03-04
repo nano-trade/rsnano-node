@@ -180,7 +180,7 @@ impl BucketExt for Arc<Bucket> {
 
         if inserted {
             let election = election.unwrap();
-            let root = election.lock().unwrap().qualified_root.clone();
+            let root = election.lock().unwrap().qualified_root().clone();
             self.data.lock().unwrap().elections.insert(ElectionEntry {
                 root,
                 election,

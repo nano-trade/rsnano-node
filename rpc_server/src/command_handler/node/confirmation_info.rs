@@ -11,32 +11,27 @@ impl RpcCommandHandler {
     ) -> anyhow::Result<ConfirmationInfoDto> {
         let include_representatives = args.representatives.unwrap_or(false.into()).inner();
         let contents = args.contents.unwrap_or(true.into()).inner();
-        let election = self
+        let election_mutex = self
             .node
             .active
             .election(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 
-        if election.lock().unwrap().is_confirmed() {
+        if election_mutex.lock().unwrap().is_confirmed() {
             bail!("Active confirmation not found");
         }
 
-        let info = election.lock().unwrap();
-        let announcements = info.status.confirmation_request_count;
-        let voters = info.last_votes.len();
-        let last_winner = info
-            .status
-            .winner
-            .as_ref()
-            .map(|b| b.hash())
-            .unwrap_or_default();
+        let election = election_mutex.lock().unwrap();
+        let announcements = election.status.confirmation_request_count;
+        let voters = election.last_votes.len();
+        let last_winner = election.winner_hash().unwrap_or_default();
 
-        let final_tally = info.status.final_tally;
+        let final_tally = election.status.final_tally;
         let mut total_tally = Amount::zero();
         let mut blocks = IndexMap::new();
 
-        for block in info.last_blocks.values() {
-            let tally = info
+        for block in election.last_blocks.values() {
+            let tally = election
                 .last_tally
                 .get(&block.hash())
                 .cloned()
@@ -52,7 +47,7 @@ impl RpcCommandHandler {
 
             let representatives = if include_representatives {
                 let mut reps = IndexMap::new();
-                for (representative, vote) in &info.last_votes {
+                for (representative, vote) in &election.last_votes {
                     if block.hash() == vote.hash {
                         let amount = self.node.ledger.rep_weights.weight(representative);
                         reps.insert(Account::from(representative), amount);

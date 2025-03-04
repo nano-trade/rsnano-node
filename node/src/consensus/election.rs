@@ -11,29 +11,28 @@ use rsnano_core::{
 use rsnano_ledger::RepWeightCache;
 use rsnano_stats::{DetailType, StatType};
 
-use super::{ElectionStatus, TallyKey};
+use super::{ElectionStatus, ElectionStatusType, TallyKey};
 use crate::utils::HardenedConstants;
 
 pub struct Election {
-    pub root: Root,
-    pub qualified_root: QualifiedRoot,
+    qualified_root: QualifiedRoot,
     pub status: ElectionStatus,
     pub state: ElectionState,
-    pub state_start: Instant,
     pub last_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     pub last_votes: HashMap<PublicKey, VoteInfo>,
     pub final_weight: Amount,
     pub last_tally: HashMap<BlockHash, Amount>,
-    /** The last time vote for this election was generated */
+
+    /// The last time a vote for this election was generated
     pub last_vote: Option<Instant>,
     pub last_block_hash: BlockHash,
     pub behavior: ElectionBehavior,
-    pub is_quorum: bool,
-    pub last_req: Option<Instant>,
+    is_quorum: bool,
+    last_req: Option<Instant>,
     pub confirmation_request_count: u32,
-    pub last_block: Instant,
+    last_block: Instant,
     pub live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
-    pub election_start: Instant,
+    election_start: Instant,
 }
 
 impl Election {
@@ -43,13 +42,12 @@ impl Election {
         live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
     ) -> Self {
         Self {
-            root: block.root(),
             qualified_root: block.qualified_root(),
             status: ElectionStatus {
-                winner: Some(rsnano_core::MaybeSavedBlock::Saved(block.clone())),
+                winner: Some(MaybeSavedBlock::Saved(block.clone())),
                 election_end: SystemTime::now(),
                 block_count: 1,
-                election_status_type: super::ElectionStatusType::Ongoing,
+                election_status_type: ElectionStatusType::Ongoing,
                 ..Default::default()
             },
             last_votes: HashMap::from([(
@@ -58,7 +56,6 @@ impl Election {
             )]),
             last_blocks: HashMap::from([(block.hash(), MaybeSavedBlock::Saved(block))]),
             state: ElectionState::Passive,
-            state_start: Instant::now(),
             last_tally: HashMap::new(),
             final_weight: Amount::zero(),
             last_vote: None,
@@ -73,6 +70,14 @@ impl Election {
         }
     }
 
+    pub fn root(&self) -> &Root {
+        &self.qualified_root.root
+    }
+
+    pub fn qualified_root(&self) -> &QualifiedRoot {
+        &self.qualified_root
+    }
+
     pub fn swap_quorum_on(&mut self) -> bool {
         if !self.is_quorum {
             self.is_quorum = true;
@@ -80,6 +85,14 @@ impl Election {
         } else {
             false
         }
+    }
+
+    pub fn is_quorum(&self) -> bool {
+        self.is_quorum
+    }
+
+    pub fn set_winner(&mut self, winner: MaybeSavedBlock) {
+        self.status.winner = Some(winner);
     }
 
     pub fn cancel(&mut self) {
@@ -153,16 +166,19 @@ impl Election {
         &mut self,
         expected: ElectionState,
         desired: ElectionState,
-    ) -> Result<(), ()> {
+    ) -> anyhow::Result<()> {
         if Self::valid_change(expected, desired) {
             if self.state == expected {
                 self.state = desired;
-                self.state_start = Instant::now();
                 return Ok(());
             }
         }
 
-        Err(())
+        Err(anyhow!(
+            "Invalid state change from {:?} to {:?}",
+            expected,
+            desired
+        ))
     }
 
     pub fn time_to_live(&self) -> Duration {

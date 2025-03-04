@@ -303,10 +303,10 @@ impl ActiveElections {
         }
     }
 
-    pub fn remove_block(&self, election_guard: &mut MutexGuard<Election>, hash: &BlockHash) {
-        if election_guard.status.winner.as_ref().unwrap().hash() != *hash {
-            if let Some(existing) = election_guard.last_blocks.remove(hash) {
-                election_guard.last_votes.retain(|_, v| v.hash != *hash);
+    pub fn remove_block(&self, election: &mut Election, hash: &BlockHash) {
+        if election.winner_hash().unwrap() != *hash {
+            if let Some(existing) = election.last_blocks.remove(hash) {
+                election.last_votes.retain(|_, v| v.hash != *hash);
                 self.clear_publish_filter(&existing);
             }
         }
@@ -386,19 +386,19 @@ impl ActiveElections {
 
     fn replace_by_weight<'a>(
         &self,
-        election: &'a Mutex<Election>,
-        mut election_guard: MutexGuard<'a, Election>,
+        election_mutex: &'a Mutex<Election>,
+        mut election: MutexGuard<'a, Election>,
         hash: &BlockHash,
     ) -> (bool, MutexGuard<'a, Election>) {
         let mut replaced_block = BlockHash::zero();
-        let winner_hash = election_guard.status.winner.as_ref().unwrap().hash();
+        let winner_hash = election.winner_hash().unwrap();
         // Sort existing blocks tally
-        let mut sorted: Vec<_> = election_guard
+        let mut sorted: Vec<_> = election
             .last_tally
             .iter()
             .map(|(hash, amount)| (*hash, *amount))
             .collect();
-        drop(election_guard);
+        drop(election);
 
         // Sort in ascending order
         sorted.sort_by(|left, right| right.cmp(left));
@@ -416,7 +416,7 @@ impl ActiveElections {
         let inactive_tally = votes_tally(&inactive_existing);
         if inactive_tally > Amount::zero() && sorted.len() < ELECTION_MAX_BLOCKS {
             // If count of tally items is less than 10, remove any block without tally
-            let guard = election.lock().unwrap();
+            let guard = election_mutex.lock().unwrap();
             for (hash, _) in &guard.last_blocks {
                 if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
                     replaced_block = *hash;
@@ -435,45 +435,45 @@ impl ActiveElections {
         let mut replaced = false;
         if !replaced_block.is_zero() {
             self.vote_router.disconnect(&replaced_block);
-            election_guard = election.lock().unwrap();
-            self.remove_block(&mut election_guard, &replaced_block);
+            election = election_mutex.lock().unwrap();
+            self.remove_block(&mut election, &replaced_block);
             replaced = true;
         } else {
-            election_guard = election.lock().unwrap();
+            election = election_mutex.lock().unwrap();
         }
-        (replaced, election_guard)
+        (replaced, election)
     }
 
-    fn publish(&self, block: &Block, election: &Mutex<Election>) -> bool {
-        let mut election_guard = election.lock().unwrap();
+    fn publish(&self, block: &Block, election_mutex: &Mutex<Election>) -> bool {
+        let mut election = election_mutex.lock().unwrap();
 
         // Do not insert new blocks if already confirmed
-        let mut result = election_guard.is_confirmed();
+        let mut result = election.is_confirmed();
         if !result
-            && election_guard.last_blocks.len() >= ELECTION_MAX_BLOCKS
-            && !election_guard.last_blocks.contains_key(&block.hash())
+            && election.last_blocks.len() >= ELECTION_MAX_BLOCKS
+            && !election.last_blocks.contains_key(&block.hash())
         {
-            let (replaced, guard) = self.replace_by_weight(election, election_guard, &block.hash());
-            election_guard = guard;
+            let (replaced, guard) = self.replace_by_weight(election_mutex, election, &block.hash());
+            election = guard;
             if !replaced {
                 result = true;
                 self.clear_publish_filter(block);
             }
         }
         if !result {
-            if election_guard.last_blocks.get(&block.hash()).is_some() {
+            if election.last_blocks.get(&block.hash()).is_some() {
                 result = true;
-                election_guard
+                election
                     .last_blocks
                     .insert(block.hash(), MaybeSavedBlock::Unsaved(block.clone()));
-                if election_guard.status.winner.as_ref().unwrap().hash() == block.hash() {
-                    election_guard.status.winner = Some(MaybeSavedBlock::Unsaved(block.clone()));
+                if election.winner_hash().unwrap() == block.hash() {
+                    election.set_winner(MaybeSavedBlock::Unsaved(block.clone()));
                     let message = Message::Publish(Publish::new_forward(block.clone()));
                     let mut publisher = self.message_flooder.lock().unwrap();
                     publisher.flood(&message, TrafficType::BlockBroadcast, 1.0);
                 }
             } else {
-                election_guard
+                election
                     .last_blocks
                     .insert(block.hash(), MaybeSavedBlock::Unsaved(block.clone()));
             }
@@ -501,7 +501,7 @@ impl ActiveElections {
             if solicitor.broadcast(election).is_ok() {
                 let last_block_hash = election.last_block_hash;
                 election.set_last_block();
-                election.last_block_hash = election.status.winner.as_ref().unwrap().hash();
+                election.last_block_hash = election.winner_hash().unwrap();
 
                 self.stats.inc(
                     StatType::Election,
@@ -535,17 +535,17 @@ impl ActiveElections {
             {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
-                let winner = election.status.winner.as_ref().unwrap().hash();
-                trace!(qualified_root = ?election.qualified_root, %winner, "type" = "final", "broadcast vote");
+                let winner = election.winner_hash().unwrap();
+                trace!(qualified_root = ?election.qualified_root(), %winner, "type" = "final", "broadcast vote");
                 self.vote_generators
-                    .generate_final_vote(&election.root, &winner); // Broadcasts vote to the network
+                    .generate_final_vote(election.root(), &winner); // Broadcasts vote to the network
             } else {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteNormal);
-                let winner = election.status.winner.as_ref().unwrap().hash();
-                trace!(qualified_root = ?election.qualified_root, %winner, "type" = "normal", "broadcast vote");
+                let winner = election.winner_hash().unwrap();
+                trace!(qualified_root = ?election.qualified_root(), %winner, "type" = "normal", "broadcast vote");
                 self.vote_generators
-                    .generate_non_final_vote(&election.root, &winner); // Broadcasts vote to the network
+                    .generate_non_final_vote(election.root(), &winner); // Broadcasts vote to the network
             }
         }
     }
@@ -565,7 +565,7 @@ impl ActiveElections {
         {
             let election_guard = election.lock().unwrap();
             blocks = election_guard.last_blocks.clone();
-            election_winner = election_guard.status.winner.as_ref().unwrap().hash();
+            election_winner = election_guard.winner_hash().unwrap();
             election_state = election_guard.state;
         }
 
@@ -575,7 +575,7 @@ impl ActiveElections {
         // Erase root info
         let entry = guard
             .roots
-            .erase(&election_guard.qualified_root)
+            .erase(election_guard.qualified_root())
             .expect("election not found");
 
         let state = election_guard.state;
@@ -615,7 +615,7 @@ impl ActiveElections {
         {
             let el = election.lock().unwrap();
             election_duration = el.duration();
-            qualified_root = el.qualified_root.clone();
+            qualified_root = el.qualified_root().clone();
         }
 
         self.stats.sample(
@@ -721,7 +721,7 @@ impl ActiveElections {
             {
                 let mut election_guard = election.lock().unwrap();
                 success = self.transition_time(&mut solicitor, &mut election_guard);
-                root = election_guard.qualified_root.clone();
+                root = election_guard.qualified_root().clone();
             };
 
             if success {
@@ -811,7 +811,7 @@ impl ActiveElections {
                 .state_change(state, ElectionState::ExpiredUnconfirmed)
                 .is_ok()
             {
-                trace!(qualified_root = ?election.qualified_root, "election expired");
+                trace!(qualified_root = ?election.qualified_root(), "election expired");
                 result = true; // Return true to indicate this election should be cleaned up
                 election.status.election_status_type = ElectionStatusType::Stopped;
             }
@@ -834,12 +834,13 @@ impl ActiveElections {
         }
     }
 
-    fn try_confirm(&self, election: &Arc<Mutex<Election>>, hash: &BlockHash) {
-        let mut guard = election.lock().unwrap();
-        if let Some(winner) = &guard.status.winner {
-            if winner.hash() == *hash {
-                if !guard.is_confirmed() {
-                    self.vote_applier.confirm_once(&mut guard, election);
+    fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
+        let mut election = election_mutex.lock().unwrap();
+        if let Some(winner_hash) = &election.winner_hash() {
+            if winner_hash == hash {
+                if !election.is_confirmed() {
+                    self.vote_applier
+                        .confirm_once(&mut election, election_mutex);
                 }
             }
         }
@@ -877,7 +878,7 @@ impl ActiveElections {
         let mut handled = false;
         if let Some(source_election) = source_election {
             let source_election_guard = source_election.lock().unwrap();
-            if source_election_guard.qualified_root == block.qualified_root() {
+            if *source_election_guard.qualified_root() == block.qualified_root() {
                 status = source_election_guard.status.clone();
                 debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
                 votes = source_election_guard.votes_with_weight(&self.ledger.rep_weights);
