@@ -820,14 +820,10 @@ impl ActiveElections {
         result
     }
 
-    fn send_confirm_req(
-        &self,
-        solicitor: &mut ConfirmationSolicitor,
-        election_guard: &mut Election,
-    ) {
-        if self.confirm_req_time(election_guard) < election_guard.last_confirm_request_elapsed() {
-            if !solicitor.add(election_guard) {
-                election_guard.confirm_request_sent();
+    fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
+        if self.confirm_req_time(election) < election.last_confirm_request_elapsed() {
+            if !solicitor.add(election) {
+                election.confirm_request_sent();
                 self.stats
                     .inc(StatType::Election, DetailType::ConfirmationRequest);
             }
@@ -960,22 +956,18 @@ impl ActiveElections {
             election_result = Some(existing.election.clone());
 
             // Upgrade to priority election to enable immediate vote broadcasting.
-            let previous_behavior = existing.election.lock().unwrap().behavior;
-            if election_behavior == ElectionBehavior::Priority
-                && previous_behavior != ElectionBehavior::Priority
+            let previous_behavior;
+            let transitioned;
             {
-                let transitioned = existing.election.lock().unwrap().transition_priority();
-                if transitioned {
-                    *guard.count_by_behavior_mut(previous_behavior) -= 1;
-                    *guard.count_by_behavior_mut(election_behavior) += 1;
-                    self.stats
-                        .inc(StatType::ActiveElections, DetailType::TransitionPriority);
-                } else {
-                    self.stats.inc(
-                        StatType::ActiveElections,
-                        DetailType::TransitionPriorityFailed,
-                    );
-                }
+                let mut election = existing.election.lock().unwrap();
+                previous_behavior = election.behavior;
+                transitioned = election.maybe_transition_behavior(election_behavior);
+            }
+            if transitioned {
+                *guard.count_by_behavior_mut(previous_behavior) -= 1;
+                *guard.count_by_behavior_mut(election_behavior) += 1;
+                self.stats
+                    .inc(StatType::ActiveElections, DetailType::TransitionPriority);
             }
         } else {
             if !self.recently_confirmed.root_exists(&root) {

@@ -108,6 +108,16 @@ impl Election {
         let _ = self.state_change(ElectionState::Passive, ElectionState::Active);
     }
 
+    pub fn maybe_transition_behavior(&mut self, election_behavior: ElectionBehavior) -> bool {
+        if election_behavior == ElectionBehavior::Priority
+            && self.behavior != ElectionBehavior::Priority
+        {
+            self.transition_priority()
+        } else {
+            false
+        }
+    }
+
     pub fn transition_priority(&mut self) -> bool {
         if matches!(
             self.behavior,
