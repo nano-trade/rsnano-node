@@ -10,3 +10,4 @@ rsnano_rpc_server = { path = "../rpc_server" }
 rsnano_websocket_server = { path = "../websocket_server" }
 anyhow = "1"
 tokio = { version = "1", features = ["signal"] }
+tracing = "0"

@@ -232,11 +232,11 @@ impl Node {
             .expect("Could not create LMDB store")
         };
 
+        info!("Network: {}", network_label);
         info!("Version: {}", VERSION_STRING);
-        info!("Build information: {}", BUILD_INFO);
-        info!("Active network: {}", network_label);
-        info!("Database backend: {}", store.vendor());
         info!("Data path: {:?}", application_path);
+        info!("Build information: {}", BUILD_INFO);
+        info!("Database backend: {}", store.vendor());
         info!(
             "Work pool threads: {} ({})",
             work.thread_count(),
@@ -260,6 +260,7 @@ impl Node {
             store.cache.clone(),
         ));
 
+        info!("Loading ledger, this may take a while...");
         let ledger = Ledger::new(
             store,
             network_params.ledger.clone(),
@@ -269,6 +270,11 @@ impl Node {
         )
         .expect("Could not initialize ledger");
         let ledger = Arc::new(ledger);
+        info!("Block count:    {}", ledger.block_count());
+        info!("Cemented count: {}", ledger.cemented_count());
+        info!("Account count:  {}", ledger.account_count());
+        info!("Pruned count:   {}", ledger.pruned_count());
+        info!("Representative count: {}", ledger.rep_weights.len());
 
         log_bootstrap_weights(&ledger.rep_weights);
 

@@ -5,8 +5,9 @@ use rsnano_node::{
 };
 use rsnano_rpc_server::{run_rpc_server, RpcServerConfig};
 use rsnano_websocket_server::{create_websocket_server, WebsocketListenerExt};
-use std::{future::Future, path::PathBuf, sync::Arc};
+use std::{future::Future, num::NonZero, path::PathBuf, sync::Arc, thread::available_parallelism};
 use tokio::{net::TcpListener, sync::oneshot};
+use tracing::info;
 
 pub struct DaemonBuilder {
     network: Networks,
@@ -53,6 +54,15 @@ impl DaemonBuilder {
             DaemonConfig::load_from_data_path(self.network, parallelism, &data_path)?;
         let rpc_config =
             RpcServerConfig::load_from_data_path(self.network, parallelism, &data_path)?;
+
+        info!("Starting up RsNano node...");
+
+        info!(
+            "Hardware concurrency: {} (configured: {})",
+            available_parallelism().unwrap().get(),
+            parallelism
+        );
+
         let mut node = self.node_builder.finish()?;
 
         let websocket_server = if daemon_config.node.websocket_config.enabled {

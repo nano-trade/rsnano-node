@@ -3753,6 +3753,7 @@ dependencies = [
  "rsnano_rpc_server",
  "rsnano_websocket_server",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -12,7 +12,7 @@ use std::{
 use rand::Rng;
 use rsnano_stats::Stats;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo},
@@ -219,6 +219,8 @@ impl Wallets {
 
                 guard.insert(id, Arc::new(wallet));
             }
+
+            info!("Found {} wallet(s)", guard.len());
 
             // Backup before upgrade wallets
             let mut backup_required = false;
@@ -1840,11 +1842,11 @@ impl WalletsExt for Arc<Wallets> {
         wallet_tx: &dyn Transaction,
     ) -> Result<(), ()> {
         if !wallet.store.valid_password(wallet_tx) {
-            info!("Unable to search receivable blocks, wallet is locked");
+            info!("Unable to search receivable blocks, wallet is locked. Blocks won't be auto-received until the wallet is unlocked");
             return Err(());
         }
 
-        info!("Beginning receivable block search");
+        debug!("Beginning receivable block search");
 
         for (account, wallet_value) in wallet.store.iter(wallet_tx) {
             let any = self.ledger.any();
@@ -1889,7 +1891,7 @@ impl WalletsExt for Arc<Wallets> {
             }
         }
 
-        info!("Receivable block search phase completed");
+        debug!("Receivable block search phase completed");
         Ok(())
     }
 
