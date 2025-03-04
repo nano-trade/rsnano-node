@@ -15,6 +15,7 @@ pub(super) struct BlockingEntry {
 }
 
 impl BlockingEntry {
+    #[allow(dead_code)]
     pub fn new_test_instance() -> Self {
         Self {
             account: Account::from(5),

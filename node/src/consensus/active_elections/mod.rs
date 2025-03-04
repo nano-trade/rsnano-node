@@ -883,225 +883,13 @@ impl ActiveElections {
         }
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.mutex.lock().unwrap();
-
-        let recently_cemented: ContainerInfo = [(
-            "cemented",
-            self.recently_cemented.lock().unwrap().len(),
-            size_of::<ElectionStatus>(),
-        )]
-        .into();
-
-        ContainerInfo::builder()
-            .leaf("roots", guard.roots.len(), RootContainer::ELEMENT_SIZE)
-            .leaf(
-                "normal",
-                guard.count_by_behavior(ElectionBehavior::Priority),
-                0,
-            )
-            .leaf(
-                "hinted".to_string(),
-                guard.count_by_behavior(ElectionBehavior::Hinted),
-                0,
-            )
-            .leaf(
-                "optimistic".to_string(),
-                guard.count_by_behavior(ElectionBehavior::Optimistic),
-                0,
-            )
-            .node(
-                "recently_confirmed",
-                self.recently_confirmed.container_info(),
-            )
-            .node("recently_cemented", recently_cemented)
-            .finish()
-    }
-}
-
-impl Drop for ActiveElections {
-    fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none());
-    }
-}
-
-#[derive(PartialEq, Eq)]
-pub struct TallyKey(pub Amount);
-
-impl TallyKey {
-    pub fn amount(&self) -> Amount {
-        self.0.clone()
-    }
-}
-
-impl Deref for TallyKey {
-    type Target = Amount;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Ord for TallyKey {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.0.cmp(&self.0)
-    }
-}
-
-impl PartialOrd for TallyKey {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        other.0.partial_cmp(&self.0)
-    }
-}
-
-impl From<Amount> for TallyKey {
-    fn from(value: Amount) -> Self {
-        Self(value)
-    }
-}
-
-pub struct ActiveElectionsState {
-    roots: RootContainer,
-    stopped: bool,
-    manual_count: usize,
-    priority_count: usize,
-    hinted_count: usize,
-    optimistic_count: usize,
-}
-
-impl ActiveElectionsState {
-    pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
-        match behavior {
-            ElectionBehavior::Manual => self.manual_count,
-            ElectionBehavior::Priority => self.priority_count,
-            ElectionBehavior::Hinted => self.hinted_count,
-            ElectionBehavior::Optimistic => self.optimistic_count,
-        }
-    }
-
-    pub fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
-        match behavior {
-            ElectionBehavior::Manual => &mut self.manual_count,
-            ElectionBehavior::Priority => &mut self.priority_count,
-            ElectionBehavior::Hinted => &mut self.hinted_count,
-            ElectionBehavior::Optimistic => &mut self.optimistic_count,
-        }
-    }
-
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
-        self.roots.get(root).map(|i| i.election.clone())
-    }
-}
-
-pub trait ActiveElectionsExt {
-    fn initialize(&self);
-    fn start(&self);
-    fn stop(&self);
-    fn force_confirm(&self, election: &Arc<Election>);
-
-    /// Distinguishes replay votes, cannot be determined if the block is not in any election
-    fn block_cemented(
-        &self,
-        guard: &mut ActiveElectionsState,
-        block: &SavedBlock,
-        confirmation_root: &BlockHash,
-        source_election: &Option<Arc<Election>>,
-    ) -> (ElectionStatus, Vec<VoteWithWeightInfo>);
-
-    fn publish_block(&self, block: &Block) -> bool;
-
-    fn insert(
-        &self,
-        block: SavedBlock,
-        election_behavior: ElectionBehavior,
-        erased_callback: Option<ErasedCallback>,
-    ) -> (bool, Option<Arc<Election>>);
-}
-
-impl ActiveElectionsExt for Arc<ActiveElections> {
-    fn initialize(&self) {
-        let self_w = Arc::downgrade(self);
-        // Cementing blocks might implicitly confirm dependent elections
-        self.confirming_set
-            .on_batch_cemented(Box::new(move |cemented| {
-                if let Some(active) = self_w.upgrade() {
-                    {
-                        let mut results = Vec::new();
-                        {
-                            let mut guard = active.mutex.lock().unwrap();
-                            // Process all cemented blocks while holding the lock to avoid
-                            // races where an election for a block that is already
-                            // cemented is inserted
-                            for context in cemented {
-                                let result = active.block_cemented(
-                                    &mut guard,
-                                    &context.block,
-                                    &context.confirmation_root,
-                                    &context.election,
-                                );
-                                results.push(result)
-                            }
-                        }
-
-                        // TODO: This could be offloaded to a separate notification worker, profiling is needed
-                        let mut any = active.ledger.any();
-                        for (status, votes) in results {
-                            any.refresh_if_needed();
-                            active.notify_observers(&any, &status, &votes);
-                        }
-                    }
-                }
-            }));
-
-        let self_w = Arc::downgrade(self);
-        // Notify elections about alternative (forked) blocks
-        self.notifications
-            .on_blocks_processed(Box::new(move |batch| {
-                if let Some(active) = self_w.upgrade() {
-                    for (status, context) in batch {
-                        if *status == BlockStatus::Fork {
-                            active.publish_block(&context.block);
-                        }
-                    }
-                }
-            }));
-    }
-
-    fn start(&self) {
-        if self.flags.disable_request_loop {
-            return;
-        }
-
-        let mut guard = self.thread.lock().unwrap();
-        let self_l = Arc::clone(self);
-        assert!(guard.is_none());
-        *guard = Some(
-            std::thread::Builder::new()
-                .name("Request loop".to_string())
-                .spawn(Box::new(move || {
-                    self_l.request_loop();
-                }))
-                .unwrap(),
-        );
-    }
-
-    fn stop(&self) {
-        self.mutex.lock().unwrap().stopped = true;
-        self.condition.notify_all();
-        let join_handle = self.thread.lock().unwrap().take();
-        if let Some(join_handle) = join_handle {
-            join_handle.join().unwrap();
-        }
-        self.clear();
-    }
-
-    fn force_confirm(&self, election: &Arc<Election>) {
+    pub fn force_confirm(&self, election: &Arc<Election>) {
         assert!(self.network_params.network.is_dev_network());
         let guard = election.mutex.lock().unwrap();
         self.vote_applier.confirm_once(guard, election);
     }
 
+    /// Distinguishes replay votes, cannot be determined if the block is not in any election
     fn block_cemented(
         &self,
         guard: &mut ActiveElectionsState,
@@ -1160,7 +948,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         (status, votes)
     }
 
-    fn publish_block(&self, block: &Block) -> bool {
+    pub fn publish_block(&self, block: &Block) -> bool {
         let mut guard = self.mutex.lock().unwrap();
         let root = block.qualified_root();
         let mut result = true;
@@ -1185,7 +973,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         result
     }
 
-    fn insert(
+    pub fn insert(
         &self,
         block: SavedBlock,
         election_behavior: ElectionBehavior,
@@ -1303,6 +1091,200 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         }
 
         (inserted, election_result)
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        let guard = self.mutex.lock().unwrap();
+
+        let recently_cemented: ContainerInfo = [(
+            "cemented",
+            self.recently_cemented.lock().unwrap().len(),
+            size_of::<ElectionStatus>(),
+        )]
+        .into();
+
+        ContainerInfo::builder()
+            .leaf("roots", guard.roots.len(), RootContainer::ELEMENT_SIZE)
+            .leaf(
+                "normal",
+                guard.count_by_behavior(ElectionBehavior::Priority),
+                0,
+            )
+            .leaf(
+                "hinted".to_string(),
+                guard.count_by_behavior(ElectionBehavior::Hinted),
+                0,
+            )
+            .leaf(
+                "optimistic".to_string(),
+                guard.count_by_behavior(ElectionBehavior::Optimistic),
+                0,
+            )
+            .node(
+                "recently_confirmed",
+                self.recently_confirmed.container_info(),
+            )
+            .node("recently_cemented", recently_cemented)
+            .finish()
+    }
+}
+
+impl Drop for ActiveElections {
+    fn drop(&mut self) {
+        // Thread must be stopped before destruction
+        debug_assert!(self.thread.lock().unwrap().is_none());
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub struct TallyKey(pub Amount);
+
+impl TallyKey {
+    pub fn amount(&self) -> Amount {
+        self.0.clone()
+    }
+}
+
+impl Deref for TallyKey {
+    type Target = Amount;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Ord for TallyKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.0.cmp(&self.0)
+    }
+}
+
+impl PartialOrd for TallyKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        other.0.partial_cmp(&self.0)
+    }
+}
+
+impl From<Amount> for TallyKey {
+    fn from(value: Amount) -> Self {
+        Self(value)
+    }
+}
+
+pub struct ActiveElectionsState {
+    roots: RootContainer,
+    stopped: bool,
+    manual_count: usize,
+    priority_count: usize,
+    hinted_count: usize,
+    optimistic_count: usize,
+}
+
+impl ActiveElectionsState {
+    pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
+        match behavior {
+            ElectionBehavior::Manual => self.manual_count,
+            ElectionBehavior::Priority => self.priority_count,
+            ElectionBehavior::Hinted => self.hinted_count,
+            ElectionBehavior::Optimistic => self.optimistic_count,
+        }
+    }
+
+    pub fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
+        match behavior {
+            ElectionBehavior::Manual => &mut self.manual_count,
+            ElectionBehavior::Priority => &mut self.priority_count,
+            ElectionBehavior::Hinted => &mut self.hinted_count,
+            ElectionBehavior::Optimistic => &mut self.optimistic_count,
+        }
+    }
+
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
+        self.roots.get(root).map(|i| i.election.clone())
+    }
+}
+
+pub trait ActiveElectionsExt {
+    fn initialize(&self);
+    fn start(&self);
+    fn stop(&self);
+}
+
+impl ActiveElectionsExt for Arc<ActiveElections> {
+    fn initialize(&self) {
+        let self_w = Arc::downgrade(self);
+        // Cementing blocks might implicitly confirm dependent elections
+        self.confirming_set
+            .on_batch_cemented(Box::new(move |cemented| {
+                if let Some(active) = self_w.upgrade() {
+                    {
+                        let mut results = Vec::new();
+                        {
+                            let mut guard = active.mutex.lock().unwrap();
+                            // Process all cemented blocks while holding the lock to avoid
+                            // races where an election for a block that is already
+                            // cemented is inserted
+                            for context in cemented {
+                                let result = active.block_cemented(
+                                    &mut guard,
+                                    &context.block,
+                                    &context.confirmation_root,
+                                    &context.election,
+                                );
+                                results.push(result)
+                            }
+                        }
+
+                        // TODO: This could be offloaded to a separate notification worker, profiling is needed
+                        let mut any = active.ledger.any();
+                        for (status, votes) in results {
+                            any.refresh_if_needed();
+                            active.notify_observers(&any, &status, &votes);
+                        }
+                    }
+                }
+            }));
+
+        let self_w = Arc::downgrade(self);
+        // Notify elections about alternative (forked) blocks
+        self.notifications
+            .on_blocks_processed(Box::new(move |batch| {
+                if let Some(active) = self_w.upgrade() {
+                    for (status, context) in batch {
+                        if *status == BlockStatus::Fork {
+                            active.publish_block(&context.block);
+                        }
+                    }
+                }
+            }));
+    }
+
+    fn start(&self) {
+        if self.flags.disable_request_loop {
+            return;
+        }
+
+        let mut guard = self.thread.lock().unwrap();
+        let self_l = Arc::clone(self);
+        assert!(guard.is_none());
+        *guard = Some(
+            std::thread::Builder::new()
+                .name("Request loop".to_string())
+                .spawn(Box::new(move || {
+                    self_l.request_loop();
+                }))
+                .unwrap(),
+        );
+    }
+
+    fn stop(&self) {
+        self.mutex.lock().unwrap().stopped = true;
+        self.condition.notify_all();
+        let join_handle = self.thread.lock().unwrap().take();
+        if let Some(join_handle) = join_handle {
+            join_handle.join().unwrap();
+        }
+        self.clear();
     }
 }
 

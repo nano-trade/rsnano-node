@@ -22,7 +22,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{ActiveElectionsExt, AggregatorRequest, VoteApplierExt},
+    consensus::{AggregatorRequest, VoteApplierExt},
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};

@@ -4,7 +4,6 @@ use rsnano_ledger::{
 };
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
-    consensus::ActiveElectionsExt,
     wallets::WalletsExt,
 };
 use std::time::Duration;

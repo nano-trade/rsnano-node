@@ -10,7 +10,7 @@ use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NetworkParams, NodeConfig, NodeFlags},
-    consensus::{ActiveElectionsExt, Election},
+    consensus::Election,
     unique_path,
     wallets::WalletsExt,
     Node, NodeBuilder,

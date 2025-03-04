@@ -14,9 +14,7 @@ use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{ActiveElections, ElectionBehavior, VoteCache};
-use crate::{
-    cementation::ConfirmingSet, consensus::ActiveElectionsExt, representatives::OnlineReps,
-};
+use crate::{cementation::ConfirmingSet, representatives::OnlineReps};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HintedSchedulerConfig {

@@ -13,7 +13,7 @@ use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeight
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, ActiveElectionsExt, ElectionBehavior};
+use super::{ActiveElections, ElectionBehavior};
 use crate::{cementation::ConfirmingSet, config::NetworkConstants};
 
 #[derive(Clone, Debug, PartialEq)]

@@ -123,7 +123,7 @@ mod election_scheduler {
     use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
     use rsnano_node::{
         config::NodeConfig,
-        consensus::{ActiveElectionsExt, ElectionBehavior, OptimisticSchedulerConfig},
+        consensus::{ElectionBehavior, OptimisticSchedulerConfig},
     };
     use rsnano_stats::{DetailType, Direction, StatType};
     use test_helpers::{setup_chains, setup_rep};

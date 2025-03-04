@@ -8,7 +8,6 @@ use rsnano_ledger::{
 };
 use rsnano_node::{
     config::{NodeConfig, NodeFlags, DEV_NETWORK_PARAMS},
-    consensus::ActiveElectionsExt,
     unique_path,
     wallets::{WalletsError, WalletsExt},
     Node,

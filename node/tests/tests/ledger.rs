@@ -13,7 +13,6 @@ use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, start_electi
 mod votes {
     use super::*;
     use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
-    use rsnano_node::consensus::ActiveElectionsExt;
     use std::time::SystemTime;
     use test_helpers::start_election;
 

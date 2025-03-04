@@ -16,7 +16,7 @@ use rsnano_ledger::{
 use rsnano_node::{
     bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
-    consensus::{ActiveElectionsExt, ElectionBehavior},
+    consensus::ElectionBehavior,
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};

@@ -10,7 +10,6 @@ use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
     ActiveElections, Election, ElectionBehavior,
 };
-use crate::consensus::ActiveElectionsExt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PriorityBucketConfig {
