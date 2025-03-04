@@ -35,7 +35,7 @@ mod votes {
         });
 
         let election1 = node1.active.election(&send1.qualified_root()).unwrap();
-        assert_eq!(election1.lock().vote_count(), 1);
+        assert_eq!(election1.lock().unwrap().vote_count(), 1);
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN,
@@ -69,10 +69,9 @@ mod votes {
             &VoteCode::Ignored
         );
 
-        assert_eq!(election1.lock().vote_count(), 2);
+        assert_eq!(election1.lock().unwrap().vote_count(), 2);
         assert_eq!(
             election1
-                .mutex
                 .lock()
                 .unwrap()
                 .last_votes
@@ -82,7 +81,7 @@ mod votes {
             send1.hash()
         );
 
-        let guard = election1.mutex.lock().unwrap();
+        let guard = election1.lock().unwrap();
         let (hash, amount) = guard.last_tally.iter().next().unwrap();
         assert_eq!(*hash, send1.hash());
         assert_eq!(*amount, Amount::MAX - Amount::raw(100));
@@ -116,7 +115,6 @@ mod votes {
         assert!(node1.active.publish_block(&send1));
         assert_eq!(
             election1
-                .mutex
                 .lock()
                 .unwrap()
                 .last_votes
@@ -144,7 +142,6 @@ mod votes {
         ));
         // Pretend we've waited the timeout
         election1
-            .mutex
             .lock()
             .unwrap()
             .last_votes
@@ -161,7 +158,6 @@ mod votes {
         );
         assert_eq!(
             election1
-                .mutex
                 .lock()
                 .unwrap()
                 .last_votes
@@ -172,7 +168,6 @@ mod votes {
         );
         // Also resend the old vote, and see if we respect the timestamp
         election1
-            .mutex
             .lock()
             .unwrap()
             .last_votes
@@ -190,7 +185,6 @@ mod votes {
         );
         assert_eq!(
             election1
-                .mutex
                 .lock()
                 .unwrap()
                 .last_votes
@@ -199,7 +193,7 @@ mod votes {
                 .timestamp,
             Vote::TIMESTAMP_MIN * 2
         );
-        let votes = election1.mutex.lock().unwrap().last_votes.clone();
+        let votes = election1.lock().unwrap().last_votes.clone();
         assert_eq!(votes.len(), 2);
         assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
         assert_eq!(votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash, send2.hash());
@@ -292,10 +286,22 @@ fn block_hash_account_conflict() {
         .election(&open_epoch1.qualified_root())
         .unwrap();
 
-    assert_eq!(election1.lock().winner_hash().unwrap(), send1.hash());
-    assert_eq!(election2.lock().winner_hash().unwrap(), receive1.hash());
-    assert_eq!(election3.lock().winner_hash().unwrap(), send2.hash());
-    assert_eq!(election4.lock().winner_hash().unwrap(), open_epoch1.hash());
+    assert_eq!(
+        election1.lock().unwrap().winner_hash().unwrap(),
+        send1.hash()
+    );
+    assert_eq!(
+        election2.lock().unwrap().winner_hash().unwrap(),
+        receive1.hash()
+    );
+    assert_eq!(
+        election3.lock().unwrap().winner_hash().unwrap(),
+        send2.hash()
+    );
+    assert_eq!(
+        election4.lock().unwrap().winner_hash().unwrap(),
+        open_epoch1.hash()
+    );
 }
 
 #[test]

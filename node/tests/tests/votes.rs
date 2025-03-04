@@ -27,7 +27,7 @@ fn check_signature() {
     let send1 = lattice.genesis().send(&key1, 100);
     node.process(send1.clone());
     let election1 = start_election(&node, &send1.hash());
-    assert_eq!(1, election1.lock().vote_count());
+    assert_eq!(1, election1.lock().unwrap().vote_count());
     let mut vote1 = Vote::new(&DEV_GENESIS_KEY, Vote::TIMESTAMP_MIN, 0, vec![send1.hash()]);
     let good_signature = vote1.signature;
     vote1.signature = Signature::new();
@@ -95,7 +95,6 @@ fn add_old() {
     ));
 
     election1
-        .mutex
         .lock()
         .unwrap()
         .last_votes
@@ -104,7 +103,7 @@ fn add_old() {
         .time = SystemTime::now() - Duration::from_secs(20);
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
-    let election1_guard = election1.lock();
+    let election1_guard = election1.lock().unwrap();
     assert_eq!(2, election1_guard.vote_count());
     let votes = &election1_guard.last_votes;
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
@@ -148,7 +147,7 @@ fn add_cooldown() {
 
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
-    let election1_guard = election1.lock();
+    let election1_guard = election1.lock().unwrap();
     assert_eq!(2, election1_guard.vote_count());
     let votes = &election1_guard.last_votes;
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));

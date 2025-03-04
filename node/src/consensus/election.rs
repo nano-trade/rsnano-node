@@ -88,6 +88,42 @@ pub struct ElectionData {
 }
 
 impl ElectionData {
+    pub fn new(
+        block: SavedBlock,
+        behavior: ElectionBehavior,
+        live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
+    ) -> Self {
+        Self {
+            root: block.root(),
+            qualified_root: block.qualified_root(),
+            status: ElectionStatus {
+                winner: Some(rsnano_core::MaybeSavedBlock::Saved(block.clone())),
+                election_end: SystemTime::now(),
+                block_count: 1,
+                election_status_type: super::ElectionStatusType::Ongoing,
+                ..Default::default()
+            },
+            last_votes: HashMap::from([(
+                HardenedConstants::get().not_an_account_key,
+                VoteInfo::new(0, block.hash()),
+            )]),
+            last_blocks: HashMap::from([(block.hash(), MaybeSavedBlock::Saved(block))]),
+            state: ElectionState::Passive,
+            state_start: Instant::now(),
+            last_tally: HashMap::new(),
+            final_weight: Amount::zero(),
+            last_vote: None,
+            last_block_hash: BlockHash::zero(),
+            behavior,
+            is_quorum: false,
+            last_req: None,
+            confirmation_request_count: 0,
+            last_block: Instant::now(),
+            live_vote_callback,
+            election_start: Instant::now(),
+        }
+    }
+
     pub fn swap_quorum_on(&mut self) -> bool {
         if !self.is_quorum {
             self.is_quorum = true;

@@ -1,10 +1,11 @@
-use crate::consensus::Election;
 use rsnano_core::BlockHash;
 use std::{
     collections::{HashMap, VecDeque},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Instant,
 };
+
+use crate::consensus::ElectionData;
 
 #[derive(Default)]
 pub(super) struct OrderedEntries {
@@ -71,6 +72,6 @@ impl OrderedEntries {
 
 pub(super) struct Entry {
     pub hash: BlockHash,
-    pub election: Option<Arc<Election>>,
+    pub election: Option<Arc<Mutex<ElectionData>>>,
     pub timestamp: Instant,
 }

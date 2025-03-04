@@ -1,14 +1,17 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use rsnano_core::QualifiedRoot;
 
-use crate::consensus::Election;
+use crate::consensus::ElectionData;
 
 use super::ErasedCallback;
 
 pub(crate) struct Entry {
     pub root: QualifiedRoot,
-    pub election: Arc<Election>,
+    pub election: Arc<Mutex<ElectionData>>,
     pub erased_callback: Option<ErasedCallback>,
 }
 
@@ -20,7 +23,8 @@ pub(crate) struct RootContainer {
 }
 
 impl RootContainer {
-    pub const ELEMENT_SIZE: usize = size_of::<QualifiedRoot>() * 2 + size_of::<Arc<Election>>();
+    pub const ELEMENT_SIZE: usize =
+        size_of::<QualifiedRoot>() * 2 + size_of::<Arc<Mutex<ElectionData>>>();
 
     pub fn insert(&mut self, entry: Entry) {
         let root = entry.root.clone();

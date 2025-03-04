@@ -87,7 +87,7 @@ impl ManualScheduler {
 
                     let (_, election) = self.active.insert(block, election_behavior, None);
                     if let Some(election) = election {
-                        election.lock().transition_active();
+                        election.lock().unwrap().transition_active();
                     }
                 } else {
                     drop(guard);

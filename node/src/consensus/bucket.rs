@@ -8,7 +8,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections, Election, ElectionBehavior,
+    ActiveElections, ElectionBehavior, ElectionData,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -180,7 +180,7 @@ impl BucketExt for Arc<Bucket> {
 
         if inserted {
             let election = election.unwrap();
-            let root = election.lock().qualified_root.clone();
+            let root = election.lock().unwrap().qualified_root.clone();
             self.data.lock().unwrap().elections.insert(ElectionEntry {
                 root,
                 election,
@@ -205,13 +205,13 @@ struct BucketData {
 impl BucketData {
     fn cancel_lowest_election(&self) {
         if let Some(entry) = self.elections.entry_with_lowest_priority() {
-            entry.election.lock().cancel();
+            entry.election.lock().unwrap().cancel();
         }
     }
 }
 
 struct ElectionEntry {
-    election: Arc<Election>,
+    election: Arc<Mutex<ElectionData>>,
     root: QualifiedRoot,
     priority: UnixTimestamp,
 }

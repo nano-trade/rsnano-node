@@ -15,7 +15,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::ordered_entries::{Entry, OrderedEntries};
 use crate::{
     block_processing::BlockContext,
-    consensus::Election,
+    consensus::ElectionData,
     utils::{ThreadPool, ThreadPoolImpl},
 };
 
@@ -114,7 +114,7 @@ impl ConfirmingSet {
         self.add_with_election(hash, None)
     }
 
-    pub fn add_with_election(&self, hash: BlockHash, election: Option<Arc<Election>>) {
+    pub fn add_with_election(&self, hash: BlockHash, election: Option<Arc<Mutex<ElectionData>>>) {
         self.thread.add(hash, election);
     }
 
@@ -219,7 +219,7 @@ impl ConfirmingSetThread {
         self.condition.notify_all();
     }
 
-    fn add(&self, hash: BlockHash, election: Option<Arc<Election>>) {
+    fn add(&self, hash: BlockHash, election: Option<Arc<Mutex<ElectionData>>>) {
         let added = {
             let mut guard = self.mutex.lock().unwrap();
             guard.set.push_back(Entry {
@@ -428,7 +428,7 @@ impl Observers {
 pub struct CementingContext {
     pub block: SavedBlock,
     pub confirmation_root: BlockHash,
-    pub election: Option<Arc<Election>>,
+    pub election: Option<Arc<Mutex<ElectionData>>>,
 }
 
 struct CementedNotifier<'a> {

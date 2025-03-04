@@ -25,9 +25,9 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionData,
-    ElectionState, ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier,
-    VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter,
+    confirmation_solicitor::ConfirmationSolicitor, ElectionBehavior, ElectionData, ElectionState,
+    ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier, VoteCache,
+    VoteCacheProcessor, VoteGenerators, VoteRouter,
 };
 use crate::{
     block_processing::BlockContext,
@@ -386,7 +386,7 @@ impl ActiveElections {
 
     fn replace_by_weight<'a>(
         &self,
-        election: &'a Election,
+        election: &'a Mutex<ElectionData>,
         mut election_guard: MutexGuard<'a, ElectionData>,
         hash: &BlockHash,
     ) -> (bool, MutexGuard<'a, ElectionData>) {
@@ -416,7 +416,7 @@ impl ActiveElections {
         let inactive_tally = votes_tally(&inactive_existing);
         if inactive_tally > Amount::zero() && sorted.len() < ELECTION_MAX_BLOCKS {
             // If count of tally items is less than 10, remove any block without tally
-            let guard = election.mutex.lock().unwrap();
+            let guard = election.lock().unwrap();
             for (hash, _) in &guard.last_blocks {
                 if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
                     replaced_block = *hash;
@@ -435,17 +435,17 @@ impl ActiveElections {
         let mut replaced = false;
         if !replaced_block.is_zero() {
             self.vote_router.disconnect(&replaced_block);
-            election_guard = election.mutex.lock().unwrap();
+            election_guard = election.lock().unwrap();
             self.remove_block(&mut election_guard, &replaced_block);
             replaced = true;
         } else {
-            election_guard = election.mutex.lock().unwrap();
+            election_guard = election.lock().unwrap();
         }
         (replaced, election_guard)
     }
 
-    fn publish(&self, block: &Block, election: &Election) -> bool {
-        let mut election_guard = election.mutex.lock().unwrap();
+    fn publish(&self, block: &Block, election: &Mutex<ElectionData>) -> bool {
+        let mut election_guard = election.lock().unwrap();
 
         // Do not insert new blocks if already confirmed
         let mut result = election_guard.is_confirmed();
@@ -554,16 +554,16 @@ impl ActiveElections {
     fn cleanup_election<'a>(
         &self,
         mut guard: MutexGuard<'a, ActiveElectionsState>,
-        election: &'a Arc<Election>,
+        election: &'a Arc<Mutex<ElectionData>>,
     ) {
         // Keep track of election count by election type
-        *guard.count_by_behavior_mut(election.lock().behavior) -= 1;
+        *guard.count_by_behavior_mut(election.lock().unwrap().behavior) -= 1;
 
         let election_winner: BlockHash;
         let election_state;
         let blocks;
         {
-            let election_guard = election.lock();
+            let election_guard = election.lock().unwrap();
             blocks = election_guard.last_blocks.clone();
             election_winner = election_guard.status.winner.as_ref().unwrap().hash();
             election_state = election_guard.state;
@@ -571,7 +571,7 @@ impl ActiveElections {
 
         self.vote_router.disconnect_election(election);
 
-        let election_guard = election.lock();
+        let election_guard = election.lock().unwrap();
         // Erase root info
         let entry = guard
             .roots
@@ -595,7 +595,7 @@ impl ActiveElections {
         self.stats
             .inc(StatType::ActiveElectionsStopped, state.into());
         self.stats
-            .inc(state.into(), election.lock().behavior.into());
+            .inc(state.into(), election.lock().unwrap().behavior.into());
 
         debug!(
             "Erased election for blocks: {} (behavior: {:?}, state: {:?})",
@@ -604,7 +604,7 @@ impl ActiveElections {
                 .map(|k| k.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            election.lock().behavior,
+            election.lock().unwrap().behavior,
             election_state
         );
         drop(guard);
@@ -613,7 +613,7 @@ impl ActiveElections {
         let election_duration;
         let qualified_root;
         {
-            let el = election.lock();
+            let el = election.lock().unwrap();
             election_duration = el.duration();
             qualified_root = el.qualified_root.clone();
         }
@@ -633,14 +633,14 @@ impl ActiveElections {
 
         for (hash, block) in blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
-            if !election.lock().is_confirmed() || hash != election_winner {
+            if !election.lock().unwrap().is_confirmed() || hash != election_winner {
                 let callbacks = self.active_stopped_observer.lock().unwrap();
                 for callback in callbacks.iter() {
                     (callback)(hash);
                 }
             }
 
-            if !election.lock().is_confirmed() {
+            if !election.lock().unwrap().is_confirmed() {
                 // Clear from publish filter
                 self.clear_publish_filter(&block);
             }
@@ -679,7 +679,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<ElectionData>>> {
         let guard = self.mutex.lock().unwrap();
         guard.election(root)
     }
@@ -719,7 +719,7 @@ impl ActiveElections {
             let success;
             let root;
             {
-                let mut election_guard = election.lock();
+                let mut election_guard = election.lock().unwrap();
                 success = self.transition_time(&mut solicitor, &mut election_guard);
                 root = election_guard.qualified_root.clone();
             };
@@ -734,7 +734,7 @@ impl ActiveElections {
     }
 
     /// Returns a list of elections sorted by difficulty
-    pub fn list_active(&self, max: usize) -> Vec<Arc<Election>> {
+    pub fn list_active(&self, max: usize) -> Vec<Arc<Mutex<ElectionData>>> {
         self.mutex
             .lock()
             .unwrap()
@@ -749,7 +749,7 @@ impl ActiveElections {
     fn list_active_impl(
         max: usize,
         guard: &MutexGuard<ActiveElectionsState>,
-    ) -> Vec<Arc<Election>> {
+    ) -> Vec<Arc<Mutex<ElectionData>>> {
         guard
             .roots
             .iter_sequenced()
@@ -834,8 +834,8 @@ impl ActiveElections {
         }
     }
 
-    fn try_confirm(&self, election: &Arc<Election>, hash: &BlockHash) {
-        let mut guard = election.mutex.lock().unwrap();
+    fn try_confirm(&self, election: &Arc<Mutex<ElectionData>>, hash: &BlockHash) {
+        let mut guard = election.lock().unwrap();
         if let Some(winner) = &guard.status.winner {
             if winner.hash() == *hash {
                 if !guard.is_confirmed() {
@@ -845,9 +845,9 @@ impl ActiveElections {
         }
     }
 
-    pub fn force_confirm(&self, election: &Arc<Election>) {
+    pub fn force_confirm(&self, election: &Arc<Mutex<ElectionData>>) {
         assert!(self.network_params.network.is_dev_network());
-        let mut guard = election.mutex.lock().unwrap();
+        let mut guard = election.lock().unwrap();
         self.vote_applier.confirm_once(&mut guard, election);
     }
 
@@ -857,7 +857,7 @@ impl ActiveElections {
         guard: &mut ActiveElectionsState,
         block: &SavedBlock,
         confirmation_root: &BlockHash,
-        source_election: &Option<Arc<Election>>,
+        source_election: &Option<Arc<Mutex<ElectionData>>>,
     ) -> (ElectionStatus, Vec<VoteWithWeightInfo>) {
         // Dependent elections are implicitly confirmed when their block is cemented
         let dependent_election = guard.election(&block.qualified_root());
@@ -876,7 +876,7 @@ impl ActiveElections {
         // Check if the currently cemented block was part of an election that triggered the confirmation
         let mut handled = false;
         if let Some(source_election) = source_election {
-            let source_election_guard = source_election.lock();
+            let source_election_guard = source_election.lock().unwrap();
             if source_election_guard.qualified_root == block.qualified_root() {
                 status = source_election_guard.status.clone();
                 debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
@@ -941,7 +941,7 @@ impl ActiveElections {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-    ) -> (bool, Option<Arc<Election>>) {
+    ) -> (bool, Option<Arc<Mutex<ElectionData>>>) {
         let mut election_result = None;
         let mut inserted = false;
 
@@ -959,11 +959,11 @@ impl ActiveElections {
             election_result = Some(existing.election.clone());
 
             // Upgrade to priority election to enable immediate vote broadcasting.
-            let previous_behavior = existing.election.lock().behavior;
+            let previous_behavior = existing.election.lock().unwrap().behavior;
             if election_behavior == ElectionBehavior::Priority
                 && previous_behavior != ElectionBehavior::Priority
             {
-                let transitioned = existing.election.lock().transition_priority();
+                let transitioned = existing.election.lock().unwrap().transition_priority();
                 if transitioned {
                     *guard.count_by_behavior_mut(previous_behavior) -= 1;
                     *guard.count_by_behavior_mut(election_behavior) += 1;
@@ -987,11 +987,11 @@ impl ActiveElections {
                     online_reps.lock().unwrap().vote_observed(rep, clock.now());
                 });
 
-                let election = Arc::new(Election::new(
+                let election = Arc::new(Mutex::new(ElectionData::new(
                     block,
                     election_behavior,
                     Some(live_vote_callback),
-                ));
+                )));
                 guard.roots.insert(Entry {
                     root,
                     election: election.clone(),
@@ -1000,7 +1000,7 @@ impl ActiveElections {
                 self.vote_router.connect(hash, Arc::downgrade(&election));
 
                 // Keep track of election count by election type
-                *guard.count_by_behavior_mut(election.lock().behavior) += 1;
+                *guard.count_by_behavior_mut(election.lock().unwrap().behavior) += 1;
 
                 // Skip passive phase for blocks without cached votes to avoid bootstrap delays
                 let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
@@ -1009,7 +1009,7 @@ impl ActiveElections {
                 if activate_immediately {
                     self.stats
                         .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
-                    election.lock().transition_active();
+                    election.lock().unwrap().transition_active();
                 }
 
                 self.stats
@@ -1047,7 +1047,7 @@ impl ActiveElections {
 
         // Votes are generated for inserted or ongoing elections
         if let Some(election) = &election_result {
-            let mut guard = election.mutex.lock().unwrap();
+            let mut guard = election.lock().unwrap();
             self.try_broadcast_vote(&mut guard);
         }
 
@@ -1194,7 +1194,7 @@ impl ActiveElectionsState {
         }
     }
 
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<ElectionData>>> {
         self.roots.get(root).map(|i| i.election.clone())
     }
 }

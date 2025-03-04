@@ -17,11 +17,11 @@ impl RpcCommandHandler {
             .election(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 
-        if election.lock().is_confirmed() {
+        if election.lock().unwrap().is_confirmed() {
             bail!("Active confirmation not found");
         }
 
-        let info = election.mutex.lock().unwrap();
+        let info = election.lock().unwrap();
         let announcements = info.status.confirmation_request_count;
         let voters = info.last_votes.len();
         let last_winner = info

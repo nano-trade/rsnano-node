@@ -6,9 +6,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use test_helpers::{
-    assert_timely, assert_timely_eq, assert_timely_eq2, setup_chain, start_election, System,
-};
+use test_helpers::{assert_timely, assert_timely_eq2, setup_chain, start_election, System};
 
 #[test]
 fn codes() {
@@ -95,16 +93,16 @@ fn invalid_signature() {
     let vote = Arc::new(vote);
     let vote_invalid = Arc::new(vote_invalid);
     let election = start_election(&node, &chain[0].hash());
-    assert_eq!(1, election.lock().vote_count());
+    assert_eq!(1, election.lock().unwrap().vote_count());
 
     node.vote_processor_queue
         .vote(vote_invalid, None, VoteSource::Live);
 
-    assert_timely_eq2(|| election.lock().vote_count(), 1);
+    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
 
     node.vote_processor_queue.vote(vote, None, VoteSource::Live);
 
-    assert_timely_eq2(|| election.lock().vote_count(), 2);
+    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2);
 }
 
 #[test]

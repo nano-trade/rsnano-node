@@ -12,7 +12,7 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, Election, ElectionData, LocalVoteHistory,
+    election_schedulers::ElectionSchedulers, ElectionData, LocalVoteHistory,
     RecentlyConfirmedCache, TallyKey, VoteGenerators,
 };
 use crate::{
@@ -118,15 +118,10 @@ impl VoteApplier {
         result
     }
 
-    pub fn remove_votes(
-        &self,
-        election: &Election,
-        guard: &mut MutexGuard<ElectionData>,
-        hash: &BlockHash,
-    ) {
+    pub fn remove_votes(&self, guard: &mut ElectionData, hash: &BlockHash) {
         if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
             // Remove votes from election
-            let root = election.lock().root;
+            let root = guard.root;
             let list_generated_votes = self.history.votes(&root, hash, false);
             for vote in list_generated_votes {
                 guard.last_votes.remove(&vote.voting_account);
@@ -148,20 +143,24 @@ impl VoteApplier {
 pub trait VoteApplierExt {
     fn vote(
         &self,
-        election: &Arc<Election>,
+        election: &Arc<Mutex<ElectionData>>,
         rep: &PublicKey,
         timestamp: u64,
         block_hash: &BlockHash,
         vote_source: VoteSource,
     ) -> VoteCode;
-    fn confirm_if_quorum(&self, election_lock: MutexGuard<ElectionData>, election: &Arc<Election>);
-    fn confirm_once(&self, election_lock: &mut ElectionData, election: &Arc<Election>);
+    fn confirm_if_quorum(
+        &self,
+        election_lock: MutexGuard<ElectionData>,
+        election: &Arc<Mutex<ElectionData>>,
+    );
+    fn confirm_once(&self, election_lock: &mut ElectionData, election: &Arc<Mutex<ElectionData>>);
 }
 
 impl VoteApplierExt for Arc<VoteApplier> {
     fn vote(
         &self,
-        election: &Arc<Election>,
+        election: &Arc<Mutex<ElectionData>>,
         rep: &PublicKey,
         timestamp: u64,
         block_hash: &BlockHash,
@@ -174,7 +173,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             return VoteCode::Indeterminate;
         }
 
-        let mut guard = election.lock();
+        let mut guard = election.lock().unwrap();
 
         if let Some(last_vote) = guard.last_votes.get(rep) {
             if last_vote.timestamp > timestamp {
@@ -226,7 +225,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
     fn confirm_if_quorum(
         &self,
         mut election_lock: MutexGuard<ElectionData>,
-        election: &Arc<Election>,
+        election: &Arc<Mutex<ElectionData>>,
     ) {
         let tally = self.tally_impl(&mut election_lock);
         assert!(!tally.is_empty());
@@ -243,7 +242,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             && winner_hash != status_winner_hash
         {
             election_lock.status.winner = Some(block.clone());
-            self.remove_votes(election, &mut election_lock, &status_winner_hash);
+            self.remove_votes(&mut election_lock, &status_winner_hash);
             self.block_processor.force(block.clone().into());
         }
 
@@ -270,7 +269,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         }
     }
 
-    fn confirm_once(&self, election_lock: &mut ElectionData, election: &Arc<Election>) {
+    fn confirm_once(&self, election_lock: &mut ElectionData, election: &Arc<Mutex<ElectionData>>) {
         let just_confirmed = election_lock.state != ElectionState::Confirmed;
         election_lock.state = ElectionState::Confirmed;
 
