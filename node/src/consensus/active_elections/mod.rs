@@ -490,29 +490,19 @@ impl ActiveElections {
 
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    fn try_broadcast_vote(
-        &self,
-        election: &Election,
-        election_guard: &mut MutexGuard<ElectionData>,
-    ) {
-        if election_guard.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval
-        {
-            self.broadcast_vote_locked(election_guard, election);
-            election_guard.set_last_vote();
+    fn try_broadcast_vote(&self, election: &mut ElectionData) {
+        if election.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval {
+            self.broadcast_vote_locked(election);
+            election.set_last_vote();
         }
     }
 
-    fn broadcast_block(
-        &self,
-        solicitor: &mut ConfirmationSolicitor,
-        election_guard: &mut MutexGuard<ElectionData>,
-    ) {
-        if self.broadcast_block_predicate(election_guard) {
-            if solicitor.broadcast(election_guard).is_ok() {
-                let last_block_hash = election_guard.last_block_hash;
-                election_guard.set_last_block();
-                election_guard.last_block_hash =
-                    election_guard.status.winner.as_ref().unwrap().hash();
+    fn broadcast_block(&self, solicitor: &mut ConfirmationSolicitor, election: &mut ElectionData) {
+        if self.broadcast_block_predicate(election) {
+            if solicitor.broadcast(election).is_ok() {
+                let last_block_hash = election.last_block_hash;
+                election.set_last_block();
+                election.last_block_hash = election.status.winner.as_ref().unwrap().hash();
 
                 self.stats.inc(
                     StatType::Election,
@@ -528,36 +518,32 @@ impl ActiveElections {
 
     /// Broadcast vote for current election winner. Generates final vote if reached quorum or already confirmed
     /// Requires mutex lock
-    fn broadcast_vote_locked(
-        &self,
-        election_guard: &mut MutexGuard<ElectionData>,
-        election: &Election,
-    ) {
-        let last_vote_elapsed = election_guard.last_vote_elapsed();
+    fn broadcast_vote_locked(&self, election: &mut ElectionData) {
+        let last_vote_elapsed = election.last_vote_elapsed();
         if last_vote_elapsed < self.network_params.network.vote_broadcast_interval {
             return;
         }
-        election_guard.set_last_vote();
+        election.set_last_vote();
         if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
             self.stats
                 .inc(StatType::Election, DetailType::BroadcastVote);
-            election_guard.status.vote_broadcast_count += 1;
+            election.status.vote_broadcast_count += 1;
 
-            if election_guard.is_confirmed()
+            if election.is_confirmed()
                 || self
                     .vote_applier
-                    .have_quorum(&self.vote_applier.tally_impl(election_guard))
+                    .have_quorum(&self.vote_applier.tally_impl(election))
             {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
-                let winner = election_guard.status.winner.as_ref().unwrap().hash();
+                let winner = election.status.winner.as_ref().unwrap().hash();
                 trace!(qualified_root = ?election.qualified_root, %winner, "type" = "final", "broadcast vote");
                 self.vote_generators
                     .generate_final_vote(&election.root, &winner); // Broadcasts vote to the network
             } else {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteNormal);
-                let winner = election_guard.status.winner.as_ref().unwrap().hash();
+                let winner = election.status.winner.as_ref().unwrap().hash();
                 trace!(qualified_root = ?election.qualified_root, %winner, "type" = "normal", "broadcast vote");
                 self.vote_generators
                     .generate_non_final_vote(&election.root, &winner); // Broadcasts vote to the network
@@ -586,15 +572,19 @@ impl ActiveElections {
 
         self.vote_router.disconnect_election(election);
 
+        let election_guard = election.lock();
         // Erase root info
         let entry = guard
             .roots
-            .erase(&election.qualified_root)
+            .erase(&election_guard.qualified_root)
             .expect("election not found");
 
-        let state = election.lock().state;
+        let state = election_guard.state;
+        drop(election_guard);
+
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
+
         self.stats.inc(
             StatType::ActiveElections,
             if state.is_confirmed() {
@@ -672,17 +662,13 @@ impl ActiveElections {
         }
     }
 
-    fn broadcast_block_predicate(&self, election_guard: &MutexGuard<ElectionData>) -> bool {
+    fn broadcast_block_predicate(&self, election: &ElectionData) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
-        if election_guard.last_block_elapsed()
-            < self.network_params.network.block_broadcast_interval
-        {
+        if election.last_block_elapsed() < self.network_params.network.block_broadcast_interval {
             true
         }
         // Or the current election winner has changed
-        else if election_guard.status.winner.as_ref().unwrap().hash()
-            != election_guard.last_block_hash
-        {
+        else if election.winner_hash().unwrap() != election.last_block_hash {
             true
         } else {
             false
@@ -754,8 +740,9 @@ impl ActiveElections {
          * Flushed elections are later re-activated via frontier confirmation
          */
         for election in elections {
-            if self.transition_time(&mut solicitor, &election) {
-                self.erase(&election.qualified_root);
+            let mut election_guard = election.lock();
+            if self.transition_time(&mut solicitor, &mut election_guard) {
+                self.erase(&election_guard.qualified_root);
             }
         }
 
@@ -802,27 +789,26 @@ impl ActiveElections {
     fn transition_time(
         &self,
         solicitor: &mut ConfirmationSolicitor,
-        election: &Arc<Election>,
+        election: &mut ElectionData,
     ) -> bool {
-        let mut guard = election.mutex.lock().unwrap();
         let mut result = false;
-        match guard.state {
+        match election.state {
             ElectionState::Passive => {
-                if self.base_latency() * Self::PASSIVE_DURATION_FACTOR < guard.duration() {
-                    guard
+                if self.base_latency() * Self::PASSIVE_DURATION_FACTOR < election.duration() {
+                    election
                         .state_change(ElectionState::Passive, ElectionState::Active)
                         .unwrap();
                 }
             }
             ElectionState::Active => {
-                self.try_broadcast_vote(election, &mut guard);
-                self.broadcast_block(solicitor, &mut guard);
-                self.send_confirm_req(solicitor, &mut guard);
+                self.try_broadcast_vote(election);
+                self.broadcast_block(solicitor, election);
+                self.send_confirm_req(solicitor, election);
             }
             ElectionState::Confirmed => {
                 result = true; // Return true to indicate this election should be cleaned up
-                self.broadcast_block(solicitor, &mut guard); // Ensure election winner is broadcasted
-                guard
+                self.broadcast_block(solicitor, election); // Ensure election winner is broadcasted
+                election
                     .state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
                     .unwrap();
             }
@@ -834,17 +820,17 @@ impl ActiveElections {
             }
         }
 
-        if !guard.is_confirmed() && guard.time_to_live() < guard.duration() {
+        if !election.is_confirmed() && election.time_to_live() < election.duration() {
             // It is possible the election confirmed while acquiring the mutex
             // state_change returning true would indicate it
-            let state = guard.state;
-            if guard
+            let state = election.state;
+            if election
                 .state_change(state, ElectionState::ExpiredUnconfirmed)
                 .is_ok()
             {
                 trace!(qualified_root = ?election.qualified_root, "election expired");
                 result = true; // Return true to indicate this election should be cleaned up
-                guard.status.election_status_type = ElectionStatusType::Stopped;
+                election.status.election_status_type = ElectionStatusType::Stopped;
             }
         }
 
@@ -1078,7 +1064,7 @@ impl ActiveElections {
         // Votes are generated for inserted or ongoing elections
         if let Some(election) = &election_result {
             let mut guard = election.mutex.lock().unwrap();
-            self.try_broadcast_vote(election, &mut guard);
+            self.try_broadcast_vote(&mut guard);
         }
 
         (inserted, election_result)

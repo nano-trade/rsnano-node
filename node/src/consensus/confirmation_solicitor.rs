@@ -1,4 +1,4 @@
-use super::{Election, ElectionData};
+use super::ElectionData;
 use crate::{config::NetworkParams, representatives::PeeredRepInfo, transport::MessageFlooder};
 use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message, Publish};
@@ -6,7 +6,7 @@ use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 use std::{
     cmp::max,
     collections::HashMap,
-    sync::{atomic::Ordering, Arc, MutexGuard, RwLock},
+    sync::{Arc, RwLock},
 };
 
 /// This struct accepts elections that need further votes before they can be confirmed and bundles them in to single confirm_req packets
@@ -60,7 +60,7 @@ impl ConfirmationSolicitor {
     }
 
     /// Broadcast the winner of an election if the broadcast limit has not been reached. Returns false if the broadcast was performed
-    pub fn broadcast(&mut self, guard: &MutexGuard<ElectionData>) -> Result<(), ()> {
+    pub fn broadcast(&mut self, guard: &ElectionData) -> Result<(), ()> {
         debug_assert!(self.prepared);
         self.rebroadcasted += 1;
         if self.rebroadcasted >= self.max_block_broadcasts {

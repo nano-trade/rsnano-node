@@ -88,10 +88,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn tally_impl(
-        &self,
-        guard: &mut MutexGuard<ElectionData>,
-    ) -> BTreeMap<TallyKey, MaybeSavedBlock> {
+    pub fn tally_impl(&self, guard: &mut ElectionData) -> BTreeMap<TallyKey, MaybeSavedBlock> {
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
         for (account, info) in &guard.last_votes {

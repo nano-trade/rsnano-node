@@ -24,10 +24,9 @@ impl Election {
         behavior: ElectionBehavior,
         live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
     ) -> Self {
-        let root = block.root();
-        let qualified_root = block.qualified_root();
-
         let data = ElectionData {
+            root: block.root(),
+            qualified_root: block.qualified_root(),
             status: ElectionStatus {
                 winner: Some(rsnano_core::MaybeSavedBlock::Saved(block.clone())),
                 election_end: SystemTime::now(),
@@ -54,6 +53,8 @@ impl Election {
             live_vote_callback,
             election_start: Instant::now(),
         };
+        let root = data.root;
+        let qualified_root = data.qualified_root.clone();
 
         Self {
             mutex: Mutex::new(data),
@@ -76,6 +77,8 @@ impl Debug for Election {
 }
 
 pub struct ElectionData {
+    pub root: Root,
+    pub qualified_root: QualifiedRoot,
     pub status: ElectionStatus,
     pub state: ElectionState,
     pub state_start: Instant,
