@@ -21,7 +21,6 @@ use crate::{
     config::{NetworkParams, NodeConfig},
     consensus::{ElectionState, VoteInfo},
     representatives::OnlineReps,
-    utils::ThreadPool,
     wallets::Wallets,
 };
 
@@ -37,7 +36,6 @@ pub struct VoteApplier {
     wallets: Arc<Wallets>,
     recently_confirmed: Arc<RecentlyConfirmedCache>,
     confirming_set: Arc<ConfirmingSet>,
-    workers: Arc<dyn ThreadPool>,
     election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
 }
 
@@ -54,7 +52,6 @@ impl VoteApplier {
         wallets: Arc<Wallets>,
         recently_confirmed: Arc<RecentlyConfirmedCache>,
         confirming_set: Arc<ConfirmingSet>,
-        workers: Arc<dyn ThreadPool>,
     ) -> Self {
         Self {
             ledger,
@@ -68,7 +65,6 @@ impl VoteApplier {
             wallets,
             recently_confirmed,
             confirming_set,
-            workers,
             election_schedulers: RwLock::new(None),
         }
     }
@@ -298,14 +294,6 @@ impl VoteApplierExt for Arc<VoteApplier> {
                 status.winner.as_ref().unwrap().hash(),
                 Some(election.clone()),
             );
-
-            drop(election_lock);
-
-            let election = Arc::clone(election);
-            self.workers.post(Box::new(move || {
-                let block = status.winner.as_ref().unwrap().clone();
-                (election.confirmation_action)(block.into());
-            }));
         } else {
             self.stats
                 .inc(StatType::Election, DetailType::ConfirmOnceFailed);

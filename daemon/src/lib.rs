@@ -5,7 +5,7 @@ use rsnano_node::{
 };
 use rsnano_rpc_server::{run_rpc_server, RpcServerConfig};
 use rsnano_websocket_server::{create_websocket_server, WebsocketListenerExt};
-use std::{future::Future, num::NonZero, path::PathBuf, sync::Arc, thread::available_parallelism};
+use std::{future::Future, path::PathBuf, sync::Arc, thread::available_parallelism};
 use tokio::{net::TcpListener, sync::oneshot};
 use tracing::info;
 

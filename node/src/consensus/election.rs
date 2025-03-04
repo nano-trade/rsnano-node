@@ -8,9 +8,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use rsnano_core::{
-    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, Root, SavedBlock,
-};
+use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, Root, SavedBlock};
 use rsnano_stats::{DetailType, StatType};
 
 use super::ElectionStatus;
@@ -30,7 +28,6 @@ pub struct Election {
     last_block: RwLock<Instant>,
     pub last_req: RwLock<Option<Instant>>,
     pub election_start: Instant,
-    pub confirmation_action: Box<dyn Fn(Block) + Send + Sync>,
     pub live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
     height: u64,
 }
@@ -42,7 +39,6 @@ impl Election {
         id: usize,
         block: SavedBlock,
         behavior: ElectionBehavior,
-        confirmation_action: Box<dyn Fn(Block) + Send + Sync>,
         live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
     ) -> Self {
         let root = block.root();
@@ -81,7 +77,6 @@ impl Election {
             last_block: RwLock::new(Instant::now()),
             election_start: Instant::now(),
             last_req: RwLock::new(None),
-            confirmation_action,
             live_vote_action,
             height,
         }

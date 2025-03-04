@@ -212,10 +212,6 @@ impl ActiveElections {
         self.recently_cemented.lock().unwrap().len()
     }
 
-    pub fn was_recently_confirmed(&self, hash: &BlockHash) -> bool {
-        self.recently_confirmed.hash_exists(hash)
-    }
-
     pub fn latest_recently_confirmed(&self) -> Option<(QualifiedRoot, BlockHash)> {
         self.recently_confirmed.back()
     }
@@ -390,7 +386,7 @@ impl ActiveElections {
         self.active_root(&block.qualified_root())
     }
 
-    pub fn replace_by_weight<'a>(
+    fn replace_by_weight<'a>(
         &self,
         election: &'a Election,
         mut election_guard: MutexGuard<'a, ElectionData>,
@@ -495,11 +491,7 @@ impl ActiveElections {
 
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    pub fn broadcast_vote(
-        &self,
-        election: &Election,
-        election_guard: &mut MutexGuard<ElectionData>,
-    ) {
+    fn broadcast_vote(&self, election: &Election, election_guard: &mut MutexGuard<ElectionData>) {
         if election_guard.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval
         {
             self.broadcast_vote_locked(election_guard, election);
@@ -507,7 +499,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn broadcast_block(
+    fn broadcast_block(
         &self,
         solicitor: &mut ConfirmationSolicitor,
         election: &Election,
@@ -534,7 +526,7 @@ impl ActiveElections {
 
     /// Broadcast vote for current election winner. Generates final vote if reached quorum or already confirmed
     /// Requires mutex lock
-    pub fn broadcast_vote_locked(
+    fn broadcast_vote_locked(
         &self,
         election_guard: &mut MutexGuard<ElectionData>,
         election: &Election,
@@ -682,7 +674,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn broadcast_block_predicate(
+    fn broadcast_block_predicate(
         &self,
         election: &Election,
         election_guard: &MutexGuard<ElectionData>,
@@ -734,7 +726,7 @@ impl ActiveElections {
         result
     }
 
-    pub fn request_loop(&self) {
+    fn request_loop(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
             let stamp = Instant::now();
@@ -1001,6 +993,7 @@ pub trait ActiveElectionsExt {
     fn stop(&self);
     fn force_confirm(&self, election: &Arc<Election>);
     fn try_confirm(&self, election: &Arc<Election>, hash: &BlockHash);
+
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     fn block_cemented(
         &self,
@@ -1009,7 +1002,9 @@ pub trait ActiveElectionsExt {
         confirmation_root: &BlockHash,
         source_election: &Option<Arc<Election>>,
     ) -> (ElectionStatus, Vec<VoteWithWeightInfo>);
+
     fn publish_block(&self, block: &Block) -> bool;
+
     fn insert(
         &self,
         block: SavedBlock,
@@ -1249,13 +1244,8 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 });
 
                 let id = NEXT_ELECTION_ID.fetch_add(1, Ordering::Relaxed);
-                let election = Arc::new(Election::new(
-                    id,
-                    block,
-                    election_behavior,
-                    Box::new(|_| {}),
-                    observer_rep_cb,
-                ));
+                let election =
+                    Arc::new(Election::new(id, block, election_behavior, observer_rep_cb));
                 guard.roots.insert(Entry {
                     root,
                     election: election.clone(),

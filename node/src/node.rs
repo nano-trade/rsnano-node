@@ -87,7 +87,6 @@ pub struct Node {
     pub stats: Arc<Stats>,
     pub workers: Arc<dyn ThreadPool>,
     wallet_workers: Arc<dyn ThreadPool>,
-    election_workers: Arc<dyn ThreadPool>,
     pub flags: NodeFlags,
     pub work: Arc<WorkPool>,
     pub distributed_work: Arc<DistributedWorkFactory>,
@@ -286,8 +285,6 @@ impl Node {
         ));
         let wallet_workers: Arc<dyn ThreadPool> =
             Arc::new(ThreadPoolImpl::create(1, "Wallet work"));
-        let election_workers: Arc<dyn ThreadPool> =
-            Arc::new(ThreadPoolImpl::create(1, "Election work"));
 
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
         let mut network = Network::new(config.network.clone());
@@ -512,7 +509,6 @@ impl Node {
             wallets.clone(),
             recently_confirmed.clone(),
             confirming_set.clone(),
-            election_workers.clone(),
         ));
 
         let vote_router = Arc::new(VoteRouter::new(
@@ -1195,7 +1191,6 @@ impl Node {
             node_id,
             workers,
             wallet_workers,
-            election_workers,
             distributed_work,
             unchecked,
             telemetry,
@@ -1590,7 +1585,6 @@ impl Node {
         self.vote_rebroadcaster.stop();
 
         self.wallet_workers.stop();
-        self.election_workers.stop();
         self.workers.stop();
 
         self.tokio_runner.stop();
