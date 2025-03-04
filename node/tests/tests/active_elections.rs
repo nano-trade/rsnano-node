@@ -350,7 +350,7 @@ fn inactive_votes_cache_existing_vote() {
     node.vote_processor_queue
         .vote(vote1.clone(), None, VoteSource::Live);
 
-    assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
+    assert_timely_eq2(|| election.lock().vote_count(), 2);
 
     assert_eq!(
         1,
@@ -380,7 +380,7 @@ fn inactive_votes_cache_existing_vote() {
     node.vote_router.vote(&cached[0], VoteSource::Live);
 
     // Check that election data is not changed
-    assert_eq!(election.vote_count(), 2);
+    assert_eq!(election.lock().vote_count(), 2);
     let last_vote2 = election
         .mutex
         .lock()
@@ -430,7 +430,7 @@ fn inactive_votes_cache_multiple_votes() {
     );
     assert_eq!(1, node.vote_cache.lock().unwrap().size());
     let election = start_election(&node, &send1.hash());
-    assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 3); // 2 votes and 1 default not_an_account
+    assert_timely_eq2(|| election.lock().vote_count(), 3); // 2 votes and 1 default not_an_account
     assert_eq!(
         2,
         node.stats
@@ -578,11 +578,9 @@ fn republish_winner() {
         .vote(vote, None, VoteSource::Live);
     assert_timely2(|| election.lock().is_confirmed());
 
-    assert_eq!(fork.hash(), election.winner_hash().unwrap());
+    assert_eq!(fork.hash(), election.lock().winner_hash().unwrap());
 
-    assert_timely(Duration::from_secs(5), || {
-        node2.block_confirmed(&fork.hash())
-    });
+    assert_timely2(|| node2.block_confirmed(&fork.hash()));
 }
 
 /*
@@ -659,7 +657,7 @@ fn confirm_election_by_request() {
     );
 
     // Expect a vote to come back
-    assert_timely2(|| election.vote_count() >= 1);
+    assert_timely2(|| election.lock().vote_count() >= 1);
 
     // There needs to be at least one request to get the election confirmed,
     // Rep has this block already confirmed so should reply with final vote only

@@ -35,7 +35,7 @@ mod votes {
         });
 
         let election1 = node1.active.election(&send1.qualified_root()).unwrap();
-        assert_eq!(election1.vote_count(), 1);
+        assert_eq!(election1.lock().vote_count(), 1);
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN,
@@ -69,7 +69,7 @@ mod votes {
             &VoteCode::Ignored
         );
 
-        assert_eq!(election1.vote_count(), 2);
+        assert_eq!(election1.lock().vote_count(), 2);
         assert_eq!(
             election1
                 .mutex
@@ -292,10 +292,10 @@ fn block_hash_account_conflict() {
         .election(&open_epoch1.qualified_root())
         .unwrap();
 
-    assert_eq!(election1.winner_hash().unwrap(), send1.hash());
-    assert_eq!(election2.winner_hash().unwrap(), receive1.hash());
-    assert_eq!(election3.winner_hash().unwrap(), send2.hash());
-    assert_eq!(election4.winner_hash().unwrap(), open_epoch1.hash());
+    assert_eq!(election1.lock().winner_hash().unwrap(), send1.hash());
+    assert_eq!(election2.lock().winner_hash().unwrap(), receive1.hash());
+    assert_eq!(election3.lock().winner_hash().unwrap(), send2.hash());
+    assert_eq!(election4.lock().winner_hash().unwrap(), open_epoch1.hash());
 }
 
 #[test]

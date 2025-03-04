@@ -290,7 +290,7 @@ fn quorum_minimum_flip_success() {
     assert_timely2(|| election.lock().is_confirmed());
 
     // Check that send2 is the winner
-    let winner = election.winner_hash();
+    let winner = election.lock().winner_hash();
     assert!(winner.is_some());
     assert_eq!(winner.unwrap(), send2.hash());
 }

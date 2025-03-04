@@ -403,7 +403,7 @@ pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
         "election not active",
     );
     let election = node.active.election(&block.qualified_root()).unwrap();
-    election.transition_active();
+    election.lock().transition_active();
     election
 }
 

@@ -591,7 +591,7 @@ impl ActiveElections {
             .erase(&election.qualified_root)
             .expect("election not found");
 
-        let state = election.state();
+        let state = election.lock().state;
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
         self.stats.inc(
@@ -993,7 +993,7 @@ impl ActiveElections {
             if election_behavior == ElectionBehavior::Priority
                 && previous_behavior != ElectionBehavior::Priority
             {
-                let transitioned = existing.election.transition_priority();
+                let transitioned = existing.election.lock().transition_priority();
                 if transitioned {
                     *guard.count_by_behavior_mut(previous_behavior) -= 1;
                     *guard.count_by_behavior_mut(election_behavior) += 1;
@@ -1032,7 +1032,7 @@ impl ActiveElections {
                 self.vote_router.connect(hash, Arc::downgrade(&election));
 
                 // Keep track of election count by election type
-                *guard.count_by_behavior_mut(election.behavior()) += 1;
+                *guard.count_by_behavior_mut(election.lock().behavior) += 1;
 
                 // Skip passive phase for blocks without cached votes to avoid bootstrap delays
                 let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
@@ -1041,7 +1041,7 @@ impl ActiveElections {
                 if activate_immediately {
                     self.stats
                         .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
-                    election.transition_active();
+                    election.lock().transition_active();
                 }
 
                 self.stats

@@ -147,11 +147,11 @@ fn receivable_processor_confirm_insufficient_pos() {
     let con1 = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(
         vote.deref().clone(),
     ));
-    assert_eq!(1, election.vote_count());
+    assert_eq!(1, election.lock().vote_count());
 
     node1.inbound_message_queue.put(con1, channel);
 
-    assert_timely_eq2(|| election.vote_count(), 2);
+    assert_timely_eq2(|| election.lock().vote_count(), 2);
 }
 
 #[test]
@@ -169,11 +169,11 @@ fn receivable_processor_confirm_sufficient_pos() {
     let con1 = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(
         vote.deref().clone(),
     ));
-    assert_eq!(1, election.vote_count());
+    assert_eq!(1, election.lock().vote_count());
 
     node1.inbound_message_queue.put(con1, channel);
 
-    assert_timely_eq2(|| election.vote_count(), 2);
+    assert_timely_eq2(|| election.lock().vote_count(), 2);
 }
 
 #[test]

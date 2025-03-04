@@ -17,7 +17,6 @@ pub struct Election {
     pub id: usize,
     pub root: Root,
     pub qualified_root: QualifiedRoot,
-    height: u64,
     pub election_start: Instant,
     pub live_vote_callback: Box<dyn Fn(PublicKey) + Send + Sync>,
 
@@ -35,7 +34,6 @@ impl Election {
     ) -> Self {
         let root = block.root();
         let qualified_root = block.qualified_root();
-        let height = block.height();
 
         let data = ElectionData {
             status: ElectionStatus {
@@ -70,54 +68,11 @@ impl Election {
             qualified_root,
             election_start: Instant::now(),
             live_vote_callback,
-            height,
         }
     }
 
     pub fn duration(&self) -> Duration {
         self.election_start.elapsed()
-    }
-
-    pub fn state(&self) -> ElectionState {
-        self.mutex.lock().unwrap().state
-    }
-
-    pub fn transition_active(&self) {
-        let _ = self
-            .mutex
-            .lock()
-            .unwrap()
-            .state_change(ElectionState::Passive, ElectionState::Active);
-    }
-
-    pub fn transition_priority(&self) -> bool {
-        let mut guard = self.mutex.lock().unwrap();
-        if matches!(
-            guard.behavior,
-            ElectionBehavior::Priority | ElectionBehavior::Manual
-        ) {
-            return false;
-        }
-
-        guard.behavior = ElectionBehavior::Priority;
-
-        // allow new outgoing votes immediately
-        guard.last_vote = None;
-        true
-    }
-
-    pub fn cancel(&self) {
-        let mut guard = self.mutex.lock().unwrap();
-        let current = guard.state;
-        let _ = guard.state_change(current, ElectionState::Cancelled);
-    }
-
-    pub fn vote_count(&self) -> usize {
-        self.mutex.lock().unwrap().last_votes.len()
-    }
-
-    pub fn winner_hash(&self) -> Option<BlockHash> {
-        self.mutex.lock().unwrap().winner_hash()
     }
 
     pub fn behavior(&self) -> ElectionBehavior {
@@ -134,7 +89,6 @@ impl Debug for Election {
         f.debug_struct("Election")
             .field("id", &self.id)
             .field("qualified_root", &self.qualified_root)
-            .field("height", &self.height)
             .finish()
     }
 }
@@ -165,6 +119,34 @@ impl ElectionData {
         } else {
             false
         }
+    }
+
+    pub fn cancel(&mut self) {
+        let current = self.state;
+        let _ = self.state_change(current, ElectionState::Cancelled);
+    }
+
+    pub fn vote_count(&self) -> usize {
+        self.last_votes.len()
+    }
+
+    pub fn transition_active(&mut self) {
+        let _ = self.state_change(ElectionState::Passive, ElectionState::Active);
+    }
+
+    pub fn transition_priority(&mut self) -> bool {
+        if matches!(
+            self.behavior,
+            ElectionBehavior::Priority | ElectionBehavior::Manual
+        ) {
+            return false;
+        }
+
+        self.behavior = ElectionBehavior::Priority;
+
+        // allow new outgoing votes immediately
+        self.last_vote = None;
+        true
     }
 
     pub fn is_confirmed(&self) -> bool {

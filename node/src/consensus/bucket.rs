@@ -204,7 +204,7 @@ struct BucketData {
 impl BucketData {
     fn cancel_lowest_election(&self) {
         if let Some(entry) = self.elections.entry_with_lowest_priority() {
-            entry.election.cancel();
+            entry.election.lock().cancel();
         }
     }
 }
