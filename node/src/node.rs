@@ -543,7 +543,6 @@ impl Node {
             config.clone(),
             ledger.clone(),
             confirming_set.clone(),
-            ledger_notifications.clone(),
             vote_generators.clone(),
             network_filter.clone(),
             network.clone(),
@@ -559,7 +558,21 @@ impl Node {
             message_flooder.clone(),
         ));
 
-        active_elections.initialize();
+        let active_w = Arc::downgrade(&active_elections);
+        // Cementing blocks might implicitly confirm dependent elections
+        confirming_set.on_batch_cemented(Box::new(move |cemented| {
+            if let Some(active) = active_w.upgrade() {
+                active.handle_cementations(cemented);
+            }
+        }));
+
+        let active_w = Arc::downgrade(&active_elections);
+        // Notify elections about alternative (forked) blocks
+        ledger_notifications.on_blocks_processed(Box::new(move |batch| {
+            if let Some(active) = active_w.upgrade() {
+                active.handle_processed_blocks(batch);
+            }
+        }));
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(
             config.clone(),

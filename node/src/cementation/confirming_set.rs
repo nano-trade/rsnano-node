@@ -291,7 +291,7 @@ impl ConfirmingSetThread {
         }
     }
 
-    fn notify(&self, cemented: &mut VecDeque<Context>) {
+    fn notify(&self, cemented: &mut VecDeque<CementingContext>) {
         let mut batch = VecDeque::new();
         std::mem::swap(&mut batch, cemented);
 
@@ -394,7 +394,7 @@ impl ConfirmingSetImpl {
 type BlockCallback = Box<dyn FnMut(&SavedBlock) + Send>;
 
 /// block + confirmation root
-type BatchCementedCallback = Box<dyn FnMut(&VecDeque<Context>) + Send>;
+type BatchCementedCallback = Box<dyn FnMut(&VecDeque<CementingContext>) + Send>;
 type AlreadyCementedCallback = Box<dyn FnMut(&VecDeque<BlockHash>) + Send>;
 
 #[derive(Default)]
@@ -406,7 +406,7 @@ struct Observers {
 }
 
 impl Observers {
-    fn notify_batch(&mut self, cemented: VecDeque<Context>) {
+    fn notify_batch(&mut self, cemented: VecDeque<CementingContext>) {
         for context in &cemented {
             for observer in &mut self.cemented {
                 observer(&context.block);
@@ -425,7 +425,7 @@ impl Observers {
     }
 }
 
-pub(crate) struct Context {
+pub struct CementingContext {
     pub block: SavedBlock,
     pub confirmation_root: BlockHash,
     pub election: Option<Arc<Election>>,
@@ -433,7 +433,7 @@ pub(crate) struct Context {
 
 struct CementedNotifier<'a> {
     confirming_set: &'a ConfirmingSetThread,
-    cemented: VecDeque<Context>,
+    cemented: VecDeque<CementingContext>,
     already_cemented: VecDeque<BlockHash>,
 }
 
@@ -449,7 +449,7 @@ impl<'a> CementedNotifier<'a> {
 
 impl<'a> CementingObserver<Entry> for CementedNotifier<'a> {
     fn cemented(&mut self, block: SavedBlock, root: &BlockHash, context: &Entry) {
-        self.cemented.push_back(Context {
+        self.cemented.push_back(CementingContext {
             block,
             confirmation_root: *root,
             election: context.election.clone(),
