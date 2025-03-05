@@ -140,6 +140,7 @@ pub struct Node {
     pub ledger_notifications: LedgerNotifications,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
+    pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -414,9 +415,9 @@ impl Node {
             stats.clone(),
         )));
 
-        let recently_confirmed = Arc::new(RecentlyConfirmedCache::new(
+        let recently_confirmed = Arc::new(RwLock::new(RecentlyConfirmedCache::new(
             config.active_elections.confirmation_cache,
-        ));
+        )));
 
         let (ledger_notification_thread, ledger_notification_queue, ledger_notifications) =
             LedgerNotificationThread::new(config.max_ledger_notifications);
@@ -846,7 +847,7 @@ impl Node {
             }
 
             if let Some(i) = recently_confirmed_w.upgrade() {
-                if i.hash_exists(hash) {
+                if i.read().unwrap().hash_exists(hash) {
                     return false;
                 }
             }
@@ -891,7 +892,7 @@ impl Node {
             }
 
             if let Some(i) = recently_confirmed_w.upgrade() {
-                if i.hash_exists(hash) {
+                if i.read().unwrap().hash_exists(hash) {
                     return false;
                 }
             }
@@ -998,7 +999,7 @@ impl Node {
         let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
         confirming_set.on_cementing_failed(move |hash| {
             if let Some(recent) = recently_confirmed_w.upgrade() {
-                recent.erase(hash);
+                recent.write().unwrap().erase(hash);
             }
         });
 
@@ -1258,6 +1259,7 @@ impl Node {
             ledger_notifications,
             vote_rebroadcaster,
             tokio_runner,
+            recently_confirmed,
         }
     }
 

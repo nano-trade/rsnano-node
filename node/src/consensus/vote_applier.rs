@@ -35,7 +35,7 @@ pub struct VoteApplier {
     node_config: NodeConfig,
     history: Arc<LocalVoteHistory>,
     wallets: Arc<Wallets>,
-    recently_confirmed: Arc<RecentlyConfirmedCache>,
+    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     confirming_set: Arc<ConfirmingSet>,
     election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
     clock: Arc<SteadyClock>,
@@ -52,7 +52,7 @@ impl VoteApplier {
         node_config: NodeConfig,
         history: Arc<LocalVoteHistory>,
         wallets: Arc<Wallets>,
-        recently_confirmed: Arc<RecentlyConfirmedCache>,
+        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -283,7 +283,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             election_lock.update_status_to_confirmed();
             let status = election_lock.status.clone();
 
-            self.recently_confirmed.put(
+            self.recently_confirmed.write().unwrap().put(
                 election_lock.qualified_root().clone(),
                 status.winner.as_ref().unwrap().hash(),
             );

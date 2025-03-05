@@ -5,7 +5,7 @@ use rsnano_ledger::RepWeightCache;
 use std::{
     collections::HashMap,
     mem::size_of,
-    sync::{Arc, Condvar, Mutex, Weak},
+    sync::{Arc, Condvar, Mutex, RwLock, Weak},
     thread::JoinHandle,
     time::Duration,
 };
@@ -17,7 +17,7 @@ pub struct VoteRouter {
     thread: Mutex<Option<JoinHandle<()>>>,
     shared: Arc<(Condvar, Mutex<State>)>,
     vote_processed_observers: Mutex<Vec<VoteProcessedCallback>>,
-    recently_confirmed: Arc<RecentlyConfirmedCache>,
+    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_applier: Arc<VoteApplier>,
     vote_cache: Arc<Mutex<VoteCache>>,
     rep_weights: Arc<RepWeightCache>,
@@ -26,7 +26,7 @@ pub struct VoteRouter {
 impl VoteRouter {
     pub fn new(
         vote_cache: Arc<Mutex<VoteCache>>,
-        recently_confirmed: Arc<RecentlyConfirmedCache>,
+        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
         rep_weights: Arc<RepWeightCache>,
     ) -> Self {
@@ -135,6 +135,7 @@ impl VoteRouter {
         let mut process = HashMap::new();
         {
             let guard = self.shared.1.lock().unwrap();
+            let recently_confirmed = self.recently_confirmed.read().unwrap();
             for hash in &vote.hashes {
                 // Ignore votes for other hashes if a filter is set
                 if !filter.is_zero() && hash != filter {
@@ -150,7 +151,7 @@ impl VoteRouter {
                 if let Some(election) = election {
                     process.insert(*hash, election.clone());
                 } else {
-                    if !self.recently_confirmed.hash_exists(hash) {
+                    if !recently_confirmed.hash_exists(hash) {
                         results.insert(*hash, VoteCode::Indeterminate);
                     } else {
                         results.insert(*hash, VoteCode::Replay);

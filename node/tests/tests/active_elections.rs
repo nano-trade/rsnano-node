@@ -924,12 +924,11 @@ fn confirmation_consistency() {
         });
 
         assert_timely(Duration::from_secs(1), || {
-            let recently_confirmed_size = node.active.recently_confirmed_count();
-            let latest_recently_confirmed_root = node.active.latest_recently_confirmed();
+            let recently_confirmed = node.recently_confirmed.read().unwrap();
             let recently_cemented_size = node.active.recently_cemented_list();
 
-            recently_confirmed_size == i + 1
-                && latest_recently_confirmed_root == Some((block.qualified_root(), block.hash()))
+            recently_confirmed.len() == i + 1
+                && recently_confirmed.back() == Some((&block.qualified_root(), &block.hash()))
                 && recently_cemented_size.len() == i + 1
         });
     }
@@ -1282,7 +1281,7 @@ fn vote_replays() {
     );
 
     // Removing blocks as recently confirmed makes every vote indeterminate
-    node.active.clear_recently_confirmed();
+    node.recently_confirmed.write().unwrap().clear();
     assert_eq!(
         node.vote_router
             .vote(&vote_send1, VoteSource::Live)

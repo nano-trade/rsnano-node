@@ -21,7 +21,6 @@ use rsnano_core::{
 use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::{Network, TrafficType};
-use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
@@ -82,7 +81,7 @@ pub struct ActiveElections {
     config: ActiveElectionsConfig,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
-    recently_confirmed: Arc<RecentlyConfirmedCache>,
+    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     /// Helper container for storing recently cemented elections (a block from election might be confirmed but not yet cemented by confirmation height processor)
     recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     vote_generators: Arc<VoteGenerators>,
@@ -119,7 +118,7 @@ impl ActiveElections {
         stats: Arc<Stats>,
         online_reps: Arc<Mutex<OnlineReps>>,
         flags: NodeFlags,
-        recently_confirmed: Arc<RecentlyConfirmedCache>,
+        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
         vote_router: Arc<VoteRouter>,
         vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -196,20 +195,8 @@ impl ActiveElections {
         self.vacancy_updated_observers.write().unwrap().push(f);
     }
 
-    pub fn clear_recently_confirmed(&self) {
-        self.recently_confirmed.clear();
-    }
-
-    pub fn recently_confirmed_count(&self) -> usize {
-        self.recently_confirmed.len()
-    }
-
     pub fn recently_cemented_count(&self) -> usize {
         self.recently_cemented.lock().unwrap().len()
-    }
-
-    pub fn latest_recently_confirmed(&self) -> Option<(QualifiedRoot, BlockHash)> {
-        self.recently_confirmed.back()
     }
 
     pub fn insert_recently_cemented(&self, status: ElectionStatus) {
@@ -947,7 +934,7 @@ impl ActiveElections {
                 block,
                 election_behavior,
                 erased_callback,
-                &self.recently_confirmed,
+                &self.recently_confirmed.read().unwrap(),
             );
 
             if let Some(election) = &election_result {
@@ -1060,7 +1047,7 @@ impl ActiveElections {
             )
             .node(
                 "recently_confirmed",
-                self.recently_confirmed.container_info(),
+                self.recently_confirmed.read().unwrap().container_info(),
             )
             .node("recently_cemented", recently_cemented)
             .finish()

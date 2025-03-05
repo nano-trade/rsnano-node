@@ -38,7 +38,7 @@ pub struct RepCrawler {
     network: Arc<RwLock<Network>>,
     condition: Condvar,
     ledger: Arc<Ledger>,
-    recently_confirmed: Arc<RecentlyConfirmedCache>,
+    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
     message_sender: Mutex<MessageSender>,
@@ -57,7 +57,7 @@ impl RepCrawler {
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
-        recently_confirmed: Arc<RecentlyConfirmedCache>,
+        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         steady_clock: Arc<SteadyClock>,
         message_sender: MessageSender,
         keepalive_publisher: Arc<KeepalivePublisher>,
@@ -359,9 +359,10 @@ impl RepCrawler {
         let any = self.ledger.any();
         let random_blocks = any.random_blocks(MAX_ATTEMPTS);
 
+        let recently_confirmed = self.recently_confirmed.read().unwrap();
         for block in &random_blocks {
             // Avoid blocks that could still have live votes coming in
-            if self.recently_confirmed.hash_exists(&block.hash()) {
+            if recently_confirmed.hash_exists(&block.hash()) {
                 continue;
             }
 
