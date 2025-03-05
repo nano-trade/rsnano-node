@@ -937,47 +937,46 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Mutex<Election>>>) {
-        let mut guard = self.mutex.lock().unwrap();
-
         let hash = block.hash();
+        let inserted;
+        let election_result;
+        {
+            let mut guard = self.mutex.lock().unwrap();
 
-        let (inserted, election_result) = guard.insert(
-            block,
-            election_behavior,
-            erased_callback,
-            &self.recently_confirmed,
-        );
-
-        if let Some(election) = &election_result {
-            self.vote_router.connect(hash, Arc::downgrade(election));
-
-            // Skip passive phase for blocks without cached votes to avoid bootstrap delays
-            let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
-
-            if !in_cache {
-                self.stats
-                    .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
-                election.lock().unwrap().transition_active();
-            }
-
-            self.stats
-                .inc(StatType::ActiveElections, DetailType::Started);
-            self.stats
-                .inc(StatType::ActiveElectionsStarted, election_behavior.into());
-
-            debug!(
-                in_cache,
-                behavior = ?election_behavior,
-                block = %hash,
-                "Started new election"
+            (inserted, election_result) = guard.insert(
+                block,
+                election_behavior,
+                erased_callback,
+                &self.recently_confirmed,
             );
+
+            if let Some(election) = &election_result {
+                self.vote_router.connect(hash, Arc::downgrade(election));
+
+                // Skip passive phase for blocks without cached votes to avoid bootstrap delays
+                let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
+
+                if !in_cache {
+                    self.stats
+                        .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
+                    election.lock().unwrap().transition_active();
+                }
+
+                self.stats
+                    .inc(StatType::ActiveElections, DetailType::Started);
+                self.stats
+                    .inc(StatType::ActiveElectionsStarted, election_behavior.into());
+
+                debug!(
+                    in_cache,
+                    behavior = ?election_behavior,
+                    block = %hash,
+                    "Started new election"
+                );
+            }
         }
 
-        drop(guard);
-
         if inserted {
-            debug_assert!(election_result.is_some());
-
             self.vote_cache_processor.trigger(hash);
 
             {
