@@ -89,8 +89,8 @@ pub struct ActiveElections {
     network: Arc<RwLock<Network>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    active_started_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
-    active_stopped_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
+    active_started_observer: RwLock<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
+    active_stopped_observer: RwLock<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     election_ended_observers: RwLock<Vec<ElectionEndCallback>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
@@ -150,8 +150,8 @@ impl ActiveElections {
             network,
             vote_cache,
             stats,
-            active_started_observer: Mutex::new(Vec::new()),
-            active_stopped_observer: Mutex::new(Vec::new()),
+            active_started_observer: RwLock::new(Vec::new()),
+            active_stopped_observer: RwLock::new(Vec::new()),
             election_ended_observers: RwLock::new(Vec::new()),
             online_reps,
             thread: Mutex::new(None),
@@ -184,11 +184,11 @@ impl ActiveElections {
     }
 
     pub fn on_active_started(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
-        self.active_started_observer.lock().unwrap().push(f);
+        self.active_started_observer.write().unwrap().push(f);
     }
 
     pub fn on_active_stopped(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
-        self.active_stopped_observer.lock().unwrap().push(f);
+        self.active_stopped_observer.write().unwrap().push(f);
     }
 
     pub fn on_vacancy_updated(&self, f: Box<dyn Fn() + Send + Sync>) {
@@ -616,16 +616,14 @@ impl ActiveElections {
 
         self.vacancy_updated();
 
+        let is_confirmed = election.lock().unwrap().is_confirmed();
         for (hash, block) in blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
-            if !election.lock().unwrap().is_confirmed() || hash != election_winner {
-                let callbacks = self.active_stopped_observer.lock().unwrap();
-                for callback in callbacks.iter() {
-                    (callback)(hash);
-                }
+            if !is_confirmed || hash != election_winner {
+                self.notify_active_stopped(hash);
             }
 
-            if !election.lock().unwrap().is_confirmed() {
+            if !is_confirmed {
                 // Clear from publish filter
                 self.clear_publish_filter(&block);
             }
@@ -968,13 +966,7 @@ impl ActiveElections {
                 );
 
                 self.vote_cache_processor.trigger(hash);
-
-                {
-                    let callbacks = self.active_started_observer.lock().unwrap();
-                    for callback in callbacks.iter() {
-                        (callback)(hash);
-                    }
-                }
+                self.notify_active_started(hash);
                 self.vacancy_updated();
                 self.try_broadcast_vote(&mut election.lock().unwrap());
             }
@@ -986,6 +978,20 @@ impl ActiveElections {
         }
 
         result
+    }
+
+    fn notify_active_started(&self, hash: BlockHash) {
+        let callbacks = self.active_started_observer.read().unwrap();
+        for callback in callbacks.iter() {
+            (callback)(hash);
+        }
+    }
+
+    fn notify_active_stopped(&self, hash: BlockHash) {
+        let callbacks = self.active_stopped_observer.read().unwrap();
+        for callback in callbacks.iter() {
+            (callback)(hash);
+        }
     }
 
     pub fn handle_cementations(&self, cemented: &VecDeque<CementingContext>) {
