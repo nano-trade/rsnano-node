@@ -13,7 +13,7 @@ use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeight
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, ElectionBehavior};
+use super::{ActiveElections, ElectionBehavior, ElectionInsertResult};
 use crate::{cementation::ConfirmingSet, config::NetworkConstants};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -197,17 +197,18 @@ impl OptimisticScheduler {
             {
                 // Try to insert it into AEC
                 // We check for AEC vacancy inside our predicate
-                let (inserted, _) = self
+                match self
                     .active
-                    .insert(block, ElectionBehavior::Optimistic, None);
-                self.stats.inc(
-                    StatType::OptimisticScheduler,
-                    if inserted {
-                        DetailType::Insert
-                    } else {
-                        DetailType::InsertFailed
-                    },
-                );
+                    .insert(block, ElectionBehavior::Optimistic, None)
+                {
+                    ElectionInsertResult::Inserted(_) => {
+                        self.stats
+                            .inc(StatType::OptimisticScheduler, DetailType::Insert);
+                    }
+                    _ => self
+                        .stats
+                        .inc(StatType::OptimisticScheduler, DetailType::InsertFailed),
+                }
             }
         }
     }

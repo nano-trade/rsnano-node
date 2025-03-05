@@ -8,7 +8,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections, Election, ElectionBehavior,
+    ActiveElections, Election, ElectionBehavior, ElectionInsertResult,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -174,12 +174,11 @@ impl BucketExt for Arc<Bucket> {
             guard.elections.erase(root);
         });
 
-        let (inserted, election) =
-            self.active
-                .insert(block, ElectionBehavior::Priority, Some(erase_callback));
+        let result = self
+            .active
+            .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
-        if inserted {
-            let election = election.unwrap();
+        if let ElectionInsertResult::Inserted(election) = result {
             let root = election.lock().unwrap().qualified_root().clone();
             self.data.lock().unwrap().elections.insert(ElectionEntry {
                 root,
@@ -188,12 +187,12 @@ impl BucketExt for Arc<Bucket> {
             });
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::ActivateSuccess);
+            true
         } else {
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::ActivateFailed);
+            false
         }
-
-        inserted
     }
 }
 

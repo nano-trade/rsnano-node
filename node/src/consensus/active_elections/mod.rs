@@ -923,7 +923,7 @@ impl ActiveElections {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-    ) -> (bool, Option<Arc<Mutex<Election>>>) {
+    ) -> ElectionInsertResult {
         if self
             .recently_confirmed
             .read()
@@ -931,18 +931,19 @@ impl ActiveElections {
             .root_exists(&block.qualified_root())
         {
             // This block or a fork got recently confirmed, so there is no need for a new election.
-            return (false, None);
+            return ElectionInsertResult::NotInserted;
         }
 
         let hash = block.hash();
-        let inserted;
-        let election_result;
-        {
-            let mut guard = self.mutex.lock().unwrap();
 
-            (inserted, election_result) = guard.insert(block, election_behavior, erased_callback);
+        let result = self
+            .mutex
+            .lock()
+            .unwrap()
+            .insert(block, election_behavior, erased_callback);
 
-            if let Some(election) = &election_result {
+        match &result {
+            ElectionInsertResult::Inserted(election) => {
                 self.vote_router.connect(hash, Arc::downgrade(election));
 
                 // Skip passive phase for blocks without cached votes to avoid bootstrap delays
@@ -965,28 +966,26 @@ impl ActiveElections {
                     block = %hash,
                     "Started new election"
                 );
-            }
-        }
 
-        if inserted {
-            self.vote_cache_processor.trigger(hash);
+                self.vote_cache_processor.trigger(hash);
 
-            {
-                let callbacks = self.active_started_observer.lock().unwrap();
-                for callback in callbacks.iter() {
-                    (callback)(hash);
+                {
+                    let callbacks = self.active_started_observer.lock().unwrap();
+                    for callback in callbacks.iter() {
+                        (callback)(hash);
+                    }
                 }
+                self.vacancy_updated();
+                self.try_broadcast_vote(&mut election.lock().unwrap());
             }
-            self.vacancy_updated();
+            ElectionInsertResult::Duplicate(election) => {
+                // Votes are also generated for ongoing elections
+                self.try_broadcast_vote(&mut election.lock().unwrap());
+            }
+            _ => {}
         }
 
-        // Votes are generated for inserted or ongoing elections
-        if let Some(election) = &election_result {
-            let mut guard = election.lock().unwrap();
-            self.try_broadcast_vote(&mut guard);
-        }
-
-        (inserted, election_result)
+        result
     }
 
     pub fn handle_cementations(&self, cemented: &VecDeque<CementingContext>) {
@@ -1150,21 +1149,20 @@ impl ActiveElectionsState {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-    ) -> (bool, Option<Arc<Mutex<Election>>>) {
+    ) -> ElectionInsertResult {
         if self.stopped {
-            return (false, None);
+            return ElectionInsertResult::NotInserted;
         }
 
-        let election_result;
-        let inserted;
         let root = block.qualified_root();
         let existing = self.roots.get(&root).map(|i| i.election.clone());
         if let Some(existing) = existing {
-            // Try upgrading to priority election to enable immediate vote broadcasting.
-            let mut election = existing.lock().unwrap();
-            self.maybe_upgrade_to(election_behavior, &mut election);
-            inserted = false;
-            election_result = Some(existing.clone());
+            {
+                // Try upgrading to priority election to enable immediate vote broadcasting.
+                let mut election = existing.lock().unwrap();
+                self.maybe_upgrade_to(election_behavior, &mut election);
+            }
+            ElectionInsertResult::Duplicate(existing)
         } else {
             let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
 
@@ -1177,12 +1175,17 @@ impl ActiveElectionsState {
             // Keep track of election count by election type
             *self.count_by_behavior_mut(election_behavior) += 1;
 
-            inserted = true;
-            election_result = Some(election);
+            ElectionInsertResult::Inserted(election)
         }
-
-        (inserted, election_result)
     }
+}
+
+pub enum ElectionInsertResult {
+    Inserted(Arc<Mutex<Election>>),
+    /// There was already an active election for the given block
+    Duplicate(Arc<Mutex<Election>>),
+    /// Can happen if the block was recently confirmed, or the node is stopping
+    NotInserted,
 }
 
 pub trait ActiveElectionsExt {
