@@ -937,67 +937,42 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Mutex<Election>>>) {
-        let mut election_result = None;
-        let mut inserted = false;
-
         let mut guard = self.mutex.lock().unwrap();
 
-        if guard.stopped {
-            return (false, None);
-        }
-
-        let root = block.qualified_root();
         let hash = block.hash();
-        let existing = guard.roots.get(&root).map(|i| i.election.clone());
 
-        if let Some(existing) = existing {
-            // Try upgrading to priority election to enable immediate vote broadcasting.
-            let mut election = existing.lock().unwrap();
-            guard.maybe_upgrade_to(election_behavior, &mut election);
-            election_result = Some(existing.clone());
-        } else {
-            if !self.recently_confirmed.root_exists(&root) {
-                inserted = true;
+        let (inserted, election_result) = guard.insert(
+            block,
+            election_behavior,
+            erased_callback,
+            &self.recently_confirmed,
+        );
 
-                let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
+        if let Some(election) = &election_result {
+            self.vote_router.connect(hash, Arc::downgrade(election));
 
-                guard.roots.insert(Entry {
-                    root,
-                    election: election.clone(),
-                    erased_callback,
-                });
-                self.vote_router.connect(hash, Arc::downgrade(&election));
+            // Skip passive phase for blocks without cached votes to avoid bootstrap delays
+            let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
 
-                // Keep track of election count by election type
-                *guard.count_by_behavior_mut(election.lock().unwrap().behavior) += 1;
-
-                // Skip passive phase for blocks without cached votes to avoid bootstrap delays
-                let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
-                let activate_immediately = !in_cache;
-
-                if activate_immediately {
-                    self.stats
-                        .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
-                    election.lock().unwrap().transition_active();
-                }
-
+            if !in_cache {
                 self.stats
-                    .inc(StatType::ActiveElections, DetailType::Started);
-                self.stats
-                    .inc(StatType::ActiveElectionsStarted, election_behavior.into());
-
-                debug!(
-                    activate_immediately,
-                    behavior = ?election_behavior,
-                    block = %hash,
-                    "Started new election"
-                );
-
-                election_result = Some(election);
-            } else {
-                // result is not set
+                    .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
+                election.lock().unwrap().transition_active();
             }
+
+            self.stats
+                .inc(StatType::ActiveElections, DetailType::Started);
+            self.stats
+                .inc(StatType::ActiveElectionsStarted, election_behavior.into());
+
+            debug!(
+                in_cache,
+                behavior = ?election_behavior,
+                block = %hash,
+                "Started new election"
+            );
         }
+
         drop(guard);
 
         if inserted {
@@ -1177,6 +1152,51 @@ impl ActiveElectionsState {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::TransitionPriority);
         }
+    }
+
+    pub fn insert(
+        &mut self,
+        block: SavedBlock,
+        election_behavior: ElectionBehavior,
+        erased_callback: Option<ErasedCallback>,
+        recently_confirmed: &RecentlyConfirmedCache,
+    ) -> (bool, Option<Arc<Mutex<Election>>>) {
+        if self.stopped {
+            return (false, None);
+        }
+
+        let election_result;
+        let inserted;
+        let root = block.qualified_root();
+        let existing = self.roots.get(&root).map(|i| i.election.clone());
+        if let Some(existing) = existing {
+            // Try upgrading to priority election to enable immediate vote broadcasting.
+            let mut election = existing.lock().unwrap();
+            self.maybe_upgrade_to(election_behavior, &mut election);
+            inserted = false;
+            election_result = Some(existing.clone());
+        } else {
+            if !recently_confirmed.root_exists(&root) {
+                let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
+
+                self.roots.insert(Entry {
+                    root,
+                    election: election.clone(),
+                    erased_callback,
+                });
+
+                // Keep track of election count by election type
+                *self.count_by_behavior_mut(election_behavior) += 1;
+
+                inserted = true;
+                election_result = Some(election);
+            } else {
+                inserted = false;
+                election_result = None;
+            }
+        }
+
+        (inserted, election_result)
     }
 }
 
