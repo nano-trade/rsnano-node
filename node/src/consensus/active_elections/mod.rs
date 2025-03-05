@@ -924,18 +924,23 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Mutex<Election>>>) {
+        if self
+            .recently_confirmed
+            .read()
+            .unwrap()
+            .root_exists(&block.qualified_root())
+        {
+            // This block or a fork got recently confirmed, so there is no need for a new election.
+            return (false, None);
+        }
+
         let hash = block.hash();
         let inserted;
         let election_result;
         {
             let mut guard = self.mutex.lock().unwrap();
 
-            (inserted, election_result) = guard.insert(
-                block,
-                election_behavior,
-                erased_callback,
-                &self.recently_confirmed.read().unwrap(),
-            );
+            (inserted, election_result) = guard.insert(block, election_behavior, erased_callback);
 
             if let Some(election) = &election_result {
                 self.vote_router.connect(hash, Arc::downgrade(election));
@@ -1145,7 +1150,6 @@ impl ActiveElectionsState {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-        recently_confirmed: &RecentlyConfirmedCache,
     ) -> (bool, Option<Arc<Mutex<Election>>>) {
         if self.stopped {
             return (false, None);
@@ -1162,24 +1166,19 @@ impl ActiveElectionsState {
             inserted = false;
             election_result = Some(existing.clone());
         } else {
-            if !recently_confirmed.root_exists(&root) {
-                let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
+            let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
 
-                self.roots.insert(Entry {
-                    root,
-                    election: election.clone(),
-                    erased_callback,
-                });
+            self.roots.insert(Entry {
+                root,
+                election: election.clone(),
+                erased_callback,
+            });
 
-                // Keep track of election count by election type
-                *self.count_by_behavior_mut(election_behavior) += 1;
+            // Keep track of election count by election type
+            *self.count_by_behavior_mut(election_behavior) += 1;
 
-                inserted = true;
-                election_result = Some(election);
-            } else {
-                inserted = false;
-                election_result = None;
-            }
+            inserted = true;
+            election_result = Some(election);
         }
 
         (inserted, election_result)
