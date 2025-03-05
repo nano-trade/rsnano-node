@@ -31,16 +31,11 @@ pub struct Election {
     last_req: Option<Instant>,
     pub confirmation_request_count: u32,
     last_block: Instant,
-    pub live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
     election_start: Instant,
 }
 
 impl Election {
-    pub fn new(
-        block: SavedBlock,
-        behavior: ElectionBehavior,
-        live_vote_callback: Option<Box<dyn Fn(PublicKey) + Send + Sync>>,
-    ) -> Self {
+    pub fn new(block: SavedBlock, behavior: ElectionBehavior) -> Self {
         Self {
             qualified_root: block.qualified_root(),
             status: ElectionStatus {
@@ -65,7 +60,6 @@ impl Election {
             last_req: None,
             confirmation_request_count: 0,
             last_block: Instant::now(),
-            live_vote_callback,
             election_start: Instant::now(),
         }
     }
@@ -108,21 +102,17 @@ impl Election {
         let _ = self.state_change(ElectionState::Passive, ElectionState::Active);
     }
 
-    pub fn maybe_transition_behavior(&mut self, election_behavior: ElectionBehavior) -> bool {
-        if election_behavior == ElectionBehavior::Priority
-            && self.behavior != ElectionBehavior::Priority
-        {
-            self.transition_priority()
-        } else {
-            false
+    pub fn maybe_upgrade_to(&mut self, new_behavior: ElectionBehavior) -> bool {
+        if new_behavior != ElectionBehavior::Priority {
+            // Only upgrades to priority elections are allowed!
+            return false;
         }
-    }
 
-    pub fn transition_priority(&mut self) -> bool {
         if matches!(
             self.behavior,
             ElectionBehavior::Priority | ElectionBehavior::Manual
         ) {
+            // Nothing to do;
             return false;
         }
 

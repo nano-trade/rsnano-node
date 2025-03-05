@@ -509,6 +509,7 @@ impl Node {
             wallets.clone(),
             recently_confirmed.clone(),
             confirming_set.clone(),
+            steady_clock.clone(),
         ));
 
         let vote_router = Arc::new(VoteRouter::new(
@@ -554,7 +555,6 @@ impl Node {
             vote_applier.clone(),
             vote_router.clone(),
             vote_cache_processor.clone(),
-            steady_clock.clone(),
             message_flooder.clone(),
         ));
 

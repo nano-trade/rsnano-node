@@ -74,7 +74,6 @@ impl Default for ActiveElectionsConfig {
 }
 
 pub struct ActiveElections {
-    steady_clock: Arc<SteadyClock>,
     mutex: Mutex<ActiveElectionsState>,
     condition: Condvar,
     network_params: NetworkParams,
@@ -124,7 +123,6 @@ impl ActiveElections {
         vote_applier: Arc<VoteApplier>,
         vote_router: Arc<VoteRouter>,
         vote_cache_processor: Arc<VoteCacheProcessor>,
-        steady_clock: Arc<SteadyClock>,
         message_flooder: MessageFlooder,
     ) -> Self {
         Self {
@@ -135,6 +133,7 @@ impl ActiveElections {
                 priority_count: 0,
                 hinted_count: 0,
                 optimistic_count: 0,
+                stats: stats.clone(),
             }),
             condition: Condvar::new(),
             network_params,
@@ -161,7 +160,6 @@ impl ActiveElections {
             vote_applier,
             vote_router,
             vote_cache_processor,
-            steady_clock,
             message_flooder: Mutex::new(message_flooder),
             vacancy_updated_observers: RwLock::new(Vec::new()),
         }
@@ -950,41 +948,19 @@ impl ActiveElections {
 
         let root = block.qualified_root();
         let hash = block.hash();
-        let existing = guard.roots.get(&root);
+        let existing = guard.roots.get(&root).map(|i| i.election.clone());
 
         if let Some(existing) = existing {
-            election_result = Some(existing.election.clone());
-
-            // Upgrade to priority election to enable immediate vote broadcasting.
-            let previous_behavior;
-            let transitioned;
-            {
-                let mut election = existing.election.lock().unwrap();
-                previous_behavior = election.behavior;
-                transitioned = election.maybe_transition_behavior(election_behavior);
-            }
-            if transitioned {
-                *guard.count_by_behavior_mut(previous_behavior) -= 1;
-                *guard.count_by_behavior_mut(election_behavior) += 1;
-                self.stats
-                    .inc(StatType::ActiveElections, DetailType::TransitionPriority);
-            }
+            // Try upgrading to priority election to enable immediate vote broadcasting.
+            let mut election = existing.lock().unwrap();
+            guard.maybe_upgrade_to(election_behavior, &mut election);
+            election_result = Some(existing.clone());
         } else {
             if !self.recently_confirmed.root_exists(&root) {
                 inserted = true;
-                let online_reps = self.online_reps.clone();
-                let clock = self.steady_clock.clone();
-                let live_vote_callback = Box::new(move |rep| {
-                    // TODO: Is this neccessary? Move this outside of the election class
-                    // Representative is defined as online if replying to live votes or rep_crawler queries
-                    online_reps.lock().unwrap().vote_observed(rep, clock.now());
-                });
 
-                let election = Arc::new(Mutex::new(Election::new(
-                    block,
-                    election_behavior,
-                    Some(live_vote_callback),
-                )));
+                let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
+
                 guard.roots.insert(Entry {
                     root,
                     election: election.clone(),
@@ -1166,6 +1142,7 @@ pub struct ActiveElectionsState {
     priority_count: usize,
     hinted_count: usize,
     optimistic_count: usize,
+    stats: Arc<Stats>,
 }
 
 impl ActiveElectionsState {
@@ -1189,6 +1166,17 @@ impl ActiveElectionsState {
 
     pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
         self.roots.get(root).map(|i| i.election.clone())
+    }
+
+    pub fn maybe_upgrade_to(&mut self, new_behavior: ElectionBehavior, election: &mut Election) {
+        let previous_behavior = election.behavior;
+        let upgraded = election.maybe_upgrade_to(new_behavior);
+        if upgraded {
+            *self.count_by_behavior_mut(previous_behavior) -= 1;
+            *self.count_by_behavior_mut(new_behavior) += 1;
+            self.stats
+                .inc(StatType::ActiveElections, DetailType::TransitionPriority);
+        }
     }
 }
 

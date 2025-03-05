@@ -49,11 +49,11 @@ fn batches() {
 
     {
         for _ in 0..ConfirmReq::HASHES_MAX {
-            let election = Election::new(send.clone(), ElectionBehavior::Priority, None);
+            let election = Election::new(send.clone(), ElectionBehavior::Priority);
             assert_eq!(solicitor.add(&election), false);
         }
         // Reached the maximum amount of requests for the channel
-        let election = Election::new(send.clone(), ElectionBehavior::Priority, None);
+        let election = Election::new(send.clone(), ElectionBehavior::Priority);
         // Broadcasting should be immediate
         assert_eq!(
             0,
@@ -113,11 +113,7 @@ fn different_hashes() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let election = Mutex::new(Election::new(
-        send.clone(),
-        ElectionBehavior::Priority,
-        None,
-    ));
+    let election = Mutex::new(Election::new(send.clone(), ElectionBehavior::Priority));
     let mut data = election.lock().unwrap();
     // Add a vote for something else, not the winner
     data.last_votes
@@ -175,7 +171,7 @@ fn bypass_max_requests_cap() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let mut election = Election::new(send.clone(), ElectionBehavior::Priority, None);
+    let mut election = Election::new(send.clone(), ElectionBehavior::Priority);
     // Add a vote for something else, not the winner
     for rep in &representatives {
         election

@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
 use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, VoteCode, VoteSource};
@@ -37,6 +38,7 @@ pub struct VoteApplier {
     recently_confirmed: Arc<RecentlyConfirmedCache>,
     confirming_set: Arc<ConfirmingSet>,
     election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
+    clock: Arc<SteadyClock>,
 }
 
 impl VoteApplier {
@@ -52,6 +54,7 @@ impl VoteApplier {
         wallets: Arc<Wallets>,
         recently_confirmed: Arc<RecentlyConfirmedCache>,
         confirming_set: Arc<ConfirmingSet>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             ledger,
@@ -66,6 +69,7 @@ impl VoteApplier {
             recently_confirmed,
             confirming_set,
             election_schedulers: RwLock::new(None),
+            clock,
         }
     }
 
@@ -201,9 +205,11 @@ impl VoteApplierExt for Arc<VoteApplier> {
             .insert(*rep, VoteInfo::new(timestamp, *block_hash));
 
         if vote_source != VoteSource::Cache {
-            if let Some(callback) = &guard.live_vote_callback {
-                callback(*rep);
-            }
+            // Representative is defined as online if replying to live votes or rep_crawler queries
+            self.online_reps
+                .lock()
+                .unwrap()
+                .vote_observed(*rep, self.clock.now());
         }
 
         self.stats.inc(StatType::Election, DetailType::Vote);
