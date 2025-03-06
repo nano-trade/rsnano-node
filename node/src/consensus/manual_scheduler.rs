@@ -8,7 +8,7 @@ use std::{
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, ElectionBehavior, ElectionInsertResult};
+use super::{ActiveElections, ElectionBehavior};
 
 pub struct ManualScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
@@ -85,14 +85,8 @@ impl ManualScheduler {
                     self.stats
                         .inc(StatType::ElectionScheduler, DetailType::InsertManual);
 
-                    match self.active.insert(block, election_behavior, None) {
-                        ElectionInsertResult::Inserted(election) => {
-                            election.lock().unwrap().transition_active()
-                        }
-                        ElectionInsertResult::Duplicate(election) => {
-                            election.lock().unwrap().transition_active()
-                        }
-                        _ => {}
+                    if let Some(info) = self.active.insert(block, election_behavior, None) {
+                        info.election.lock().unwrap().transition_active()
                     }
                 } else {
                     drop(guard);

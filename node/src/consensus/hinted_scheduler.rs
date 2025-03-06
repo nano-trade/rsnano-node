@@ -14,9 +14,7 @@ use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{ActiveElections, ElectionBehavior, VoteCache};
-use crate::{
-    cementation::ConfirmingSet, consensus::ElectionInsertResult, representatives::OnlineReps,
-};
+use crate::{cementation::ConfirmingSet, representatives::OnlineReps};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HintedSchedulerConfig {
@@ -166,7 +164,7 @@ impl HintedScheduler {
 
                 // Try to insert it into AEC as hinted election
                 let result = self.active.insert(block, ElectionBehavior::Hinted, None);
-                let inserted = matches!(result, ElectionInsertResult::Inserted(_));
+                let inserted = result.map(|i| i.inserted).unwrap_or(false);
                 self.stats.inc(
                     StatType::Hinting,
                     if inserted {
