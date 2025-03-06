@@ -7,6 +7,7 @@ extern crate num_derive;
 extern crate anyhow;
 extern crate core;
 
+mod aec_event_processor;
 pub mod block_processing;
 pub mod bootstrap;
 pub mod cementation;

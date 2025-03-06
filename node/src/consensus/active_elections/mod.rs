@@ -5,7 +5,7 @@ use std::{
     collections::VecDeque,
     mem::size_of,
     ops::Deref,
-    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
+    sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -72,6 +72,10 @@ impl Default for ActiveElectionsConfig {
     }
 }
 
+pub enum AecEvent {
+    ActiveStarted(BlockHash),
+}
+
 pub struct ActiveElections {
     mutex: Mutex<ActiveElectionsState>,
     condition: Condvar,
@@ -100,6 +104,7 @@ pub struct ActiveElections {
     vote_cache_processor: Arc<VoteCacheProcessor>,
     message_flooder: Mutex<MessageFlooder>,
     vacancy_updated_observers: RwLock<Vec<Box<dyn Fn() + Send + Sync>>>,
+    event_sender: Option<SyncSender<AecEvent>>,
 }
 
 impl ActiveElections {
@@ -161,7 +166,12 @@ impl ActiveElections {
             vote_cache_processor,
             message_flooder: Mutex::new(message_flooder),
             vacancy_updated_observers: RwLock::new(Vec::new()),
+            event_sender: None,
         }
+    }
+
+    pub fn set_event_sink(&mut self, sink: SyncSender<AecEvent>) {
+        self.event_sender = Some(sink);
     }
 
     pub fn len(&self) -> usize {
@@ -966,7 +976,6 @@ impl ActiveElections {
                     "Started new election"
                 );
 
-                self.vote_cache_processor.trigger(hash);
                 self.notify_active_started(hash);
                 self.vacancy_updated();
             }
@@ -979,6 +988,9 @@ impl ActiveElections {
     }
 
     fn notify_active_started(&self, hash: BlockHash) {
+        if let Some(sender) = &self.event_sender {
+            sender.send(AecEvent::ActiveStarted(hash)).unwrap();
+        }
         let callbacks = self.active_started_observer.read().unwrap();
         for callback in callbacks.iter() {
             (callback)(hash);

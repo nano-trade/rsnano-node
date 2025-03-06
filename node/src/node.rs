@@ -31,6 +31,7 @@ use rsnano_store_lmdb::{
 use rsnano_work::WorkPool;
 
 use crate::{
+    aec_event_processor::AecEventProcessor,
     block_processing::{
         BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockSource, BoundedBacklog,
         LedgerNotificationThread, LedgerNotifications, LocalBlockBroadcaster,
@@ -539,7 +540,8 @@ impl Node {
             config.vote_processor.clone(),
         ));
 
-        let active_elections = Arc::new(ActiveElections::new(
+        let (aec_sender, aec_receiver) = std::sync::mpsc::sync_channel(128);
+        let mut active_elections = ActiveElections::new(
             network_params.clone(),
             wallets.clone(),
             config.clone(),
@@ -557,7 +559,9 @@ impl Node {
             vote_router.clone(),
             vote_cache_processor.clone(),
             message_flooder.clone(),
-        ));
+        );
+        active_elections.set_event_sink(aec_sender);
+        let active_elections = Arc::new(active_elections);
 
         let active_w = Arc::downgrade(&active_elections);
         // Cementing blocks might implicitly confirm dependent elections
@@ -1195,6 +1199,18 @@ impl Node {
             message_flooder: message_flooder.clone(),
             workers: workers.clone(),
         };
+
+        let mut aec_event_processor = AecEventProcessor {
+            receiver: aec_receiver,
+            vote_cache_processor: vote_cache_processor.clone(),
+        };
+
+        std::thread::Builder::new()
+            .name("AEC ev proc".to_owned())
+            .spawn(move || {
+                aec_event_processor.run();
+            })
+            .unwrap();
 
         Self {
             is_nulled,
