@@ -25,6 +25,12 @@ impl AecEventProcessor {
                         tx.send(NodeEvent::AecActiveStarted(hash)).unwrap();
                     }
                 }
+                AecEvent::ActiveStopped(hash) => {
+                    if let Some(tx) = &self.node_event_sender {
+                        tx.send(NodeEvent::AecActiveStopped(hash)).unwrap();
+                    }
+                }
+
                 AecEvent::ElectionEnded(status, votes, block, amount) => {
                     if let Some(tx) = &self.node_event_sender {
                         tx.send(NodeEvent::ElectionEnded(status, votes, block, amount))

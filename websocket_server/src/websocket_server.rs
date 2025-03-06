@@ -38,17 +38,8 @@ pub fn create_websocket_server(
     ));
 
     event_handlers.add(NodeEventProcessor {
-        websocket_server: server.clone(),
+        server: server.clone(),
     });
-
-    let server_w = Arc::downgrade(&server);
-    node.active.on_active_stopped(Box::new(move |hash| {
-        if let Some(server) = server_w.upgrade() {
-            if server.any_subscriber(Topic::StoppedElection) {
-                server.broadcast(&stopped_election(&hash));
-            }
-        }
-    }));
 
     let server_w = Arc::downgrade(&server);
     node.telemetry
@@ -203,19 +194,24 @@ pub struct VoteReceived {
 }
 
 pub struct NodeEventProcessor {
-    websocket_server: Arc<WebsocketListener>,
+    server: Arc<WebsocketListener>,
 }
 
 impl NodeEventHandler for NodeEventProcessor {
     fn handle(&mut self, event: &NodeEvent) {
         match event {
             NodeEvent::AecActiveStarted(hash) => {
-                if self.websocket_server.any_subscriber(Topic::StartedElection) {
-                    self.websocket_server.broadcast(&started_election(&hash));
+                if self.server.any_subscriber(Topic::StartedElection) {
+                    self.server.broadcast(&started_election(&hash));
+                }
+            }
+            NodeEvent::AecActiveStopped(hash) => {
+                if self.server.any_subscriber(Topic::StoppedElection) {
+                    self.server.broadcast(&stopped_election(&hash));
                 }
             }
             NodeEvent::ElectionEnded(status, votes, block, amount) => {
-                self.websocket_server
+                self.server
                     .broadcast_confirmation(block, &amount, status, votes);
             }
         }

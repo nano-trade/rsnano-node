@@ -74,6 +74,7 @@ impl Default for ActiveElectionsConfig {
 
 pub enum AecEvent {
     ActiveStarted(BlockHash),
+    ActiveStopped(BlockHash),
     ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock, Amount),
 }
 
@@ -94,7 +95,6 @@ pub struct ActiveElections {
     network: Arc<RwLock<Network>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    active_stopped_observer: RwLock<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
@@ -154,7 +154,6 @@ impl ActiveElections {
             network,
             vote_cache,
             stats,
-            active_stopped_observer: RwLock::new(Vec::new()),
             online_reps,
             thread: Mutex::new(None),
             flags,
@@ -184,10 +183,6 @@ impl ActiveElections {
             hinted: guard.hinted_count,
             optimistic: guard.optimistic_count,
         }
-    }
-
-    pub fn on_active_stopped(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
-        self.active_stopped_observer.write().unwrap().push(f);
     }
 
     pub fn on_vacancy_updated(&self, f: Box<dyn Fn() + Send + Sync>) {
@@ -987,9 +982,8 @@ impl ActiveElections {
     }
 
     fn notify_active_stopped(&self, hash: BlockHash) {
-        let callbacks = self.active_stopped_observer.read().unwrap();
-        for callback in callbacks.iter() {
-            (callback)(hash);
+        if let Some(sender) = &self.event_sender {
+            sender.send(AecEvent::ActiveStopped(hash)).unwrap();
         }
     }
 
