@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
+use rsnano_node::{
+    consensus::{ElectionStatus, ElectionStatusType},
+    NodeEvent, NodeEventHandler,
+};
 use serde::Serialize;
 use tracing::error;
 
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_nullable_http_client::{HttpClient, Url};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
-
-use crate::consensus::{ElectionStatus, ElectionStatusType};
 
 /// Performs an HTTP callback to a configured endpoint
 /// if a block is confirmed
@@ -75,6 +77,17 @@ impl HttpCallbacks {
                     }
                 }
             });
+        }
+    }
+}
+
+impl NodeEventHandler for HttpCallbacks {
+    fn handle(&mut self, event: &NodeEvent) {
+        match event {
+            NodeEvent::ElectionEnded(status, _votes, block, amount) => {
+                self.execute(status, block, *amount)
+            }
+            _ => {}
         }
     }
 }

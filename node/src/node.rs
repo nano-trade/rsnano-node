@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn};
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
-    VoteSource, WorkNonce,
+    VoteSource, VoteWithWeightInfo, WorkNonce,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;
@@ -46,12 +46,12 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsExt, LocalVoteHistory, RecentlyConfirmedCache, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
+        ActiveElections, ActiveElectionsExt, ElectionStatus, LocalVoteHistory,
+        RecentlyConfirmedCache, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, VoteRouter,
     },
-    http_callbacks::HttpCallbacks,
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
@@ -1138,18 +1138,6 @@ impl Node {
             }
         }));
 
-        if let Some(callback_url) = config.rpc_callback_url() {
-            info!("HTTP callbacks enabled on {:?}", callback_url);
-            let http_callbacks = HttpCallbacks {
-                runtime: runtime.clone(),
-                stats: stats.clone(),
-                callback_url,
-            };
-            active_elections.on_election_ended(Box::new(move |status, _weights, block, amount| {
-                http_callbacks.execute(status, block, amount);
-            }))
-        }
-
         let time_factory = SystemTimeFactory::default();
 
         let peer_cache_updater = PeerCacheUpdater::new(
@@ -1665,10 +1653,11 @@ fn make_store(
 
 pub enum NodeEvent {
     AecActiveStarted(BlockHash),
+    ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock, Amount),
 }
 
 pub trait NodeEventHandler {
-    fn handle(&mut self, e: &NodeEvent);
+    fn handle(&mut self, event: &NodeEvent);
 }
 
 pub struct CompositeNodeEventHandler {

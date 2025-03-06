@@ -1,3 +1,6 @@
+mod http_callbacks;
+
+use http_callbacks::HttpCallbacks;
 use rsnano_core::utils::get_cpu_count;
 use rsnano_node::{
     config::{DaemonConfig, Networks, NodeFlags},
@@ -87,6 +90,16 @@ impl DaemonBuilder {
 
         if let Some(ref websocket) = websocket_server {
             websocket.start();
+        }
+
+        if let Some(callback_url) = daemon_config.node.rpc_callback_url() {
+            info!("HTTP callbacks enabled on {:?}", callback_url);
+            let http_callbacks = HttpCallbacks {
+                runtime: node.runtime.clone(),
+                stats: node.stats.clone(),
+                callback_url,
+            };
+            event_processor.add(http_callbacks);
         }
 
         std::thread::Builder::new()

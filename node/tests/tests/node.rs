@@ -55,24 +55,20 @@ fn pruning_depth_max_depth() {
     let send1 = lattice.genesis().legacy_send(&key1, Amount::nano(1000));
 
     // Process the first send block
-    node1.process_active(send1.clone().into());
+    node1.process(send1.clone().into());
 
     // Create the second send block
     let send2 = lattice.genesis().send_max(&key1);
 
     // Process the second send block
-    node1.process_active(send2.clone().into());
+    node1.process(send2.clone().into());
 
     // Confirm both blocks
     node1.confirm(send1.hash().clone());
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_confirmed(&send1.hash())
-    });
+    assert_timely2(|| node1.block_confirmed(&send1.hash()));
 
     node1.confirm(send2.hash().clone());
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_confirmed(&send2.hash())
-    });
+    assert_timely2(|| node1.block_confirmed(&send2.hash()));
 
     // Perform pruning
     node1.ledger_pruning(1, true);

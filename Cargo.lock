@@ -3750,8 +3750,13 @@ dependencies = [
  "anyhow",
  "rsnano_core",
  "rsnano_node",
+ "rsnano_nullable_http_client",
  "rsnano_rpc_server",
+ "rsnano_stats",
  "rsnano_websocket_server",
+ "serde",
+ "serde_derive",
+ "serde_json",
  "tokio",
  "tracing",
 ]

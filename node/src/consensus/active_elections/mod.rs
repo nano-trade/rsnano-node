@@ -74,6 +74,7 @@ impl Default for ActiveElectionsConfig {
 
 pub enum AecEvent {
     ActiveStarted(BlockHash),
+    ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock, Amount),
 }
 
 pub struct ActiveElections {
@@ -93,9 +94,7 @@ pub struct ActiveElections {
     network: Arc<RwLock<Network>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    active_started_observer: RwLock<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     active_stopped_observer: RwLock<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
-    election_ended_observers: RwLock<Vec<ElectionEndCallback>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
@@ -155,9 +154,7 @@ impl ActiveElections {
             network,
             vote_cache,
             stats,
-            active_started_observer: RwLock::new(Vec::new()),
             active_stopped_observer: RwLock::new(Vec::new()),
-            election_ended_observers: RwLock::new(Vec::new()),
             online_reps,
             thread: Mutex::new(None),
             flags,
@@ -189,14 +186,6 @@ impl ActiveElections {
         }
     }
 
-    pub fn on_election_ended(&self, f: ElectionEndCallback) {
-        self.election_ended_observers.write().unwrap().push(f);
-    }
-
-    pub fn on_active_started(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
-        self.active_started_observer.write().unwrap().push(f);
-    }
-
     pub fn on_active_stopped(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
         self.active_stopped_observer.write().unwrap().push(f);
     }
@@ -210,7 +199,7 @@ impl ActiveElections {
     }
 
     pub fn insert_recently_cemented(&self, status: ElectionStatus) {
-        let MaybeSavedBlock::Saved(block) = status.winner.as_ref().unwrap() else {
+        let MaybeSavedBlock::Saved(block) = status.winner.clone().unwrap() else {
             return;
         };
         self.recently_cemented
@@ -221,9 +210,15 @@ impl ActiveElections {
         // Trigger callback for confirmed block
         let amount = self.ledger.any().block_amount_for(&block);
 
-        let callbacks = self.election_ended_observers.read().unwrap();
-        for callback in callbacks.iter() {
-            (callback)(&status, &Vec::new(), block, amount.unwrap_or_default());
+        if let Some(sender) = &self.event_sender {
+            sender
+                .send(AecEvent::ElectionEnded(
+                    status,
+                    Vec::new(),
+                    block,
+                    amount.unwrap_or_default(),
+                ))
+                .unwrap();
         }
     }
 
@@ -236,13 +231,14 @@ impl ActiveElections {
     fn notify_observers(
         &self,
         any: &impl AnySet,
-        status: &ElectionStatus,
-        votes: &Vec<VoteWithWeightInfo>,
+        status: ElectionStatus,
+        votes: Vec<VoteWithWeightInfo>,
     ) {
         let block = status.winner.as_ref().unwrap();
         let MaybeSavedBlock::Saved(block) = block else {
             return;
         };
+        let block = block.clone();
 
         match status.election_status_type {
             ElectionStatusType::ActiveConfirmedQuorum => self.stats.inc_dir(
@@ -263,15 +259,12 @@ impl ActiveElections {
             _ => {}
         }
 
-        let ended_callbacks = self.election_ended_observers.read().unwrap();
-        if ended_callbacks.is_empty() {
-            return;
-        }
-
         let amount = any.block_amount_for(&block).unwrap_or_default();
 
-        for callback in ended_callbacks.iter() {
-            (callback)(status, votes, block, amount);
+        if let Some(sender) = &self.event_sender {
+            sender
+                .send(AecEvent::ElectionEnded(status, votes, block, amount))
+                .unwrap();
         }
     }
 
@@ -991,10 +984,6 @@ impl ActiveElections {
         if let Some(sender) = &self.event_sender {
             sender.send(AecEvent::ActiveStarted(hash)).unwrap();
         }
-        let callbacks = self.active_started_observer.read().unwrap();
-        for callback in callbacks.iter() {
-            (callback)(hash);
-        }
     }
 
     fn notify_active_stopped(&self, hash: BlockHash) {
@@ -1026,7 +1015,7 @@ impl ActiveElections {
         let mut any = self.ledger.any();
         for (status, votes) in results {
             any.refresh_if_needed();
-            self.notify_observers(&any, &status, &votes);
+            self.notify_observers(&any, status, votes);
         }
     }
 

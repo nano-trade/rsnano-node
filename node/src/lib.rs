@@ -13,7 +13,6 @@ pub mod bootstrap;
 pub mod cementation;
 pub mod config;
 pub mod consensus;
-pub mod http_callbacks;
 mod monitor;
 mod node;
 mod node_builder;
