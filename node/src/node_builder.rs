@@ -4,7 +4,7 @@ use crate::{
     },
     consensus::{ElectionEndCallback, ElectionStatus, VoteProcessedCallback2},
     transport::MessageCallback,
-    working_path_for, Node, NodeArgs,
+    working_path_for, Node, NodeArgs, NodeEvent,
 };
 use rsnano_core::{
     utils::get_cpu_count, Amount, Networks, SavedBlock, Vote, VoteCode, VoteSource,
@@ -13,7 +13,11 @@ use rsnano_core::{
 use rsnano_messages::Message;
 use rsnano_network::{Channel, ChannelId};
 use rsnano_work::WorkPool;
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{mpsc::SyncSender, Arc},
+    time::Duration,
+};
 
 #[derive(Default)]
 pub struct NodeCallbacks {
@@ -96,6 +100,7 @@ pub struct NodeBuilder {
     flags: Option<NodeFlags>,
     work: Option<Arc<WorkPool>>,
     callbacks: Option<NodeCallbacks>,
+    event_sink: Option<SyncSender<NodeEvent>>,
 }
 
 impl NodeBuilder {
@@ -108,6 +113,7 @@ impl NodeBuilder {
             flags: None,
             work: None,
             callbacks: None,
+            event_sink: None,
         }
     }
 
@@ -138,6 +144,11 @@ impl NodeBuilder {
 
     pub fn callbacks(mut self, callbacks: NodeCallbacks) -> Self {
         self.callbacks = Some(callbacks);
+        self
+    }
+
+    pub fn event_sink(mut self, sender: SyncSender<NodeEvent>) -> Self {
+        self.event_sink = Some(sender);
         self
     }
 
@@ -192,6 +203,7 @@ impl NodeBuilder {
             flags,
             work,
             callbacks,
+            event_sender: self.event_sink,
         };
 
         Ok(Node::new_with_args(args))

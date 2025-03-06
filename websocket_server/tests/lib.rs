@@ -1,5 +1,9 @@
 use core::panic;
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{mpsc::sync_channel, Arc},
+    thread::spawn,
+    time::Duration,
+};
 
 use futures_util::{SinkExt, StreamExt};
 use rsnano_core::{
@@ -11,7 +15,7 @@ use rsnano_ledger::{
 use rsnano_messages::{Message, Publish};
 use rsnano_node::{
     config::{NetworkConstants, NodeConfig, WebsocketConfig},
-    Node,
+    CompositeNodeEventHandler, Node,
 };
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 use rsnano_websocket_server::{
@@ -658,16 +662,22 @@ fn create_node_with_websocket(system: &mut System) -> (Arc<Node>, Arc<WebsocketL
         },
         ..System::default_config()
     };
-    let node = system.build_node().config(config).finish();
-    let websocket_server = create_websocket_server(
-        WebsocketConfig {
-            enabled: node.config.websocket_config.enabled,
-            port: node.config.websocket_config.port,
-            address: node.config.websocket_config.address.clone(),
-        },
-        &node,
-    )
-    .unwrap();
+    let (sender, receiver) = sync_channel(16);
+    let node = system
+        .build_node()
+        .config(config)
+        .event_sink(sender)
+        .finish();
+
+    let ws_config = WebsocketConfig {
+        enabled: node.config.websocket_config.enabled,
+        port: node.config.websocket_config.port,
+        address: node.config.websocket_config.address.clone(),
+    };
+
+    let mut event_handlers = CompositeNodeEventHandler::new(receiver);
+    let websocket_server = create_websocket_server(ws_config, &node, &mut event_handlers).unwrap();
+    spawn(move || event_handlers.run());
 
     websocket_server.start();
     (node, websocket_server)

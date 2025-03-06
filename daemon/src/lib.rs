@@ -1,11 +1,16 @@
 use rsnano_core::utils::get_cpu_count;
 use rsnano_node::{
     config::{DaemonConfig, Networks, NodeFlags},
-    Node, NodeBuilder, NodeCallbacks,
+    CompositeNodeEventHandler, Node, NodeBuilder, NodeCallbacks,
 };
 use rsnano_rpc_server::{run_rpc_server, RpcServerConfig};
 use rsnano_websocket_server::{create_websocket_server, WebsocketListenerExt};
-use std::{future::Future, path::PathBuf, sync::Arc, thread::available_parallelism};
+use std::{
+    future::Future,
+    path::PathBuf,
+    sync::{mpsc::sync_channel, Arc},
+    thread::available_parallelism,
+};
 use tokio::{net::TcpListener, sync::oneshot};
 use tracing::info;
 
@@ -63,12 +68,18 @@ impl DaemonBuilder {
             parallelism
         );
 
-        let mut node = self.node_builder.finish()?;
+        let (ev_sender, ev_receiver) = sync_channel(128);
+        let mut node = self.node_builder.event_sink(ev_sender).finish()?;
+        let mut event_processor = CompositeNodeEventHandler::new(ev_receiver);
 
         let websocket_server = if daemon_config.node.websocket_config.enabled {
             Some(
-                create_websocket_server(daemon_config.node.websocket_config.clone(), &node)
-                    .unwrap(),
+                create_websocket_server(
+                    daemon_config.node.websocket_config.clone(),
+                    &node,
+                    &mut event_processor,
+                )
+                .unwrap(),
             )
         } else {
             None
@@ -77,6 +88,13 @@ impl DaemonBuilder {
         if let Some(ref websocket) = websocket_server {
             websocket.start();
         }
+
+        std::thread::Builder::new()
+            .name("Node ev proc".to_owned())
+            .spawn(move || {
+                event_processor.run();
+            })
+            .unwrap();
 
         node.start();
         let mut node = Arc::new(node);

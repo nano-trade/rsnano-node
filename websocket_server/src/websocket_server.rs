@@ -3,7 +3,8 @@ use rsnano_core::{Account, Amount, BlockHash, SavedBlock, Vote, VoteCode, VoteWi
 use rsnano_ledger::BlockStatus;
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    block_processing::BlockContext, config::WebsocketConfig, consensus::ElectionStatus, Node,
+    block_processing::BlockContext, config::WebsocketConfig, consensus::ElectionStatus,
+    CompositeNodeEventHandler, Node, NodeEvent, NodeEventHandler,
 };
 use rsnano_websocket_messages::{new_block_arrived_message, OutgoingMessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};
@@ -17,6 +18,7 @@ use tracing::error;
 pub fn create_websocket_server(
     config: WebsocketConfig,
     node: &Node,
+    event_handlers: &mut CompositeNodeEventHandler,
 ) -> Option<Arc<WebsocketListener>> {
     if !config.enabled {
         return None;
@@ -34,6 +36,10 @@ pub fn create_websocket_server(
         node.ledger.clone(),
         node.runtime.clone(),
     ));
+
+    event_handlers.add(NodeEventProcessor {
+        websocket_server: server.clone(),
+    });
 
     let server_w = Arc::downgrade(&server);
     node.active.on_election_ended(Box::new(
@@ -215,4 +221,20 @@ pub struct VoteReceived {
     pub blocks: Vec<String>,
     #[serde(rename = "type")]
     pub vote_type: String,
+}
+
+pub struct NodeEventProcessor {
+    websocket_server: Arc<WebsocketListener>,
+}
+
+impl NodeEventHandler for NodeEventProcessor {
+    fn handle(&mut self, event: &NodeEvent) {
+        match event {
+            NodeEvent::AecActiveStarted(hash) => {
+                if self.websocket_server.any_subscriber(Topic::StartedElection) {
+                    self.websocket_server.broadcast(&started_election(&hash));
+                }
+            }
+        }
+    }
 }

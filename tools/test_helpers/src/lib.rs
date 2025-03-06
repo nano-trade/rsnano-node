@@ -13,7 +13,7 @@ use rsnano_node::{
     consensus::Election,
     unique_path,
     wallets::WalletsExt,
-    Node, NodeBuilder,
+    Node, NodeBuilder, NodeEvent,
 };
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
@@ -23,6 +23,7 @@ use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
         atomic::{AtomicU16, Ordering},
+        mpsc::SyncSender,
         Arc, Mutex, OnceLock,
     },
     thread::sleep,
@@ -83,6 +84,7 @@ impl System {
             config: None,
             flags: None,
             disconnected: false,
+            event_sink: None,
         }
     }
 
@@ -110,8 +112,9 @@ impl System {
         config: NodeConfig,
         flags: NodeFlags,
         disconnected: bool,
+        event_sink: Option<SyncSender<NodeEvent>>,
     ) -> Arc<Node> {
-        let mut node = self.new_node(config, flags);
+        let mut node = self.new_node(config, flags, event_sink);
 
         self.setup_node(&node);
 
@@ -158,16 +161,23 @@ impl System {
         node
     }
 
-    fn new_node(&self, config: NodeConfig, flags: NodeFlags) -> Node {
+    fn new_node(
+        &self,
+        config: NodeConfig,
+        flags: NodeFlags,
+        event_sink: Option<SyncSender<NodeEvent>>,
+    ) -> Node {
         let path = unique_path().expect("Could not get a unique path");
-        NodeBuilder::new(self.network_params.network.current_network)
+        let mut builder = NodeBuilder::new(self.network_params.network.current_network)
             .data_path(path)
             .config(config)
             .network_params(self.network_params.clone())
             .flags(flags)
-            .work(self.work.clone())
-            .finish()
-            .unwrap()
+            .work(self.work.clone());
+        if let Some(sink) = event_sink {
+            builder = builder.event_sink(sink);
+        }
+        builder.finish().unwrap()
     }
 
     fn stop(&mut self) {
@@ -214,6 +224,7 @@ pub struct TestNodeBuilder<'a> {
     config: Option<NodeConfig>,
     flags: Option<NodeFlags>,
     disconnected: bool,
+    event_sink: Option<SyncSender<NodeEvent>>,
 }
 
 impl<'a> TestNodeBuilder<'a> {
@@ -232,10 +243,16 @@ impl<'a> TestNodeBuilder<'a> {
         self
     }
 
+    pub fn event_sink(mut self, sink: SyncSender<NodeEvent>) -> Self {
+        self.event_sink = Some(sink);
+        self
+    }
+
     pub fn finish(self) -> Arc<Node> {
         let config = self.config.unwrap_or_else(|| System::default_config());
         let flags = self.flags.unwrap_or_default();
-        self.system.make_node_with(config, flags, self.disconnected)
+        self.system
+            .make_node_with(config, flags, self.disconnected, self.event_sink)
     }
 }
 
