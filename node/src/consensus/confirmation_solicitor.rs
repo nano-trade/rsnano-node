@@ -60,14 +60,14 @@ impl ConfirmationSolicitor {
     }
 
     /// Broadcast the winner of an election if the broadcast limit has not been reached. Returns false if the broadcast was performed
-    pub fn broadcast(&mut self, guard: &Election) -> Result<(), ()> {
+    pub fn broadcast(&mut self, election: &Election) -> Result<(), ()> {
         debug_assert!(self.prepared);
         self.rebroadcasted += 1;
         if self.rebroadcasted >= self.max_block_broadcasts {
             return Err(());
         }
 
-        let winner_block = guard.status.winner.as_ref().unwrap();
+        let winner_block = election.status.winner.as_ref().unwrap();
         let hash = winner_block.hash();
         let winner = Message::Publish(Publish::new_forward(winner_block.clone().into()));
         let mut count = 0;
@@ -76,7 +76,7 @@ impl ConfirmationSolicitor {
             if count >= self.max_election_broadcasts {
                 break;
             }
-            let should_broadcast = if let Some(existing) = guard.last_votes.get(&i.rep_key) {
+            let should_broadcast = if let Some(existing) = election.last_votes.get(&i.rep_key) {
                 existing.hash != hash
             } else {
                 count += 1;

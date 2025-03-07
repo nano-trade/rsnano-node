@@ -256,9 +256,9 @@ impl ActiveElections {
         self.notify(AecEvent::ElectionEnded(status, votes, block, amount));
     }
 
-    fn request_loop2<'a>(
+    fn wait<'a>(
         &self,
-        stamp: Instant,
+        started: Instant,
         guard: MutexGuard<'a, ActiveElectionsState>,
     ) -> MutexGuard<'a, ActiveElectionsState> {
         if !guard.stopped {
@@ -267,7 +267,7 @@ impl ActiveElections {
 
             let wait_duration = max(
                 min_sleep,
-                (stamp + loop_interval).saturating_duration_since(Instant::now()),
+                (started + loop_interval).saturating_duration_since(Instant::now()),
             );
 
             self.condition
@@ -653,10 +653,10 @@ impl ActiveElections {
     fn request_loop(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
-            let stamp = Instant::now();
+            let now = Instant::now();
             self.stats.inc(StatType::Active, DetailType::Loop);
             guard = self.request_confirm(guard);
-            guard = self.request_loop2(stamp, guard);
+            guard = self.wait(now, guard);
         }
     }
 
