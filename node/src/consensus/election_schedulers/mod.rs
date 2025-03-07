@@ -1,10 +1,12 @@
 mod hinted_scheduler;
 mod manual_scheduler;
 mod optimistic_scheduler;
+mod priority_scheduler;
 
 pub use hinted_scheduler::*;
 pub use manual_scheduler::*;
 pub use optimistic_scheduler::*;
+pub use priority_scheduler::*;
 
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +17,7 @@ use rsnano_ledger::{AnySet, Ledger};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::Stats;
 
-use super::{ActiveElections, PriorityScheduler, PrioritySchedulerExt, VoteCache};
+use super::{ActiveElections, VoteCache};
 use crate::{
     cementation::ConfirmingSet,
     config::{NetworkConstants, NodeConfig},
