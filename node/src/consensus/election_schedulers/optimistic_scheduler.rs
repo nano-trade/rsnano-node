@@ -13,8 +13,8 @@ use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeight
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, ElectionBehavior};
-use crate::{cementation::ConfirmingSet, config::NetworkConstants};
+use super::ActiveElections;
+use crate::{cementation::ConfirmingSet, config::NetworkConstants, consensus::ElectionBehavior};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptimisticSchedulerConfig {
