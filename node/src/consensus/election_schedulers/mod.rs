@@ -1,6 +1,8 @@
 mod hinted_scheduler;
+mod manual_scheduler;
 
 pub use hinted_scheduler::*;
+pub use manual_scheduler::*;
 
 use std::sync::{Arc, Mutex};
 
@@ -12,8 +14,8 @@ use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::Stats;
 
 use super::{
-    ActiveElections, ManualScheduler, ManualSchedulerExt, OptimisticScheduler,
-    OptimisticSchedulerExt, PriorityScheduler, PrioritySchedulerExt, VoteCache,
+    ActiveElections, OptimisticScheduler, OptimisticSchedulerExt, PriorityScheduler,
+    PrioritySchedulerExt, VoteCache,
 };
 use crate::{
     cementation::ConfirmingSet,

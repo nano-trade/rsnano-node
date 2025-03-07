@@ -8,7 +8,9 @@ use std::{
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, ElectionBehavior};
+use crate::consensus::ElectionBehavior;
+
+use super::ActiveElections;
 
 pub struct ManualScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
