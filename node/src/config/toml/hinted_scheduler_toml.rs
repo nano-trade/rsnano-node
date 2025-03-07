@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::consensus::HintedSchedulerConfig;
+use crate::consensus::election_schedulers::HintedSchedulerConfig;
 
 #[derive(Deserialize, Serialize)]
 pub struct HintedSchedulerToml {

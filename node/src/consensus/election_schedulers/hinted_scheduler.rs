@@ -13,8 +13,8 @@ use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, ElectionBehavior, VoteCache};
-use crate::{cementation::ConfirmingSet, representatives::OnlineReps};
+use super::{ActiveElections, VoteCache};
+use crate::{cementation::ConfirmingSet, consensus::ElectionBehavior, representatives::OnlineReps};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HintedSchedulerConfig {

@@ -24,8 +24,9 @@ use crate::{
     bootstrap::{BootstrapConfig, BootstrapResponderConfig},
     cementation::ConfirmingSetConfig,
     consensus::{
-        ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
-        PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
+        election_schedulers::HintedSchedulerConfig, ActiveElectionsConfig,
+        OptimisticSchedulerConfig, PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig,
+        VoteProcessorConfig,
     },
     transport::MessageProcessorConfig,
 };
