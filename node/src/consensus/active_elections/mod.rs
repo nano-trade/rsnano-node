@@ -1,12 +1,12 @@
 mod root_container;
 
 use std::{
-    cmp::{max, min},
+    cmp::min,
     collections::VecDeque,
     mem::size_of,
     ops::Deref,
     sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use bounded_vec_deque::BoundedVecDeque;
@@ -30,7 +30,7 @@ use super::{
 use crate::{
     block_processing::BlockContext,
     cementation::{CementingContext, ConfirmingSet},
-    config::{NetworkParams, NodeConfig, NodeFlags},
+    config::{NetworkParams, NodeConfig},
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     transport::MessageFlooder,
@@ -118,7 +118,6 @@ impl ActiveElections {
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         online_reps: Arc<Mutex<OnlineReps>>,
-        flags: NodeFlags,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
         vote_router: Arc<VoteRouter>,

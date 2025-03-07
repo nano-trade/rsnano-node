@@ -552,7 +552,6 @@ impl Node {
             vote_cache.clone(),
             stats.clone(),
             online_reps.clone(),
-            flags.clone(),
             recently_confirmed.clone(),
             vote_applier.clone(),
             vote_router.clone(),
