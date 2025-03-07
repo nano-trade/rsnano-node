@@ -525,16 +525,10 @@ impl Node {
             rep_weights.clone(),
         ));
 
-        let on_vote = args
-            .callbacks
-            .on_vote
-            .unwrap_or_else(|| Box::new(|_, _, _, _| {}));
-
         let vote_processor = Arc::new(VoteProcessor::new(
             vote_processor_queue.clone(),
             vote_router.clone(),
             stats.clone(),
-            on_vote,
         ));
 
         let vote_cache_processor = Arc::new(VoteCacheProcessor::new(
@@ -614,13 +608,6 @@ impl Node {
                         .account();
                     schedulers.activate(&any, &account);
                 }
-            }
-        }));
-
-        let schedulers_w = Arc::downgrade(&election_schedulers);
-        active_elections.on_vacancy_updated(Box::new(move || {
-            if let Some(schedulers) = schedulers_w.upgrade() {
-                schedulers.notify();
             }
         }));
 
@@ -1196,6 +1183,7 @@ impl Node {
             receiver: aec_receiver,
             vote_cache_processor: vote_cache_processor.clone(),
             node_event_sender,
+            election_schedulers: election_schedulers.clone(),
         };
 
         std::thread::Builder::new()

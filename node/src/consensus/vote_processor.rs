@@ -56,13 +56,12 @@ impl VoteProcessor {
         queue: Arc<VoteProcessorQueue>,
         vote_router: Arc<VoteRouter>,
         stats: Arc<Stats>,
-        on_vote: VoteProcessedCallback2,
     ) -> Self {
         Self {
             queue,
             vote_router,
             stats,
-            vote_processed: Mutex::new(vec![on_vote]),
+            vote_processed: Mutex::new(Vec::new()),
             threads: Mutex::new(Vec::new()),
             total_processed: AtomicU64::new(0),
         }

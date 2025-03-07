@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use crate::{
-    consensus::{AecEvent, VoteCacheProcessor},
+    consensus::{election_schedulers::ElectionSchedulers, AecEvent, VoteCacheProcessor},
     NodeEvent,
 };
 
@@ -12,7 +12,8 @@ use crate::{
 pub(crate) struct AecEventProcessor {
     pub receiver: Receiver<AecEvent>,
     pub vote_cache_processor: Arc<VoteCacheProcessor>,
-    pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
+    pub node_event_sender: Option<SyncSender<NodeEvent>>,
+    pub election_schedulers: Arc<ElectionSchedulers>,
 }
 
 impl AecEventProcessor {
@@ -37,6 +38,7 @@ impl AecEventProcessor {
                             .unwrap();
                     }
                 }
+                AecEvent::VacancyUpdated => self.election_schedulers.notify(),
             }
         }
     }

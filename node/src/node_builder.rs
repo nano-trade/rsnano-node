@@ -2,16 +2,12 @@ use crate::{
     config::{
         get_node_toml_config_path, DaemonConfig, DaemonToml, NetworkParams, NodeConfig, NodeFlags,
     },
-    consensus::{ElectionEndCallback, ElectionStatus, VoteProcessedCallback2},
     transport::MessageCallback,
     working_path_for, Node, NodeArgs, NodeEvent,
 };
-use rsnano_core::{
-    utils::get_cpu_count, Amount, Networks, SavedBlock, Vote, VoteCode, VoteSource,
-    VoteWithWeightInfo,
-};
+use rsnano_core::{utils::get_cpu_count, Networks};
 use rsnano_messages::Message;
-use rsnano_network::{Channel, ChannelId};
+use rsnano_network::ChannelId;
 use rsnano_work::WorkPool;
 use std::{
     path::PathBuf,
@@ -21,8 +17,6 @@ use std::{
 
 #[derive(Default)]
 pub struct NodeCallbacks {
-    pub on_election_end: Option<ElectionEndCallback>,
-    pub on_vote: Option<VoteProcessedCallback2>,
     pub on_publish: Option<MessageCallback>,
     pub on_inbound: Option<MessageCallback>,
     pub on_inbound_dropped: Option<MessageCallback>,
@@ -39,28 +33,6 @@ pub struct NodeCallbacksBuilder(NodeCallbacks);
 impl NodeCallbacksBuilder {
     fn new() -> Self {
         Self(NodeCallbacks::default())
-    }
-
-    pub fn on_election_end(
-        mut self,
-        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount)
-            + Send
-            + Sync
-            + 'static,
-    ) -> Self {
-        self.0.on_election_end = Some(Box::new(callback));
-        self
-    }
-
-    pub fn on_vote(
-        mut self,
-        callback: impl Fn(&Arc<Vote>, Option<&Arc<Channel>>, VoteSource, VoteCode)
-            + Send
-            + Sync
-            + 'static,
-    ) -> Self {
-        self.0.on_vote = Some(Box::new(callback));
-        self
     }
 
     pub fn on_publish(
