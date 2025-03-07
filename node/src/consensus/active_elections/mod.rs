@@ -6,7 +6,6 @@ use std::{
     mem::size_of,
     ops::Deref,
     sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
-    thread::JoinHandle,
     time::{Duration, Instant},
 };
 
@@ -97,8 +96,6 @@ pub struct ActiveElections {
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     online_reps: Arc<Mutex<OnlineReps>>,
-    thread: Mutex<Option<JoinHandle<()>>>,
-    flags: NodeFlags,
     pub vote_applier: Arc<VoteApplier>,
     vote_router: Arc<VoteRouter>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -155,8 +152,6 @@ impl ActiveElections {
             vote_cache,
             stats,
             online_reps,
-            thread: Mutex::new(None),
-            flags,
             vote_applier,
             vote_router,
             vote_cache_processor,
@@ -254,29 +249,6 @@ impl ActiveElections {
         let amount = any.block_amount_for(&block).unwrap_or_default();
 
         self.notify(AecEvent::ElectionEnded(status, votes, block, amount));
-    }
-
-    fn wait<'a>(
-        &self,
-        started: Instant,
-        guard: MutexGuard<'a, ActiveElectionsState>,
-    ) -> MutexGuard<'a, ActiveElectionsState> {
-        if !guard.stopped {
-            let loop_interval = self.network_params.network.aec_loop_interval;
-            let min_sleep = loop_interval / 2;
-
-            let wait_duration = max(
-                min_sleep,
-                (started + loop_interval).saturating_duration_since(Instant::now()),
-            );
-
-            self.condition
-                .wait_timeout_while(guard, wait_duration, |data| !data.stopped)
-                .unwrap()
-                .0
-        } else {
-            guard
-        }
     }
 
     pub fn remove_block(&self, election: &mut Election, hash: &BlockHash) {
@@ -650,20 +622,8 @@ impl ActiveElections {
         guard.election(root)
     }
 
-    fn request_loop(&self) {
-        let mut guard = self.mutex.lock().unwrap();
-        while !guard.stopped {
-            let now = Instant::now();
-            self.stats.inc(StatType::Active, DetailType::Loop);
-            guard = self.request_confirm(guard);
-            guard = self.wait(now, guard);
-        }
-    }
-
-    fn request_confirm<'a>(
-        &'a self,
-        guard: MutexGuard<'a, ActiveElectionsState>,
-    ) -> MutexGuard<'a, ActiveElectionsState> {
+    pub fn request_confirm(&self) {
+        let guard = self.mutex.lock().unwrap();
         let this_loop_target = guard.roots.len();
         let elections = Self::list_active_impl(this_loop_target, &guard);
         drop(guard);
@@ -696,7 +656,6 @@ impl ActiveElections {
         }
 
         solicitor.flush();
-        self.mutex.lock().unwrap()
     }
 
     /// Returns a list of elections sorted by difficulty
@@ -1027,12 +986,19 @@ impl ActiveElections {
             .node("recently_cemented", recently_cemented)
             .finish()
     }
+
+    pub fn stop(&self) {
+        self.mutex.lock().unwrap().stopped = true;
+        self.condition.notify_all();
+        self.clear();
+        // destroy send queue so that the receiver thread will be stopped too
+        drop(self.event_sender.write().unwrap().take())
+    }
 }
 
 impl Drop for ActiveElections {
     fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none());
+        self.stop()
     }
 }
 
@@ -1160,44 +1126,6 @@ impl ActiveElectionsState {
 pub struct ElectionInsertInfo {
     pub election: Arc<Mutex<Election>>,
     pub inserted: bool,
-}
-
-pub trait ActiveElectionsExt {
-    fn start(&self);
-    fn stop(&self);
-}
-
-impl ActiveElectionsExt for Arc<ActiveElections> {
-    fn start(&self) {
-        if self.flags.disable_request_loop {
-            return;
-        }
-
-        let mut guard = self.thread.lock().unwrap();
-        let self_l = Arc::clone(self);
-        assert!(guard.is_none());
-        *guard = Some(
-            std::thread::Builder::new()
-                .name("Request loop".to_string())
-                .spawn(Box::new(move || {
-                    self_l.request_loop();
-                }))
-                .unwrap(),
-        );
-    }
-
-    fn stop(&self) {
-        self.mutex.lock().unwrap().stopped = true;
-        self.condition.notify_all();
-        let join_handle = self.thread.lock().unwrap().take();
-        if let Some(join_handle) = join_handle {
-            join_handle.join().unwrap();
-        }
-        self.clear();
-
-        // destroy send queue so that the receiver thread will be stopped too
-        drop(self.event_sender.write().unwrap().take())
-    }
 }
 
 #[derive(Default)]

@@ -46,7 +46,7 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsExt, ElectionStatus, LocalVoteHistory,
+        ActiveElections, ConfirmationRequester, ElectionStatus, LocalVoteHistory,
         RecentlyConfirmedCache, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
@@ -143,6 +143,7 @@ pub struct Node {
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
     pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
+    confirmation_requester: ConfirmationRequester,
 }
 
 pub(crate) struct NodeArgs {
@@ -560,6 +561,10 @@ impl Node {
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
+
+        let mut confirmation_requester =
+            ConfirmationRequester::new(active_elections.clone(), stats.clone());
+        confirmation_requester.set_loop_interval(network_params.network.aec_loop_interval);
 
         let active_w = Arc::downgrade(&active_elections);
         // Cementing blocks might implicitly confirm dependent elections
@@ -1257,6 +1262,7 @@ impl Node {
             vote_rebroadcaster,
             tokio_runner,
             recently_confirmed,
+            confirmation_requester,
         }
     }
 
@@ -1513,7 +1519,9 @@ impl Node {
         }
         self.vote_cache_processor.start();
         self.block_processor.start();
-        self.active.start();
+        if !self.flags.disable_request_loop {
+            self.confirmation_requester.start();
+        }
         self.vote_generators.start();
         self.request_aggregator.start();
         self.confirming_set.start();
@@ -1583,6 +1591,7 @@ impl Node {
         self.vote_processor.stop();
         self.rep_tiers.stop();
         self.election_schedulers.stop();
+        self.confirmation_requester.stop();
         self.active.stop();
         self.vote_generators.stop();
         self.confirming_set.stop();

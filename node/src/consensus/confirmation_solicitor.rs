@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-/// This struct accepts elections that need further votes before they can be confirmed and bundles them in to single confirm_req packets
+/// This struct accepts elections that need further votes before they can be confirmed and bundles them in to confirm_req packets
 pub struct ConfirmationSolicitor {
     /// Global maximum amount of block broadcasts
     max_block_broadcasts: usize,
