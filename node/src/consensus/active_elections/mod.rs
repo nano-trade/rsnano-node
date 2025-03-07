@@ -200,15 +200,17 @@ impl ActiveElections {
         // Trigger callback for confirmed block
         let amount = self.ledger.any().block_amount_for(&block);
 
+        self.notify(AecEvent::ElectionEnded(
+            status,
+            Vec::new(),
+            block,
+            amount.unwrap_or_default(),
+        ));
+    }
+
+    fn notify(&self, event: AecEvent) {
         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-            sender
-                .send(AecEvent::ElectionEnded(
-                    status,
-                    Vec::new(),
-                    block,
-                    amount.unwrap_or_default(),
-                ))
-                .unwrap();
+            sender.send(event).unwrap()
         }
     }
 
@@ -251,11 +253,7 @@ impl ActiveElections {
 
         let amount = any.block_amount_for(&block).unwrap_or_default();
 
-        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-            sender
-                .send(AecEvent::ElectionEnded(status, votes, block, amount))
-                .unwrap();
-        }
+        self.notify(AecEvent::ElectionEnded(status, votes, block, amount));
     }
 
     fn request_loop2<'a>(
@@ -342,14 +340,7 @@ impl ActiveElections {
             guard.roots.clear();
         }
 
-        self.vacancy_updated();
-    }
-
-    /// Notify election schedulers when AEC frees election slot
-    fn vacancy_updated(&self) {
-        if let Some(sender) = &self.event_sender.read().unwrap().as_ref() {
-            sender.send(AecEvent::VacancyUpdated).unwrap();
-        }
+        self.notify(AecEvent::VacancyUpdated);
     }
 
     pub fn active_root(&self, root: &QualifiedRoot) -> bool {
@@ -464,15 +455,6 @@ impl ActiveElections {
         result
     }
 
-    /// Broadcasts vote for the current winner of this election
-    /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    fn try_broadcast_vote(&self, election: &mut Election) {
-        if election.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval {
-            self.broadcast_vote_locked(election);
-            election.set_last_vote();
-        }
-    }
-
     fn broadcast_block(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
         if self.broadcast_block_predicate(election) {
             if solicitor.broadcast(election).is_ok() {
@@ -492,9 +474,18 @@ impl ActiveElections {
         }
     }
 
+    /// Broadcasts vote for the current winner of this election
+    /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
+    fn try_generate_vote(&self, election: &mut Election) {
+        if election.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval {
+            self.generate_vote_locked(election);
+            election.set_last_vote();
+        }
+    }
+
     /// Broadcast vote for current election winner. Generates final vote if reached quorum or already confirmed
     /// Requires mutex lock
-    fn broadcast_vote_locked(&self, election: &mut Election) {
+    fn generate_vote_locked(&self, election: &mut Election) {
         let last_vote_elapsed = election.last_vote_elapsed();
         if last_vote_elapsed < self.network_params.network.vote_broadcast_interval {
             return;
@@ -606,13 +597,13 @@ impl ActiveElections {
             callback(&qualified_root);
         }
 
-        self.vacancy_updated();
+        self.notify(AecEvent::VacancyUpdated);
 
         let is_confirmed = election.lock().unwrap().is_confirmed();
         for (hash, block) in blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
             if !is_confirmed || hash != election_winner {
-                self.notify_active_stopped(hash);
+                self.notify(AecEvent::ActiveStopped(hash));
             }
 
             if !is_confirmed {
@@ -759,7 +750,7 @@ impl ActiveElections {
                 }
             }
             ElectionState::Active => {
-                self.try_broadcast_vote(election);
+                self.try_generate_vote(election);
                 self.broadcast_block(solicitor, election);
                 self.send_confirm_req(solicitor, election);
             }
@@ -958,26 +949,14 @@ impl ActiveElections {
                     "Started new election"
                 );
 
-                self.notify_active_started(hash);
+                self.notify(AecEvent::ActiveStarted(hash));
             }
 
             // Votes are also generated for ongoing elections
-            self.try_broadcast_vote(&mut info.election.lock().unwrap());
+            self.try_generate_vote(&mut info.election.lock().unwrap());
         }
 
         result
-    }
-
-    fn notify_active_started(&self, hash: BlockHash) {
-        if let Some(sender) = &self.event_sender.read().unwrap().as_ref() {
-            sender.send(AecEvent::ActiveStarted(hash)).unwrap();
-        }
-    }
-
-    fn notify_active_stopped(&self, hash: BlockHash) {
-        if let Some(sender) = &self.event_sender.read().unwrap().as_ref() {
-            sender.send(AecEvent::ActiveStopped(hash)).unwrap();
-        }
     }
 
     pub fn handle_cementations(&self, cemented: &VecDeque<CementingContext>) {
