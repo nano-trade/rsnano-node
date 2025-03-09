@@ -548,10 +548,8 @@ impl Node {
             confirming_set.clone(),
             vote_generators.clone(),
             network_filter.clone(),
-            network.clone(),
             vote_cache.clone(),
             stats.clone(),
-            online_reps.clone(),
             recently_confirmed.clone(),
             vote_applier.clone(),
             vote_router.clone(),
@@ -564,6 +562,10 @@ impl Node {
         let confirmation_requester = ConfirmationRequester {
             active_elections: active_elections.clone(),
             stats: stats.clone(),
+            message_flooder: message_flooder.clone(),
+            network_params: network_params.clone(),
+            online_reps: online_reps.clone(),
+            network: network.clone(),
         };
 
         let active_w = Arc::downgrade(&active_elections);

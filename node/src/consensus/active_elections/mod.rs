@@ -19,7 +19,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
-use rsnano_network::{Network, TrafficType};
+use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
@@ -32,7 +32,6 @@ use crate::{
     cementation::{CementingContext, ConfirmingSet},
     config::{NetworkParams, NodeConfig},
     consensus::VoteApplierExt,
-    representatives::OnlineReps,
     transport::MessageFlooder,
     wallets::Wallets,
 };
@@ -92,10 +91,8 @@ pub struct ActiveElections {
     recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     vote_generators: Arc<VoteGenerators>,
     network_filter: Arc<NetworkFilter>,
-    network: Arc<RwLock<Network>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    online_reps: Arc<Mutex<OnlineReps>>,
     pub vote_applier: Arc<VoteApplier>,
     vote_router: Arc<VoteRouter>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -114,10 +111,8 @@ impl ActiveElections {
         confirming_set: Arc<ConfirmingSet>,
         vote_generators: Arc<VoteGenerators>,
         network_filter: Arc<NetworkFilter>,
-        network: Arc<RwLock<Network>>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
-        online_reps: Arc<Mutex<OnlineReps>>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
         vote_router: Arc<VoteRouter>,
@@ -147,10 +142,8 @@ impl ActiveElections {
             node_config,
             vote_generators,
             network_filter,
-            network,
             vote_cache,
             stats,
-            online_reps,
             vote_applier,
             vote_router,
             vote_cache_processor,
@@ -631,39 +624,6 @@ impl ActiveElections {
             .collect()
     }
 
-    pub fn request_confirm(&self) {
-        let elections = self.get_all();
-
-        let publisher = self.message_flooder.lock().unwrap().clone();
-        let mut solicitor =
-            ConfirmationSolicitor::new(&self.network_params, &self.network, publisher);
-        let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
-        solicitor.prepare(&peered_prs);
-
-        /*
-         * Loop through active elections in descending order of proof-of-work difficulty, requesting confirmation
-         *
-         * Only up to a certain amount of elections are queued for confirmation request and block rebroadcasting. The remaining elections can still be confirmed if votes arrive
-         * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
-         * Flushed elections are later re-activated via frontier confirmation
-         */
-        for election in elections {
-            let success;
-            let root;
-            {
-                let mut election_guard = election.lock().unwrap();
-                success = self.transition_time(&mut solicitor, &mut election_guard);
-                root = election_guard.qualified_root().clone();
-            };
-
-            if success {
-                self.erase(&root);
-            }
-        }
-
-        solicitor.flush();
-    }
-
     /// Returns a list of elections sorted by difficulty
     pub fn list_active(&self, max: usize) -> Vec<Arc<Mutex<Election>>> {
         self.mutex
@@ -687,7 +647,7 @@ impl ActiveElections {
         }
     }
 
-    fn transition_time(
+    pub fn transition_time(
         &self,
         solicitor: &mut ConfirmationSolicitor,
         election: &mut Election,
