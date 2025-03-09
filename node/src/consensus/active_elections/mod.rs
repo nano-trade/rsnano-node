@@ -621,11 +621,18 @@ impl ActiveElections {
         guard.election(root)
     }
 
+    pub fn get_all(&self) -> Vec<Arc<Mutex<Election>>> {
+        self.mutex
+            .lock()
+            .unwrap()
+            .roots
+            .iter_sequenced()
+            .map(|i| i.election.clone())
+            .collect()
+    }
+
     pub fn request_confirm(&self) {
-        let guard = self.mutex.lock().unwrap();
-        let this_loop_target = guard.roots.len();
-        let elections = Self::list_active_impl(this_loop_target, &guard);
-        drop(guard);
+        let elections = self.get_all();
 
         let publisher = self.message_flooder.lock().unwrap().clone();
         let mut solicitor =
@@ -662,19 +669,6 @@ impl ActiveElections {
         self.mutex
             .lock()
             .unwrap()
-            .roots
-            .iter_sequenced()
-            .map(|i| i.election.clone())
-            .take(max)
-            .collect()
-    }
-
-    /// Returns a list of elections sorted by difficulty, mutex must be locked
-    fn list_active_impl(
-        max: usize,
-        guard: &MutexGuard<ActiveElectionsState>,
-    ) -> Vec<Arc<Mutex<Election>>> {
-        guard
             .roots
             .iter_sequenced()
             .map(|i| i.election.clone())

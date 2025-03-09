@@ -143,7 +143,7 @@ pub struct Node {
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
     pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    confirmation_requester: ConfirmationRequester,
+    confirmation_requester: TimerThread<ConfirmationRequester>,
 }
 
 pub(crate) struct NodeArgs {
@@ -561,9 +561,10 @@ impl Node {
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
 
-        let mut confirmation_requester =
-            ConfirmationRequester::new(active_elections.clone(), stats.clone());
-        confirmation_requester.set_loop_interval(network_params.network.aec_loop_interval);
+        let confirmation_requester = ConfirmationRequester {
+            active_elections: active_elections.clone(),
+            stats: stats.clone(),
+        };
 
         let active_w = Arc::downgrade(&active_elections);
         // Cementing blocks might implicitly confirm dependent elections
@@ -1261,7 +1262,7 @@ impl Node {
             vote_rebroadcaster,
             tokio_runner,
             recently_confirmed,
-            confirmation_requester,
+            confirmation_requester: TimerThread::new("Request loop", confirmation_requester),
         }
     }
 
@@ -1519,7 +1520,8 @@ impl Node {
         self.vote_cache_processor.start();
         self.block_processor.start();
         if !self.flags.disable_request_loop {
-            self.confirmation_requester.start();
+            self.confirmation_requester
+                .start(self.network_params.network.aec_loop_interval);
         }
         self.vote_generators.start();
         self.request_aggregator.start();

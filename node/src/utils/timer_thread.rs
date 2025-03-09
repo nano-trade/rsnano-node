@@ -4,7 +4,7 @@ use std::{
         Arc, Condvar, Mutex,
     },
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -86,17 +86,17 @@ impl<T: Runnable> TimerThread<T> {
             task.run(&cancel_token);
         }
 
+        let mut timer_loop = TimerLoop {
+            interval,
+            start_type,
+            cancel_token,
+            task,
+            next_wait_duration: interval,
+        };
+
         let handle = std::thread::Builder::new()
             .name(self.thread_name.clone())
-            .spawn(move || {
-                if start_type == TimerStartType::Start {
-                    task.run(&cancel_token);
-                }
-
-                while !cancel_token.wait_for_cancellation(interval) {
-                    task.run(&cancel_token);
-                }
-            })
+            .spawn(move || timer_loop.run())
             .unwrap();
 
         *self.thread.lock().unwrap() = Some(handle);
@@ -108,6 +108,39 @@ impl<T: Runnable> TimerThread<T> {
         if let Some(handle) = handle {
             handle.join().unwrap();
         }
+    }
+}
+
+struct TimerLoop<T: Runnable> {
+    interval: Duration,
+    start_type: TimerStartType,
+    cancel_token: CancellationToken,
+    task: T,
+    next_wait_duration: Duration,
+}
+
+impl<T: Runnable> TimerLoop<T> {
+    fn run(&mut self) {
+        if self.start_type == TimerStartType::Start {
+            self.run_one();
+        }
+
+        loop {
+            if self
+                .cancel_token
+                .wait_for_cancellation(self.next_wait_duration)
+            {
+                break;
+            }
+            self.run_one();
+        }
+    }
+
+    fn run_one(&mut self) {
+        let start = Instant::now();
+        self.task.run(&self.cancel_token);
+        let elapsed = start.elapsed();
+        self.next_wait_duration = self.interval.saturating_sub(elapsed);
     }
 }
 
