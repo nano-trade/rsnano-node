@@ -264,9 +264,7 @@ impl ActiveElections {
     /// 1) election is confirmed or expired
     /// 2) given election contains 10 blocks & new block didn't receive enough votes to replace existing blocks
     /// 3) given block is already in election & election contains less than 10 blocks (replacing block content with new)
-    fn publish(&self, fork: &Block, election_mutex: &Mutex<Election>) -> bool {
-        let mut election = election_mutex.lock().unwrap();
-
+    fn publish(&self, fork: &Block, election: &mut Election) -> bool {
         // Do not insert new blocks if already confirmed
         if election.is_confirmed() {
             return true;
@@ -275,17 +273,7 @@ impl ActiveElections {
         if election.last_blocks.len() >= Election::MAX_BLOCKS
             && !election.last_blocks.contains_key(&fork.hash())
         {
-            let fork_votes = self.vote_cache.lock().unwrap().find(&fork.hash());
-            let mut fork_tally = Amount::zero();
-            {
-                let weights = self.rep_weights.read();
-                for vote in fork_votes {
-                    fork_tally += weights
-                        .get(&vote.voting_account)
-                        .cloned()
-                        .unwrap_or_default();
-                }
-            }
+            let fork_tally = self.get_cached_tally(&fork.hash());
 
             let removed = election.remove_tally_below(fork_tally);
             if let Some(replaced) = removed {
@@ -319,6 +307,19 @@ impl ActiveElections {
         false
     }
 
+    fn get_cached_tally(&self, hash: &BlockHash) -> Amount {
+        let votes = self.vote_cache.lock().unwrap().find(hash);
+        let mut tally = Amount::zero();
+        let weights = self.rep_weights.read();
+        for vote in votes {
+            tally += weights
+                .get(&vote.voting_account)
+                .cloned()
+                .unwrap_or_default();
+        }
+        tally
+    }
+
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
     pub fn try_generate_vote(&self, election: &mut Election) {
@@ -329,32 +330,32 @@ impl ActiveElections {
     fn cleanup_election<'a>(
         &self,
         mut guard: MutexGuard<'a, ActiveElectionsState>,
-        election: &'a Arc<Mutex<Election>>,
+        election_mutex: &'a Arc<Mutex<Election>>,
     ) {
         // Keep track of election count by election type
-        *guard.count_by_behavior_mut(election.lock().unwrap().behavior) -= 1;
+        *guard.count_by_behavior_mut(election_mutex.lock().unwrap().behavior) -= 1;
 
         let election_winner: BlockHash;
         let election_state;
         let blocks;
         {
-            let election_guard = election.lock().unwrap();
+            let election_guard = election_mutex.lock().unwrap();
             blocks = election_guard.last_blocks.clone();
             election_winner = election_guard.winner_hash().unwrap();
             election_state = election_guard.state;
         }
 
-        self.vote_router.disconnect_election(election);
+        self.vote_router.disconnect_election(election_mutex);
 
-        let election_guard = election.lock().unwrap();
+        let election = election_mutex.lock().unwrap();
         // Erase root info
         let entry = guard
             .roots
-            .erase(election_guard.qualified_root())
+            .erase(election.qualified_root())
             .expect("election not found");
 
-        let state = election_guard.state;
-        drop(election_guard);
+        let state = election.state;
+        drop(election);
 
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
@@ -370,7 +371,7 @@ impl ActiveElections {
         self.stats
             .inc(StatType::ActiveElectionsStopped, state.into());
         self.stats
-            .inc(state.into(), election.lock().unwrap().behavior.into());
+            .inc(state.into(), election_mutex.lock().unwrap().behavior.into());
 
         debug!(
             "Erased election for blocks: {} (behavior: {:?}, state: {:?})",
@@ -379,7 +380,7 @@ impl ActiveElections {
                 .map(|k| k.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            election.lock().unwrap().behavior,
+            election_mutex.lock().unwrap().behavior,
             election_state
         );
         drop(guard);
@@ -388,7 +389,7 @@ impl ActiveElections {
         let election_duration;
         let qualified_root;
         {
-            let el = election.lock().unwrap();
+            let el = election_mutex.lock().unwrap();
             election_duration = el.duration();
             qualified_root = el.qualified_root().clone();
         }
@@ -406,7 +407,7 @@ impl ActiveElections {
 
         self.notify(AecEvent::VacancyUpdated);
 
-        let is_confirmed = election.lock().unwrap().is_confirmed();
+        let is_confirmed = election_mutex.lock().unwrap().is_confirmed();
         for (hash, block) in blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
             if !is_confirmed || hash != election_winner {
@@ -522,18 +523,20 @@ impl ActiveElections {
         (status, votes)
     }
 
-    pub fn publish_block(&self, fork: &Block) -> bool {
+    pub fn publish_fork(&self, fork: &Block) -> bool {
         let mut guard = self.mutex.lock().unwrap();
-        let root = fork.qualified_root();
         let mut result = false;
-        if let Some(entry) = guard.roots.get(&root) {
-            let election = entry.election.clone();
+        if let Some(entry) = guard.roots.get(&fork.qualified_root()) {
+            let election_mutex = entry.election.clone();
             drop(guard);
-            result = self.publish(fork, &election);
+            {
+                let mut election = election_mutex.lock().unwrap();
+                result = self.publish(fork, &mut election);
+            }
             if !result {
                 guard = self.mutex.lock().unwrap();
                 self.vote_router
-                    .connect(fork.hash(), Arc::downgrade(&election));
+                    .connect(fork.hash(), Arc::downgrade(&election_mutex));
                 drop(guard);
 
                 self.vote_cache_processor.trigger(fork.hash());
@@ -610,7 +613,7 @@ impl ActiveElections {
     pub fn handle_processed_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
         for (status, context) in batch {
             if *status == BlockStatus::Fork {
-                self.publish_block(&context.block);
+                self.publish_fork(&context.block);
             }
         }
     }
