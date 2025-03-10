@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_node::{
     consensus::{ElectionStatus, ElectionStatusType},
     NodeEvent, NodeEventHandler,
@@ -16,6 +17,7 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 pub(crate) struct HttpCallbacks {
     pub runtime: tokio::runtime::Handle,
     pub stats: Arc<Stats>,
+    pub ledger: Arc<Ledger>,
     pub callback_url: Url,
 }
 
@@ -84,8 +86,13 @@ impl HttpCallbacks {
 impl NodeEventHandler for HttpCallbacks {
     fn handle(&mut self, event: &NodeEvent) {
         match event {
-            NodeEvent::ElectionEnded(status, _votes, block, amount) => {
-                self.execute(status, block, *amount)
+            NodeEvent::ElectionEnded(status, _votes, block) => {
+                let amount = self
+                    .ledger
+                    .any()
+                    .block_amount_for(&block)
+                    .unwrap_or_default();
+                self.execute(status, block, amount)
             }
             _ => {}
         }

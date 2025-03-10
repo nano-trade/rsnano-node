@@ -10,6 +10,7 @@ serde_derive = "1"
 rsnano_nullable_http_client = { path = "../nullables/http_client" }
 rsnano_core = { path = "../core" }
 rsnano_stats = { path = "../stats" }
+rsnano_ledger = { path = "../ledger" }
 rsnano_node = { path = "../node" }
 rsnano_rpc_server = { path = "../rpc_server" }
 rsnano_websocket_server = { path = "../websocket_server" }

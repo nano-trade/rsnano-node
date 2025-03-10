@@ -97,6 +97,7 @@ impl DaemonBuilder {
             let http_callbacks = HttpCallbacks {
                 runtime: node.runtime.clone(),
                 stats: node.stats.clone(),
+                ledger: node.ledger.clone(),
                 callback_url,
             };
             event_processor.add(http_callbacks);

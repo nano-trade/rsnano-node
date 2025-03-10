@@ -16,7 +16,7 @@ use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
     Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger};
+use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
@@ -70,7 +70,7 @@ impl Default for ActiveElectionsConfig {
 pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
-    ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock, Amount),
+    ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock),
     VacancyUpdated,
 }
 
@@ -172,21 +172,7 @@ impl ActiveElections {
             .unwrap()
             .push_back(status.clone());
 
-        // Trigger callback for confirmed block
-        let amount = self.ledger.any().block_amount_for(&block);
-
-        self.notify(AecEvent::ElectionEnded(
-            status,
-            Vec::new(),
-            block,
-            amount.unwrap_or_default(),
-        ));
-    }
-
-    fn notify(&self, event: AecEvent) {
-        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-            sender.send(event).unwrap()
-        }
+        self.notify(AecEvent::ElectionEnded(status, Vec::new(), block));
     }
 
     pub fn recently_cemented_list(&self) -> BoundedVecDeque<ElectionStatus> {
@@ -195,12 +181,7 @@ impl ActiveElections {
 
     //--------------------------------------------------------------------------------
 
-    fn notify_observers(
-        &self,
-        any: &impl AnySet,
-        status: ElectionStatus,
-        votes: Vec<VoteWithWeightInfo>,
-    ) {
+    fn notify_observers(&self, status: ElectionStatus, votes: Vec<VoteWithWeightInfo>) {
         let block = status.winner.as_ref().unwrap();
         let MaybeSavedBlock::Saved(block) = block else {
             return;
@@ -226,18 +207,7 @@ impl ActiveElections {
             _ => {}
         }
 
-        let amount = any.block_amount_for(&block).unwrap_or_default();
-
-        self.notify(AecEvent::ElectionEnded(status, votes, block, amount));
-    }
-
-    pub fn remove_block(&self, election: &mut Election, hash: &BlockHash) {
-        if election.winner_hash().unwrap() != *hash {
-            if let Some(existing) = election.last_blocks.remove(hash) {
-                election.last_votes.retain(|_, v| v.hash != *hash);
-                self.clear_publish_filter(&existing);
-            }
-        }
+        self.notify(AecEvent::ElectionEnded(status, votes, block));
     }
 
     fn clear_publish_filter(&self, block: &Block) {
@@ -364,11 +334,17 @@ impl ActiveElections {
         (replaced, election)
     }
 
+    fn remove_block(&self, election: &mut Election, hash: &BlockHash) {
+        if let Some(block) = election.remove_block(hash) {
+            self.clear_publish_filter(&block);
+        }
+    }
+
     /// Result is true if:
     /// 1) election is confirmed or expired
     /// 2) given election contains 10 blocks & new block didn't receive enough votes to replace existing blocks
-    /// 3) given block in already in election & election contains less than 10 blocks (replacing block content with new)
-    fn publish(&self, block: &Block, election_mutex: &Mutex<Election>) -> bool {
+    /// 3) given block is already in election & election contains less than 10 blocks (replacing block content with new)
+    fn publish(&self, fork: &Block, election_mutex: &Mutex<Election>) -> bool {
         let mut election = election_mutex.lock().unwrap();
 
         // Do not insert new blocks if already confirmed
@@ -377,24 +353,24 @@ impl ActiveElections {
         }
 
         if election.last_blocks.len() >= ELECTION_MAX_BLOCKS
-            && !election.last_blocks.contains_key(&block.hash())
+            && !election.last_blocks.contains_key(&fork.hash())
         {
-            let (replaced, guard) = self.replace_by_weight(election_mutex, election, &block.hash());
+            let (replaced, guard) = self.replace_by_weight(election_mutex, election, &fork.hash());
             election = guard;
             if !replaced {
-                self.clear_publish_filter(block);
+                self.clear_publish_filter(fork);
                 return true;
             }
         }
 
-        if election.last_blocks.get(&block.hash()).is_some() {
+        if election.last_blocks.get(&fork.hash()).is_some() {
             election
                 .last_blocks
-                .insert(block.hash(), MaybeSavedBlock::Unsaved(block.clone()));
+                .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
-            if election.winner_hash().unwrap() == block.hash() {
-                election.set_winner(MaybeSavedBlock::Unsaved(block.clone()));
-                let message = Message::Publish(Publish::new_forward(block.clone()));
+            if election.winner_hash().unwrap() == fork.hash() {
+                election.set_winner(MaybeSavedBlock::Unsaved(fork.clone()));
+                let message = Message::Publish(Publish::new_forward(fork.clone()));
                 let mut publisher = self.message_flooder.lock().unwrap();
                 publisher.flood(&message, TrafficType::BlockBroadcast, 1.0);
             }
@@ -404,7 +380,7 @@ impl ActiveElections {
 
         election
             .last_blocks
-            .insert(block.hash(), MaybeSavedBlock::Unsaved(block.clone()));
+            .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
         false
     }
@@ -612,25 +588,25 @@ impl ActiveElections {
         (status, votes)
     }
 
-    pub fn publish_block(&self, block: &Block) -> bool {
+    pub fn publish_block(&self, fork: &Block) -> bool {
         let mut guard = self.mutex.lock().unwrap();
-        let root = block.qualified_root();
-        let mut result = true;
+        let root = fork.qualified_root();
+        let mut result = false;
         if let Some(entry) = guard.roots.get(&root) {
             let election = entry.election.clone();
             drop(guard);
-            result = self.publish(block, &election);
+            result = self.publish(fork, &election);
             if !result {
                 guard = self.mutex.lock().unwrap();
                 self.vote_router
-                    .connect(block.hash(), Arc::downgrade(&election));
+                    .connect(fork.hash(), Arc::downgrade(&election));
                 drop(guard);
 
-                self.vote_cache_processor.trigger(block.hash());
+                self.vote_cache_processor.trigger(fork.hash());
 
                 self.stats
                     .inc(StatType::Active, DetailType::ElectionBlockConflict);
-                debug!("Block was added to an existing election: {}", block.hash());
+                debug!("Block was added to an existing election: {}", fork.hash());
             }
         }
 
@@ -697,6 +673,14 @@ impl ActiveElections {
         result
     }
 
+    pub fn handle_processed_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+        for (status, context) in batch {
+            if *status == BlockStatus::Fork {
+                self.publish_block(&context.block);
+            }
+        }
+    }
+
     pub fn handle_cementations(&self, cemented: &VecDeque<CementingContext>) {
         let mut results = Vec::new();
         {
@@ -716,19 +700,17 @@ impl ActiveElections {
         }
 
         // TODO: This could be offloaded to a separate notification worker, profiling is needed
-        let mut any = self.ledger.any();
         for (status, votes) in results {
-            any.refresh_if_needed();
-            self.notify_observers(&any, status, votes);
+            self.notify_observers(status, votes);
         }
     }
 
-    pub fn handle_processed_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
-        for (status, context) in batch {
-            if *status == BlockStatus::Fork {
-                self.publish_block(&context.block);
-            }
-        }
+    pub fn stop(&self) {
+        self.mutex.lock().unwrap().stopped = true;
+        self.condition.notify_all();
+        self.clear();
+        // destroy send queue so that the receiver thread will be stopped too
+        drop(self.event_sender.write().unwrap().take())
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -766,12 +748,10 @@ impl ActiveElections {
             .finish()
     }
 
-    pub fn stop(&self) {
-        self.mutex.lock().unwrap().stopped = true;
-        self.condition.notify_all();
-        self.clear();
-        // destroy send queue so that the receiver thread will be stopped too
-        drop(self.event_sender.write().unwrap().take())
+    fn notify(&self, event: AecEvent) {
+        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
+            sender.send(event).unwrap()
+        }
     }
 }
 

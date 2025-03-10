@@ -1,6 +1,6 @@
 use super::WebsocketListener;
 use rsnano_core::{Account, BlockHash, Vote, VoteCode};
-use rsnano_ledger::BlockStatus;
+use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
     block_processing::BlockContext, config::WebsocketConfig, CompositeNodeEventHandler, Node,
@@ -39,6 +39,7 @@ pub fn create_websocket_server(
 
     event_handlers.add(NodeEventProcessor {
         server: server.clone(),
+        ledger: node.ledger.clone(),
     });
 
     let server_w = Arc::downgrade(&server);
@@ -195,6 +196,7 @@ pub struct VoteReceived {
 
 pub struct NodeEventProcessor {
     server: Arc<WebsocketListener>,
+    ledger: Arc<Ledger>,
 }
 
 impl NodeEventHandler for NodeEventProcessor {
@@ -210,7 +212,13 @@ impl NodeEventHandler for NodeEventProcessor {
                     self.server.broadcast(&stopped_election(&hash));
                 }
             }
-            NodeEvent::ElectionEnded(status, votes, block, amount) => {
+            NodeEvent::ElectionEnded(status, votes, block) => {
+                let amount = self
+                    .ledger
+                    .any()
+                    .block_amount_for(&block)
+                    .unwrap_or_default();
+
                 self.server
                     .broadcast_confirmation(block, &amount, status, votes);
             }

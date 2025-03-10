@@ -32,9 +32,9 @@ impl AecEventProcessor {
                     }
                 }
 
-                AecEvent::ElectionEnded(status, votes, block, amount) => {
+                AecEvent::ElectionEnded(status, votes, block) => {
                     if let Some(tx) = &self.node_event_sender {
-                        tx.send(NodeEvent::ElectionEnded(status, votes, block, amount))
+                        tx.send(NodeEvent::ElectionEnded(status, votes, block))
                             .unwrap();
                     }
                 }

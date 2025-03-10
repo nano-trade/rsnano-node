@@ -347,6 +347,18 @@ impl Election {
             .collect();
         result
     }
+
+    pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
+        if self.winner_hash().unwrap_or_default() != *hash {
+            let existing = self.last_blocks.remove(hash);
+            if existing.is_some() {
+                self.last_votes.retain(|_, v| v.hash != *hash);
+                return existing;
+            }
+        }
+
+        None
+    }
 }
 
 #[derive(Clone)]

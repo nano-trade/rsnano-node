@@ -3749,6 +3749,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "rsnano_core",
+ "rsnano_ledger",
  "rsnano_node",
  "rsnano_nullable_http_client",
  "rsnano_rpc_server",
