@@ -12,8 +12,8 @@ use crate::{
 
 use super::{ActiveElections, ConfirmationSolicitor, ElectionState};
 
-/// Requests confirmations for active elections from peered representatives
-pub(crate) struct ConfirmationRequester {
+/// Periodically tries to transitions election state and send votes + blocks
+pub(crate) struct ActiveElectionsDriver {
     pub active_elections: Arc<ActiveElections>,
     pub stats: Arc<Stats>,
     pub message_flooder: MessageFlooder,
@@ -22,7 +22,7 @@ pub(crate) struct ConfirmationRequester {
     pub network: Arc<RwLock<Network>>,
 }
 
-impl Runnable for ConfirmationRequester {
+impl Runnable for ActiveElectionsDriver {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::Active, DetailType::Loop);
         let elections = self.active_elections.get_all();

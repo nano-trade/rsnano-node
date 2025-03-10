@@ -46,7 +46,7 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ConfirmationRequester, ElectionStatus, LocalVoteHistory,
+        ActiveElections, ActiveElectionsDriver, ElectionStatus, LocalVoteHistory,
         RecentlyConfirmedCache, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
@@ -143,7 +143,7 @@ pub struct Node {
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
     pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    confirmation_requester: TimerThread<ConfirmationRequester>,
+    active_elections_driver: TimerThread<ActiveElectionsDriver>,
 }
 
 pub(crate) struct NodeArgs {
@@ -559,7 +559,7 @@ impl Node {
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
 
-        let confirmation_requester = ConfirmationRequester {
+        let confirmation_requester = ActiveElectionsDriver {
             active_elections: active_elections.clone(),
             stats: stats.clone(),
             message_flooder: message_flooder.clone(),
@@ -1264,7 +1264,7 @@ impl Node {
             vote_rebroadcaster,
             tokio_runner,
             recently_confirmed,
-            confirmation_requester: TimerThread::new("Request loop", confirmation_requester),
+            active_elections_driver: TimerThread::new("Request loop", confirmation_requester),
         }
     }
 
@@ -1522,7 +1522,7 @@ impl Node {
         self.vote_cache_processor.start();
         self.block_processor.start();
         if !self.flags.disable_request_loop {
-            self.confirmation_requester
+            self.active_elections_driver
                 .start(self.network_params.network.aec_loop_interval);
         }
         self.vote_generators.start();
@@ -1594,7 +1594,7 @@ impl Node {
         self.vote_processor.stop();
         self.rep_tiers.stop();
         self.election_schedulers.stop();
-        self.confirmation_requester.stop();
+        self.active_elections_driver.stop();
         self.active.stop();
         self.vote_generators.stop();
         self.confirming_set.stop();

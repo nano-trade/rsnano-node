@@ -1,8 +1,8 @@
 mod active_elections;
+mod active_elections_driver;
 mod bootstrap_weights;
 mod bucket;
 mod bucketing;
-mod confirmation_requester;
 mod confirmation_solicitor;
 mod election;
 pub mod election_schedulers;
@@ -21,10 +21,10 @@ mod vote_processor_queue;
 mod vote_router;
 
 pub use active_elections::*;
+pub(crate) use active_elections_driver::ActiveElectionsDriver;
 pub(crate) use bootstrap_weights::*;
 pub use bucket::*;
 pub use bucketing::Bucketing;
-pub(crate) use confirmation_requester::ConfirmationRequester;
 pub use confirmation_solicitor::ConfirmationSolicitor;
 pub use election::*;
 pub use election_status::{ElectionStatus, ElectionStatusType};
