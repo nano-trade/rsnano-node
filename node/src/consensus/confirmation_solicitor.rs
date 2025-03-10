@@ -59,8 +59,8 @@ impl ConfirmationSolicitor {
         self.prepared = true;
     }
 
-    /// Broadcast the winner of an election if the broadcast limit has not been reached. Returns false if the broadcast was performed
-    pub fn broadcast(&mut self, election: &Election) -> Result<(), ()> {
+    /// Broadcast the winner block of an election if the broadcast limit has not been reached.
+    pub fn broadcast_winner_block(&mut self, election: &Election) -> Result<(), ()> {
         debug_assert!(self.prepared);
         self.rebroadcasted += 1;
         if self.rebroadcasted >= self.max_block_broadcasts {

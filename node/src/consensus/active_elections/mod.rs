@@ -419,16 +419,18 @@ impl ActiveElections {
         result
     }
 
-    fn broadcast_block(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
-        if self.broadcast_block_predicate(election) {
-            if solicitor.broadcast(election).is_ok() {
-                let last_block_hash = election.last_block_hash;
-                election.set_last_block();
-                election.last_block_hash = election.winner_hash().unwrap();
+    fn try_broadcast_winner_block(
+        &self,
+        solicitor: &mut ConfirmationSolicitor,
+        election: &mut Election,
+    ) {
+        if self.should_broadcast_block(election) {
+            if solicitor.broadcast_winner_block(election).is_ok() {
+                let is_initial = election.winner_block_broadcasted();
 
                 self.stats.inc(
                     StatType::Election,
-                    if last_block_hash.is_zero() {
+                    if is_initial {
                         DetailType::BroadcastBlockInitial
                     } else {
                         DetailType::BroadcastBlockRepeat
@@ -482,7 +484,7 @@ impl ActiveElections {
         }
     }
 
-    /// Erase all blocks from active and, if not confirmed, clear digests from network filters
+    /// Erase all blocks from active, if not confirmed, clear digests from network filters
     fn cleanup_election<'a>(
         &self,
         mut guard: MutexGuard<'a, ActiveElectionsState>,
@@ -596,13 +598,15 @@ impl ActiveElections {
         }
     }
 
-    fn broadcast_block_predicate(&self, election: &Election) -> bool {
+    fn should_broadcast_block(&self, election: &Election) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
-        if election.last_block_elapsed() < self.network_params.network.block_broadcast_interval {
+        if election.time_since_last_block_broadcast()
+            < self.network_params.network.block_broadcast_interval
+        {
             true
         }
         // Or the current election winner has changed
-        else if election.winner_hash().unwrap() != election.last_block_hash {
+        else if election.winner_hash().unwrap() != election.last_broadcasted_block {
             true
         } else {
             false
@@ -663,12 +667,12 @@ impl ActiveElections {
             }
             ElectionState::Active => {
                 self.try_generate_vote(election);
-                self.broadcast_block(solicitor, election);
+                self.try_broadcast_winner_block(solicitor, election);
                 self.send_confirm_req(solicitor, election);
             }
             ElectionState::Confirmed => {
                 should_remove = true; // Return true to indicate this election should be cleaned up
-                self.broadcast_block(solicitor, election); // Ensure election winner is broadcasted
+                self.try_broadcast_winner_block(solicitor, election); // Ensure election winner is broadcasted
                 election
                     .state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
                     .unwrap();

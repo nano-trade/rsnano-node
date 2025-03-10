@@ -61,7 +61,7 @@ fn batches() {
                 .stats
                 .count(StatType::Message, DetailType::Publish, Direction::Out)
         );
-        solicitor.broadcast(&election).unwrap();
+        solicitor.broadcast_winner_block(&election).unwrap();
     }
     // One publish through directed broadcasting and another through random flooding
     assert_eq!(
@@ -120,7 +120,7 @@ fn different_hashes() {
         .insert(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&data), true);
-    solicitor.broadcast(&data).unwrap();
+    solicitor.broadcast_winner_block(&data).unwrap();
     // One publish through directed broadcasting and another through random flooding
 
     assert_eq!(
@@ -180,7 +180,7 @@ fn bypass_max_requests_cap() {
     }
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);
-    solicitor.broadcast(&election).unwrap();
+    solicitor.broadcast_winner_block(&election).unwrap();
     // All requests went through, the last one would normally not go through due to the cap but a vote for a different hash does not count towards the cap
     // TODO port remainder of test!
 }

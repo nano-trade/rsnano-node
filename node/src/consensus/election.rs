@@ -25,12 +25,12 @@ pub struct Election {
 
     /// The last time a vote for this election was generated
     pub last_vote: Option<Instant>,
-    pub last_block_hash: BlockHash,
+    pub last_broadcasted_block: BlockHash,
     pub behavior: ElectionBehavior,
     is_quorum: bool,
     last_req: Option<Instant>,
     pub confirmation_request_count: u32,
-    last_block: Instant,
+    last_block_broadcast: Instant,
     election_start: Instant,
 }
 
@@ -54,12 +54,12 @@ impl Election {
             last_tally: HashMap::new(),
             final_weight: Amount::zero(),
             last_vote: None,
-            last_block_hash: BlockHash::zero(),
+            last_broadcasted_block: BlockHash::zero(),
             behavior,
             is_quorum: false,
             last_req: None,
             confirmation_request_count: 0,
-            last_block: Instant::now(),
+            last_block_broadcast: Instant::now(),
             election_start: Instant::now(),
         }
     }
@@ -130,12 +130,16 @@ impl Election {
         )
     }
 
-    pub fn set_last_block(&mut self) {
-        self.last_block = Instant::now();
+    /// Returns true, if it was the initial broadcast
+    pub fn winner_block_broadcasted(&mut self) -> bool {
+        let is_initial_broadcast = self.last_broadcasted_block.is_zero();
+        self.last_block_broadcast = Instant::now();
+        self.last_broadcasted_block = self.winner_hash().unwrap();
+        is_initial_broadcast
     }
 
-    pub fn last_block_elapsed(&self) -> Duration {
-        self.last_block.elapsed()
+    pub fn time_since_last_block_broadcast(&self) -> Duration {
+        self.last_block_broadcast.elapsed()
     }
 
     pub fn winner_hash(&self) -> Option<BlockHash> {
