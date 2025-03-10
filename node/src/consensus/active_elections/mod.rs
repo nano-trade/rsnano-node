@@ -163,18 +163,6 @@ impl ActiveElections {
         self.recently_cemented.lock().unwrap().len()
     }
 
-    pub fn insert_recently_cemented(&self, status: ElectionStatus) {
-        let MaybeSavedBlock::Saved(block) = status.winner.clone().unwrap() else {
-            return;
-        };
-        self.recently_cemented
-            .lock()
-            .unwrap()
-            .push_back(status.clone());
-
-        self.notify(AecEvent::ElectionEnded(status, Vec::new(), block));
-    }
-
     pub fn recently_cemented_list(&self) -> BoundedVecDeque<ElectionStatus> {
         self.recently_cemented.lock().unwrap().clone()
     }
