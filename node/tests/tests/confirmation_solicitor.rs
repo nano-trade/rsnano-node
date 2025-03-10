@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, Amount, PublicKey};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_PUB_KEY};

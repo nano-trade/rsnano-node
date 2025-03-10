@@ -28,7 +28,7 @@ impl ActiveElectionsDriver {
         solicitor: &mut ConfirmationSolicitor,
         election: &mut Election,
     ) {
-        if self.active_elections.should_broadcast_block(election) {
+        if election.should_broadcast_winner_block() {
             if solicitor.broadcast_winner_block(election).is_ok() {
                 let is_initial = election.winner_block_broadcasted();
 
@@ -45,7 +45,7 @@ impl ActiveElectionsDriver {
     }
 
     fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
-        if election.confirm_req_interval() < election.last_confirm_request_elapsed() {
+        if election.should_send_confirm_req() {
             if solicitor.add(election) {
                 election.confirm_request_sent();
                 self.stats

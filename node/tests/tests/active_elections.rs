@@ -1133,16 +1133,9 @@ fn list_active() {
     let open = process_open_block(node.clone(), key);
 
     start_elections(&node, &[send.hash(), send2.hash(), open.hash()], false);
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 3);
+    assert_timely_eq2(|| node.active.len(), 3);
 
-    assert_eq!(node.active.list_active(1).len(), 1);
-    assert_eq!(node.active.list_active(2).len(), 2);
-    assert_eq!(node.active.list_active(3).len(), 3);
-    assert_eq!(node.active.list_active(4).len(), 3);
-    assert_eq!(node.active.list_active(99999).len(), 3);
-    assert_eq!(node.active.list_active(usize::MAX).len(), 3);
-
-    node.active.list_active(usize::MAX);
+    assert_eq!(node.active.get_all().len(), 3);
 }
 
 #[test]

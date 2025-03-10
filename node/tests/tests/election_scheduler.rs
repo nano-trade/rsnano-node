@@ -316,14 +316,6 @@ mod election_scheduler {
             election.lock().unwrap().behavior,
             ElectionBehavior::Priority
         );
-        assert_eq!(
-            1,
-            node.stats.count(
-                StatType::ActiveElections,
-                DetailType::TransitionPriority,
-                Direction::In
-            )
-        );
         // Verify vote broadcast after transitioning
         assert_timely_eq2(|| election.lock().unwrap().status.vote_broadcast_count, 2);
         assert!(node.active.active(block));

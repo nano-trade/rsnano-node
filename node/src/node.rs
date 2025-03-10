@@ -46,11 +46,11 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, ElectionStatus, LocalVoteHistory,
-        RecentlyConfirmedCache, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, VoteRouter,
+        ActiveElections, ActiveElectionsDriver, ElectionConfig, ElectionStatus, ElectionVoter,
+        LocalVoteHistory, RecentlyConfirmedCache, RepTiers, RequestAggregator,
+        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
+        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
     },
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
@@ -539,14 +539,21 @@ impl Node {
             config.vote_processor.clone(),
         ));
 
+        let election_voter = ElectionVoter {
+            stats: stats.clone(),
+            node_config: config.clone(),
+            wallets: wallets.clone(),
+            vote_applier: vote_applier.clone(),
+            vote_generators: vote_generators.clone(),
+        };
+
+        let election_config = ElectionConfig::default_for(network_params.network.current_network);
+
         let (aec_sender, aec_receiver) = std::sync::mpsc::sync_channel(128);
         let mut active_elections = ActiveElections::new(
-            network_params.clone(),
-            wallets.clone(),
             config.clone(),
             ledger.clone(),
             confirming_set.clone(),
-            vote_generators.clone(),
             network_filter.clone(),
             vote_cache.clone(),
             stats.clone(),
@@ -555,6 +562,8 @@ impl Node {
             vote_router.clone(),
             vote_cache_processor.clone(),
             message_flooder.clone(),
+            election_voter,
+            election_config,
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
