@@ -14,7 +14,7 @@ use tracing::{debug, trace};
 
 use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
-    Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
+    Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, RepWeightCache};
 use rsnano_messages::{Message, NetworkFilter, Publish};
@@ -32,8 +32,6 @@ use crate::{
     consensus::VoteApplierExt,
     transport::MessageFlooder,
 };
-
-const ELECTION_MAX_BLOCKS: usize = 10;
 
 pub type ElectionEndCallback =
     Box<dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount) + Send + Sync>;
@@ -274,11 +272,23 @@ impl ActiveElections {
             return true;
         }
 
-        if election.last_blocks.len() >= ELECTION_MAX_BLOCKS
+        if election.last_blocks.len() >= Election::MAX_BLOCKS
             && !election.last_blocks.contains_key(&fork.hash())
         {
-            let replaced = self.replace_by_weight(&mut election, &fork.hash());
-            if let Some(replaced) = replaced {
+            let fork_votes = self.vote_cache.lock().unwrap().find(&fork.hash());
+            let mut fork_tally = Amount::zero();
+            {
+                let weights = self.rep_weights.read();
+                for vote in fork_votes {
+                    fork_tally += weights
+                        .get(&vote.voting_account)
+                        .cloned()
+                        .unwrap_or_default();
+                }
+            }
+
+            let removed = election.remove_tally_below(fork_tally);
+            if let Some(replaced) = removed {
                 self.vote_router.disconnect(&replaced.hash());
                 self.clear_publish_filter(&replaced);
             } else {
@@ -307,64 +317,6 @@ impl ActiveElections {
             .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
         false
-    }
-
-    fn replace_by_weight<'a>(
-        &self,
-        election: &mut Election,
-        fork_hash: &BlockHash,
-    ) -> Option<MaybeSavedBlock> {
-        let mut replaced_block_hash = BlockHash::zero();
-        let winner_hash = election.winner_hash().unwrap();
-        // Sort existing blocks tally
-        let mut sorted: Vec<_> = election
-            .last_tally
-            .iter()
-            .map(|(hash, amount)| (*hash, *amount))
-            .collect();
-
-        // Sort in ascending order
-        sorted.sort_by(|left, right| right.cmp(left));
-
-        let weights = self.rep_weights.read();
-        let votes_tally = |votes: &[Arc<Vote>]| {
-            let mut result = Amount::zero();
-            for vote in votes {
-                result += weights
-                    .get(&vote.voting_account)
-                    .cloned()
-                    .unwrap_or_default();
-            }
-            result
-        };
-
-        // Replace if lowest tally is below inactive cache new block weight
-        let inactive_existing = self.vote_cache.lock().unwrap().find(fork_hash);
-        let inactive_tally = votes_tally(&inactive_existing);
-        if inactive_tally > Amount::zero() && sorted.len() < ELECTION_MAX_BLOCKS {
-            // If count of tally items is less than 10, remove any block without tally
-            for (hash, _) in &election.last_blocks {
-                if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
-                    replaced_block_hash = *hash;
-                    break;
-                }
-            }
-        } else if inactive_tally > Amount::zero() && inactive_tally > sorted.first().unwrap().1 {
-            if sorted.first().unwrap().0 != winner_hash {
-                replaced_block_hash = sorted[0].0;
-            } else if inactive_tally > sorted[1].1 {
-                // Avoid removing winner
-                replaced_block_hash = sorted[1].0;
-            }
-        }
-
-        let replaced = if !replaced_block_hash.is_zero() {
-            election.remove_block(&replaced_block_hash)
-        } else {
-            None
-        };
-
-        replaced
     }
 
     /// Broadcasts vote for the current winner of this election

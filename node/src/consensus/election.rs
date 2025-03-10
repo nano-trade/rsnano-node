@@ -69,6 +69,7 @@ pub struct Election {
 
 impl Election {
     const PASSIVE_DURATION_FACTOR: u32 = 5;
+    pub const MAX_BLOCKS: usize = 10;
 
     pub fn new(block: SavedBlock, behavior: ElectionBehavior, config: ElectionConfig) -> Self {
         Self {
@@ -346,6 +347,46 @@ impl Election {
             .flatten()
             .collect();
         result
+    }
+
+    pub fn remove_tally_below(&mut self, min_tally: Amount) -> Option<MaybeSavedBlock> {
+        let mut removed_block_hash = BlockHash::zero();
+        let winner_hash = self.winner_hash().unwrap();
+        // Sort existing blocks tally
+        let mut sorted: Vec<_> = self
+            .last_tally
+            .iter()
+            .map(|(hash, amount)| (*hash, *amount))
+            .collect();
+
+        // Sort in ascending order
+        sorted.sort_by(|left, right| right.cmp(left));
+
+        // Replace if lowest tally is below inactive cache new block weight
+        if min_tally > Amount::zero() && sorted.len() < Self::MAX_BLOCKS {
+            // If count of tally items is less than 10, remove any block without tally
+            for (hash, _) in &self.last_blocks {
+                if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
+                    removed_block_hash = *hash;
+                    break;
+                }
+            }
+        } else if min_tally > Amount::zero() && min_tally > sorted.first().unwrap().1 {
+            if sorted.first().unwrap().0 != winner_hash {
+                removed_block_hash = sorted[0].0;
+            } else if min_tally > sorted[1].1 {
+                // Avoid removing winner
+                removed_block_hash = sorted[1].0;
+            }
+        }
+
+        let removed = if !removed_block_hash.is_zero() {
+            self.remove_block(&removed_block_hash)
+        } else {
+            None
+        };
+
+        removed
     }
 
     pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
