@@ -23,9 +23,8 @@ use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionStatus,
-    ElectionStatusType, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor,
-    VoteGenerators, VoteRouter,
+    Election, ElectionBehavior, ElectionConfig, ElectionStatus, ElectionStatusType,
+    RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter,
 };
 use crate::{
     block_processing::BlockContext,
@@ -123,6 +122,8 @@ impl ActiveElections {
             Duration::from_millis(1000)
         };
 
+        let election_config = ElectionConfig { base_latency };
+
         Self {
             mutex: Mutex::new(ActiveElectionsState {
                 roots: RootContainer::default(),
@@ -131,7 +132,7 @@ impl ActiveElections {
                 priority_count: 0,
                 hinted_count: 0,
                 optimistic_count: 0,
-                base_latency,
+                config: election_config,
                 stats: stats.clone(),
             }),
             condition: Condvar::new(),
@@ -424,27 +425,6 @@ impl ActiveElections {
         result
     }
 
-    pub fn try_broadcast_winner_block(
-        &self,
-        solicitor: &mut ConfirmationSolicitor,
-        election: &mut Election,
-    ) {
-        if self.should_broadcast_block(election) {
-            if solicitor.broadcast_winner_block(election).is_ok() {
-                let is_initial = election.winner_block_broadcasted();
-
-                self.stats.inc(
-                    StatType::Election,
-                    if is_initial {
-                        DetailType::BroadcastBlockInitial
-                    } else {
-                        DetailType::BroadcastBlockRepeat
-                    },
-                );
-            }
-        }
-    }
-
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
     pub fn try_generate_vote(&self, election: &mut Election) {
@@ -584,24 +564,20 @@ impl ActiveElections {
         }
     }
 
-    fn should_broadcast_block(&self, election: &Election) -> bool {
+    pub fn should_broadcast_block(&self, election: &Election) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
         if election.time_since_last_block_broadcast()
             < self.network_params.network.block_broadcast_interval
         {
             true
-        }
-        // Or the current election winner has changed
-        else if election.winner_hash().unwrap() != election.last_broadcasted_block {
-            true
         } else {
-            false
+            // Or the current election winner has changed
+            election.winner_hash().unwrap() != election.last_broadcasted_block
         }
     }
 
     pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
-        let guard = self.mutex.lock().unwrap();
-        guard.election(root)
+        self.mutex.lock().unwrap().election(root)
     }
 
     pub fn get_all(&self) -> Vec<Arc<Mutex<Election>>> {
@@ -634,16 +610,6 @@ impl ActiveElections {
             true
         } else {
             false
-        }
-    }
-
-    pub fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
-        if election.confirm_req_interval() < election.last_confirm_request_elapsed() {
-            if solicitor.add(election) {
-                election.confirm_request_sent();
-                self.stats
-                    .inc(StatType::Election, DetailType::ConfirmationRequest);
-            }
         }
     }
 
@@ -936,7 +902,7 @@ pub struct ActiveElectionsState {
     priority_count: usize,
     hinted_count: usize,
     optimistic_count: usize,
-    base_latency: Duration,
+    config: ElectionConfig,
     stats: Arc<Stats>,
 }
 
@@ -1000,7 +966,7 @@ impl ActiveElectionsState {
             let election = Arc::new(Mutex::new(Election::new(
                 block,
                 election_behavior,
-                self.base_latency,
+                self.config.clone(),
             )));
 
             self.roots.insert(Entry {

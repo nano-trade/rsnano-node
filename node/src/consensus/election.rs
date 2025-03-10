@@ -14,6 +14,20 @@ use rsnano_stats::{DetailType, StatType};
 use super::{ElectionStatus, ElectionStatusType, TallyKey};
 use crate::utils::HardenedConstants;
 
+#[derive(Clone)]
+pub struct ElectionConfig {
+    /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
+    pub base_latency: Duration,
+}
+
+impl Default for ElectionConfig {
+    fn default() -> Self {
+        Self {
+            base_latency: Duration::from_millis(1000),
+        }
+    }
+}
+
 pub struct Election {
     qualified_root: QualifiedRoot,
     pub status: ElectionStatus,
@@ -32,14 +46,13 @@ pub struct Election {
     pub confirmation_request_count: u32,
     last_block_broadcast: Instant,
     election_start: Instant,
-    /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
-    base_latency: Duration,
+    config: ElectionConfig,
 }
 
 impl Election {
     const PASSIVE_DURATION_FACTOR: u32 = 5;
 
-    pub fn new(block: SavedBlock, behavior: ElectionBehavior, base_latency: Duration) -> Self {
+    pub fn new(block: SavedBlock, behavior: ElectionBehavior, config: ElectionConfig) -> Self {
         Self {
             qualified_root: block.qualified_root(),
             status: ElectionStatus {
@@ -65,7 +78,7 @@ impl Election {
             confirmation_request_count: 0,
             last_block_broadcast: Instant::now(),
             election_start: Instant::now(),
-            base_latency,
+            config,
         }
     }
 
@@ -80,7 +93,7 @@ impl Election {
     pub fn transition_time(&mut self) {
         match self.state {
             ElectionState::Passive => {
-                if self.base_latency * Self::PASSIVE_DURATION_FACTOR < self.duration() {
+                if self.config.base_latency * Self::PASSIVE_DURATION_FACTOR < self.duration() {
                     self.state_change(ElectionState::Passive, ElectionState::Active)
                         .unwrap();
                 }
@@ -112,9 +125,9 @@ impl Election {
     pub fn confirm_req_interval(&self) -> Duration {
         match self.behavior {
             ElectionBehavior::Priority | ElectionBehavior::Manual | ElectionBehavior::Hinted => {
-                self.base_latency * 5
+                self.config.base_latency * 5
             }
-            ElectionBehavior::Optimistic => self.base_latency * 2,
+            ElectionBehavior::Optimistic => self.config.base_latency * 2,
         }
     }
 
