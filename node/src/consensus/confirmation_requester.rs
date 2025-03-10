@@ -10,7 +10,7 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 
-use super::{ActiveElections, ConfirmationSolicitor};
+use super::{ActiveElections, ConfirmationSolicitor, ElectionState};
 
 /// Requests confirmations for active elections from peered representatives
 pub(crate) struct ConfirmationRequester {
@@ -41,18 +41,37 @@ impl Runnable for ConfirmationRequester {
          * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
          * Flushed elections are later re-activated via frontier confirmation
          */
-        for election in elections {
-            let should_remove;
+        for election_mutex in elections {
             let root;
+            let new_state;
             {
-                let mut election_guard = election.lock().unwrap();
-                should_remove = self
-                    .active_elections
-                    .transition_time(&mut solicitor, &mut election_guard);
-                root = election_guard.qualified_root().clone();
+                let mut election = election_mutex.lock().unwrap();
+                let old_state = election.state;
+
+                election.transition_time();
+
+                root = election.qualified_root().clone();
+                new_state = election.state;
+
+                match new_state {
+                    ElectionState::Active => {
+                        self.active_elections.try_generate_vote(&mut election);
+                        self.active_elections
+                            .try_broadcast_winner_block(&mut solicitor, &mut election);
+                        self.active_elections
+                            .send_confirm_req(&mut solicitor, &mut election);
+                    }
+                    _ => {}
+                }
+
+                if old_state == ElectionState::Confirmed {
+                    self.active_elections
+                        .try_broadcast_winner_block(&mut solicitor, &mut election);
+                    // Ensure election winner is broadcasted
+                }
             };
 
-            if should_remove {
+            if new_state.has_ended() {
                 self.active_elections.erase(&root);
             }
         }

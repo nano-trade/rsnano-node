@@ -23,9 +23,9 @@ use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionState,
-    ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier, VoteCache,
-    VoteCacheProcessor, VoteGenerators, VoteRouter,
+    confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionStatus,
+    ElectionStatusType, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor,
+    VoteGenerators, VoteRouter,
 };
 use crate::{
     block_processing::BlockContext,
@@ -101,8 +101,6 @@ pub struct ActiveElections {
 }
 
 impl ActiveElections {
-    const PASSIVE_DURATION_FACTOR: u32 = 5;
-
     pub(crate) fn new(
         network_params: NetworkParams,
         wallets: Arc<Wallets>,
@@ -119,6 +117,12 @@ impl ActiveElections {
         vote_cache_processor: Arc<VoteCacheProcessor>,
         message_flooder: MessageFlooder,
     ) -> Self {
+        let base_latency = if network_params.network.is_dev_network() {
+            Duration::from_millis(25)
+        } else {
+            Duration::from_millis(1000)
+        };
+
         Self {
             mutex: Mutex::new(ActiveElectionsState {
                 roots: RootContainer::default(),
@@ -127,6 +131,7 @@ impl ActiveElections {
                 priority_count: 0,
                 hinted_count: 0,
                 optimistic_count: 0,
+                base_latency,
                 stats: stats.clone(),
             }),
             condition: Condvar::new(),
@@ -419,7 +424,7 @@ impl ActiveElections {
         result
     }
 
-    fn try_broadcast_winner_block(
+    pub fn try_broadcast_winner_block(
         &self,
         solicitor: &mut ConfirmationSolicitor,
         election: &mut Election,
@@ -442,7 +447,7 @@ impl ActiveElections {
 
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    fn try_generate_vote(&self, election: &mut Election) {
+    pub fn try_generate_vote(&self, election: &mut Election) {
         if election.last_vote_elapsed() >= self.network_params.network.vote_broadcast_interval {
             self.generate_vote_locked(election);
             election.set_last_vote();
@@ -579,25 +584,6 @@ impl ActiveElections {
         }
     }
 
-    /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
-    fn base_latency(&self) -> Duration {
-        if self.network_params.network.is_dev_network() {
-            Duration::from_millis(25)
-        } else {
-            Duration::from_millis(1000)
-        }
-    }
-
-    /// Calculates time delay between broadcasting confirmation requests
-    fn confirm_req_time(&self, election_data: &Election) -> Duration {
-        match election_data.behavior {
-            ElectionBehavior::Priority | ElectionBehavior::Manual | ElectionBehavior::Hinted => {
-                self.base_latency() * 5
-            }
-            ElectionBehavior::Optimistic => self.base_latency() * 2,
-        }
-    }
-
     fn should_broadcast_block(&self, election: &Election) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
         if election.time_since_last_block_broadcast()
@@ -651,59 +637,8 @@ impl ActiveElections {
         }
     }
 
-    pub fn transition_time(
-        &self,
-        solicitor: &mut ConfirmationSolicitor,
-        election: &mut Election,
-    ) -> bool {
-        let mut should_remove = false;
-        match election.state {
-            ElectionState::Passive => {
-                if self.base_latency() * Self::PASSIVE_DURATION_FACTOR < election.duration() {
-                    election
-                        .state_change(ElectionState::Passive, ElectionState::Active)
-                        .unwrap();
-                }
-            }
-            ElectionState::Active => {
-                self.try_generate_vote(election);
-                self.try_broadcast_winner_block(solicitor, election);
-                self.send_confirm_req(solicitor, election);
-            }
-            ElectionState::Confirmed => {
-                should_remove = true; // Return true to indicate this election should be cleaned up
-                self.try_broadcast_winner_block(solicitor, election); // Ensure election winner is broadcasted
-                election
-                    .state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
-                    .unwrap();
-            }
-            ElectionState::ExpiredConfirmed | ElectionState::ExpiredUnconfirmed => {
-                unreachable!()
-            }
-            ElectionState::Cancelled => {
-                return true; // Clean up cancelled elections immediately
-            }
-        }
-
-        if !election.is_confirmed() && election.time_to_live() < election.duration() {
-            // It is possible the election confirmed while acquiring the mutex
-            // state_change returning true would indicate it
-            let state = election.state;
-            if election
-                .state_change(state, ElectionState::ExpiredUnconfirmed)
-                .is_ok()
-            {
-                trace!(qualified_root = ?election.qualified_root(), "election expired");
-                should_remove = true; // Return true to indicate this election should be cleaned up
-                election.status.election_status_type = ElectionStatusType::Stopped;
-            }
-        }
-
-        should_remove
-    }
-
-    fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
-        if self.confirm_req_time(election) < election.last_confirm_request_elapsed() {
+    pub fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
+        if election.confirm_req_interval() < election.last_confirm_request_elapsed() {
             if solicitor.add(election) {
                 election.confirm_request_sent();
                 self.stats
@@ -1001,6 +936,7 @@ pub struct ActiveElectionsState {
     priority_count: usize,
     hinted_count: usize,
     optimistic_count: usize,
+    base_latency: Duration,
     stats: Arc<Stats>,
 }
 
@@ -1061,7 +997,11 @@ impl ActiveElectionsState {
                 inserted: false,
             })
         } else {
-            let election = Arc::new(Mutex::new(Election::new(block, election_behavior)));
+            let election = Arc::new(Mutex::new(Election::new(
+                block,
+                election_behavior,
+                self.base_latency,
+            )));
 
             self.roots.insert(Entry {
                 root,

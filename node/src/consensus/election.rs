@@ -32,10 +32,14 @@ pub struct Election {
     pub confirmation_request_count: u32,
     last_block_broadcast: Instant,
     election_start: Instant,
+    /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
+    base_latency: Duration,
 }
 
 impl Election {
-    pub fn new(block: SavedBlock, behavior: ElectionBehavior) -> Self {
+    const PASSIVE_DURATION_FACTOR: u32 = 5;
+
+    pub fn new(block: SavedBlock, behavior: ElectionBehavior, base_latency: Duration) -> Self {
         Self {
             qualified_root: block.qualified_root(),
             status: ElectionStatus {
@@ -61,6 +65,7 @@ impl Election {
             confirmation_request_count: 0,
             last_block_broadcast: Instant::now(),
             election_start: Instant::now(),
+            base_latency,
         }
     }
 
@@ -70,6 +75,47 @@ impl Election {
 
     pub fn qualified_root(&self) -> &QualifiedRoot {
         &self.qualified_root
+    }
+
+    pub fn transition_time(&mut self) {
+        match self.state {
+            ElectionState::Passive => {
+                if self.base_latency * Self::PASSIVE_DURATION_FACTOR < self.duration() {
+                    self.state_change(ElectionState::Passive, ElectionState::Active)
+                        .unwrap();
+                }
+            }
+            ElectionState::Confirmed => {
+                self.state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
+                    .unwrap();
+            }
+            ElectionState::Active
+            | ElectionState::ExpiredConfirmed
+            | ElectionState::ExpiredUnconfirmed
+            | ElectionState::Cancelled => {}
+        }
+
+        if !self.state.is_confirmed() && self.time_to_live() < self.duration() {
+            // It is possible the election confirmed while acquiring the mutex
+            // state_change returning true would indicate it
+            let state = self.state;
+            if self
+                .state_change(state, ElectionState::ExpiredUnconfirmed)
+                .is_ok()
+            {
+                self.status.election_status_type = ElectionStatusType::Stopped;
+            }
+        }
+    }
+
+    /// Calculates time delay between broadcasting confirmation requests
+    pub fn confirm_req_interval(&self) -> Duration {
+        match self.behavior {
+            ElectionBehavior::Priority | ElectionBehavior::Manual | ElectionBehavior::Hinted => {
+                self.base_latency * 5
+            }
+            ElectionBehavior::Optimistic => self.base_latency * 2,
+        }
     }
 
     pub fn swap_quorum_on(&mut self) -> bool {
@@ -124,10 +170,7 @@ impl Election {
     }
 
     pub fn is_confirmed(&self) -> bool {
-        matches!(
-            self.state,
-            ElectionState::Confirmed | ElectionState::ExpiredConfirmed
-        )
+        self.state.is_confirmed()
     }
 
     /// Returns true, if it was the initial broadcast
@@ -294,6 +337,16 @@ pub enum ElectionState {
 impl ElectionState {
     pub fn is_confirmed(&self) -> bool {
         matches!(self, Self::Confirmed | Self::ExpiredConfirmed)
+    }
+
+    pub fn has_ended(&self) -> bool {
+        matches!(
+            self,
+            ElectionState::Confirmed
+                | ElectionState::Cancelled
+                | ElectionState::ExpiredConfirmed
+                | ElectionState::ExpiredUnconfirmed
+        )
     }
 }
 
