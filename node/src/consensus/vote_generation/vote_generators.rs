@@ -27,6 +27,7 @@ pub struct VoteGenerators {
     final_vote_generator: VoteGenerator,
     vote_listener: OutputListenerMt<VoteGenerationEvent>,
     voting_delay: Duration,
+    wallets: Arc<Wallets>,
 }
 
 impl VoteGenerators {
@@ -65,7 +66,7 @@ impl VoteGenerators {
 
         let final_vote_generator = VoteGenerator::new(
             ledger,
-            wallets,
+            wallets.clone(),
             history,
             true, //final
             stats,
@@ -81,6 +82,7 @@ impl VoteGenerators {
             final_vote_generator,
             vote_listener: OutputListenerMt::new(),
             voting_delay,
+            wallets,
         }
     }
 
@@ -134,6 +136,10 @@ impl VoteGenerators {
             });
         }
         self.non_final_vote_generator.generate(blocks, channel)
+    }
+
+    pub fn voting_enabled(&self) -> bool {
+        self.wallets.voting_enabled()
     }
 
     pub(crate) fn container_info(&self) -> ContainerInfo {

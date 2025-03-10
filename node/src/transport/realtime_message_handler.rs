@@ -13,7 +13,6 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapResponder, Bootstrapper},
-    config::NodeConfig,
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,
     wallets::Wallets,
@@ -25,7 +24,6 @@ pub struct RealtimeMessageHandler {
     network_filter: Arc<NetworkFilter>,
     network: Arc<RwLock<Network>>,
     block_processor: Arc<BlockProcessor>,
-    config: NodeConfig,
     wallets: Arc<Wallets>,
     request_aggregator: Arc<RequestAggregator>,
     vote_processor_queue: Arc<VoteProcessorQueue>,
@@ -40,7 +38,6 @@ impl RealtimeMessageHandler {
         network: Arc<RwLock<Network>>,
         network_filter: Arc<NetworkFilter>,
         block_processor: Arc<BlockProcessor>,
-        config: NodeConfig,
         wallets: Arc<Wallets>,
         request_aggregator: Arc<RequestAggregator>,
         vote_processor_queue: Arc<VoteProcessorQueue>,
@@ -53,7 +50,6 @@ impl RealtimeMessageHandler {
             network,
             network_filter,
             block_processor,
-            config,
             wallets,
             request_aggregator,
             vote_processor_queue,
@@ -109,7 +105,7 @@ impl RealtimeMessageHandler {
             Message::ConfirmReq(req) => {
                 // Don't load nodes with disabled voting
                 // TODO: This check should be cached somewhere
-                if self.config.enable_voting && self.wallets.voting_reps_count() > 0 {
+                if self.wallets.voting_enabled() {
                     let aggregator_req = AggregatorRequest {
                         channel: channel.clone(),
                         roots_hashes: req.roots_hashes,

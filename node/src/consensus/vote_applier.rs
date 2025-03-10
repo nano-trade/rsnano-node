@@ -19,7 +19,7 @@ use super::{
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
-    config::{NetworkParams, NodeConfig},
+    config::NetworkParams,
     consensus::{ElectionState, VoteInfo},
     representatives::OnlineReps,
     wallets::Wallets,
@@ -32,7 +32,6 @@ pub struct VoteApplier {
     stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
     block_processor: Arc<BlockProcessor>,
-    node_config: NodeConfig,
     history: Arc<LocalVoteHistory>,
     wallets: Arc<Wallets>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
@@ -49,7 +48,6 @@ impl VoteApplier {
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
         block_processor: Arc<BlockProcessor>,
-        node_config: NodeConfig,
         history: Arc<LocalVoteHistory>,
         wallets: Arc<Wallets>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
@@ -63,7 +61,6 @@ impl VoteApplier {
             stats,
             vote_generators,
             block_processor,
-            node_config,
             history,
             wallets,
             recently_confirmed,
@@ -123,7 +120,7 @@ impl VoteApplier {
     }
 
     pub fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
-        if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
+        if self.wallets.voting_enabled() {
             // Remove votes from election
             let root = *election.root();
             let list_generated_votes = self.history.votes(&root, hash, false);
@@ -253,10 +250,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         }
 
         if self.have_quorum(&tally) {
-            if election_lock.swap_quorum_on()
-                && self.node_config.enable_voting
-                && self.wallets.voting_reps_count() > 0
-            {
+            if election_lock.swap_quorum_on() && self.wallets.voting_enabled() {
                 election_lock.status.vote_broadcast_count += 1;
                 self.vote_generators
                     .generate_final_vote(election_lock.root(), &status_winner_hash);

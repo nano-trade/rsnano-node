@@ -511,7 +511,6 @@ impl Node {
             stats.clone(),
             vote_generators.clone(),
             block_processor.clone(),
-            config.clone(),
             history.clone(),
             wallets.clone(),
             recently_confirmed.clone(),
@@ -541,8 +540,6 @@ impl Node {
 
         let election_voter = ElectionVoter {
             stats: stats.clone(),
-            node_config: config.clone(),
-            wallets: wallets.clone(),
             vote_applier: vote_applier.clone(),
             vote_generators: vote_generators.clone(),
         };
@@ -933,7 +930,6 @@ impl Node {
             network.clone(),
             network_filter.clone(),
             block_processor.clone(),
-            config.clone(),
             wallets.clone(),
             request_aggregator.clone(),
             vote_processor_queue.clone(),

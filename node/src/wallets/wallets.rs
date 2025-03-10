@@ -240,6 +240,10 @@ impl Wallets {
         Ok(())
     }
 
+    pub fn voting_enabled(&self) -> bool {
+        self.node_config.enable_voting && self.voting_reps_count() > 0
+    }
+
     pub fn voting_reps_count(&self) -> u64 {
         self.wallet_reps.lock().unwrap().voting_reps()
     }

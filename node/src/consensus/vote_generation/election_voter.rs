@@ -3,19 +3,13 @@ use std::sync::Arc;
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
 
-use crate::{
-    config::NodeConfig,
-    consensus::{Election, VoteApplier},
-    wallets::Wallets,
-};
+use crate::consensus::{Election, VoteApplier};
 
 use super::VoteGenerators;
 
 /// Tries to generate a vote for a given election
 pub(crate) struct ElectionVoter {
     pub stats: Arc<Stats>,
-    pub node_config: NodeConfig,
-    pub wallets: Arc<Wallets>,
     pub vote_applier: Arc<VoteApplier>,
     pub vote_generators: Arc<VoteGenerators>,
 }
@@ -28,7 +22,7 @@ impl ElectionVoter {
             return;
         }
 
-        if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
+        if self.vote_generators.voting_enabled() {
             self.stats
                 .inc(StatType::Election, DetailType::BroadcastVote);
             election.status.vote_broadcast_count += 1;
