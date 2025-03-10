@@ -549,7 +549,7 @@ impl Node {
         let (aec_sender, aec_receiver) = std::sync::mpsc::sync_channel(128);
         let mut active_elections = ActiveElections::new(
             config.clone(),
-            ledger.clone(),
+            ledger.rep_weights.clone(),
             confirming_set.clone(),
             network_filter.clone(),
             vote_cache.clone(),

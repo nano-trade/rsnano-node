@@ -16,7 +16,7 @@ use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
     Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, Vote, VoteWithWeightInfo,
 };
-use rsnano_ledger::{BlockStatus, Ledger};
+use rsnano_ledger::{BlockStatus, RepWeightCache};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
@@ -78,7 +78,7 @@ pub struct ActiveElections {
     mutex: Mutex<ActiveElectionsState>,
     condition: Condvar,
     config: ActiveElectionsConfig,
-    ledger: Arc<Ledger>,
+    rep_weights: Arc<RepWeightCache>,
     confirming_set: Arc<ConfirmingSet>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     /// Helper container for storing recently cemented elections (a block from election might be confirmed but not yet cemented by confirmation height processor)
@@ -97,7 +97,7 @@ pub struct ActiveElections {
 impl ActiveElections {
     pub(crate) fn new(
         node_config: NodeConfig,
-        ledger: Arc<Ledger>,
+        rep_weights: Arc<RepWeightCache>,
         confirming_set: Arc<ConfirmingSet>,
         network_filter: Arc<NetworkFilter>,
         vote_cache: Arc<Mutex<VoteCache>>,
@@ -121,7 +121,7 @@ impl ActiveElections {
                 config: election_config,
             }),
             condition: Condvar::new(),
-            ledger,
+            rep_weights,
             confirming_set,
             recently_confirmed,
             recently_cemented: Arc::new(Mutex::new(BoundedVecDeque::new(
@@ -296,7 +296,7 @@ impl ActiveElections {
         let votes_tally = |votes: &[Arc<Vote>]| {
             let mut result = Amount::zero();
             for vote in votes {
-                result += self.ledger.weight(&vote.voting_account);
+                result += self.rep_weights.weight(&vote.voting_account);
             }
             result
         };
@@ -557,7 +557,7 @@ impl ActiveElections {
             if *source_election_guard.qualified_root() == block.qualified_root() {
                 status = source_election_guard.status.clone();
                 debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
-                votes = source_election_guard.votes_with_weight(&self.ledger.rep_weights);
+                votes = source_election_guard.votes_with_weight(&self.rep_weights);
                 status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;
                 handled = true;
             }
