@@ -35,24 +35,24 @@ impl Runnable for ConfirmationRequester {
         solicitor.prepare(&peered_prs);
 
         /*
-         * Loop through active elections in descending order of proof-of-work difficulty, requesting confirmation
+         * Loop through active elections requesting confirmation
          *
          * Only up to a certain amount of elections are queued for confirmation request and block rebroadcasting. The remaining elections can still be confirmed if votes arrive
          * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
          * Flushed elections are later re-activated via frontier confirmation
          */
         for election in elections {
-            let success;
+            let should_remove;
             let root;
             {
                 let mut election_guard = election.lock().unwrap();
-                success = self
+                should_remove = self
                     .active_elections
                     .transition_time(&mut solicitor, &mut election_guard);
                 root = election_guard.qualified_root().clone();
             };
 
-            if success {
+            if should_remove {
                 self.active_elections.erase(&root);
             }
         }

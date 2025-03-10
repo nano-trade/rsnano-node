@@ -50,7 +50,7 @@ fn batches() {
     {
         for _ in 0..ConfirmReq::HASHES_MAX {
             let election = Election::new(send.clone(), ElectionBehavior::Priority);
-            assert_eq!(solicitor.add(&election), false);
+            assert_eq!(solicitor.add(&election), true);
         }
         // Reached the maximum amount of requests for the channel
         let election = Election::new(send.clone(), ElectionBehavior::Priority);
@@ -119,7 +119,7 @@ fn different_hashes() {
     data.last_votes
         .insert(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
     // Ensure the request and broadcast goes through
-    assert_eq!(solicitor.add(&data), false);
+    assert_eq!(solicitor.add(&data), true);
     solicitor.broadcast(&data).unwrap();
     // One publish through directed broadcasting and another through random flooding
 
@@ -179,7 +179,7 @@ fn bypass_max_requests_cap() {
             .insert(rep.rep_key, VoteInfo::new(1, 1.into()));
     }
     // Ensure the request and broadcast goes through
-    assert_eq!(solicitor.add(&election), false);
+    assert_eq!(solicitor.add(&election), true);
     solicitor.broadcast(&election).unwrap();
     // All requests went through, the last one would normally not go through due to the cap but a vote for a different hash does not count towards the cap
     // TODO port remainder of test!

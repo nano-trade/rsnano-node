@@ -94,10 +94,10 @@ impl ConfirmationSolicitor {
         Ok(())
     }
 
-    /// Add an election that needs to be confirmed. Returns false if successfully added
+    /// Add an election that needs to be confirmed. Returns true if successfully added
     pub fn add(&mut self, election: &Election) -> bool {
         debug_assert!(self.prepared);
-        let mut error = true;
+        let mut added = false;
         let mut count = 0;
         let winner = election.status.winner.as_ref().unwrap();
         let hash = winner.hash();
@@ -132,7 +132,7 @@ impl ConfirmationSolicitor {
                     if !different {
                         count += 1;
                     }
-                    error = false;
+                    added = true;
                 } else {
                     full_queue = true;
                 }
@@ -147,7 +147,7 @@ impl ConfirmationSolicitor {
                 .retain(|i| !to_remove.contains(&i.rep_key));
         }
 
-        error
+        added
     }
 
     /// Dispatch bundled requests to each channel

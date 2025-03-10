@@ -652,7 +652,7 @@ impl ActiveElections {
         solicitor: &mut ConfirmationSolicitor,
         election: &mut Election,
     ) -> bool {
-        let mut result = false;
+        let mut should_remove = false;
         match election.state {
             ElectionState::Passive => {
                 if self.base_latency() * Self::PASSIVE_DURATION_FACTOR < election.duration() {
@@ -667,7 +667,7 @@ impl ActiveElections {
                 self.send_confirm_req(solicitor, election);
             }
             ElectionState::Confirmed => {
-                result = true; // Return true to indicate this election should be cleaned up
+                should_remove = true; // Return true to indicate this election should be cleaned up
                 self.broadcast_block(solicitor, election); // Ensure election winner is broadcasted
                 election
                     .state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
@@ -690,17 +690,17 @@ impl ActiveElections {
                 .is_ok()
             {
                 trace!(qualified_root = ?election.qualified_root(), "election expired");
-                result = true; // Return true to indicate this election should be cleaned up
+                should_remove = true; // Return true to indicate this election should be cleaned up
                 election.status.election_status_type = ElectionStatusType::Stopped;
             }
         }
 
-        result
+        should_remove
     }
 
     fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
         if self.confirm_req_time(election) < election.last_confirm_request_elapsed() {
-            if !solicitor.add(election) {
+            if solicitor.add(election) {
                 election.confirm_request_sent();
                 self.stats
                     .inc(StatType::Election, DetailType::ConfirmationRequest);
