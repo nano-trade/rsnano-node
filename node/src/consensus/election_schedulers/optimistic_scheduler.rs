@@ -1,4 +1,5 @@
 use std::{
+    cmp::min,
     collections::{HashMap, VecDeque},
     mem::size_of,
     sync::{
@@ -23,6 +24,9 @@ pub struct OptimisticSchedulerConfig {
 
     /// Maximum number of candidates stored in memory
     pub max_size: usize,
+
+    /// Limit of optimistic elections as percentage of `active_elections_size`
+    pub optimistic_limit_percentage: usize,
 }
 
 impl OptimisticSchedulerConfig {
@@ -30,6 +34,7 @@ impl OptimisticSchedulerConfig {
         Self {
             gap_threshold: 32,
             max_size: 1024 * 64,
+            optimistic_limit_percentage: 10,
         }
     }
 }
@@ -51,6 +56,7 @@ pub struct OptimisticScheduler {
     network_constants: NetworkConstants,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
+    optimistic_elections_limit: usize,
 }
 
 impl OptimisticScheduler {
@@ -62,6 +68,9 @@ impl OptimisticScheduler {
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
     ) -> Self {
+        let optimistic_elections_limit =
+            active.max_len() * config.optimistic_limit_percentage / 100;
+
         Self {
             thread: Mutex::new(None),
             config,
@@ -73,6 +82,7 @@ impl OptimisticScheduler {
             network_constants,
             ledger,
             confirming_set,
+            optimistic_elections_limit,
         }
     }
 
@@ -147,7 +157,11 @@ impl OptimisticScheduler {
     }
 
     fn predicate(&self, candidates: &OrderedCandidates) -> bool {
-        if self.active.vacancy(ElectionBehavior::Optimistic) <= 0 {
+        let vacancy = self.optimistic_elections_limit as i64
+            - self.active.count_by_behavior(ElectionBehavior::Optimistic) as i64;
+        let vacancy = min(vacancy, self.active.vacancy());
+
+        if vacancy <= 0 {
             return false;
         }
         if let Some((_account, time)) = candidates.front() {

@@ -470,17 +470,17 @@ mod tests {
             default_cfg.node.active_elections.size
         );
         assert_ne!(
-            deserialized.node.active_elections.hinted_limit_percentage,
-            default_cfg.node.active_elections.hinted_limit_percentage
+            deserialized.node.hinted_scheduler.hinted_limit_percentage,
+            default_cfg.node.hinted_scheduler.hinted_limit_percentage
         );
         assert_ne!(
             deserialized
                 .node
-                .active_elections
+                .optimistic_scheduler
                 .optimistic_limit_percentage,
             default_cfg
                 .node
-                .active_elections
+                .optimistic_scheduler
                 .optimistic_limit_percentage
         );
         assert_ne!(

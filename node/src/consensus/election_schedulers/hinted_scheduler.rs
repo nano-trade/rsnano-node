@@ -1,4 +1,5 @@
 use std::{
+    cmp::min,
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
     sync::{
@@ -22,6 +23,8 @@ pub struct HintedSchedulerConfig {
     pub block_cooldown: Duration,
     pub hinting_threshold_percent: u32,
     pub vacancy_threshold_percent: u32,
+    /// Limit of hinted elections as percentage of `active_elections_size`
+    pub hinted_limit_percentage: usize,
 }
 
 impl HintedSchedulerConfig {
@@ -41,6 +44,7 @@ impl Default for HintedSchedulerConfig {
             block_cooldown: Duration::from_millis(5000),
             hinting_threshold_percent: 10,
             vacancy_threshold_percent: 20,
+            hinted_limit_percentage: 20,
         }
     }
 }
@@ -59,6 +63,8 @@ pub struct HintedScheduler {
     stopped: AtomicBool,
     stopped_mutex: Mutex<()>,
     cooldowns: Mutex<OrderedCooldowns>,
+    max_hinted_elections: usize,
+    notification_threshold: usize,
 }
 
 impl HintedScheduler {
@@ -71,6 +77,10 @@ impl HintedScheduler {
         confirming_set: Arc<ConfirmingSet>,
         online_reps: Arc<Mutex<OnlineReps>>,
     ) -> Self {
+        let max_hinted_elections = active.max_len() * config.hinted_limit_percentage / 100;
+        let notification_threshold =
+            max_hinted_elections * config.vacancy_threshold_percent as usize / 100;
+
         Self {
             thread: Mutex::new(None),
             config,
@@ -84,6 +94,8 @@ impl HintedScheduler {
             stopped: AtomicBool::new(false),
             stopped_mutex: Mutex::new(()),
             cooldowns: Mutex::new(OrderedCooldowns::new()),
+            max_hinted_elections,
+            notification_threshold,
         }
     }
 
@@ -99,12 +111,15 @@ impl HintedScheduler {
     /// Notify about changes in AEC vacancy
     pub fn notify(&self) {
         // Avoid notifying when there is very little space inside AEC
-        let limit = self.active.limit(ElectionBehavior::Hinted);
-        if self.active.vacancy(ElectionBehavior::Hinted)
-            >= (limit * self.config.vacancy_threshold_percent as usize / 100) as i64
-        {
+        if self.aec_vacancy() >= self.notification_threshold as i64 {
             self.condition.notify_all();
         }
+    }
+
+    fn aec_vacancy(&self) -> i64 {
+        let vacancy = self.max_hinted_elections as i64
+            - self.active.count_by_behavior(ElectionBehavior::Hinted) as i64;
+        min(vacancy, self.active.vacancy())
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -119,7 +134,7 @@ impl HintedScheduler {
 
     fn predicate(&self) -> bool {
         // Check if there is space inside AEC for a new hinted election
-        self.active.vacancy(ElectionBehavior::Hinted) > 0
+        self.aec_vacancy() > 0
     }
 
     fn activate(&self, any: &impl AnySet, hash: BlockHash, check_dependents: bool) {

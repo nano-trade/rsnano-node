@@ -290,8 +290,22 @@ impl NodeConfig {
         if let Some(block_processor_toml) = &toml.block_processor {
             self.block_processor.merge_toml(block_processor_toml);
         }
-        if let Some(active_elections_toml) = &toml.active_elections {
-            self.active_elections = active_elections_toml.into();
+        if let Some(i) = &toml.active_elections {
+            if let Some(size) = i.size {
+                self.active_elections.size = size
+            };
+            if let Some(percentage) = i.hinted_limit_percentage {
+                self.hinted_scheduler.hinted_limit_percentage = percentage;
+            };
+            if let Some(percentage) = i.optimistic_limit_percentage {
+                self.optimistic_scheduler.optimistic_limit_percentage = percentage;
+            };
+            if let Some(size) = i.confirmation_history_size {
+                self.active_elections.confirmation_history_size = size;
+            };
+            if let Some(cache) = i.confirmation_cache {
+                self.active_elections.confirmation_cache = cache;
+            };
         }
         if let Some(vote_processor_toml) = &toml.vote_processor {
             self.vote_processor.merge_toml(&vote_processor_toml);
@@ -450,7 +464,7 @@ impl From<&NodeConfig> for NodeToml {
             lmdb: Some((&config.lmdb_config).into()),
             vote_cache: Some((&config.vote_cache).into()),
             block_processor: Some((&config.block_processor).into()),
-            active_elections: Some((&config.active_elections).into()),
+            active_elections: Some(config.into()),
             vote_processor: Some((&config.vote_processor).into()),
             request_aggregator: Some((&config.request_aggregator).into()),
             message_processor: Some((&config.message_processor).into()),

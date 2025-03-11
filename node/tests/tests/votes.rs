@@ -309,7 +309,7 @@ fn vote_generator_multiple_representatives() {
 fn vote_spacing_vote_generator() {
     let mut system = System::new();
     let mut config = System::default_config_without_backlog_scan();
-    config.active_elections.hinted_limit_percentage = 0;
+    config.hinted_scheduler.hinted_limit_percentage = 0;
     let node = system
         .build_node()
         .config(config)
@@ -399,7 +399,7 @@ fn vote_spacing_vote_generator() {
 fn vote_spacing_rapid() {
     let mut system = System::new();
     let mut config = System::default_config_without_backlog_scan();
-    config.active_elections.hinted_limit_percentage = 0; // Disable election hinting
+    config.hinted_scheduler.hinted_limit_percentage = 0; // Disable election hinting
     let node = system
         .build_node()
         .config(config)

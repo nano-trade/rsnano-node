@@ -4,8 +4,8 @@ use rsnano_core::{
     utils::MemoryStream, Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, ElectionBehavior, LedgerSet, Writer,
-    DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
+    DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
     bootstrap::BootstrapConfig,
@@ -724,31 +724,6 @@ fn confirm_frontier() {
     assert!(election2.lock().unwrap().confirmation_request_count > 0);
 }
 
-#[test]
-fn vacancy() {
-    let mut system = System::new();
-    let mut config = System::default_config();
-    config.active_elections.size = 1;
-    let node = system.build_node().config(config).finish();
-    let notify_tracker = node.election_schedulers.track_notify();
-    let mut lattice = UnsavedBlockLatticeBuilder::new();
-
-    let send = lattice
-        .genesis()
-        .send(&*DEV_GENESIS_KEY, Amount::nano(1000));
-    node.process(send.clone());
-
-    assert_eq!(1, node.active.vacancy(ElectionBehavior::Priority),);
-    assert_eq!(0, node.active.len());
-    let election1 = start_election(&node, &send.hash());
-    assert_eq!(0, node.active.vacancy(ElectionBehavior::Priority));
-    assert_eq!(1, node.active.len());
-    node.active.force_confirm(&election1);
-    assert_timely2(|| notify_tracker.output().len() > 0);
-    assert_eq!(1, node.active.vacancy(ElectionBehavior::Priority));
-    assert_eq!(0, node.active.len());
-}
-
 /// Ensures that election winners set won't grow without bounds when cementing
 /// is slower that the rate of confirming new elections
 #[test]
@@ -771,22 +746,18 @@ fn bound_election_winners() {
 
         // Ensure that when the number of election winners reaches the limit, AEC vacancy reflects that
         // Confirming more elections should make the vacancy negative
-        assert!(node.active.vacancy(ElectionBehavior::Priority) > 0);
+        assert!(node.active.vacancy() > 0);
 
         for block in blocks {
             let election = node.vote_router.election(&block.hash()).unwrap();
             node.active.force_confirm(&election);
         }
 
-        assert_timely(Duration::from_secs(5), || {
-            node.active.vacancy(ElectionBehavior::Priority) < 0
-        });
+        assert_timely2(|| node.active.vacancy() < 0);
         // Release the guard to allow cementing, there should be some vacancy now
     }
 
-    assert_timely(Duration::from_secs(5), || {
-        node.active.vacancy(ElectionBehavior::Priority) > 0
-    });
+    assert_timely2(|| node.active.vacancy() > 0);
 }
 
 /// Blocks should only be broadcasted when they are active in the AEC
