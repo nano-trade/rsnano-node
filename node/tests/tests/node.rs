@@ -598,7 +598,7 @@ fn bootstrap_fork_open() {
 
     // Start election for open block which is necessary to resolve the fork
     start_election(&node1, &open1.hash());
-    assert_timely2(|| node1.active.active(&open1));
+    assert_timely2(|| node1.active.is_active(&open1));
 
     // Allow node0 to vote on its fork
 
@@ -821,7 +821,7 @@ fn fork_publish() {
     node1.process_active(send1.clone());
     node1.process_active(send2.clone());
     assert_timely_eq2(|| node1.active.len(), 1);
-    assert_timely2(|| node1.active.active(&send2));
+    assert_timely2(|| node1.active.is_active(&send2));
     let election = node1.active.election(&send1.qualified_root()).unwrap();
     // Wait until the genesis rep activated & makes vote
     assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2);
@@ -1545,7 +1545,7 @@ fn local_block_broadcast() {
     node1.process_local(send1).unwrap();
 
     assert_never(Duration::from_millis(500), || {
-        node1.active.active_root(&qualified_root)
+        node1.active.is_root_active(&qualified_root)
     });
 
     // Wait until a broadcast is attempted
@@ -1889,12 +1889,12 @@ fn vote_republish() {
     // process send1 first, this will make sure send1 goes into the ledger and an election is started
     node1.process_active(send1.clone());
     assert_timely2(|| node2.block_exists(&send1.hash()));
-    assert_timely2(|| node1.active.active(&send1));
-    assert_timely2(|| node2.active.active(&send1));
+    assert_timely2(|| node1.active.is_active(&send1));
+    assert_timely2(|| node2.active.is_active(&send1));
 
     // now process send2, send2 will not go in the ledger because only the first block of a fork goes in the ledger
     node1.process_active(send2.clone());
-    assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
+    assert_timely(Duration::from_secs(5), || node1.active.is_active(&send2));
 
     // send2 cannot be synced because it is not in the ledger of node1, it is only in the election object in RAM on node1
     assert_eq!(node1.block_exists(&send2.hash()), false);
@@ -1939,13 +1939,13 @@ fn vote_by_hash_republish() {
 
     // give block send1 to node1 and check that an election for send1 starts on both nodes
     node1.process_active(send1.clone());
-    assert_timely2(|| node1.active.active(&send1));
-    assert_timely2(|| node2.active.active(&send1));
+    assert_timely2(|| node1.active.is_active(&send1));
+    assert_timely2(|| node2.active.is_active(&send1));
 
     // give block send2 to node1 and wait until the block is received and processed by node1
     node1.network_filter.clear_all();
     node1.process_active(send2.clone());
-    assert_timely2(|| node1.active.active(&send2));
+    assert_timely2(|| node1.active.is_active(&send2));
 
     // construct a vote for send2 in order to overturn send1
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
@@ -1984,7 +1984,7 @@ fn fork_election_invalid_block_signature() {
     );
     assert_timely_msg(
         Duration::from_secs(5),
-        || node1.active.active(&send1),
+        || node1.active.is_active(&send1),
         "not active on node 1",
     );
     let election = node1.active.election(&send1.qualified_root()).unwrap();
@@ -2910,7 +2910,7 @@ fn dependency_graph_frontier() {
     // node1 can vote, but only on the first block
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
     assert_timely(Duration::from_secs(10), || {
-        node2.active.active_root(&gen_send1.qualified_root())
+        node2.active.is_root_active(&gen_send1.qualified_root())
     });
     start_election(&node1, &gen_send1.hash());
     assert_timely_eq(
@@ -3054,7 +3054,7 @@ fn fork_keep() {
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
     // Fill node with forked blocks
     node1.process_active(send2.clone());
-    assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
+    assert_timely(Duration::from_secs(5), || node1.active.is_active(&send2));
     node2.process_active(send2.clone());
     let election1 = node2
         .active

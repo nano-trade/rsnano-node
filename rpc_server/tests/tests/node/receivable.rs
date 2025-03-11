@@ -32,7 +32,7 @@ fn send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
     node.process_active(send.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.active(&send),
+        || node.active.is_active(&send),
         "not active on node",
     );
 

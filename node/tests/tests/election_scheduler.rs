@@ -318,6 +318,6 @@ mod election_scheduler {
         );
         // Verify vote broadcast after transitioning
         assert_timely_eq2(|| election.lock().unwrap().status.vote_broadcast_count, 2);
-        assert!(node.active.active(block));
+        assert!(node.active.is_active(block));
     }
 }

@@ -166,13 +166,13 @@ impl ActiveElections {
         self.notify(AecEvent::VacancyUpdated);
     }
 
-    pub fn active_root(&self, root: &QualifiedRoot) -> bool {
+    pub fn is_root_active(&self, root: &QualifiedRoot) -> bool {
         let guard = self.mutex.lock().unwrap();
         guard.roots.get(root).is_some()
     }
 
-    pub fn active(&self, block: &Block) -> bool {
-        self.active_root(&block.qualified_root())
+    pub fn is_active(&self, block: &Block) -> bool {
+        self.is_root_active(&block.qualified_root())
     }
 
     fn get_cached_tally(&self, hash: &BlockHash) -> Amount {

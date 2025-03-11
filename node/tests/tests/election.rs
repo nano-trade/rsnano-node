@@ -107,7 +107,7 @@ fn continuous_voting() {
     // Create a block that should be staying in AEC but not get confirmed
     let send2 = lattice.genesis().send(&key1, 1);
     node1.process(send2.clone());
-    assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
+    assert_timely(Duration::from_secs(5), || node1.active.is_active(&send2));
 
     // Ensure votes are broadcasted in continuous manner
     assert_timely(Duration::from_secs(5), || {

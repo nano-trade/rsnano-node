@@ -133,7 +133,7 @@ mod votes {
             .send_all_except(&key2, Amount::MAX / 2 - Amount::nano(1000));
 
         node1.active.handle_fork(&send2);
-        assert_timely2(|| node1.active.active(&send2));
+        assert_timely2(|| node1.active.is_active(&send2));
         let vote2 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN * 2,

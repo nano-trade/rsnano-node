@@ -10,7 +10,7 @@ fn send_block(node: Arc<Node>) -> Block {
     node.process_active(send1.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.active(&send1),
+        || node.active.is_active(&send1),
         "not active on node 1",
     );
 
