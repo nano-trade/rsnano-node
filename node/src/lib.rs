@@ -13,6 +13,7 @@ pub mod bootstrap;
 pub mod cementation;
 pub mod config;
 pub mod consensus;
+mod ledger_event_processor;
 mod monitor;
 mod node;
 mod node_builder;

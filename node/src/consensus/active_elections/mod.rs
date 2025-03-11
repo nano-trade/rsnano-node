@@ -3,7 +3,6 @@ mod root_container;
 use std::{
     cmp::min,
     collections::VecDeque,
-    mem::size_of,
     sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
 };
 

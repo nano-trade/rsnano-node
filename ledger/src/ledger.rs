@@ -26,6 +26,7 @@ use std::{
     net::SocketAddrV6,
     sync::{
         atomic::{AtomicBool, Ordering},
+        mpsc::SyncSender,
         Arc,
     },
     time::SystemTime,
@@ -102,6 +103,11 @@ impl From<BlockStatus> for DetailType {
     }
 }
 
+pub enum LedgerEvent {
+    /// Confirmed Blocks + their confirmation roots
+    BatchConfirmed(Vec<(SavedBlock, BlockHash)>),
+}
+
 pub struct Ledger {
     pub store: Arc<LmdbStore>,
     pub rep_weights_updater: RepWeightsUpdater,
@@ -109,6 +115,7 @@ pub struct Ledger {
     pub constants: LedgerConstants,
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
+    event_sender: Option<SyncSender<LedgerEvent>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -244,11 +251,16 @@ impl Ledger {
             constants,
             pruning: AtomicBool::new(false),
             stats,
+            event_sender: None,
         };
 
         ledger.initialize(&GenerateCacheFlags::new())?;
 
         Ok(ledger)
+    }
+
+    pub fn set_event_sink(&mut self, sink: SyncSender<LedgerEvent>) {
+        self.event_sender = Some(sink);
     }
 
     fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
@@ -708,6 +720,7 @@ impl Ledger {
     ) where
         O: CementingObserver<T>,
     {
+        let mut cemented = Vec::new();
         let mut blocks_cemented = 0;
         {
             let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
@@ -729,6 +742,10 @@ impl Ledger {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
                         observer.max_blocks_reached();
+                        if let Some(sender) = &self.event_sender {
+                            sender.send(LedgerEvent::BatchConfirmed(cemented)).unwrap();
+                        }
+                        cemented = Vec::new();
                         tx.renew();
                     }
 
@@ -753,7 +770,8 @@ impl Ledger {
                         );
                         blocks_cemented += added.len();
                         for block in added {
-                            observer.cemented(block, &hash, &context)
+                            observer.cemented(block.clone(), &hash, &context);
+                            cemented.push((block, hash));
                         }
                     } else {
                         self.stats

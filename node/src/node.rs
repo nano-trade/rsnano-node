@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, SyncSender},
+        mpsc::{sync_channel, Receiver, SyncSender},
         Arc, Mutex, RwLock,
     },
     time::Duration,
@@ -53,6 +53,7 @@ use crate::{
         VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
     },
+    ledger_event_processor::{self, LedgerEventProcessor},
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
@@ -269,7 +270,7 @@ impl Node {
         ));
 
         info!("Loading ledger, this may take a while...");
-        let ledger = Ledger::new(
+        let mut ledger = Ledger::new(
             store,
             network_params.ledger.clone(),
             config.representative_vote_weight_minimum,
@@ -277,6 +278,10 @@ impl Node {
             stats.clone(),
         )
         .expect("Could not initialize ledger");
+
+        let (ledger_tx, ledger_rx) = sync_channel(1024);
+        ledger.set_event_sink(ledger_tx);
+
         let ledger = Arc::new(ledger);
         info!("Block count:    {}", ledger.block_count());
         info!("Cemented count: {}", ledger.cemented_count());
@@ -552,7 +557,7 @@ impl Node {
 
         let election_config = ElectionConfig::default_for(network_params.network.current_network);
 
-        let (aec_sender, aec_receiver) = std::sync::mpsc::sync_channel(128);
+        let (aec_sender, aec_receiver) = sync_channel(128);
         let mut active_elections = ActiveElections::new(
             config.clone(),
             ledger.rep_weights.clone(),
@@ -1127,7 +1132,7 @@ impl Node {
 
         let workers_w = Arc::downgrade(&wallet_workers);
         let wallets_w = Arc::downgrade(&wallets);
-        confirming_set.on_cemented(Box::new(move |block| {
+        confirming_set.on_batch_cemented(Box::new(move |batch| {
             let Some(workers) = workers_w.upgrade() else {
                 return;
             };
@@ -1135,12 +1140,15 @@ impl Node {
                 return;
             };
 
-            // TODO: Is it neccessary to call this for all blocks?
-            if block.is_send() {
-                let block = block.clone();
-                workers.post(Box::new(move || {
-                    wallets.receive_confirmed(block.hash(), block.destination().unwrap())
-                }));
+            for ctx in batch {
+                // TODO: Is it neccessary to call this for all blocks?
+                if ctx.block.is_send() {
+                    let block = ctx.block.clone();
+                    let wallets = wallets.clone();
+                    workers.post(Box::new(move || {
+                        wallets.receive_confirmed(block.hash(), block.destination().unwrap())
+                    }));
+                }
             }
         }));
 
@@ -1209,6 +1217,17 @@ impl Node {
             .name("AEC ev proc".to_owned())
             .spawn(move || {
                 aec_event_processor.run();
+            })
+            .unwrap();
+
+        let mut ledger_event_processor = LedgerEventProcessor {
+            receiver: ledger_rx,
+        };
+
+        std::thread::Builder::new()
+            .name("Ledger ev proc".to_owned())
+            .spawn(move || {
+                ledger_event_processor.run();
             })
             .unwrap();
 

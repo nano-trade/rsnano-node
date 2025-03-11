@@ -82,24 +82,6 @@ impl ConfirmingSet {
             .push(callback);
     }
 
-    pub fn on_cemented(&self, callback: BlockCallback) {
-        self.thread
-            .observers
-            .lock()
-            .unwrap()
-            .cemented
-            .push(callback);
-    }
-
-    pub fn on_already_cemented(&self, callback: AlreadyCementedCallback) {
-        self.thread
-            .observers
-            .lock()
-            .unwrap()
-            .already_cemented
-            .push(callback);
-    }
-
     pub fn on_cementing_failed(&self, callback: impl FnMut(&BlockHash) + Send + 'static) {
         self.thread
             .observers
@@ -329,13 +311,6 @@ impl ConfirmingSetThread {
 
         self.notify(&mut notifier.cemented);
 
-        {
-            let mut guard = self.observers.lock().unwrap();
-            for callback in &mut guard.already_cemented {
-                callback(&notifier.already_cemented)
-            }
-        }
-
         // Clear current set only after the transaction is committed
         self.mutex.lock().unwrap().current.clear();
     }
@@ -391,28 +366,17 @@ impl ConfirmingSetImpl {
     }
 }
 
-type BlockCallback = Box<dyn FnMut(&SavedBlock) + Send>;
-
 /// block + confirmation root
 type BatchCementedCallback = Box<dyn FnMut(&VecDeque<CementingContext>) + Send>;
-type AlreadyCementedCallback = Box<dyn FnMut(&VecDeque<BlockHash>) + Send>;
 
 #[derive(Default)]
 struct Observers {
-    cemented: Vec<BlockCallback>,
     batch_cemented: Vec<BatchCementedCallback>,
-    already_cemented: Vec<AlreadyCementedCallback>,
     cementing_failed: Vec<Box<dyn FnMut(&BlockHash) + Send>>,
 }
 
 impl Observers {
     fn notify_batch(&mut self, cemented: VecDeque<CementingContext>) {
-        for context in &cemented {
-            for observer in &mut self.cemented {
-                observer(&context.block);
-            }
-        }
-
         for observer in &mut self.batch_cemented {
             observer(&cemented);
         }
@@ -516,7 +480,7 @@ mod tests {
         let condition = Arc::new(Condvar::new());
         let count_clone = Arc::clone(&count);
         let condition_clone = Arc::clone(&condition);
-        confirming_set.on_cemented(Box::new(move |_block| {
+        confirming_set.on_batch_cemented(Box::new(move |_| {
             {
                 *count_clone.lock().unwrap() += 1;
             }
