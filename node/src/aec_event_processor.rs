@@ -3,6 +3,9 @@ use std::sync::{
     Arc,
 };
 
+use rsnano_core::utils::MemoryStream;
+use rsnano_messages::NetworkFilter;
+
 use crate::{
     consensus::{election_schedulers::ElectionSchedulers, AecEvent, VoteCacheProcessor},
     recently_cemented_inserter::RecentlyCementedInserter,
@@ -16,6 +19,7 @@ pub(crate) struct AecEventProcessor {
     pub node_event_sender: Option<SyncSender<NodeEvent>>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub recently_cemented_inserter: RecentlyCementedInserter,
+    pub network_filter: Arc<NetworkFilter>,
 }
 
 impl AecEventProcessor {
@@ -42,6 +46,11 @@ impl AecEventProcessor {
                     self.recently_cemented_inserter.insert(status);
                 }
                 AecEvent::VacancyUpdated => self.election_schedulers.notify(),
+                AecEvent::UnconfirmedBlockRemoved(block) => {
+                    let mut buf = MemoryStream::new();
+                    block.serialize_without_block_type(&mut buf);
+                    self.network_filter.clear_bytes(buf.as_bytes());
+                }
             }
         }
     }

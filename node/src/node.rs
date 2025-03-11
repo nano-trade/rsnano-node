@@ -560,12 +560,11 @@ impl Node {
 
         let election_config = ElectionConfig::default_for(network_params.network.current_network);
 
-        let (aec_sender, aec_receiver) = sync_channel(128);
+        let (aec_sender, aec_receiver) = sync_channel(1024);
         let mut active_elections = ActiveElections::new(
             config.clone(),
             ledger.rep_weights.clone(),
             confirming_set.clone(),
-            network_filter.clone(),
             vote_cache.clone(),
             stats.clone(),
             recently_confirmed.clone(),
@@ -1165,6 +1164,7 @@ impl Node {
             node_event_sender,
             election_schedulers: election_schedulers.clone(),
             recently_cemented_inserter,
+            network_filter: network_filter.clone(),
         };
 
         std::thread::Builder::new()

@@ -9,14 +9,14 @@ use root_container::{Entry, RootContainer};
 use tracing::{debug, trace};
 
 use rsnano_core::{
-    utils::{ContainerInfo, MemoryStream},
-    Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
+    utils::ContainerInfo, Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock,
+    VoteWithWeightInfo,
 };
 use rsnano_ledger::{
-    BlockStatus, Election, ElectionBehavior, ElectionConfig, ElectionStatus, ElectionStatusType,
-    RepWeightCache,
+    BlockStatus, CementingEntry, Election, ElectionBehavior, ElectionConfig, ElectionStatus,
+    ElectionStatusType, RepWeightCache,
 };
-use rsnano_messages::{Message, NetworkFilter, Publish};
+use rsnano_messages::{Message, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
@@ -64,6 +64,7 @@ pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
     BlockCemented(SavedBlock, ElectionStatus, Vec<VoteWithWeightInfo>),
+    UnconfirmedBlockRemoved(Block),
     VacancyUpdated,
 }
 
@@ -74,7 +75,6 @@ pub struct ActiveElections {
     rep_weights: Arc<RepWeightCache>,
     confirming_set: Arc<ConfirmingSet>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    network_filter: Arc<NetworkFilter>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     pub vote_applier: Arc<VoteApplier>,
@@ -90,7 +90,6 @@ impl ActiveElections {
         node_config: NodeConfig,
         rep_weights: Arc<RepWeightCache>,
         confirming_set: Arc<ConfirmingSet>,
-        network_filter: Arc<NetworkFilter>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
@@ -116,7 +115,6 @@ impl ActiveElections {
             confirming_set,
             recently_confirmed,
             config: node_config.active_elections.clone(),
-            network_filter,
             vote_cache,
             stats,
             vote_applier,
@@ -176,12 +174,6 @@ impl ActiveElections {
         }
 
         self.notify(AecEvent::BlockCemented(block, status, votes));
-    }
-
-    fn clear_publish_filter(&self, block: &Block) {
-        let mut buf = MemoryStream::new();
-        block.serialize_without_block_type(&mut buf);
-        self.network_filter.clear_bytes(buf.as_bytes());
     }
 
     /// Maximum number of elections that should be present in this container
@@ -350,8 +342,7 @@ impl ActiveElections {
             }
 
             if !is_confirmed {
-                // Clear from publish filter
-                self.clear_publish_filter(&block);
+                self.notify(AecEvent::UnconfirmedBlockRemoved(block.into()));
             }
         }
     }
@@ -508,9 +499,9 @@ impl ActiveElections {
             let removed = election.remove_tally_below(fork_tally);
             if let Some(removed) = removed {
                 self.vote_router.disconnect(&removed.hash());
-                self.clear_publish_filter(&removed);
+                self.notify(AecEvent::UnconfirmedBlockRemoved(removed.into()));
             } else {
-                self.clear_publish_filter(fork);
+                self.notify(AecEvent::UnconfirmedBlockRemoved(fork.clone()));
                 return false;
             }
         }
@@ -538,7 +529,7 @@ impl ActiveElections {
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
-    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, rsnano_ledger::CementingEntry)>) {
+    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, CementingEntry)>) {
         let mut results = Vec::new();
         {
             let mut guard = self.mutex.lock().unwrap();
