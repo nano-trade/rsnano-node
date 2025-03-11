@@ -53,7 +53,7 @@ use crate::{
         VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
     },
-    ledger_event_processor::{self, LedgerEventProcessor},
+    ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
@@ -1222,6 +1222,7 @@ impl Node {
 
         let mut ledger_event_processor = LedgerEventProcessor {
             receiver: ledger_rx,
+            local_block_broadcaster: local_block_broadcaster.clone(),
         };
 
         std::thread::Builder::new()
@@ -1613,6 +1614,7 @@ impl Node {
         info!("Node stopping...");
 
         self.tcp_listener.stop();
+        self.ledger.stop();
         self.ledger_notification_thread.stop();
         self.online_weight_calculation.stop();
         self.vote_router.stop();

@@ -27,7 +27,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::SyncSender,
-        Arc,
+        Arc, RwLock,
     },
     time::SystemTime,
 };
@@ -115,7 +115,7 @@ pub struct Ledger {
     pub constants: LedgerConstants,
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
-    event_sender: Option<SyncSender<LedgerEvent>>,
+    event_sender: RwLock<Option<SyncSender<LedgerEvent>>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -251,7 +251,7 @@ impl Ledger {
             constants,
             pruning: AtomicBool::new(false),
             stats,
-            event_sender: None,
+            event_sender: RwLock::new(None),
         };
 
         ledger.initialize(&GenerateCacheFlags::new())?;
@@ -260,7 +260,7 @@ impl Ledger {
     }
 
     pub fn set_event_sink(&mut self, sink: SyncSender<LedgerEvent>) {
-        self.event_sender = Some(sink);
+        *self.event_sender.write().unwrap() = Some(sink);
     }
 
     fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
@@ -742,7 +742,7 @@ impl Ledger {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
                         observer.max_blocks_reached();
-                        if let Some(sender) = &self.event_sender {
+                        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
                             sender.send(LedgerEvent::BatchConfirmed(cemented)).unwrap();
                         }
                         cemented = Vec::new();
@@ -870,6 +870,10 @@ impl Ledger {
 
     pub fn memory_stats(&self) -> anyhow::Result<MemoryStats> {
         self.store.memory_stats()
+    }
+
+    pub fn stop(&self) {
+        drop(self.event_sender.write().unwrap().take())
     }
 
     pub fn container_info(&self) -> ContainerInfo {
