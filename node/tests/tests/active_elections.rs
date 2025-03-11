@@ -236,8 +236,7 @@ fn non_final() {
     );
 
     let election = node.active.election(&send.qualified_root()).unwrap();
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
             node.stats
                 .count(StatType::ElectionVote, DetailType::Cache, Direction::In)
@@ -245,8 +244,7 @@ fn non_final() {
         1,
     );
 
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
             node.active
                 .vote_applier

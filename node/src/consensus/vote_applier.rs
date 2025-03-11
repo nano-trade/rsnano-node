@@ -151,11 +151,13 @@ pub trait VoteApplierExt {
         block_hash: &BlockHash,
         vote_source: VoteSource,
     ) -> VoteCode;
+
     fn confirm_if_quorum(
         &self,
         election_lock: MutexGuard<Election>,
         election: &Arc<Mutex<Election>>,
     );
+
     fn confirm_once(&self, election_lock: &mut Election, election: &Arc<Mutex<Election>>);
 }
 
@@ -270,29 +272,26 @@ impl VoteApplierExt for Arc<VoteApplier> {
         }
     }
 
-    fn confirm_once(&self, election_lock: &mut Election, election: &Arc<Mutex<Election>>) {
-        let just_confirmed = election_lock.state != ElectionState::Confirmed;
-        election_lock.state = ElectionState::Confirmed;
+    fn confirm_once(&self, election: &mut Election, election_mutex: &Arc<Mutex<Election>>) {
+        let just_confirmed = election.state != ElectionState::Confirmed;
 
         if just_confirmed {
-            election_lock.update_status_to_confirmed();
-            let status = election_lock.status.clone();
+            election.update_status_to_confirmed();
+            let winner_hash = election.winner_hash().unwrap();
 
-            self.recently_confirmed.write().unwrap().put(
-                election_lock.qualified_root().clone(),
-                status.winner.as_ref().unwrap().hash(),
-            );
+            self.recently_confirmed
+                .write()
+                .unwrap()
+                .put(election.qualified_root().clone(), winner_hash);
 
             self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
             trace!(
-                qualified_root = ?election_lock.qualified_root(),
+                qualified_root = ?election.qualified_root(),
                 "election confirmed"
             );
 
-            self.confirming_set.add_with_election(
-                status.winner.as_ref().unwrap().hash(),
-                Some(election.clone()),
-            );
+            self.confirming_set
+                .add_with_election(winner_hash, Some(election_mutex.clone()));
         } else {
             self.stats
                 .inc(StatType::Election, DetailType::ConfirmOnceFailed);

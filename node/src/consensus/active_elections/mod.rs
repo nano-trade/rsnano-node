@@ -269,18 +269,6 @@ impl ActiveElections {
         }
     }
 
-    fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
-        let mut election = election_mutex.lock().unwrap();
-        if let Some(winner_hash) = &election.winner_hash() {
-            if winner_hash == hash {
-                if !election.is_confirmed() {
-                    self.vote_applier
-                        .confirm_once(&mut election, election_mutex);
-                }
-            }
-        }
-    }
-
     pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
         let mut guard = election.lock().unwrap();
         self.vote_applier.confirm_once(&mut guard, election);
@@ -498,6 +486,28 @@ impl ActiveElections {
         trace!(?block, %confirmation_root, "active cemented");
 
         (status, votes)
+    }
+
+    fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
+        let mut election = election_mutex.lock().unwrap();
+        if let Some(winner_hash) = &election.winner_hash() {
+            if winner_hash == hash {
+                if !election.is_confirmed() {
+                    election.update_status_to_confirmed();
+
+                    self.recently_confirmed
+                        .write()
+                        .unwrap()
+                        .put(election.qualified_root().clone(), *winner_hash);
+
+                    self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
+                    trace!(
+                        qualified_root = ?election.qualified_root(),
+                        "election confirmed"
+                    );
+                }
+            }
+        }
     }
 
     fn notify_block_cemented(&self, status: ElectionStatus, votes: Vec<VoteWithWeightInfo>) {

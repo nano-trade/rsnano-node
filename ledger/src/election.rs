@@ -247,6 +247,7 @@ impl Election {
     }
 
     pub fn update_status_to_confirmed(&mut self) {
+        self.state = ElectionState::Confirmed;
         self.status.election_end = SystemTime::now();
         self.status.election_duration = self.duration();
         self.status.confirmation_request_count = self.confirmation_request_count;
