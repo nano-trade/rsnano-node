@@ -20,7 +20,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
 };
-use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, ConfirmedSet, Entry, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
@@ -1161,9 +1161,23 @@ pub trait WalletsExt {
     fn ensure_wallet_is_unlocked(&self, wallet_id: WalletId, password: &str) -> bool;
 
     fn initialize2(&self);
+    fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, Entry)>);
 }
 
 impl WalletsExt for Arc<Wallets> {
+    fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, Entry)>) {
+        for (block, _) in confirmed {
+            // TODO: Is it neccessary to call this for all blocks?
+            if block.is_send() {
+                let block = block.clone();
+                let wallets = self.clone();
+                self.workers.post(Box::new(move || {
+                    wallets.receive_confirmed(block.hash(), block.destination().unwrap())
+                }));
+            }
+        }
+    }
+
     fn receive_action2(
         &self,
         wallet_id: &WalletId,

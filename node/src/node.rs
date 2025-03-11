@@ -790,14 +790,6 @@ impl Node {
             }
         });
 
-        // Remove cemented blocks from the backlog
-        let backlog_w = Arc::downgrade(&bounded_backlog);
-        confirming_set.on_batch_cemented(Box::new(move |batch| {
-            if let Some(backlog) = backlog_w.upgrade() {
-                backlog.erase_hashes(batch.iter().map(|i| i.block.hash()));
-            }
-        }));
-
         let bootstrapper = Arc::new(Bootstrapper::new(
             block_processor.clone(),
             ledger.clone(),
@@ -1109,28 +1101,6 @@ impl Node {
             }
         }
 
-        let workers_w = Arc::downgrade(&wallet_workers);
-        let wallets_w = Arc::downgrade(&wallets);
-        confirming_set.on_batch_cemented(Box::new(move |batch| {
-            let Some(workers) = workers_w.upgrade() else {
-                return;
-            };
-            let Some(wallets) = wallets_w.upgrade() else {
-                return;
-            };
-
-            for ctx in batch {
-                // TODO: Is it neccessary to call this for all blocks?
-                if ctx.block.is_send() {
-                    let block = ctx.block.clone();
-                    let wallets = wallets.clone();
-                    workers.post(Box::new(move || {
-                        wallets.receive_confirmed(block.hash(), block.destination().unwrap())
-                    }));
-                }
-            }
-        }));
-
         let time_factory = SystemTimeFactory::default();
 
         let peer_cache_updater = PeerCacheUpdater::new(
@@ -1205,6 +1175,8 @@ impl Node {
             active_elections: active_elections.clone(),
             election_schedulers: election_schedulers.clone(),
             flags: flags.clone(),
+            wallets: wallets.clone(),
+            bounded_backlog: bounded_backlog.clone(),
         };
 
         std::thread::Builder::new()

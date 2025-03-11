@@ -8,7 +8,7 @@ use std::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
+use rsnano_ledger::{AnySet, BlockStatus, Entry, Ledger, LedgerSet, OwningAnySet};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -204,6 +204,11 @@ impl BoundedBacklog {
                 bucket_index,
                 priority: priority_timestamp,
             })
+    }
+
+    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, Entry)>) {
+        // Remove cemented blocks from the backlog
+        self.erase_hashes(confirmed.iter().map(|i| i.0.hash()));
     }
 
     pub fn container_info(&self) -> ContainerInfo {
