@@ -2,7 +2,7 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
-    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, ConfirmingEntry,
+    AnySet, BlockRollbackPerformer, BorrowingAnySet, CementingEntry, ConfirmedSet,
     GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
     OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, Writer,
 };
@@ -104,8 +104,7 @@ impl From<BlockStatus> for DetailType {
 }
 
 pub enum LedgerEvent {
-    /// Confirmed Blocks + their confirmation roots
-    BatchConfirmed(Vec<(SavedBlock, ConfirmingEntry)>),
+    BatchCemented(Vec<(SavedBlock, CementingEntry)>),
 }
 
 pub struct Ledger {
@@ -713,7 +712,7 @@ impl Ledger {
 
     pub fn confirm_batch<'a, O>(
         &self,
-        batch: impl IntoIterator<Item = ConfirmingEntry>,
+        batch: impl IntoIterator<Item = CementingEntry>,
         stopped: &AtomicBool,
         max_blocks: usize,
         observer: &mut O,
@@ -742,7 +741,7 @@ impl Ledger {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
                         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                            sender.send(LedgerEvent::BatchConfirmed(cemented)).unwrap();
+                            sender.send(LedgerEvent::BatchCemented(cemented)).unwrap();
                         }
                         cemented = Vec::new();
                         tx.renew();
@@ -812,7 +811,7 @@ impl Ledger {
 
         if !cemented.is_empty() {
             if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                sender.send(LedgerEvent::BatchConfirmed(cemented)).unwrap();
+                sender.send(LedgerEvent::BatchCemented(cemented)).unwrap();
             }
         }
     }
@@ -899,5 +898,5 @@ pub struct BatchProcessResult {
 
 pub trait CementingObserver {
     fn already_cemented(&mut self, hash: &BlockHash);
-    fn cementing_failed(&mut self, entry: &ConfirmingEntry);
+    fn cementing_failed(&mut self, entry: &CementingEntry);
 }

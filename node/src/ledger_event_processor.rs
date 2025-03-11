@@ -23,14 +23,14 @@ impl LedgerEventProcessor {
     pub fn run(&mut self) {
         while let Ok(event) = self.receiver.recv() {
             match event {
-                LedgerEvent::BatchConfirmed(confirmed) => {
-                    self.active_elections.handle_cementations(&confirmed);
+                LedgerEvent::BatchCemented(confirmed) => {
+                    self.active_elections.batch_cemented(&confirmed);
                     if !self.flags.disable_activate_successors {
-                        self.election_schedulers.batch_confirmed(&confirmed);
+                        self.election_schedulers.batch_cemented(&confirmed);
                     }
-                    self.bounded_backlog.batch_confirmed(&confirmed);
-                    self.local_block_broadcaster.batch_confirmed(&confirmed);
-                    self.wallets.batch_confirmed(&confirmed);
+                    self.bounded_backlog.batch_cemented(&confirmed);
+                    self.local_block_broadcaster.batch_cemented(&confirmed);
+                    self.wallets.batch_cemented(&confirmed);
                 }
             }
         }

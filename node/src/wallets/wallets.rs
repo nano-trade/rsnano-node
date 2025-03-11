@@ -20,7 +20,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
 };
-use rsnano_ledger::{AnySet, ConfirmedSet, ConfirmingEntry, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, CementingEntry, ConfirmedSet, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
@@ -1161,11 +1161,11 @@ pub trait WalletsExt {
     fn ensure_wallet_is_unlocked(&self, wallet_id: WalletId, password: &str) -> bool;
 
     fn initialize2(&self);
-    fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, ConfirmingEntry)>);
+    fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, CementingEntry)>);
 }
 
 impl WalletsExt for Arc<Wallets> {
-    fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, ConfirmingEntry)>) {
+    fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, CementingEntry)>) {
         for (block, _) in confirmed {
             // TODO: Is it neccessary to call this for all blocks?
             if block.is_send() {

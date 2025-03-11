@@ -578,8 +578,9 @@ impl Default for ElectionStatus {
     }
 }
 
+/// A block that is currently cementing
 #[derive(Clone)]
-pub struct ConfirmingEntry {
+pub struct CementingEntry {
     pub hash: BlockHash,
     pub election: Option<Arc<Mutex<Election>>>,
     pub timestamp: Instant,

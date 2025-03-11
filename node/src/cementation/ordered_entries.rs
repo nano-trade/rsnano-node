@@ -1,15 +1,15 @@
 use rsnano_core::BlockHash;
-use rsnano_ledger::ConfirmingEntry;
+use rsnano_ledger::CementingEntry;
 use std::collections::{HashMap, VecDeque};
 
 #[derive(Default)]
 pub(super) struct OrderedEntries {
     sequenced: VecDeque<BlockHash>,
-    by_hash: HashMap<BlockHash, ConfirmingEntry>,
+    by_hash: HashMap<BlockHash, CementingEntry>,
 }
 
 impl OrderedEntries {
-    pub fn push_back(&mut self, entry: ConfirmingEntry) -> bool {
+    pub fn push_back(&mut self, entry: CementingEntry) -> bool {
         let hash = entry.hash;
         let mut inserted = true;
 
@@ -35,7 +35,7 @@ impl OrderedEntries {
         self.sequenced.len()
     }
 
-    pub(crate) fn front(&mut self) -> Option<&ConfirmingEntry> {
+    pub(crate) fn front(&mut self) -> Option<&CementingEntry> {
         if let Some(hash) = self.sequenced.front() {
             self.by_hash.get(hash)
         } else {
@@ -43,7 +43,7 @@ impl OrderedEntries {
         }
     }
 
-    pub(crate) fn pop_front(&mut self) -> Option<ConfirmingEntry> {
+    pub(crate) fn pop_front(&mut self) -> Option<CementingEntry> {
         if let Some(hash) = self.sequenced.pop_front() {
             self.by_hash.remove(&hash)
         } else {
@@ -51,7 +51,7 @@ impl OrderedEntries {
         }
     }
 
-    pub(crate) fn remove(&mut self, hash: &BlockHash) -> Option<ConfirmingEntry> {
+    pub(crate) fn remove(&mut self, hash: &BlockHash) -> Option<CementingEntry> {
         if let Some(entry) = self.by_hash.remove(hash) {
             self.sequenced.retain(|h| *h != entry.hash);
             Some(entry)

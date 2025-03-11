@@ -63,7 +63,7 @@ impl Default for ActiveElectionsConfig {
 pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
-    ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock),
+    BlockCemented(SavedBlock, ElectionStatus, Vec<VoteWithWeightInfo>),
     VacancyUpdated,
 }
 
@@ -175,7 +175,7 @@ impl ActiveElections {
             _ => {}
         }
 
-        self.notify(AecEvent::ElectionEnded(status, votes, block));
+        self.notify(AecEvent::BlockCemented(block, status, votes));
     }
 
     fn clear_publish_filter(&self, block: &Block) {
@@ -538,10 +538,7 @@ impl ActiveElections {
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
-    pub fn handle_cementations(
-        &self,
-        cemented: &Vec<(SavedBlock, rsnano_ledger::ConfirmingEntry)>,
-    ) {
+    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, rsnano_ledger::CementingEntry)>) {
         let mut results = Vec::new();
         {
             let mut guard = self.mutex.lock().unwrap();

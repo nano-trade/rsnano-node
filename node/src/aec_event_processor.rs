@@ -34,9 +34,9 @@ impl AecEventProcessor {
                     }
                 }
 
-                AecEvent::ElectionEnded(status, votes, block) => {
+                AecEvent::BlockCemented(block, status, votes) => {
                     if let Some(tx) = &self.node_event_sender {
-                        tx.send(NodeEvent::ElectionEnded(status.clone(), votes, block))
+                        tx.send(NodeEvent::BlockCemented(block, status.clone(), votes))
                             .unwrap();
                     }
                     self.recently_cemented_inserter.insert(status);

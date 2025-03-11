@@ -1655,7 +1655,7 @@ fn make_store(
 pub enum NodeEvent {
     AecActiveStarted(BlockHash),
     AecActiveStopped(BlockHash),
-    ElectionEnded(ElectionStatus, Vec<VoteWithWeightInfo>, SavedBlock),
+    BlockCemented(SavedBlock, ElectionStatus, Vec<VoteWithWeightInfo>),
 }
 
 pub trait NodeEventHandler {
