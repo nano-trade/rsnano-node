@@ -56,7 +56,7 @@ pub struct OptimisticScheduler {
     network_constants: NetworkConstants,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
-    optimistic_elections_limit: usize,
+    pub max_elections: usize,
 }
 
 impl OptimisticScheduler {
@@ -68,8 +68,7 @@ impl OptimisticScheduler {
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
     ) -> Self {
-        let optimistic_elections_limit =
-            active.max_len() * config.optimistic_limit_percentage / 100;
+        let max_elections = active.max_len() * config.optimistic_limit_percentage / 100;
 
         Self {
             thread: Mutex::new(None),
@@ -82,7 +81,7 @@ impl OptimisticScheduler {
             network_constants,
             ledger,
             confirming_set,
-            optimistic_elections_limit,
+            max_elections,
         }
     }
 
@@ -157,7 +156,7 @@ impl OptimisticScheduler {
     }
 
     fn predicate(&self, candidates: &OrderedCandidates) -> bool {
-        let vacancy = self.optimistic_elections_limit as i64
+        let vacancy = self.max_elections as i64
             - self.active.count_by_behavior(ElectionBehavior::Optimistic) as i64;
         let vacancy = min(vacancy, self.active.vacancy());
 

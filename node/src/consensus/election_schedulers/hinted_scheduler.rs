@@ -63,7 +63,7 @@ pub struct HintedScheduler {
     stopped: AtomicBool,
     stopped_mutex: Mutex<()>,
     cooldowns: Mutex<OrderedCooldowns>,
-    max_hinted_elections: usize,
+    pub max_elections: usize,
     notification_threshold: usize,
 }
 
@@ -77,9 +77,9 @@ impl HintedScheduler {
         confirming_set: Arc<ConfirmingSet>,
         online_reps: Arc<Mutex<OnlineReps>>,
     ) -> Self {
-        let max_hinted_elections = active.max_len() * config.hinted_limit_percentage / 100;
+        let max_elections = active.max_len() * config.hinted_limit_percentage / 100;
         let notification_threshold =
-            max_hinted_elections * config.vacancy_threshold_percent as usize / 100;
+            max_elections * config.vacancy_threshold_percent as usize / 100;
 
         Self {
             thread: Mutex::new(None),
@@ -94,7 +94,7 @@ impl HintedScheduler {
             stopped: AtomicBool::new(false),
             stopped_mutex: Mutex::new(()),
             cooldowns: Mutex::new(OrderedCooldowns::new()),
-            max_hinted_elections,
+            max_elections,
             notification_threshold,
         }
     }
@@ -117,7 +117,7 @@ impl HintedScheduler {
     }
 
     fn aec_vacancy(&self) -> i64 {
-        let vacancy = self.max_hinted_elections as i64
+        let vacancy = self.max_elections as i64
             - self.active.count_by_behavior(ElectionBehavior::Hinted) as i64;
         min(vacancy, self.active.vacancy())
     }

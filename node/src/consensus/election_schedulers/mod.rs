@@ -26,8 +26,8 @@ use crate::{
 
 pub struct ElectionSchedulers {
     pub priority: Arc<PriorityScheduler>,
-    optimistic: Arc<OptimisticScheduler>,
-    hinted: Arc<HintedScheduler>,
+    pub optimistic: Arc<OptimisticScheduler>,
+    pub hinted: Arc<HintedScheduler>,
     pub manual: Arc<ManualScheduler>,
     notify_listener: OutputListenerMt<()>,
     config: NodeConfig,

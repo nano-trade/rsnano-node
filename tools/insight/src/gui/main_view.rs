@@ -144,15 +144,11 @@ impl AppViewModel {
                         self.app.aec_info.priority,
                         self.app.aec_info.max_queue,
                     ),
-                    QueueViewModel::new(
-                        "Hinted",
-                        self.app.aec_info.hinted,
-                        self.app.aec_info.max_queue,
-                    ),
+                    QueueViewModel::new("Hinted", self.app.aec_info.hinted, self.app.max_hinted),
                     QueueViewModel::new(
                         "Optimistic",
                         self.app.aec_info.optimistic,
-                        self.app.aec_info.max_queue,
+                        self.app.max_optimistic,
                     ),
                     QueueViewModel::new(
                         "Total",
