@@ -45,12 +45,13 @@ impl AecEventProcessor {
                     }
                     self.recently_cemented_inserter.insert(status);
                 }
-                AecEvent::VacancyUpdated => self.election_schedulers.notify(),
+                AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
                 AecEvent::UnconfirmedBlockRemoved(block) => {
                     let mut buf = MemoryStream::new();
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());
                 }
+                AecEvent::VacancyUpdated => self.election_schedulers.notify(),
             }
         }
     }

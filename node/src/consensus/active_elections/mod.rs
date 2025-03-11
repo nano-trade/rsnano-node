@@ -20,9 +20,7 @@ use rsnano_messages::{Message, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
-use super::{
-    ElectionVoter, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor, VoteRouter,
-};
+use super::{ElectionVoter, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter};
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
     consensus::VoteApplierExt, transport::MessageFlooder,
@@ -64,6 +62,7 @@ pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
     BlockCemented(SavedBlock, ElectionStatus, Vec<VoteWithWeightInfo>),
+    BlockAddedToElection(BlockHash),
     UnconfirmedBlockRemoved(Block),
     VacancyUpdated,
 }
@@ -79,7 +78,6 @@ pub struct ActiveElections {
     stats: Arc<Stats>,
     pub vote_applier: Arc<VoteApplier>,
     vote_router: Arc<VoteRouter>,
-    vote_cache_processor: Arc<VoteCacheProcessor>,
     message_flooder: Mutex<MessageFlooder>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
     election_voter: ElectionVoter,
@@ -95,7 +93,6 @@ impl ActiveElections {
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
         vote_router: Arc<VoteRouter>,
-        vote_cache_processor: Arc<VoteCacheProcessor>,
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
@@ -119,7 +116,6 @@ impl ActiveElections {
             stats,
             vote_applier,
             vote_router,
-            vote_cache_processor,
             message_flooder: Mutex::new(message_flooder),
             event_sender: RwLock::new(None),
             election_voter,
@@ -143,37 +139,6 @@ impl ActiveElections {
             hinted: guard.hinted_count,
             optimistic: guard.optimistic_count,
         }
-    }
-
-    //--------------------------------------------------------------------------------
-
-    fn notify_election_ended(&self, status: ElectionStatus, votes: Vec<VoteWithWeightInfo>) {
-        let block = status.winner.as_ref().unwrap();
-        let MaybeSavedBlock::Saved(block) = block else {
-            return;
-        };
-        let block = block.clone();
-
-        match status.election_status_type {
-            ElectionStatusType::ActiveConfirmedQuorum => self.stats.inc_dir(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveQuorum,
-                Direction::Out,
-            ),
-            ElectionStatusType::ActiveConfirmationHeight => self.stats.inc_dir(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveConfHeight,
-                Direction::Out,
-            ),
-            ElectionStatusType::InactiveConfirmationHeight => self.stats.inc_dir(
-                StatType::ConfirmationObserver,
-                DetailType::InactiveConfHeight,
-                Direction::Out,
-            ),
-            _ => {}
-        }
-
-        self.notify(AecEvent::BlockCemented(block, status, votes));
     }
 
     /// Maximum number of elections that should be present in this container
@@ -472,7 +437,7 @@ impl ActiveElections {
                     .connect(fork.hash(), Arc::downgrade(&election_mutex));
                 drop(guard);
 
-                self.vote_cache_processor.trigger(fork.hash());
+                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
 
                 self.stats
                     .inc(StatType::Active, DetailType::ElectionBlockConflict);
@@ -544,7 +509,7 @@ impl ActiveElections {
 
         // TODO: This could be offloaded to a separate notification worker, profiling is needed
         for (status, votes) in results {
-            self.notify_election_ended(status, votes);
+            self.notify_block_cemented(status, votes);
         }
     }
 
@@ -601,6 +566,35 @@ impl ActiveElections {
         trace!(?block, %confirmation_root, "active cemented");
 
         (status, votes)
+    }
+
+    fn notify_block_cemented(&self, status: ElectionStatus, votes: Vec<VoteWithWeightInfo>) {
+        let block = status.winner.as_ref().unwrap();
+        let MaybeSavedBlock::Saved(block) = block else {
+            return;
+        };
+        let block = block.clone();
+
+        match status.election_status_type {
+            ElectionStatusType::ActiveConfirmedQuorum => self.stats.inc_dir(
+                StatType::ConfirmationObserver,
+                DetailType::ActiveQuorum,
+                Direction::Out,
+            ),
+            ElectionStatusType::ActiveConfirmationHeight => self.stats.inc_dir(
+                StatType::ConfirmationObserver,
+                DetailType::ActiveConfHeight,
+                Direction::Out,
+            ),
+            ElectionStatusType::InactiveConfirmationHeight => self.stats.inc_dir(
+                StatType::ConfirmationObserver,
+                DetailType::InactiveConfHeight,
+                Direction::Out,
+            ),
+            _ => {}
+        }
+
+        self.notify(AecEvent::BlockCemented(block, status, votes));
     }
 
     pub fn stop(&self) {

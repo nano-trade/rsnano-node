@@ -570,7 +570,6 @@ impl Node {
             recently_confirmed.clone(),
             vote_applier.clone(),
             vote_router.clone(),
-            vote_cache_processor.clone(),
             message_flooder.clone(),
             election_voter,
             election_config,
