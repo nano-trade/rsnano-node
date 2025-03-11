@@ -59,6 +59,7 @@ use crate::{
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
+    recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{
         OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
     },
@@ -1155,6 +1156,10 @@ impl Node {
             workers: workers.clone(),
         };
 
+        let recently_cemented_inserter = RecentlyCementedInserter {
+            recently_cemented: recently_cemented.clone(),
+        };
+
         let mut aec_event_processor = AecEventProcessor {
             receiver: aec_receiver,
             vote_cache_processor: vote_cache_processor.clone(),
@@ -1177,6 +1182,7 @@ impl Node {
             flags: flags.clone(),
             wallets: wallets.clone(),
             bounded_backlog: bounded_backlog.clone(),
+            recently_cemented_inserter,
         };
 
         std::thread::Builder::new()

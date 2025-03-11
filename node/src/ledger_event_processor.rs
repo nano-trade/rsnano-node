@@ -6,6 +6,7 @@ use crate::{
     block_processing::{BoundedBacklog, LocalBlockBroadcaster},
     config::NodeFlags,
     consensus::{election_schedulers::ElectionSchedulers, ActiveElections},
+    recently_cemented_inserter::RecentlyCementedInserter,
     wallets::{Wallets, WalletsExt},
 };
 
@@ -17,6 +18,7 @@ pub(crate) struct LedgerEventProcessor {
     pub bounded_backlog: Arc<BoundedBacklog>,
     pub wallets: Arc<Wallets>,
     pub flags: NodeFlags,
+    pub recently_cemented_inserter: RecentlyCementedInserter,
 }
 
 impl LedgerEventProcessor {
@@ -30,6 +32,7 @@ impl LedgerEventProcessor {
                     }
                     self.bounded_backlog.batch_confirmed(&confirmed);
                     self.local_block_broadcaster.batch_confirmed(&confirmed);
+                    self.recently_cemented_inserter.batch_confirmed(&confirmed);
                     self.wallets.batch_confirmed(&confirmed);
                 }
             }
