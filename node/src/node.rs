@@ -575,7 +575,6 @@ impl Node {
             message_flooder.clone(),
             election_voter,
             election_config,
-            recently_cemented.clone(),
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
@@ -1165,6 +1164,7 @@ impl Node {
             vote_cache_processor: vote_cache_processor.clone(),
             node_event_sender,
             election_schedulers: election_schedulers.clone(),
+            recently_cemented_inserter,
         };
 
         std::thread::Builder::new()
@@ -1182,7 +1182,6 @@ impl Node {
             flags: flags.clone(),
             wallets: wallets.clone(),
             bounded_backlog: bounded_backlog.clone(),
-            recently_cemented_inserter,
         };
 
         std::thread::Builder::new()

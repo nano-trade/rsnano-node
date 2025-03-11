@@ -5,7 +5,6 @@ use std::{
     sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
 };
 
-use bounded_vec_deque::BoundedVecDeque;
 use root_container::{Entry, RootContainer};
 use tracing::{debug, trace};
 
@@ -75,8 +74,6 @@ pub struct ActiveElections {
     rep_weights: Arc<RepWeightCache>,
     confirming_set: Arc<ConfirmingSet>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    /// Helper container for storing recently cemented elections (a block from election might be confirmed but not yet cemented by confirmation height processor)
-    recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     network_filter: Arc<NetworkFilter>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
@@ -103,7 +100,6 @@ impl ActiveElections {
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
-        recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
@@ -119,7 +115,6 @@ impl ActiveElections {
             rep_weights,
             confirming_set,
             recently_confirmed,
-            recently_cemented,
             config: node_config.active_elections.clone(),
             network_filter,
             vote_cache,
@@ -607,11 +602,6 @@ impl ActiveElections {
         } else {
             status.election_status_type = ElectionStatusType::InactiveConfirmationHeight;
         }
-
-        self.recently_cemented
-            .lock()
-            .unwrap()
-            .push_back(status.clone());
 
         self.stats
             .inc(StatType::ActiveElections, DetailType::Cemented);
