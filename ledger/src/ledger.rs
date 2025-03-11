@@ -2,9 +2,9 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
-    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, Entry, GenerateCacheFlags,
-    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, Writer,
+    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, ConfirmingEntry,
+    GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
+    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, Writer,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
@@ -105,7 +105,7 @@ impl From<BlockStatus> for DetailType {
 
 pub enum LedgerEvent {
     /// Confirmed Blocks + their confirmation roots
-    BatchConfirmed(Vec<(SavedBlock, Entry)>),
+    BatchConfirmed(Vec<(SavedBlock, ConfirmingEntry)>),
 }
 
 pub struct Ledger {
@@ -713,7 +713,7 @@ impl Ledger {
 
     pub fn confirm_batch<'a, O>(
         &self,
-        batch: impl IntoIterator<Item = Entry>,
+        batch: impl IntoIterator<Item = ConfirmingEntry>,
         stopped: &AtomicBool,
         max_blocks: usize,
         observer: &mut O,
@@ -899,5 +899,5 @@ pub struct BatchProcessResult {
 
 pub trait CementingObserver {
     fn already_cemented(&mut self, hash: &BlockHash);
-    fn cementing_failed(&mut self, entry: &Entry);
+    fn cementing_failed(&mut self, entry: &ConfirmingEntry);
 }

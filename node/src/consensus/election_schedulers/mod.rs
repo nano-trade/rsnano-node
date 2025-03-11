@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, Entry, Ledger};
+use rsnano_ledger::{AnySet, ConfirmingEntry, Ledger};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::Stats;
 
@@ -122,7 +122,7 @@ impl ElectionSchedulers {
         self.manual.push(block, None);
     }
 
-    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, Entry)>) {
+    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, ConfirmingEntry)>) {
         // Activate successors of cemented blocks
         let any = self.ledger.any();
         for (block, _) in confirmed {

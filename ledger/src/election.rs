@@ -579,7 +579,7 @@ impl Default for ElectionStatus {
 }
 
 #[derive(Clone)]
-pub struct Entry {
+pub struct ConfirmingEntry {
     pub hash: BlockHash,
     pub election: Option<Arc<Mutex<Election>>>,
     pub timestamp: Instant,

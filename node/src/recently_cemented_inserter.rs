@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::SavedBlock;
-use rsnano_ledger::{ElectionStatus, Entry};
+use rsnano_ledger::{ConfirmingEntry, ElectionStatus};
 
 /// When a block gets cemented, this struct inserts that
 /// block into the recently cemented cache
@@ -11,5 +11,5 @@ pub(crate) struct RecentlyCementedInserter {
 }
 
 impl RecentlyCementedInserter {
-    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, Entry)>) {}
+    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, ConfirmingEntry)>) {}
 }

@@ -543,7 +543,10 @@ impl ActiveElections {
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
-    pub fn handle_cementations(&self, cemented: &Vec<(SavedBlock, rsnano_ledger::Entry)>) {
+    pub fn handle_cementations(
+        &self,
+        cemented: &Vec<(SavedBlock, rsnano_ledger::ConfirmingEntry)>,
+    ) {
         let mut results = Vec::new();
         {
             let mut guard = self.mutex.lock().unwrap();

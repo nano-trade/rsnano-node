@@ -9,7 +9,7 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
-use rsnano_ledger::{BlockStatus, CementingObserver, Election, Entry, Ledger};
+use rsnano_ledger::{BlockStatus, CementingObserver, ConfirmingEntry, Election, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ordered_entries::OrderedEntries;
@@ -194,7 +194,7 @@ impl ConfirmingSetThread {
     fn add(&self, hash: BlockHash, election: Option<Arc<Mutex<Election>>>) {
         let added = {
             let mut guard = self.mutex.lock().unwrap();
-            guard.set.push_back(Entry {
+            guard.set.push_back(ConfirmingEntry {
                 hash,
                 election,
                 timestamp: Instant::now(),
@@ -263,7 +263,7 @@ impl ConfirmingSetThread {
         }
     }
 
-    fn run_batch(&self, batch: VecDeque<Entry>) {
+    fn run_batch(&self, batch: VecDeque<ConfirmingEntry>) {
         let mut notifier = CementedNotifier::new(self);
         self.ledger
             .confirm_batch(batch, &self.stopped, self.config.max_blocks, &mut notifier);
@@ -286,7 +286,7 @@ struct ConfirmingSetImpl {
 }
 
 impl ConfirmingSetImpl {
-    fn next_batch(&mut self, max_count: usize) -> VecDeque<Entry> {
+    fn next_batch(&mut self, max_count: usize) -> VecDeque<ConfirmingEntry> {
         let mut results = VecDeque::new();
         // TODO: use extract_if once it is stablized
         while let Some(entry) = self.set.pop_front() {
@@ -298,11 +298,11 @@ impl ConfirmingSetImpl {
         results
     }
 
-    fn cleanup(&mut self) -> Vec<Entry> {
+    fn cleanup(&mut self) -> Vec<ConfirmingEntry> {
         let mut evicted = Vec::new();
 
         let cutoff = Instant::now() - self.config.deferred_age_cutoff;
-        let should_evict = |entry: &Entry| entry.timestamp < cutoff;
+        let should_evict = |entry: &ConfirmingEntry| entry.timestamp < cutoff;
 
         // Iterate in sequenced (insertion) order
         loop {
@@ -364,7 +364,7 @@ impl<'a> CementingObserver for CementedNotifier<'a> {
         self.already_cemented.push_back(*hash);
     }
 
-    fn cementing_failed(&mut self, entry: &Entry) {
+    fn cementing_failed(&mut self, entry: &ConfirmingEntry) {
         self.confirming_set
             .mutex
             .lock()
@@ -377,8 +377,6 @@ impl<'a> CementingObserver for CementedNotifier<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{ConfirmationHeightInfo, SavedAccountChain};
-    use std::time::Duration;
 
     #[test]
     fn add_exists() {
