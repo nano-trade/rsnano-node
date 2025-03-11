@@ -630,21 +630,6 @@ impl Node {
             }
         }));
 
-        if !flags.disable_activate_successors {
-            let ledger_l = ledger.clone();
-            let schedulers_w = Arc::downgrade(&election_schedulers);
-            // Activate successors of cemented blocks
-            confirming_set.on_batch_cemented(Box::new(move |batch| {
-                let Some(schedulers) = schedulers_w.upgrade() else {
-                    return;
-                };
-                let any = ledger_l.any();
-                for context in batch {
-                    schedulers.activate_successors(&any, &context.block);
-                }
-            }));
-        }
-
         vote_applier.set_election_schedulers(&election_schedulers);
 
         let mut bootstrap_sender = MessageSender::new_with_buffer_size(
@@ -1218,6 +1203,8 @@ impl Node {
             receiver: ledger_rx,
             local_block_broadcaster: local_block_broadcaster.clone(),
             active_elections: active_elections.clone(),
+            election_schedulers: election_schedulers.clone(),
+            flags: flags.clone(),
         };
 
         std::thread::Builder::new()
