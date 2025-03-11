@@ -323,22 +323,12 @@ impl ConfirmingSetImpl {
     }
 }
 
-/// block + confirmation root
-type BatchCementedCallback = Box<dyn FnMut(&VecDeque<CementingContext>) + Send>;
-
 #[derive(Default)]
 struct Observers {
-    batch_cemented: Vec<BatchCementedCallback>,
     cementing_failed: Vec<Box<dyn FnMut(&BlockHash) + Send>>,
 }
 
 impl Observers {
-    fn notify_batch(&mut self, cemented: VecDeque<CementingContext>) {
-        for observer in &mut self.batch_cemented {
-            observer(&cemented);
-        }
-    }
-
     fn notify_cementing_failed(&mut self, hash: &BlockHash) {
         for observer in &mut self.cementing_failed {
             observer(hash);

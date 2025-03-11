@@ -1,24 +1,3 @@
-use rsnano_core::{
-    utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
-    Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
-    StateBlockArgs, WalletId, DEV_GENESIS_KEY,
-};
-use rsnano_ledger::{
-    AnySet, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
-};
-use rsnano_network::{Channel, ChannelDirection};
-use rsnano_node::{
-    block_processing::BacklogScanConfig,
-    config::{NetworkParams, NodeConfig, NodeFlags},
-    consensus::Election,
-    unique_path,
-    wallets::WalletsExt,
-    Node, NodeBuilder, NodeEvent,
-};
-use rsnano_rpc_client::{NanoRpcClient, Url};
-use rsnano_rpc_server::run_rpc_server;
-use rsnano_store_lmdb::SyncStrategy;
-use rsnano_work::WorkPool;
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
@@ -29,7 +8,30 @@ use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
+
 use tracing_subscriber::EnvFilter;
+
+use rsnano_core::{
+    utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
+    Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
+    StateBlockArgs, WalletId, DEV_GENESIS_KEY,
+};
+use rsnano_ledger::{
+    AnySet, BlockStatus, Election, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    DEV_GENESIS_PUB_KEY,
+};
+use rsnano_network::{Channel, ChannelDirection};
+use rsnano_node::{
+    block_processing::BacklogScanConfig,
+    config::{NetworkParams, NodeConfig, NodeFlags},
+    unique_path,
+    wallets::WalletsExt,
+    Node, NodeBuilder, NodeEvent,
+};
+use rsnano_rpc_client::{NanoRpcClient, Url};
+use rsnano_rpc_server::run_rpc_server;
+use rsnano_store_lmdb::SyncStrategy;
+use rsnano_work::WorkPool;
 
 pub struct System {
     pub network_params: NetworkParams,

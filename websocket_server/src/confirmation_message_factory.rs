@@ -1,6 +1,5 @@
 use rsnano_core::{Amount, BlockType, SavedBlock, VoteWithWeightInfo};
-use rsnano_ledger::{AnySet, Ledger};
-use rsnano_node::consensus::ElectionStatus;
+use rsnano_ledger::{AnySet, ElectionStatus, Ledger};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};

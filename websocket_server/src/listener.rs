@@ -1,14 +1,3 @@
-use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
-use crate::{confirmation_message_factory::ConfirmationMessageFactory, WebsocketSession};
-use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
-use rsnano_ledger::Ledger;
-use rsnano_node::{
-    consensus::{ElectionStatus, ElectionStatusType},
-    wallets::Wallets,
-};
-use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
     net::SocketAddr,
     sync::{
@@ -17,12 +6,23 @@ use std::{
     },
     time::UNIX_EPOCH,
 };
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, oneshot},
 };
 use tokio_tungstenite::tungstenite::protocol::{frame::coding::CloseCode, CloseFrame};
 use tracing::{info, warn};
+
+use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
+use rsnano_ledger::{ElectionStatus, ElectionStatusType, Ledger};
+use rsnano_node::wallets::Wallets;
+use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
+
+use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
+use crate::{confirmation_message_factory::ConfirmationMessageFactory, WebsocketSession};
 
 pub struct WebsocketListener {
     endpoint: Mutex<SocketAddr>,
