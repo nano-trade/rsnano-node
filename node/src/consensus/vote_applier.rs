@@ -13,8 +13,8 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, Election, LocalVoteHistory, RecentlyConfirmedCache,
-    TallyKey, VoteGenerators,
+    election_schedulers::ElectionSchedulers, DescTallyKey, Election, LocalVoteHistory,
+    RecentlyConfirmedCache, VoteGenerators,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -89,7 +89,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn tally_impl(&self, guard: &mut Election) -> BTreeMap<TallyKey, MaybeSavedBlock> {
+    pub fn tally_impl(&self, guard: &mut Election) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
         for (account, info) in &guard.last_votes {
@@ -106,7 +106,7 @@ impl VoteApplier {
         let mut result = BTreeMap::new();
         for (hash, weight) in &block_weights {
             if let Some(block) = guard.last_blocks.get(hash) {
-                result.insert(TallyKey(*weight), block.clone());
+                result.insert(DescTallyKey(*weight), block.clone());
             }
         }
         // Calculate final votes sum for winner
@@ -132,7 +132,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn have_quorum(&self, tally: &BTreeMap<TallyKey, MaybeSavedBlock>) -> bool {
+    pub fn have_quorum(&self, tally: &BTreeMap<DescTallyKey, MaybeSavedBlock>) -> bool {
         let mut it = tally.keys();
         let first = it.next().map(|i| i.amount()).unwrap_or_default();
         let second = it.next().map(|i| i.amount()).unwrap_or_default();

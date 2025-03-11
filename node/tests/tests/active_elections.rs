@@ -923,7 +923,7 @@ fn confirmation_consistency() {
 
         assert_timely(Duration::from_secs(1), || {
             let recently_confirmed = node.recently_confirmed.read().unwrap();
-            let recently_cemented_size = node.active.recently_cemented_list();
+            let recently_cemented_size = node.active.recently_cemented();
 
             recently_confirmed.len() == i + 1
                 && recently_confirmed.back() == Some((&block.qualified_root(), &block.hash()))

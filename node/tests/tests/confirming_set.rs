@@ -66,7 +66,7 @@ fn confirmed_history() {
         // Confirm send1
         node.active.force_confirm(&election);
         assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
-        assert_eq!(node.active.recently_cemented_count(), 0);
+        assert_eq!(node.active.recently_cemented().len(), 0);
         assert_eq!(node.active.len(), 0);
 
         assert_eq!(node.ledger.confirmed().block_exists(&send.hash()), false);
@@ -117,7 +117,7 @@ fn confirmed_history() {
     );
 
     // Each block that's confirmed is in the recently_cemented history
-    assert_eq!(node.active.recently_cemented_count(), 2);
+    assert_eq!(node.active.recently_cemented().len(), 2);
     assert_eq!(node.active.len(), 0);
 
     // Confirm the callback is not called under this circumstance

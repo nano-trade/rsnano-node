@@ -16,7 +16,7 @@ use mock_instant::thread_local::Instant;
 use rsnano_core::{utils::ContainerInfo, Amount, BlockHash, PublicKey, Vote, VoteCode};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::TallyKey;
+use super::DescTallyKey;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteCacheConfig {
@@ -334,7 +334,7 @@ impl CacheEntry {
 pub struct CacheEntryCollection {
     sequential: BTreeMap<usize, BlockHash>,
     by_hash: HashMap<BlockHash, CacheEntry>,
-    by_tally: BTreeMap<TallyKey, Vec<BlockHash>>,
+    by_tally: BTreeMap<DescTallyKey, Vec<BlockHash>>,
 }
 
 impl CacheEntryCollection {
@@ -381,7 +381,7 @@ impl CacheEntryCollection {
     }
 
     fn remove_by_tally(&mut self, hash: BlockHash, tally: Amount) {
-        let key = TallyKey::from(tally);
+        let key = DescTallyKey::from(tally);
         let hashes = self.by_tally.get_mut(&key).unwrap();
         if hashes.len() == 1 {
             self.by_tally.remove(&key);

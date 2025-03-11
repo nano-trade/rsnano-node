@@ -11,7 +11,7 @@ use rsnano_core::{
 use rsnano_ledger::RepWeightCache;
 use rsnano_stats::{DetailType, StatType};
 
-use super::{ElectionStatus, ElectionStatusType, TallyKey};
+use super::{DescTallyKey, ElectionStatus, ElectionStatusType};
 use crate::utils::HardenedConstants;
 
 #[derive(Clone)]
@@ -323,7 +323,7 @@ impl Election {
     }
 
     pub fn votes_with_weight(&self, rep_weights: &RepWeightCache) -> Vec<VoteWithWeightInfo> {
-        let mut sorted_votes: BTreeMap<TallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
+        let mut sorted_votes: BTreeMap<DescTallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
         for (&representative, info) in &self.last_votes {
             if representative == HardenedConstants::get().not_an_account_key {
                 continue;
@@ -337,7 +337,7 @@ impl Election {
                 weight,
             };
             sorted_votes
-                .entry(TallyKey(weight))
+                .entry(DescTallyKey(weight))
                 .or_default()
                 .push(vote_with_weight);
         }
