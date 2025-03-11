@@ -9,13 +9,12 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
-use rsnano_ledger::{BlockStatus, CementingObserver, Ledger};
+use rsnano_ledger::{BlockStatus, CementingObserver, Election, Entry, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::ordered_entries::{Entry, OrderedEntries};
+use super::ordered_entries::OrderedEntries;
 use crate::{
     block_processing::BlockContext,
-    consensus::Election,
     utils::{ThreadPool, ThreadPoolImpl},
 };
 
@@ -303,11 +302,10 @@ impl ConfirmingSetThread {
         }));
     }
 
-    fn run_batch(&self, mut batch: VecDeque<Entry>) {
+    fn run_batch(&self, batch: VecDeque<Entry>) {
         let mut notifier = CementedNotifier::new(self);
-        let b = batch.drain(..).map(|i| (i.hash, i));
         self.ledger
-            .confirm_batch(b, &self.stopped, self.config.max_blocks, &mut notifier);
+            .confirm_batch(batch, &self.stopped, self.config.max_blocks, &mut notifier);
 
         self.notify(&mut notifier.cemented);
 
@@ -414,12 +412,17 @@ impl<'a> CementedNotifier<'a> {
     }
 }
 
-impl<'a> CementingObserver<Entry> for CementedNotifier<'a> {
-    fn cemented(&mut self, block: SavedBlock, root: &BlockHash, context: &Entry) {
+impl<'a> CementingObserver for CementedNotifier<'a> {
+    fn cemented(
+        &mut self,
+        block: SavedBlock,
+        root: &BlockHash,
+        election: &Option<Arc<Mutex<Election>>>,
+    ) {
         self.cemented.push_back(CementingContext {
             block,
             confirmation_root: *root,
-            election: context.election.clone(),
+            election: election.clone(),
         });
     }
 
@@ -431,13 +434,13 @@ impl<'a> CementingObserver<Entry> for CementedNotifier<'a> {
         self.confirming_set.notify(&mut self.cemented);
     }
 
-    fn cementing_failed(&mut self, _hash: &BlockHash, context: Entry) {
+    fn cementing_failed(&mut self, entry: &Entry) {
         self.confirming_set
             .mutex
             .lock()
             .unwrap()
             .deferred
-            .push_back(context);
+            .push_back(entry.clone());
     }
 }
 

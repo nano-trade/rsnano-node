@@ -10,7 +10,7 @@ use std::{
 use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks, SavedBlock};
-use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
+use rsnano_ledger::{BlockStatus, ConfirmedSet, Entry, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
@@ -261,9 +261,9 @@ impl LocalBlockBroadcaster {
         publisher.flood_prs_and_some_non_prs(&message, TrafficType::BlockBroadcastInitial, 1.0);
     }
 
-    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+    pub fn batch_confirmed(&self, confirmed: &Vec<(SavedBlock, Entry)>) {
         let mut guard = self.mutex.lock().unwrap();
-        for (block, _confirmation_root) in confirmed {
+        for (block, _) in confirmed {
             if guard.local_blocks.remove(&block.hash()) {
                 self.stats
                     .inc(StatType::LocalBlockBroadcaster, DetailType::Cemented);

@@ -1,11 +1,6 @@
 use rsnano_core::BlockHash;
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
-    time::Instant,
-};
-
-use crate::consensus::Election;
+use rsnano_ledger::Entry;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Default)]
 pub(super) struct OrderedEntries {
@@ -68,10 +63,4 @@ impl OrderedEntries {
     pub(crate) fn is_empty(&self) -> bool {
         self.sequenced.is_empty()
     }
-}
-
-pub(super) struct Entry {
-    pub hash: BlockHash,
-    pub election: Option<Arc<Mutex<Election>>>,
-    pub timestamp: Instant,
 }

@@ -17,7 +17,9 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, VoteWithWeightInfo, WorkNonce,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{
+    AnySet, BlockStatus, ElectionConfig, ElectionStatus, Ledger, LedgerSet, RepWeightCache,
+};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -47,11 +49,11 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, ElectionConfig, ElectionStatus, ElectionVoter,
-        LocalVoteHistory, RecentlyConfirmedCache, RepTiers, RequestAggregator,
-        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
-        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
+        ActiveElections, ActiveElectionsDriver, ElectionVoter, LocalVoteHistory,
+        RecentlyConfirmedCache, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, VoteRouter,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -585,14 +587,6 @@ impl Node {
             online_reps: online_reps.clone(),
             network: network.clone(),
         };
-
-        let active_w = Arc::downgrade(&active_elections);
-        // Cementing blocks might implicitly confirm dependent elections
-        confirming_set.on_batch_cemented(Box::new(move |cemented| {
-            if let Some(active) = active_w.upgrade() {
-                active.handle_cementations(cemented);
-            }
-        }));
 
         let active_w = Arc::downgrade(&active_elections);
         // Notify elections about alternative (forked) blocks
@@ -1223,6 +1217,7 @@ impl Node {
         let mut ledger_event_processor = LedgerEventProcessor {
             receiver: ledger_rx,
             local_block_broadcaster: local_block_broadcaster.clone(),
+            active_elections: active_elections.clone(),
         };
 
         std::thread::Builder::new()

@@ -1,5 +1,4 @@
 mod blake2b;
-mod hardened_constants;
 mod long_running_transaction_logger;
 mod processing_queue;
 mod thread_pool;
@@ -12,9 +11,9 @@ use blake2::{
     Blake2bVar,
 };
 pub use blake2b::*;
-pub use hardened_constants::HardenedConstants;
 pub use long_running_transaction_logger::{LongRunningTransactionLogger, TxnTrackingConfig};
 pub use processing_queue::*;
+use rsnano_core::HardenedConstants;
 use std::net::Ipv6Addr;
 pub use thread_pool::*;
 pub use timer_thread::*;

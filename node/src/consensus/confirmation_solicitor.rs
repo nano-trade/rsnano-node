@@ -1,13 +1,15 @@
-use super::Election;
-use crate::{config::NetworkParams, representatives::PeeredRepInfo, transport::MessageFlooder};
-use rsnano_core::{BlockHash, Root};
-use rsnano_messages::{ConfirmReq, Message, Publish};
-use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 use std::{
     cmp::max,
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+
+use rsnano_core::{BlockHash, Root};
+use rsnano_ledger::Election;
+use rsnano_messages::{ConfirmReq, Message, Publish};
+use rsnano_network::{Channel, ChannelId, Network, TrafficType};
+
+use crate::{config::NetworkParams, representatives::PeeredRepInfo, transport::MessageFlooder};
 
 /// This struct accepts elections that need further votes before they can be confirmed and bundles them in to confirm_req packets
 pub struct ConfirmationSolicitor {

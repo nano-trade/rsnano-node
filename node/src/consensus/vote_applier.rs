@@ -7,20 +7,21 @@ use std::{
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
-use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, VoteCode, VoteSource};
-use rsnano_ledger::Ledger;
+use rsnano_core::{
+    Amount, BlockHash, DescTallyKey, MaybeSavedBlock, PublicKey, VoteCode, VoteSource,
+};
+use rsnano_ledger::{Election, ElectionState, Ledger, VoteInfo};
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, DescTallyKey, Election, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators,
+    election_schedulers::ElectionSchedulers, LocalVoteHistory, RecentlyConfirmedCache,
+    VoteGenerators,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::NetworkParams,
-    consensus::{ElectionState, VoteInfo},
     representatives::OnlineReps,
     wallets::Wallets,
 };

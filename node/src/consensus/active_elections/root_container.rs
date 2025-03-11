@@ -4,8 +4,7 @@ use std::{
 };
 
 use rsnano_core::QualifiedRoot;
-
-use crate::consensus::Election;
+use rsnano_ledger::Election;
 
 use super::ErasedCallback;
 

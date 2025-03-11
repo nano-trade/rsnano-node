@@ -10,11 +10,11 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo};
-use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
+use rsnano_ledger::{AnySet, ConfirmedSet, ElectionBehavior, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ActiveElections;
-use crate::{cementation::ConfirmingSet, config::NetworkConstants, consensus::ElectionBehavior};
+use crate::{cementation::ConfirmingSet, config::NetworkConstants};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptimisticSchedulerConfig {

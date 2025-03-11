@@ -1,7 +1,7 @@
-use super::{Election, RecentlyConfirmedCache, VoteApplier, VoteCache};
+use super::{RecentlyConfirmedCache, VoteApplier, VoteCache};
 use crate::consensus::VoteApplierExt;
 use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
-use rsnano_ledger::RepWeightCache;
+use rsnano_ledger::{Election, RepWeightCache};
 use std::{
     collections::HashMap,
     mem::size_of,

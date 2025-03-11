@@ -2,7 +2,6 @@ mod root_container;
 
 use std::{
     cmp::min,
-    collections::VecDeque,
     sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
 };
 
@@ -14,21 +13,20 @@ use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
     Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
-use rsnano_ledger::{BlockStatus, RepWeightCache};
+use rsnano_ledger::{
+    BlockStatus, Election, ElectionBehavior, ElectionConfig, ElectionStatus, ElectionStatusType,
+    RepWeightCache,
+};
 use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    Election, ElectionBehavior, ElectionConfig, ElectionStatus, ElectionStatusType, ElectionVoter,
-    RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor, VoteRouter,
+    ElectionVoter, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor, VoteRouter,
 };
 use crate::{
-    block_processing::BlockContext,
-    cementation::{CementingContext, ConfirmingSet},
-    config::NodeConfig,
-    consensus::VoteApplierExt,
-    transport::MessageFlooder,
+    block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
+    consensus::VoteApplierExt, transport::MessageFlooder,
 };
 
 pub type ElectionEndCallback =
@@ -544,20 +542,16 @@ impl ActiveElections {
         true
     }
 
-    pub fn handle_cementations(&self, cemented: &VecDeque<CementingContext>) {
+    /// Cementing blocks might implicitly confirm dependent elections
+    pub fn handle_cementations(&self, cemented: &Vec<(SavedBlock, rsnano_ledger::Entry)>) {
         let mut results = Vec::new();
         {
             let mut guard = self.mutex.lock().unwrap();
             // Process all cemented blocks while holding the lock to avoid
             // races where an election for a block that is already
             // cemented is inserted
-            for context in cemented {
-                let result = self.block_cemented(
-                    &mut guard,
-                    &context.block,
-                    &context.confirmation_root,
-                    &context.election,
-                );
+            for (block, entry) in cemented {
+                let result = self.block_cemented(&mut guard, block, &entry.hash, &entry.election);
                 results.push(result)
             }
         }
@@ -593,11 +587,11 @@ impl ActiveElections {
         // Check if the currently cemented block was part of an election that triggered the confirmation
         let mut handled = false;
         if let Some(source_election) = source_election {
-            let source_election_guard = source_election.lock().unwrap();
-            if *source_election_guard.qualified_root() == block.qualified_root() {
-                status = source_election_guard.status.clone();
+            let election = source_election.lock().unwrap();
+            if *election.qualified_root() == block.qualified_root() {
+                status = election.status.clone();
                 debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
-                votes = source_election_guard.votes_with_weight(&self.rep_weights);
+                votes = election.votes_with_weight(&self.rep_weights);
                 status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;
                 handled = true;
             }

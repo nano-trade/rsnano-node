@@ -4,13 +4,12 @@ use rsnano_core::{
     utils::MemoryStream, Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
-    DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, ElectionBehavior, LedgerSet, Writer,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
     bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
-    consensus::ElectionBehavior,
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};

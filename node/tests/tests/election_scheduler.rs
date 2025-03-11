@@ -120,10 +120,11 @@ mod election_scheduler {
 
     use super::*;
     use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
-    use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
+    use rsnano_ledger::{
+        test_helpers::UnsavedBlockLatticeBuilder, ElectionBehavior, DEV_GENESIS_ACCOUNT,
+    };
     use rsnano_node::{
-        config::NodeConfig,
-        consensus::{election_schedulers::OptimisticSchedulerConfig, ElectionBehavior},
+        config::NodeConfig, consensus::election_schedulers::OptimisticSchedulerConfig,
     };
     use test_helpers::{setup_chains, setup_rep};
 

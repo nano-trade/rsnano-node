@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use rsnano_ledger::Election;
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
 
-use crate::consensus::{Election, VoteApplier};
+use crate::consensus::VoteApplier;
 
 use super::VoteGenerators;
 
