@@ -426,8 +426,11 @@ impl Observers {
 }
 
 pub struct CementingContext {
+    /// The block that was cemented
     pub block: SavedBlock,
+    /// The hash of the block which caused the block to be cemented
     pub confirmation_root: BlockHash,
+    /// The election which confirmed the block
     pub election: Option<Arc<Mutex<Election>>>,
 }
 

@@ -106,6 +106,7 @@ impl ActiveElections {
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
+        recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
@@ -121,9 +122,7 @@ impl ActiveElections {
             rep_weights,
             confirming_set,
             recently_confirmed,
-            recently_cemented: Arc::new(Mutex::new(BoundedVecDeque::new(
-                node_config.active_elections.confirmation_history_size,
-            ))),
+            recently_cemented,
             config: node_config.active_elections.clone(),
             network_filter,
             vote_cache,
@@ -154,10 +153,6 @@ impl ActiveElections {
             hinted: guard.hinted_count,
             optimistic: guard.optimistic_count,
         }
-    }
-
-    pub fn recently_cemented(&self) -> BoundedVecDeque<ElectionStatus> {
-        self.recently_cemented.lock().unwrap().clone()
     }
 
     //--------------------------------------------------------------------------------
@@ -411,66 +406,6 @@ impl ActiveElections {
         self.vote_applier.confirm_once(&mut guard, election);
     }
 
-    /// Distinguishes replay votes, cannot be determined if the block is not in any election
-    fn block_cemented(
-        &self,
-        guard: &mut ActiveElectionsState,
-        block: &SavedBlock,
-        confirmation_root: &BlockHash,
-        source_election: &Option<Arc<Mutex<Election>>>,
-    ) -> (ElectionStatus, Vec<VoteWithWeightInfo>) {
-        // Dependent elections are implicitly confirmed when their block is cemented
-        let dependent_election = guard.election(&block.qualified_root());
-        if let Some(dependent_election) = &dependent_election {
-            self.stats
-                .inc(StatType::ActiveElections, DetailType::ConfirmDependent);
-
-            // TODO: This should either confirm or cancel the election
-            self.try_confirm(&dependent_election, &block.hash());
-        }
-
-        let mut status = ElectionStatus::default();
-        let mut votes = Vec::new();
-        status.winner = Some(MaybeSavedBlock::Saved(block.clone()));
-
-        // Check if the currently cemented block was part of an election that triggered the confirmation
-        let mut handled = false;
-        if let Some(source_election) = source_election {
-            let source_election_guard = source_election.lock().unwrap();
-            if *source_election_guard.qualified_root() == block.qualified_root() {
-                status = source_election_guard.status.clone();
-                debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
-                votes = source_election_guard.votes_with_weight(&self.rep_weights);
-                status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;
-                handled = true;
-            }
-        }
-
-        if handled {
-            // already handled
-        } else if dependent_election.is_some() {
-            status.election_status_type = ElectionStatusType::ActiveConfirmationHeight;
-        } else {
-            status.election_status_type = ElectionStatusType::InactiveConfirmationHeight;
-        }
-
-        self.recently_cemented
-            .lock()
-            .unwrap()
-            .push_back(status.clone());
-
-        self.stats
-            .inc(StatType::ActiveElections, DetailType::Cemented);
-        self.stats.inc(
-            StatType::ActiveElectionsCemented,
-            status.election_status_type.into(),
-        );
-
-        trace!(?block, %confirmation_root, "active cemented");
-
-        (status, votes)
-    }
-
     pub fn insert(
         &self,
         block: SavedBlock,
@@ -634,6 +569,66 @@ impl ActiveElections {
         }
     }
 
+    /// Distinguishes replay votes, cannot be determined if the block is not in any election
+    fn block_cemented(
+        &self,
+        guard: &mut ActiveElectionsState,
+        block: &SavedBlock,
+        confirmation_root: &BlockHash,
+        source_election: &Option<Arc<Mutex<Election>>>,
+    ) -> (ElectionStatus, Vec<VoteWithWeightInfo>) {
+        // Dependent elections are implicitly confirmed when their block is cemented
+        let dependent_election = guard.election(&block.qualified_root());
+        if let Some(dependent_election) = &dependent_election {
+            self.stats
+                .inc(StatType::ActiveElections, DetailType::ConfirmDependent);
+
+            // TODO: This should either confirm or cancel the election
+            self.try_confirm(&dependent_election, &block.hash());
+        }
+
+        let mut status = ElectionStatus::default();
+        let mut votes = Vec::new();
+        status.winner = Some(MaybeSavedBlock::Saved(block.clone()));
+
+        // Check if the currently cemented block was part of an election that triggered the confirmation
+        let mut handled = false;
+        if let Some(source_election) = source_election {
+            let source_election_guard = source_election.lock().unwrap();
+            if *source_election_guard.qualified_root() == block.qualified_root() {
+                status = source_election_guard.status.clone();
+                debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
+                votes = source_election_guard.votes_with_weight(&self.rep_weights);
+                status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;
+                handled = true;
+            }
+        }
+
+        if handled {
+            // already handled
+        } else if dependent_election.is_some() {
+            status.election_status_type = ElectionStatusType::ActiveConfirmationHeight;
+        } else {
+            status.election_status_type = ElectionStatusType::InactiveConfirmationHeight;
+        }
+
+        self.recently_cemented
+            .lock()
+            .unwrap()
+            .push_back(status.clone());
+
+        self.stats
+            .inc(StatType::ActiveElections, DetailType::Cemented);
+        self.stats.inc(
+            StatType::ActiveElectionsCemented,
+            status.election_status_type.into(),
+        );
+
+        trace!(?block, %confirmation_root, "active cemented");
+
+        (status, votes)
+    }
+
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stopped = true;
         self.condition.notify_all();
@@ -644,13 +639,6 @@ impl ActiveElections {
 
     pub fn container_info(&self) -> ContainerInfo {
         let guard = self.mutex.lock().unwrap();
-
-        let recently_cemented: ContainerInfo = [(
-            "cemented",
-            self.recently_cemented.lock().unwrap().len(),
-            size_of::<ElectionStatus>(),
-        )]
-        .into();
 
         ContainerInfo::builder()
             .leaf("roots", guard.roots.len(), RootContainer::ELEMENT_SIZE)
@@ -673,7 +661,6 @@ impl ActiveElections {
                 "recently_confirmed",
                 self.recently_confirmed.read().unwrap().container_info(),
             )
-            .node("recently_cemented", recently_cemented)
             .finish()
     }
 

@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
@@ -142,8 +143,9 @@ pub struct Node {
     pub ledger_notifications: LedgerNotifications,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
-    pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     active_elections_driver: TimerThread<ActiveElectionsDriver>,
+    pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
+    pub recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -544,6 +546,10 @@ impl Node {
             vote_generators: vote_generators.clone(),
         };
 
+        let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(
+            config.active_elections.confirmation_history_size,
+        )));
+
         let election_config = ElectionConfig::default_for(network_params.network.current_network);
 
         let (aec_sender, aec_receiver) = std::sync::mpsc::sync_channel(128);
@@ -561,6 +567,7 @@ impl Node {
             message_flooder.clone(),
             election_voter,
             election_config,
+            recently_cemented.clone(),
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
@@ -1270,6 +1277,7 @@ impl Node {
             tokio_runner,
             recently_confirmed,
             active_elections_driver: TimerThread::new("Request loop", confirmation_requester),
+            recently_cemented,
         }
     }
 
@@ -1282,6 +1290,13 @@ impl Node {
             .node("tcp_channels", tcp_channels)
             .node("syn_cookies", self.syn_cookies.container_info())
             .finish();
+
+        let recently_cemented: ContainerInfo = [(
+            "cemented",
+            self.recently_cemented.lock().unwrap().len(),
+            size_of::<ElectionStatus>(),
+        )]
+        .into();
 
         ContainerInfo::builder()
             .node("work", self.work.container_info())
@@ -1327,6 +1342,7 @@ impl Node {
                 "vote_rebroadcaster",
                 self.vote_rebroadcaster.container_info(),
             )
+            .node("recently_cemented", recently_cemented)
             .finish()
     }
 

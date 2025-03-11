@@ -917,17 +917,15 @@ fn confirmation_consistency() {
             )
             .unwrap();
 
-        assert_timely(Duration::from_secs(5), || {
-            node.block_confirmed(&block.hash())
-        });
+        assert_timely2(|| node.block_confirmed(&block.hash()));
 
-        assert_timely(Duration::from_secs(1), || {
+        assert_timely2(|| {
             let recently_confirmed = node.recently_confirmed.read().unwrap();
-            let recently_cemented_size = node.active.recently_cemented();
+            let recently_cemented = node.recently_cemented.lock().unwrap();
 
             recently_confirmed.len() == i + 1
                 && recently_confirmed.back() == Some((&block.qualified_root(), &block.hash()))
-                && recently_cemented_size.len() == i + 1
+                && recently_cemented.len() == i + 1
         });
     }
 }

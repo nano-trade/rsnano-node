@@ -2840,7 +2840,7 @@ fn block_confirm() {
 
     assert_timely_eq(
         Duration::from_secs(10),
-        || node1.active.recently_cemented().len(),
+        || node1.recently_cemented.lock().unwrap().len(),
         1,
     );
 }
