@@ -134,7 +134,7 @@ pub trait VoteApplierExt {
 impl VoteApplierExt for Arc<VoteApplier> {
     fn vote(
         &self,
-        election: &Arc<Mutex<Election>>,
+        election_mutex: &Arc<Mutex<Election>>,
         rep: &PublicKey,
         timestamp: u64,
         block_hash: &BlockHash,
@@ -147,9 +147,9 @@ impl VoteApplierExt for Arc<VoteApplier> {
             return VoteCode::Indeterminate;
         }
 
-        let mut guard = election.lock().unwrap();
+        let mut election = election_mutex.lock().unwrap();
 
-        if let Some(last_vote) = guard.votes.get(rep) {
+        if let Some(last_vote) = election.votes.get(rep) {
             if last_vote.timestamp > timestamp {
                 return VoteCode::Replay;
             }
@@ -170,7 +170,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
                 return VoteCode::Ignored;
             }
         }
-        guard
+        election
             .votes
             .insert(*rep, VoteInfo::new(timestamp, *block_hash));
 
@@ -192,8 +192,8 @@ impl VoteApplierExt for Arc<VoteApplier> {
             ?weight,
             "vote processed");
 
-        if !guard.is_confirmed() {
-            self.confirm_if_quorum(guard, election);
+        if !election.is_confirmed() {
+            self.confirm_if_quorum(election, election_mutex);
         }
         VoteCode::Vote
     }
