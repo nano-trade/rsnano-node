@@ -49,10 +49,10 @@ pub struct Election {
     qualified_root: QualifiedRoot,
     pub status: ElectionStatus,
     pub state: ElectionState,
-    pub last_blocks: HashMap<BlockHash, MaybeSavedBlock>,
-    pub last_votes: HashMap<PublicKey, VoteInfo>,
+    pub candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
+    pub votes: HashMap<PublicKey, VoteInfo>,
     pub final_weight: Amount,
-    pub last_tally: HashMap<BlockHash, Amount>,
+    pub block_tallies: HashMap<BlockHash, Amount>,
 
     /// The last time a vote for this election was generated
     last_vote_generated: Option<Instant>,
@@ -80,13 +80,13 @@ impl Election {
                 election_status_type: ElectionStatusType::Ongoing,
                 ..Default::default()
             },
-            last_votes: HashMap::from([(
+            votes: HashMap::from([(
                 HardenedConstants::get().not_an_account_key,
                 VoteInfo::new(0, block.hash()),
             )]),
-            last_blocks: HashMap::from([(block.hash(), MaybeSavedBlock::Saved(block))]),
+            candidate_blocks: HashMap::from([(block.hash(), MaybeSavedBlock::Saved(block))]),
             state: ElectionState::Passive,
-            last_tally: HashMap::new(),
+            block_tallies: HashMap::new(),
             final_weight: Amount::zero(),
             last_vote_generated: None,
             last_broadcasted_block: BlockHash::zero(),
@@ -182,7 +182,7 @@ impl Election {
     }
 
     pub fn vote_count(&self) -> usize {
-        self.last_votes.len()
+        self.votes.len()
     }
 
     pub fn transition_active(&mut self) {
@@ -251,8 +251,8 @@ impl Election {
         self.status.election_end = SystemTime::now();
         self.status.election_duration = self.duration();
         self.status.confirmation_request_count = self.confirmation_request_count;
-        self.status.block_count = self.last_blocks.len() as u32;
-        self.status.voter_count = self.last_votes.len() as u32;
+        self.status.block_count = self.candidate_blocks.len() as u32;
+        self.status.voter_count = self.votes.len() as u32;
     }
 
     pub fn state_change(
@@ -324,7 +324,7 @@ impl Election {
 
     pub fn votes_with_weight(&self, rep_weights: &RepWeightCache) -> Vec<VoteWithWeightInfo> {
         let mut sorted_votes: BTreeMap<DescTallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
-        for (&representative, info) in &self.last_votes {
+        for (&representative, info) in &self.votes {
             if representative == HardenedConstants::get().not_an_account_key {
                 continue;
             }
@@ -354,7 +354,7 @@ impl Election {
         let winner_hash = self.winner_hash().unwrap();
         // Sort existing blocks tally
         let mut sorted: Vec<_> = self
-            .last_tally
+            .block_tallies
             .iter()
             .map(|(hash, amount)| (*hash, *amount))
             .collect();
@@ -365,7 +365,7 @@ impl Election {
         // Replace if lowest tally is below inactive cache new block weight
         if min_tally > Amount::zero() && sorted.len() < Self::MAX_BLOCKS {
             // If count of tally items is less than 10, remove any block without tally
-            for (hash, _) in &self.last_blocks {
+            for (hash, _) in &self.candidate_blocks {
                 if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
                     removed_block_hash = *hash;
                     break;
@@ -391,9 +391,9 @@ impl Election {
 
     pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
         if self.winner_hash().unwrap_or_default() != *hash {
-            let existing = self.last_blocks.remove(hash);
+            let existing = self.candidate_blocks.remove(hash);
             if existing.is_some() {
-                self.last_votes.retain(|_, v| v.hash != *hash);
+                self.votes.retain(|_, v| v.hash != *hash);
                 return existing;
             }
         }

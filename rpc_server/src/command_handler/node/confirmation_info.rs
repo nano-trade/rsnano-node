@@ -23,16 +23,16 @@ impl RpcCommandHandler {
 
         let election = election_mutex.lock().unwrap();
         let announcements = election.status.confirmation_request_count;
-        let voters = election.last_votes.len();
+        let voters = election.votes.len();
         let last_winner = election.winner_hash().unwrap_or_default();
 
         let final_tally = election.status.final_tally;
         let mut total_tally = Amount::zero();
         let mut blocks = IndexMap::new();
 
-        for block in election.last_blocks.values() {
+        for block in election.candidate_blocks.values() {
             let tally = election
-                .last_tally
+                .block_tallies
                 .get(&block.hash())
                 .cloned()
                 .unwrap_or_default();
@@ -47,7 +47,7 @@ impl RpcCommandHandler {
 
             let representatives = if include_representatives {
                 let mut reps = IndexMap::new();
-                for (representative, vote) in &election.last_votes {
+                for (representative, vote) in &election.votes {
                     if block.hash() == vote.hash {
                         let amount = self.node.ledger.rep_weights.weight(representative);
                         reps.insert(Account::from(representative), amount);

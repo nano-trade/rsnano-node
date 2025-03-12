@@ -57,7 +57,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         node1.active.election(&send1.qualified_root()).is_some()
     });
     let election = node1.active.election(&send1.qualified_root()).unwrap();
-    assert_eq!(1, election.lock().unwrap().last_blocks.len());
+    assert_eq!(1, election.lock().unwrap().candidate_blocks.len());
 
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_router.vote(&vote1, VoteSource::Live);
@@ -145,7 +145,7 @@ fn quorum_minimum_confirm_fail() {
         node1.active.election(&send1.qualified_root()).is_some()
     });
     let election = node1.active.election(&send1.qualified_root()).unwrap();
-    assert_eq!(1, election.lock().unwrap().last_blocks.len());
+    assert_eq!(1, election.lock().unwrap().candidate_blocks.len());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_router.vote(&vote, VoteSource::Live);
@@ -187,7 +187,7 @@ fn quorum_minimum_confirm_success() {
         node1.active.election(&send1.qualified_root()).is_some()
     });
     let election = node1.active.election(&send1.qualified_root()).unwrap();
-    assert_eq!(1, election.lock().unwrap().last_blocks.len());
+    assert_eq!(1, election.lock().unwrap().candidate_blocks.len());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_router.vote(&vote, VoteSource::Live);
@@ -230,7 +230,7 @@ fn quorum_minimum_flip_fail() {
     assert_timely(Duration::from_secs(5), || {
         let election = node1.active.election(&send2.qualified_root()).unwrap();
         let election_guard = election.lock().unwrap();
-        election_guard.last_blocks.len() == 2
+        election_guard.candidate_blocks.len() == 2
     });
 
     // Genesis generates a final vote for send2 but it should not be enough to reach quorum
@@ -278,7 +278,7 @@ fn quorum_minimum_flip_success() {
     assert_timely2(|| {
         let election = node1.active.election(&send2.qualified_root()).unwrap();
         let election_guard = election.lock().unwrap();
-        election_guard.last_blocks.len() == 2
+        election_guard.candidate_blocks.len() == 2
     });
 
     // Genesis generates a final vote for send2

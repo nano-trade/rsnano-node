@@ -100,7 +100,7 @@ impl VoteRouter {
     /// Remove all routes to this election
     pub fn disconnect_election(&self, election: &Election) {
         let mut state = self.shared.1.lock().unwrap();
-        for hash in election.last_blocks.keys() {
+        for hash in election.candidate_blocks.keys() {
             state.elections.remove(hash);
         }
     }

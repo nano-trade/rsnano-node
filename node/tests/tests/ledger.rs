@@ -74,7 +74,7 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .last_votes
+                .votes
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .hash,
@@ -82,7 +82,7 @@ mod votes {
         );
 
         let guard = election1.lock().unwrap();
-        let (hash, amount) = guard.last_tally.iter().next().unwrap();
+        let (hash, amount) = guard.block_tallies.iter().next().unwrap();
         assert_eq!(*hash, send1.hash());
         assert_eq!(*amount, Amount::MAX - Amount::raw(100));
     }
@@ -117,7 +117,7 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .last_votes
+                .votes
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
@@ -144,7 +144,7 @@ mod votes {
         election1
             .lock()
             .unwrap()
-            .last_votes
+            .votes
             .get_mut(&DEV_GENESIS_PUB_KEY)
             .unwrap()
             .time = SystemTime::now() - Duration::from_secs(20);
@@ -160,7 +160,7 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .last_votes
+                .votes
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
@@ -170,7 +170,7 @@ mod votes {
         election1
             .lock()
             .unwrap()
-            .last_votes
+            .votes
             .get_mut(&DEV_GENESIS_PUB_KEY)
             .unwrap()
             .time = SystemTime::now() - Duration::from_secs(20);
@@ -187,13 +187,13 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .last_votes
+                .votes
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
             Vote::TIMESTAMP_MIN * 2
         );
-        let votes = election1.lock().unwrap().last_votes.clone();
+        let votes = election1.lock().unwrap().votes.clone();
         assert_eq!(votes.len(), 2);
         assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
         assert_eq!(votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash, send2.hash());

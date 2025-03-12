@@ -93,20 +93,20 @@ impl VoteApplier {
     pub fn tally_impl(&self, guard: &mut Election) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
-        for (account, info) in &guard.last_votes {
+        for (account, info) in &guard.votes {
             let rep_weight = self.ledger.weight(account);
             *block_weights.entry(info.hash).or_default() += rep_weight;
             if info.timestamp == u64::MAX {
                 *final_weights.entry(info.hash).or_default() += rep_weight;
             }
         }
-        guard.last_tally.clear();
+        guard.block_tallies.clear();
         for (&hash, &weight) in &block_weights {
-            guard.last_tally.insert(hash, weight);
+            guard.block_tallies.insert(hash, weight);
         }
         let mut result = BTreeMap::new();
         for (hash, weight) in &block_weights {
-            if let Some(block) = guard.last_blocks.get(hash) {
+            if let Some(block) = guard.candidate_blocks.get(hash) {
                 result.insert(DescTallyKey(*weight), block.clone());
             }
         }
@@ -126,7 +126,7 @@ impl VoteApplier {
             let root = *election.root();
             let list_generated_votes = self.history.votes(&root, hash, false);
             for vote in list_generated_votes {
-                election.last_votes.remove(&vote.voting_account);
+                election.votes.remove(&vote.voting_account);
             }
             // Clear votes cache
             self.history.erase(&root);
@@ -179,7 +179,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
 
         let mut guard = election.lock().unwrap();
 
-        if let Some(last_vote) = guard.last_votes.get(rep) {
+        if let Some(last_vote) = guard.votes.get(rep) {
             if last_vote.timestamp > timestamp {
                 return VoteCode::Replay;
             }
@@ -201,7 +201,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             }
         }
         guard
-            .last_votes
+            .votes
             .insert(*rep, VoteInfo::new(timestamp, *block_hash));
 
         if vote_source != VoteSource::Cache {

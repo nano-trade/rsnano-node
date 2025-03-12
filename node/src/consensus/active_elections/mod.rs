@@ -257,7 +257,7 @@ impl ActiveElections {
         }
         self.notify(AecEvent::VacancyUpdated);
 
-        for (hash, block) in &election.last_blocks {
+        for (hash, block) in &election.candidate_blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
             if !election.is_confirmed() || *hash != winner_hash {
                 self.notify(AecEvent::ActiveStopped(*hash));
@@ -377,8 +377,8 @@ impl ActiveElections {
             return false;
         }
 
-        if election.last_blocks.len() >= Election::MAX_BLOCKS
-            && !election.last_blocks.contains_key(&fork.hash())
+        if election.candidate_blocks.len() >= Election::MAX_BLOCKS
+            && !election.candidate_blocks.contains_key(&fork.hash())
         {
             let fork_tally = self.get_cached_tally(&fork.hash());
             let removed = election.remove_tally_below(fork_tally);
@@ -391,13 +391,14 @@ impl ActiveElections {
             }
         }
 
-        if election.last_blocks.get(&fork.hash()).is_some() {
+        if election.candidate_blocks.get(&fork.hash()).is_some() {
             election
-                .last_blocks
+                .candidate_blocks
                 .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
             if election.winner_hash().unwrap() == fork.hash() {
                 election.set_winner(MaybeSavedBlock::Unsaved(fork.clone()));
+
                 let message = Message::Publish(Publish::new_forward(fork.clone()));
                 let mut publisher = self.message_flooder.lock().unwrap();
                 publisher.flood(&message, TrafficType::BlockBroadcast, 1.0);
@@ -407,7 +408,7 @@ impl ActiveElections {
         }
 
         election
-            .last_blocks
+            .candidate_blocks
             .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
         true
