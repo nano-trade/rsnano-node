@@ -69,7 +69,7 @@ impl ConfirmationSolicitor {
             return Err(());
         }
 
-        let winner_block = election.status.winner.as_ref().unwrap();
+        let winner_block = election.result.winner.as_ref().unwrap();
         let hash = winner_block.hash();
         let winner = Message::Publish(Publish::new_forward(winner_block.clone().into()));
         let mut count = 0;
@@ -101,7 +101,7 @@ impl ConfirmationSolicitor {
         debug_assert!(self.prepared);
         let mut added = false;
         let mut count = 0;
-        let winner = election.status.winner.as_ref().unwrap();
+        let winner = election.result.winner.as_ref().unwrap();
         let hash = winner.hash();
         let mut to_remove = Vec::new();
         for rep in &self.representative_requests {

@@ -2600,7 +2600,7 @@ fn fork_open_flip() {
         "open1 not found on node2",
     );
     assert_timely2(|| node1.block_confirmed(&open1.hash()));
-    let election_status = election.lock().unwrap().status.clone();
+    let election_status = election.lock().unwrap().result.clone();
     assert_eq!(open1.hash(), election_status.winner.unwrap().hash());
     assert_eq!(Amount::MAX - Amount::raw(1), election_status.tally);
 

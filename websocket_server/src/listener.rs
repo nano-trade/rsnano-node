@@ -17,7 +17,7 @@ use tokio_tungstenite::tungstenite::protocol::{frame::coding::CloseCode, CloseFr
 use tracing::{info, warn};
 
 use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
-use rsnano_ledger::{ElectionStatus, ElectionStatusType, Ledger};
+use rsnano_ledger::{ElectionResult, EndedElection, Ledger};
 use rsnano_node::wallets::Wallets;
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
@@ -127,10 +127,10 @@ impl WebsocketListener {
         &self,
         block: &SavedBlock,
         amount: &Amount,
-        election_status: &ElectionStatus,
+        election_status: &EndedElection,
         election_votes: &Vec<VoteWithWeightInfo>,
     ) {
-        debug_assert!(election_status.election_status_type != ElectionStatusType::Ongoing);
+        debug_assert!(election_status.result != ElectionResult::Ongoing);
 
         if !self.any_subscriber(Topic::Confirmation) {
             return;
@@ -298,8 +298,8 @@ pub struct ElectionInfo {
     pub votes: Option<Vec<JsonVoteSummary>>,
 }
 
-impl From<&ElectionStatus> for ElectionInfo {
-    fn from(value: &ElectionStatus) -> Self {
+impl From<&EndedElection> for ElectionInfo {
+    fn from(value: &EndedElection) -> Self {
         Self {
             duration: value.election_duration.as_millis().to_string(),
             time: value

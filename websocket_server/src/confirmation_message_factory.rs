@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, BlockType, SavedBlock, VoteWithWeightInfo};
-use rsnano_ledger::{AnySet, ElectionStatus, Ledger};
+use rsnano_ledger::{AnySet, EndedElection, Ledger};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
@@ -9,7 +9,7 @@ pub(super) struct ConfirmationMessageFactory<'a> {
     pub options: &'a ConfirmationOptions,
     pub block: &'a SavedBlock,
     pub amount: &'a Amount,
-    pub election_status: &'a ElectionStatus,
+    pub election_status: &'a EndedElection,
     pub election_votes: &'a Vec<VoteWithWeightInfo>,
 }
 
@@ -31,10 +31,7 @@ impl<'a> ConfirmationMessageFactory<'a> {
     }
 
     fn confirmation_type(&self) -> String {
-        self.election_status
-            .election_status_type
-            .as_str()
-            .to_string()
+        self.election_status.result.as_str().to_string()
     }
 
     fn subtype(&self) -> String {
@@ -110,7 +107,7 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election_status: &ElectionStatus::default(),
+            election_status: &EndedElection::default(),
             election_votes: &Vec::new(),
         };
 
@@ -142,7 +139,7 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election_status: &ElectionStatus::default(),
+            election_status: &EndedElection::default(),
             election_votes: &Vec::new(),
         };
 

@@ -237,8 +237,8 @@ impl VoteApplierExt for Arc<VoteApplier> {
         assert!(!tally.is_empty());
         let (amount, block) = tally.first_key_value().unwrap();
         let winner_hash = block.hash();
-        election_lock.status.tally = amount.amount();
-        election_lock.status.final_tally = election_lock.final_weight;
+        election_lock.result.tally = amount.amount();
+        election_lock.result.final_tally = election_lock.final_weight;
         let status_winner_hash = election_lock.winner_hash().unwrap();
         let mut sum = Amount::zero();
         for k in tally.keys() {
@@ -247,14 +247,14 @@ impl VoteApplierExt for Arc<VoteApplier> {
         if sum >= self.online_reps.lock().unwrap().quorum_delta()
             && winner_hash != status_winner_hash
         {
-            election_lock.status.winner = Some(block.clone());
+            election_lock.result.winner = Some(block.clone());
             self.remove_votes(&mut election_lock, &status_winner_hash);
             self.block_processor.force(block.clone().into());
         }
 
         if self.have_quorum(&tally) {
             if election_lock.swap_quorum_on() && self.wallets.voting_enabled() {
-                election_lock.status.vote_broadcast_count += 1;
+                election_lock.result.vote_broadcast_count += 1;
                 self.vote_generators
                     .generate_final_vote(election_lock.root(), &status_winner_hash);
             }

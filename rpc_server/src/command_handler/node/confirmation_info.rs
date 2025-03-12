@@ -22,11 +22,11 @@ impl RpcCommandHandler {
         }
 
         let election = election_mutex.lock().unwrap();
-        let announcements = election.status.confirmation_request_count;
+        let announcements = election.result.confirmation_request_count;
         let voters = election.votes.len();
         let last_winner = election.winner_hash().unwrap_or_default();
 
-        let final_tally = election.status.final_tally;
+        let final_tally = election.result.final_tally;
         let mut total_tally = Amount::zero();
         let mut blocks = IndexMap::new();
 

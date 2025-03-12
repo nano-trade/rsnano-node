@@ -13,8 +13,8 @@ use rsnano_core::{
     VoteWithWeightInfo,
 };
 use rsnano_ledger::{
-    BlockStatus, CementingEntry, Election, ElectionBehavior, ElectionConfig, ElectionStatus,
-    ElectionStatusType, RepWeightCache,
+    BlockStatus, CementingEntry, Election, ElectionBehavior, ElectionConfig, ElectionResult,
+    EndedElection, RepWeightCache,
 };
 use rsnano_messages::{Message, Publish};
 use rsnano_network::TrafficType;
@@ -27,7 +27,7 @@ use crate::{
 };
 
 pub type ElectionEndCallback =
-    Box<dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount) + Send + Sync>;
+    Box<dyn Fn(&EndedElection, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -55,7 +55,7 @@ impl Default for ActiveElectionsConfig {
 pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
-    BlockCemented(SavedBlock, ElectionStatus, Vec<VoteWithWeightInfo>),
+    BlockCemented(SavedBlock, EndedElection, Vec<VoteWithWeightInfo>),
     BlockAddedToElection(BlockHash),
     UnconfirmedBlockRemoved(Block),
     VacancyUpdated,
@@ -441,7 +441,7 @@ impl ActiveElections {
         block: &SavedBlock,
         confirmation_root: &BlockHash,
         source_election: &Option<Arc<Mutex<Election>>>,
-    ) -> (ElectionStatus, Vec<VoteWithWeightInfo>) {
+    ) -> (EndedElection, Vec<VoteWithWeightInfo>) {
         // Dependent elections are implicitly confirmed when their block is cemented
         let dependent_election = guard.election(&block.qualified_root());
         if let Some(dependent_election) = &dependent_election {
@@ -452,19 +452,22 @@ impl ActiveElections {
             self.try_confirm(&dependent_election, &block.hash());
         }
 
-        let mut status = ElectionStatus::default();
+        let mut election_result = EndedElection::default();
         let mut votes = Vec::new();
-        status.winner = Some(MaybeSavedBlock::Saved(block.clone()));
+        election_result.winner = Some(MaybeSavedBlock::Saved(block.clone()));
 
         // Check if the currently cemented block was part of an election that triggered the confirmation
         let mut handled = false;
         if let Some(source_election) = source_election {
             let election = source_election.lock().unwrap();
             if *election.qualified_root() == block.qualified_root() {
-                status = election.status.clone();
-                debug_assert_eq!(status.winner.as_ref().unwrap().hash(), block.hash());
+                election_result = election.result.clone();
+                debug_assert_eq!(
+                    election_result.winner.as_ref().unwrap().hash(),
+                    block.hash()
+                );
                 votes = election.votes_with_weight(&self.rep_weights);
-                status.election_status_type = ElectionStatusType::ActiveConfirmedQuorum;
+                election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 handled = true;
             }
         }
@@ -472,21 +475,21 @@ impl ActiveElections {
         if handled {
             // already handled
         } else if dependent_election.is_some() {
-            status.election_status_type = ElectionStatusType::ActiveConfirmationHeight;
+            election_result.result = ElectionResult::ActiveConfirmationHeight;
         } else {
-            status.election_status_type = ElectionStatusType::InactiveConfirmationHeight;
+            election_result.result = ElectionResult::InactiveConfirmationHeight;
         }
 
         self.stats
             .inc(StatType::ActiveElections, DetailType::Cemented);
         self.stats.inc(
             StatType::ActiveElectionsCemented,
-            status.election_status_type.into(),
+            election_result.result.into(),
         );
 
         trace!(?block, %confirmation_root, "active cemented");
 
-        (status, votes)
+        (election_result, votes)
     }
 
     fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
@@ -511,25 +514,25 @@ impl ActiveElections {
         }
     }
 
-    fn notify_block_cemented(&self, status: ElectionStatus, votes: Vec<VoteWithWeightInfo>) {
+    fn notify_block_cemented(&self, status: EndedElection, votes: Vec<VoteWithWeightInfo>) {
         let block = status.winner.as_ref().unwrap();
         let MaybeSavedBlock::Saved(block) = block else {
             return;
         };
         let block = block.clone();
 
-        match status.election_status_type {
-            ElectionStatusType::ActiveConfirmedQuorum => self.stats.inc_dir(
+        match status.result {
+            ElectionResult::ActiveConfirmedQuorum => self.stats.inc_dir(
                 StatType::ConfirmationObserver,
                 DetailType::ActiveQuorum,
                 Direction::Out,
             ),
-            ElectionStatusType::ActiveConfirmationHeight => self.stats.inc_dir(
+            ElectionResult::ActiveConfirmationHeight => self.stats.inc_dir(
                 StatType::ConfirmationObserver,
                 DetailType::ActiveConfHeight,
                 Direction::Out,
             ),
-            ElectionStatusType::InactiveConfirmationHeight => self.stats.inc_dir(
+            ElectionResult::InactiveConfirmationHeight => self.stats.inc_dir(
                 StatType::ConfirmationObserver,
                 DetailType::InactiveConfHeight,
                 Direction::Out,

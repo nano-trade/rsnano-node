@@ -4,7 +4,7 @@ use serde::Serialize;
 use tracing::error;
 
 use rsnano_core::{Amount, BlockType, SavedBlock};
-use rsnano_ledger::{AnySet, ElectionStatus, ElectionStatusType, Ledger};
+use rsnano_ledger::{AnySet, ElectionResult, EndedElection, Ledger};
 use rsnano_node::{NodeEvent, NodeEventHandler};
 use rsnano_nullable_http_client::{HttpClient, Url};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
@@ -19,10 +19,10 @@ pub(crate) struct HttpCallbacks {
 }
 
 impl HttpCallbacks {
-    pub fn execute(&self, status: &ElectionStatus, block: &SavedBlock, amount: Amount) {
+    pub fn execute(&self, status: &EndedElection, block: &SavedBlock, amount: Amount) {
         let block = block.clone();
-        if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
-            || status.election_status_type == ElectionStatusType::ActiveConfirmationHeight
+        if status.result == ElectionResult::ActiveConfirmedQuorum
+            || status.result == ElectionResult::ActiveConfirmationHeight
         {
             let url = self.callback_url.clone();
             let stats = self.stats.clone();

@@ -18,7 +18,7 @@ use rsnano_core::{
     VoteSource, VoteWithWeightInfo, WorkNonce,
 };
 use rsnano_ledger::{
-    AnySet, BlockStatus, ElectionConfig, ElectionStatus, Ledger, LedgerSet, RepWeightCache,
+    AnySet, BlockStatus, ElectionConfig, EndedElection, Ledger, LedgerSet, RepWeightCache,
 };
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
@@ -149,7 +149,7 @@ pub struct Node {
     tokio_runner: TokioRunner,
     active_elections_driver: TimerThread<ActiveElectionsDriver>,
     pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    pub recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
+    pub recently_cemented: Arc<Mutex<BoundedVecDeque<EndedElection>>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1272,7 +1272,7 @@ impl Node {
         let recently_cemented: ContainerInfo = [(
             "cemented",
             self.recently_cemented.lock().unwrap().len(),
-            size_of::<ElectionStatus>(),
+            size_of::<EndedElection>(),
         )]
         .into();
 
@@ -1654,7 +1654,7 @@ fn make_store(
 pub enum NodeEvent {
     AecActiveStarted(BlockHash),
     AecActiveStopped(BlockHash),
-    BlockCemented(SavedBlock, ElectionStatus, Vec<VoteWithWeightInfo>),
+    BlockCemented(SavedBlock, EndedElection, Vec<VoteWithWeightInfo>),
 }
 
 pub trait NodeEventHandler {
