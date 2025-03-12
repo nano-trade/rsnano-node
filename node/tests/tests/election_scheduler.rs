@@ -299,7 +299,7 @@ mod election_scheduler {
         assert_timely2(|| node.vote_router.active(&block.hash()));
         let election = node.active.election(&block.qualified_root()).unwrap();
         assert_eq!(
-            election.lock().unwrap().behavior,
+            election.lock().unwrap().behavior(),
             ElectionBehavior::Optimistic
         );
         assert_timely_eq2(|| election.lock().unwrap().result.vote_broadcast_count, 1);
@@ -313,7 +313,7 @@ mod election_scheduler {
 
         // Verify priority transition
         assert_eq!(
-            election.lock().unwrap().behavior,
+            election.lock().unwrap().behavior(),
             ElectionBehavior::Priority
         );
         // Verify vote broadcast after transitioning

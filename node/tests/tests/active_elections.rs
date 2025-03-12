@@ -254,7 +254,7 @@ fn non_final() {
         || {
             node.active
                 .vote_applier
-                .tally_impl(&mut election.lock().unwrap())
+                .calculate_tallies(&mut election.lock().unwrap())
                 .first_key_value()
                 .unwrap()
                 .0
@@ -632,7 +632,7 @@ fn confirm_election_by_request() {
     assert_eq!(election.lock().unwrap().is_confirmed(), false);
 
     // Expect that node2 has nobody to send a confirmation_request to (no reps)
-    assert_eq!(election.lock().unwrap().confirmation_request_count, 0);
+    assert_eq!(election.lock().unwrap().confirmation_request_count(), 0);
 
     // Get random peer list from node2 -- so basically just node2
     let peers = node2.network.read().unwrap().sorted_channels();
@@ -650,7 +650,7 @@ fn confirm_election_by_request() {
 
     // There needs to be at least one request to get the election confirmed,
     // Rep has this block already confirmed so should reply with final vote only
-    assert_timely2(|| election.lock().unwrap().confirmation_request_count >= 1);
+    assert_timely2(|| election.lock().unwrap().confirmation_request_count() >= 1);
 
     // Expect election was confirmed
     assert_timely2(|| election.lock().unwrap().is_confirmed());
@@ -725,7 +725,7 @@ fn confirm_frontier() {
     assert_timely2(|| node2.block_confirmed(&send.hash()));
     assert_timely_eq2(|| node2.ledger.cemented_count(), 2);
     assert_timely_eq2(|| node2.active.len(), 0);
-    assert!(election2.lock().unwrap().confirmation_request_count > 0);
+    assert!(election2.lock().unwrap().confirmation_request_count() > 0);
 }
 
 /// Ensures that election winners set won't grow without bounds when cementing

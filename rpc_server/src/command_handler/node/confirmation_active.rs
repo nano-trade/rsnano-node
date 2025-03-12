@@ -12,9 +12,9 @@ impl RpcCommandHandler {
 
         let active_elections = self.node.active.get_all();
         for election in active_elections {
-            let req_count = election.lock().unwrap().confirmation_request_count;
+            let el = election.lock().unwrap();
+            let req_count = el.confirmation_request_count();
             if req_count as u64 >= announcements {
-                let el = election.lock().unwrap();
                 if !el.is_confirmed() {
                     elections.push(el.qualified_root().clone());
                 } else {

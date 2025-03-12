@@ -37,7 +37,7 @@ pub fn activate_one() {
     });
 
     assert_eq!(
-        election.unwrap().lock().unwrap().behavior,
+        election.unwrap().lock().unwrap().behavior(),
         ElectionBehavior::Optimistic
     );
 }
@@ -73,7 +73,7 @@ pub fn activate_one_zero_conf() {
     });
 
     assert_eq!(
-        election.unwrap().lock().unwrap().behavior,
+        election.unwrap().lock().unwrap().behavior(),
         ElectionBehavior::Optimistic
     );
 }
@@ -106,7 +106,7 @@ pub fn activate_many() {
                 return false;
             };
 
-            let behavior = election.lock().unwrap().behavior;
+            let behavior = election.lock().unwrap().behavior();
             behavior == ElectionBehavior::Optimistic
         })
     });

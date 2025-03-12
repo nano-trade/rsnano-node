@@ -57,10 +57,10 @@ pub struct Election {
     /// The last time a vote for this election was generated
     last_vote_generated: Option<Instant>,
     last_broadcasted_block: BlockHash,
-    pub behavior: ElectionBehavior,
+    behavior: ElectionBehavior,
     is_quorum: bool,
     last_req: Option<Instant>,
-    pub confirmation_request_count: u32,
+    confirmation_request_count: u32,
     last_block_broadcast: Instant,
     election_start: Instant,
     config: ElectionConfig,
@@ -106,6 +106,14 @@ impl Election {
 
     pub fn qualified_root(&self) -> &QualifiedRoot {
         &self.qualified_root
+    }
+
+    pub fn behavior(&self) -> ElectionBehavior {
+        self.behavior
+    }
+
+    pub fn confirmation_request_count(&self) -> u32 {
+        self.confirmation_request_count
     }
 
     pub fn transition_time(&mut self) {
@@ -387,6 +395,40 @@ impl Election {
         };
 
         removed
+    }
+
+    pub fn calculate_tallies(
+        &mut self,
+        rep_weights: &RepWeightCache,
+    ) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
+        let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
+        let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
+        let weights = rep_weights.read();
+        for (account, info) in &self.votes {
+            let rep_weight = weights.get(account).cloned().unwrap_or_default();
+            *block_weights.entry(info.hash).or_default() += rep_weight;
+            if info.timestamp == u64::MAX {
+                *final_weights.entry(info.hash).or_default() += rep_weight;
+            }
+        }
+        self.block_tallies.clear();
+        for (&hash, &weight) in &block_weights {
+            self.block_tallies.insert(hash, weight);
+        }
+        let mut result = BTreeMap::new();
+        for (hash, weight) in &block_weights {
+            if let Some(block) = self.candidate_blocks.get(hash) {
+                result.insert(DescTallyKey(*weight), block.clone());
+            }
+        }
+        // Calculate final votes sum for winner
+        if !final_weights.is_empty() && !result.is_empty() {
+            let winner_hash = result.first_key_value().unwrap().1.hash();
+            if let Some(final_weight) = final_weights.get(&winner_hash) {
+                self.final_weight = *final_weight;
+            }
+        }
+        result
     }
 
     pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {

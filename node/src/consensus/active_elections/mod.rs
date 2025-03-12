@@ -223,7 +223,7 @@ impl ActiveElections {
         let election = entry.election.lock().unwrap();
 
         // Keep track of election count by election type
-        *guard.count_by_behavior_mut(election.behavior) -= 1;
+        *guard.count_by_behavior_mut(election.behavior()) -= 1;
         self.vote_router.disconnect_election(&election);
         let winner_hash = election.winner_hash().unwrap();
 
@@ -241,7 +241,7 @@ impl ActiveElections {
         self.stats
             .inc(StatType::ActiveElectionsStopped, election.state.into());
         self.stats
-            .inc(election.state.into(), election.behavior.into());
+            .inc(election.state.into(), election.behavior().into());
         drop(guard);
 
         // Track election duration
@@ -629,7 +629,7 @@ impl ActiveElectionsState {
         new_behavior: ElectionBehavior,
         election: &mut Election,
     ) -> bool {
-        let previous_behavior = election.behavior;
+        let previous_behavior = election.behavior();
         let upgraded = election.maybe_upgrade_to(new_behavior);
         if upgraded {
             *self.count_by_behavior_mut(previous_behavior) -= 1;

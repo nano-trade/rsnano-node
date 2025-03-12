@@ -31,7 +31,7 @@ impl ElectionVoter {
             if election.is_confirmed()
                 || self
                     .vote_applier
-                    .have_quorum(&self.vote_applier.tally_impl(election))
+                    .have_quorum(&self.vote_applier.calculate_tallies(election))
             {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);

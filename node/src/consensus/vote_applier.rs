@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     sync::{Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
@@ -90,34 +90,11 @@ impl VoteApplier {
         }
     }
 
-    pub fn tally_impl(&self, guard: &mut Election) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
-        let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
-        let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
-        for (account, info) in &guard.votes {
-            let rep_weight = self.ledger.weight(account);
-            *block_weights.entry(info.hash).or_default() += rep_weight;
-            if info.timestamp == u64::MAX {
-                *final_weights.entry(info.hash).or_default() += rep_weight;
-            }
-        }
-        guard.block_tallies.clear();
-        for (&hash, &weight) in &block_weights {
-            guard.block_tallies.insert(hash, weight);
-        }
-        let mut result = BTreeMap::new();
-        for (hash, weight) in &block_weights {
-            if let Some(block) = guard.candidate_blocks.get(hash) {
-                result.insert(DescTallyKey(*weight), block.clone());
-            }
-        }
-        // Calculate final votes sum for winner
-        if !final_weights.is_empty() && !result.is_empty() {
-            let winner_hash = result.first_key_value().unwrap().1.hash();
-            if let Some(final_weight) = final_weights.get(&winner_hash) {
-                guard.final_weight = *final_weight;
-            }
-        }
-        result
+    pub fn calculate_tallies(
+        &self,
+        election: &mut Election,
+    ) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
+        election.calculate_tallies(&self.ledger.rep_weights)
     }
 
     pub fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
@@ -233,7 +210,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         mut election_lock: MutexGuard<Election>,
         election: &Arc<Mutex<Election>>,
     ) {
-        let tally = self.tally_impl(&mut election_lock);
+        let tally = self.calculate_tallies(&mut election_lock);
         assert!(!tally.is_empty());
         let (amount, block) = tally.first_key_value().unwrap();
         let winner_hash = block.hash();
