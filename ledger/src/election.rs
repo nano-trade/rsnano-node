@@ -431,6 +431,10 @@ impl Election {
         result
     }
 
+    pub fn remove_vote(&mut self, voter: &PublicKey) {
+        self.votes.remove(voter);
+    }
+
     pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
         if self.winner_hash().unwrap_or_default() != *hash {
             let existing = self.candidate_blocks.remove(hash);

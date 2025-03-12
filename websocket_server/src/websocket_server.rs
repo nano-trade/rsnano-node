@@ -171,7 +171,7 @@ pub fn vote_received(vote: &Vote, code: VoteCode) -> OutgoingMessageEnvelope {
     OutgoingMessageEnvelope::new(
         Topic::Vote,
         VoteReceived {
-            account: Account::from(vote.voting_account).encode_account(),
+            account: Account::from(vote.voter).encode_account(),
             signature: vote.signature.encode_hex(),
             sequence: vote.timestamp().to_string(),
             timestamp: vote.timestamp().to_string(),

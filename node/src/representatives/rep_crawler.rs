@@ -317,18 +317,18 @@ impl RepCrawler {
 
         // TODO: Is it really faster to repeatedly lock/unlock the mutex for each response?
         for (channel, vote) in responses {
-            let rep_weight = self.ledger.weight(&vote.voting_account);
+            let rep_weight = self.ledger.weight(&vote.voter);
             if rep_weight < minimum {
                 debug!(
                     "Ignoring vote from account: {} with too little voting weight: {}",
-                    Account::from(vote.voting_account).encode_account(),
+                    Account::from(vote.voter).encode_account(),
                     rep_weight.to_string_dec()
                 );
                 continue;
             }
 
             let result = self.online_reps.lock().unwrap().vote_observed_directly(
-                vote.voting_account,
+                vote.voter,
                 channel.clone(),
                 self.steady_clock.now(),
             );
@@ -337,14 +337,14 @@ impl RepCrawler {
                 InsertResult::Inserted => {
                     info!(
                         "Found representative: {} at {}",
-                        Account::from(vote.voting_account).encode_account(),
+                        Account::from(vote.voter).encode_account(),
                         channel.peer_addr()
                     );
                 }
                 InsertResult::ChannelChanged(previous_peer) => {
                     warn!(
                         "Updated representative: {} at : {} (was at: {})",
-                        Account::from(vote.voting_account).encode_account(),
+                        Account::from(vote.voter).encode_account(),
                         channel.peer_addr(),
                         previous_peer
                     )

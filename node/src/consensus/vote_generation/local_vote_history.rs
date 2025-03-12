@@ -60,11 +60,11 @@ impl LocalVoteHistory {
             for &i in ids.iter() {
                 let current = &data.history[&i];
                 if &current.hash != hash
-                    || (vote.voting_account == current.vote.voting_account
+                    || (vote.voter == current.vote.voter
                         && current.vote.timestamp() <= vote.timestamp())
                 {
                     ids_to_delete.push(i);
-                } else if vote.voting_account == current.vote.voting_account
+                } else if vote.voter == current.vote.voter
                     && current.vote.timestamp() > vote.timestamp()
                 {
                     add_vote = false;

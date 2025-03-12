@@ -252,9 +252,10 @@ fn non_final() {
 
     assert_timely_eq2(
         || {
-            node.active
-                .vote_applier
-                .calculate_tallies(&mut election.lock().unwrap())
+            election
+                .lock()
+                .unwrap()
+                .calculate_tallies(&node.ledger.rep_weights)
                 .first_key_value()
                 .unwrap()
                 .0

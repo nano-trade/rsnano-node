@@ -153,7 +153,7 @@ fn empty_hashes() {
     let key = PrivateKey::new();
     let vote = Arc::new(Vote::new(&key, Vote::TIMESTAMP_MIN, 0, vec![]));
 
-    assert_eq!(vote.voting_account, key.public_key());
+    assert_eq!(vote.voter, key.public_key());
     assert_eq!(vote.timestamp, Vote::TIMESTAMP_MIN);
     assert_eq!(vote.hashes.len(), 0);
 }

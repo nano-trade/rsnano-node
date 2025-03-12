@@ -285,7 +285,7 @@ impl CacheEntry {
     }
 
     fn vote_impl(&mut self, vote: &Arc<Vote>, rep_weight: Amount, max_voters: usize) -> bool {
-        let representative = vote.voting_account;
+        let representative = vote.voter;
 
         if let Some(existing) = self.voters.find(&representative) {
             // We already have a vote from this rep

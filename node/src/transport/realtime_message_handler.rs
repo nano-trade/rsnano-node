@@ -115,7 +115,7 @@ impl RealtimeMessageHandler {
             }
             Message::ConfirmAck(ack) => {
                 // Ignore zero account votes
-                if ack.vote().voting_account.is_zero() {
+                if ack.vote().voter.is_zero() {
                     self.stats.inc_dir(
                         StatType::Drop,
                         DetailType::ConfirmAckZeroAccount,

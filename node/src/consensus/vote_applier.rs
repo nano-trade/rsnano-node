@@ -90,20 +90,13 @@ impl VoteApplier {
         }
     }
 
-    pub fn calculate_tallies(
-        &self,
-        election: &mut Election,
-    ) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
-        election.calculate_tallies(&self.ledger.rep_weights)
-    }
-
     pub fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
         if self.wallets.voting_enabled() {
             // Remove votes from election
             let root = *election.root();
             let list_generated_votes = self.history.votes(&root, hash, false);
             for vote in list_generated_votes {
-                election.votes.remove(&vote.voting_account);
+                election.remove_vote(&vote.voter);
             }
             // Clear votes cache
             self.history.erase(&root);
@@ -207,16 +200,16 @@ impl VoteApplierExt for Arc<VoteApplier> {
 
     fn confirm_if_quorum(
         &self,
-        mut election_lock: MutexGuard<Election>,
-        election: &Arc<Mutex<Election>>,
+        mut election: MutexGuard<Election>,
+        election_mutex: &Arc<Mutex<Election>>,
     ) {
-        let tally = self.calculate_tallies(&mut election_lock);
+        let tally = election.calculate_tallies(&self.ledger.rep_weights);
         assert!(!tally.is_empty());
         let (amount, block) = tally.first_key_value().unwrap();
         let winner_hash = block.hash();
-        election_lock.result.tally = amount.amount();
-        election_lock.result.final_tally = election_lock.final_weight;
-        let status_winner_hash = election_lock.winner_hash().unwrap();
+        election.result.tally = amount.amount();
+        election.result.final_tally = election.final_weight;
+        let status_winner_hash = election.winner_hash().unwrap();
         let mut sum = Amount::zero();
         for k in tally.keys() {
             sum += k.amount();
@@ -224,19 +217,19 @@ impl VoteApplierExt for Arc<VoteApplier> {
         if sum >= self.online_reps.lock().unwrap().quorum_delta()
             && winner_hash != status_winner_hash
         {
-            election_lock.result.winner = Some(block.clone());
-            self.remove_votes(&mut election_lock, &status_winner_hash);
+            election.result.winner = Some(block.clone());
+            self.remove_votes(&mut election, &status_winner_hash);
             self.block_processor.force(block.clone().into());
         }
 
         if self.have_quorum(&tally) {
-            if election_lock.swap_quorum_on() && self.wallets.voting_enabled() {
-                election_lock.result.vote_broadcast_count += 1;
+            if election.swap_quorum_on() && self.wallets.voting_enabled() {
+                election.result.vote_broadcast_count += 1;
                 self.vote_generators
-                    .generate_final_vote(election_lock.root(), &status_winner_hash);
+                    .generate_final_vote(election.root(), &status_winner_hash);
             }
             let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
-            if election_lock.final_weight >= quorum_delta {
+            if election.final_weight >= quorum_delta {
                 // In some edge cases block might get rolled back while the election
                 // is confirming, reprocess it to ensure it's present in the ledger
                 self.block_processor.add(
@@ -244,7 +237,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
                     BlockSource::Election,
                     ChannelId::LOOPBACK,
                 );
-                self.confirm_once(&mut election_lock, election);
+                self.confirm_once(&mut election, election_mutex);
             }
         }
     }

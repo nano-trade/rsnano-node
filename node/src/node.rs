@@ -552,6 +552,7 @@ impl Node {
             stats: stats.clone(),
             vote_applier: vote_applier.clone(),
             vote_generators: vote_generators.clone(),
+            rep_weights: ledger.rep_weights.clone(),
         };
 
         let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(
@@ -1057,9 +1058,7 @@ impl Node {
             let active_in_rep_crawler = rep_crawler.process(vote, channel);
             if active_in_rep_crawler {
                 // Representative is defined as online if replying to live votes or rep_crawler queries
-                reps.lock()
-                    .unwrap()
-                    .vote_observed(vote.voting_account, clock.now());
+                reps.lock().unwrap().vote_observed(vote.voter, clock.now());
             }
         }));
 

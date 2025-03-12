@@ -300,7 +300,7 @@ fn vote_generator_multiple_representatives() {
         key3.public_key(),
         DEV_GENESIS_KEY.public_key(),
     ] {
-        let existing = votes.iter().find(|vote| vote.voting_account == *account);
+        let existing = votes.iter().find(|vote| vote.voter == *account);
         assert!(existing.is_some());
     }
 }

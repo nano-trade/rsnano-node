@@ -40,7 +40,7 @@ pub struct Vote {
     pub timestamp: u64,
 
     // Account that's voting
-    pub voting_account: PublicKey,
+    pub voter: PublicKey,
 
     // Signature of timestamp + block hashes
     pub signature: Signature,
@@ -56,7 +56,7 @@ impl Vote {
     pub fn null() -> Self {
         Self {
             timestamp: 0,
-            voting_account: PublicKey::zero(),
+            voter: PublicKey::zero(),
             signature: Signature::new(),
             hashes: Vec::new(),
         }
@@ -75,7 +75,7 @@ impl Vote {
     ) -> Self {
         assert!(hashes.len() <= Self::MAX_HASHES);
         let mut result = Self {
-            voting_account: priv_key.public_key(),
+            voter: priv_key.public_key(),
             timestamp: packed_timestamp(timestamp, duration),
             signature: Signature::new(),
             hashes,
@@ -133,7 +133,7 @@ impl Vote {
     }
 
     pub fn deserialize(&mut self, stream: &mut impl Stream) -> Result<()> {
-        self.voting_account = PublicKey::deserialize(stream)?;
+        self.voter = PublicKey::deserialize(stream)?;
         self.signature = Signature::deserialize(stream)?;
         let mut buffer = [0; 8];
         stream.read_bytes(&mut buffer, 8)?;
@@ -146,8 +146,7 @@ impl Vote {
     }
 
     pub fn validate(&self) -> Result<()> {
-        self.voting_account
-            .verify(self.hash().as_bytes(), &self.signature)
+        self.voter.verify(self.hash().as_bytes(), &self.signature)
     }
 
     pub fn serialized_size(count: usize) -> usize {
@@ -160,7 +159,7 @@ impl Vote {
 
 impl Serialize for Vote {
     fn serialize(&self, writer: &mut dyn BufferWriter) {
-        self.voting_account.serialize(writer);
+        self.voter.serialize(writer);
         self.signature.serialize(writer);
         writer.write_bytes_safe(&self.timestamp.to_le_bytes());
         for hash in &self.hashes {
@@ -172,7 +171,7 @@ impl Serialize for Vote {
 impl PartialEq for Vote {
     fn eq(&self, other: &Self) -> bool {
         self.timestamp == other.timestamp
-            && self.voting_account == other.voting_account
+            && self.voter == other.voter
             && self.signature == other.signature
             && self.hashes == other.hashes
     }

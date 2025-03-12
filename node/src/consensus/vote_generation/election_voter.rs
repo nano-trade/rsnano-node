@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rsnano_ledger::Election;
+use rsnano_ledger::{Election, RepWeightCache};
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
 
@@ -13,6 +13,7 @@ pub(crate) struct ElectionVoter {
     pub stats: Arc<Stats>,
     pub vote_applier: Arc<VoteApplier>,
     pub vote_generators: Arc<VoteGenerators>,
+    pub rep_weights: Arc<RepWeightCache>,
 }
 
 impl ElectionVoter {
@@ -31,7 +32,7 @@ impl ElectionVoter {
             if election.is_confirmed()
                 || self
                     .vote_applier
-                    .have_quorum(&self.vote_applier.calculate_tallies(election))
+                    .have_quorum(&election.calculate_tallies(&self.rep_weights))
             {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);

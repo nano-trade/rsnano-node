@@ -64,7 +64,7 @@ impl VoteProcessorQueue {
             None => ChannelId::LOOPBACK,
         };
 
-        let tier = self.rep_tiers.tier(&vote.voting_account);
+        let tier = self.rep_tiers.tier(&vote.voter);
 
         let added = {
             let mut guard = self.data.lock().unwrap();

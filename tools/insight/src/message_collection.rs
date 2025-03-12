@@ -158,7 +158,7 @@ impl MessageFilter {
                 AscPullReqType::Frontiers(i) => i.start == account,
             },
             Message::BulkPullAccount(i) => i.account == account,
-            Message::ConfirmAck(ack) => ack.vote().voting_account == account.into(),
+            Message::ConfirmAck(ack) => ack.vote().voter == account.into(),
             Message::FrontierReq(i) => i.start == account,
             _ => false,
         }

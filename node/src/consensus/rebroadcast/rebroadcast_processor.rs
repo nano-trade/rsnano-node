@@ -43,7 +43,7 @@ impl RebroadcastProcessor {
         }
 
         // Don't republish votes created by this node
-        if self.wallet_reps.exists(vote.voting_account) {
+        if self.wallet_reps.exists(vote.voter) {
             return false;
         }
 
@@ -120,7 +120,7 @@ mod tests {
         let vote = Vote::new_test_instance();
         let floods = run_processor(TestInput {
             have_half_rep: false,
-            wallet_rep: Some(vote.voting_account),
+            wallet_rep: Some(vote.voter),
             vote,
         });
         assert_eq!(floods, vec![]);
