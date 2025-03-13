@@ -453,19 +453,19 @@ impl Election {
         removed
     }
 
-    pub fn calculate_tallies(&mut self, rep_weights: &RepWeightCache, quorum_delta: Amount) {
+    /// Calculate tallies and try to confirm this election
+    pub fn progress(&mut self, rep_weights: &HashMap<PublicKey, Amount>, quorum_delta: Amount) {
         // TODO early return if confirmed
 
         let old_winner_hash = self.winner().hash();
 
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
-        let weights = rep_weights.read();
         for (account, info) in &self.votes {
-            let rep_weight = weights.get(account).cloned().unwrap_or_default();
-            *block_weights.entry(info.hash).or_default() += rep_weight;
+            let weight = rep_weights.get(account).cloned().unwrap_or_default();
+            *block_weights.entry(info.hash).or_default() += weight;
             if info.timestamp == u64::MAX {
-                *final_weights.entry(info.hash).or_default() += rep_weight;
+                *final_weights.entry(info.hash).or_default() += weight;
             }
         }
 
@@ -505,6 +505,13 @@ impl Election {
                 .clone();
             self.set_winner(block.clone());
         }
+    }
+
+    pub fn have_quorum(&self, quorum_delta: Amount) -> bool {
+        let mut it = self.tallies.keys();
+        let first = it.next().map(|i| i.amount()).unwrap_or_default();
+        let second = it.next().map(|i| i.amount()).unwrap_or_default();
+        first - second >= quorum_delta
     }
 
     pub fn sum_tallies(&self) -> Amount {

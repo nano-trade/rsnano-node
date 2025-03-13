@@ -550,8 +550,8 @@ impl Node {
 
         let election_voter = ElectionVoter {
             stats: stats.clone(),
-            vote_applier: vote_applier.clone(),
             vote_generators: vote_generators.clone(),
+            online_reps: online_reps.clone(),
         };
 
         let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(

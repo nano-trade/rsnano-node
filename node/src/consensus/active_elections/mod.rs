@@ -591,7 +591,7 @@ pub struct ActiveElectionsState {
 }
 
 impl ActiveElectionsState {
-    pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
+    fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
         match behavior {
             ElectionBehavior::Manual => self.manual_count,
             ElectionBehavior::Priority => self.priority_count,
@@ -600,7 +600,7 @@ impl ActiveElectionsState {
         }
     }
 
-    pub fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
+    fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
         match behavior {
             ElectionBehavior::Manual => &mut self.manual_count,
             ElectionBehavior::Priority => &mut self.priority_count,
@@ -609,11 +609,11 @@ impl ActiveElectionsState {
         }
     }
 
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
+    fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
         self.roots.get(root).map(|i| i.election.clone())
     }
 
-    pub fn maybe_upgrade_to(
+    fn maybe_upgrade_to(
         &mut self,
         new_behavior: ElectionBehavior,
         election: &mut Election,
@@ -627,7 +627,7 @@ impl ActiveElectionsState {
         upgraded
     }
 
-    pub fn insert(
+    fn insert(
         &mut self,
         block: SavedBlock,
         election_behavior: ElectionBehavior,

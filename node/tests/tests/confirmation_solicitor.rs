@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rsnano_core::{Account, Amount, PublicKey};
 use rsnano_ledger::{

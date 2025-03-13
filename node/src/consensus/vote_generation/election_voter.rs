@@ -1,18 +1,18 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use rsnano_ledger::Election;
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
 
-use crate::consensus::VoteApplier;
+use crate::representatives::OnlineReps;
 
 use super::VoteGenerators;
 
 /// Tries to generate a vote for a given election
 pub(crate) struct ElectionVoter {
     pub stats: Arc<Stats>,
-    pub vote_applier: Arc<VoteApplier>,
     pub vote_generators: Arc<VoteGenerators>,
+    pub online_reps: Arc<Mutex<OnlineReps>>,
 }
 
 impl ElectionVoter {
@@ -28,7 +28,9 @@ impl ElectionVoter {
                 .inc(StatType::Election, DetailType::BroadcastVote);
             election.vote_broadcasted();
 
-            if election.is_confirmed() || self.vote_applier.have_quorum(&election.tallies()) {
+            let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
+
+            if election.is_confirmed() || election.have_quorum(quorum_delta) {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
                 let winner = election.winner_hash();

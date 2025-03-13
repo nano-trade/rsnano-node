@@ -7,9 +7,7 @@ use std::{
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
-use rsnano_core::{
-    Amount, BlockHash, DescTallyKey, MaybeSavedBlock, PublicKey, VoteCode, VoteSource,
-};
+use rsnano_core::{Amount, BlockHash, DescTallyKey, PublicKey, VoteCode, VoteSource};
 use rsnano_ledger::{Election, Ledger, VoteInfo};
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -168,12 +166,15 @@ impl VoteApplier {
         }
     }
 
-    pub fn have_quorum(&self, tally: &BTreeMap<DescTallyKey, BlockHash>) -> bool {
+    pub fn have_quorum(
+        &self,
+        tally: &BTreeMap<DescTallyKey, BlockHash>,
+        quorum_delta: Amount,
+    ) -> bool {
         let mut it = tally.keys();
         let first = it.next().map(|i| i.amount()).unwrap_or_default();
         let second = it.next().map(|i| i.amount()).unwrap_or_default();
-        let delta = self.online_reps.lock().unwrap().quorum_delta();
-        first - second >= delta
+        first - second >= quorum_delta
     }
 
     fn confirm_if_quorum(
@@ -184,7 +185,7 @@ impl VoteApplier {
         let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
 
         let old_winner_hash = election.winner().hash();
-        election.calculate_tallies(&self.ledger.rep_weights, quorum_delta);
+        election.progress(&self.ledger.rep_weights.read(), quorum_delta);
         let new_winner_hash = election.winner().hash();
 
         if new_winner_hash != old_winner_hash {
@@ -192,7 +193,7 @@ impl VoteApplier {
             self.block_processor.force(election.winner().clone().into());
         }
 
-        if self.have_quorum(election.tallies()) {
+        if election.have_quorum(quorum_delta) {
             if election.swap_quorum_on() && self.wallets.voting_enabled() {
                 self.vote_generators
                     .generate_final_vote(election.root(), &new_winner_hash);
