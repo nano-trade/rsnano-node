@@ -106,12 +106,12 @@ fn fork_replacement_tally() {
     let count_rep_votes_in_election = || {
         // Check that only max weight blocks remains (and start winner)
         let guard = election.lock().unwrap();
-        if MAX_BLOCKS != guard.votes.len() {
+        if MAX_BLOCKS != guard.votes().len() {
             return -1;
         }
         let mut vote_count = 0;
         for i in 0..REPS_COUNT {
-            if guard.votes.contains_key(&keys[i].public_key()) {
+            if guard.votes().contains_key(&keys[i].public_key()) {
                 vote_count += 1;
             }
         }
@@ -190,7 +190,7 @@ fn fork_replacement_tally() {
 
     assert_timely_eq2(|| count_rep_votes_in_election(), 8);
 
-    let votes2 = election.lock().unwrap().votes.clone();
+    let votes2 = election.lock().unwrap().votes().clone();
     assert!(votes2.contains_key(&DEV_GENESIS_PUB_KEY));
 }
 
@@ -359,7 +359,7 @@ fn inactive_votes_cache_existing_vote() {
     let last_vote1 = election
         .lock()
         .unwrap()
-        .votes
+        .votes()
         .get(&key.public_key())
         .unwrap()
         .clone();
@@ -381,7 +381,7 @@ fn inactive_votes_cache_existing_vote() {
     let last_vote2 = election
         .lock()
         .unwrap()
-        .votes
+        .votes()
         .get(&key.public_key())
         .unwrap()
         .clone();

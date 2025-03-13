@@ -105,7 +105,7 @@ fn add_old() {
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
     let election1_guard = election1.lock().unwrap();
     assert_eq!(2, election1_guard.vote_count());
-    let votes = &election1_guard.votes;
+    let votes = election1_guard.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
     assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
     assert_eq!(send1.hash(), election1_guard.winner_hash());
@@ -149,7 +149,7 @@ fn add_cooldown() {
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
     let election1_guard = election1.lock().unwrap();
     assert_eq!(2, election1_guard.vote_count());
-    let votes = &election1_guard.votes;
+    let votes = election1_guard.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
     assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
     assert_eq!(send1.hash(), election1_guard.winner_hash());

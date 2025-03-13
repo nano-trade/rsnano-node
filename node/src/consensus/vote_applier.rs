@@ -199,7 +199,7 @@ impl VoteApplier {
 
         let mut election = election_mutex.lock().unwrap();
 
-        if let Some(last_vote) = election.votes.get(rep) {
+        if let Some(last_vote) = election.votes().get(rep) {
             if last_vote.timestamp > timestamp {
                 return VoteCode::Replay;
             }
@@ -220,9 +220,7 @@ impl VoteApplier {
                 return VoteCode::Ignored;
             }
         }
-        election
-            .votes
-            .insert(*rep, VoteInfo::new(timestamp, *block_hash));
+        election.add_vote(*rep, VoteInfo::new(timestamp, *block_hash));
 
         if vote_source != VoteSource::Cache {
             // Representative is defined as online if replying to live votes or rep_crawler queries

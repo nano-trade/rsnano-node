@@ -122,6 +122,14 @@ impl Election {
         self.candidate_blocks.insert(block.hash(), block);
     }
 
+    pub fn votes(&self) -> &HashMap<PublicKey, VoteInfo> {
+        &self.votes
+    }
+
+    pub fn add_vote(&mut self, voter: PublicKey, vote: VoteInfo) {
+        self.votes.insert(voter, vote);
+    }
+
     pub fn get_result(&self) -> EndedElection {
         self.result.clone()
     }

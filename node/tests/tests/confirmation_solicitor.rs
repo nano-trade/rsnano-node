@@ -117,18 +117,12 @@ fn different_hashes() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let election = Mutex::new(Election::new(
-        send.clone(),
-        ElectionBehavior::Priority,
-        Default::default(),
-    ));
-    let mut data = election.lock().unwrap();
+    let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
     // Add a vote for something else, not the winner
-    data.votes
-        .insert(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
+    election.add_vote(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
     // Ensure the request and broadcast goes through
-    assert_eq!(solicitor.add(&data), true);
-    solicitor.broadcast_winner_block(&data).unwrap();
+    assert_eq!(solicitor.add(&election), true);
+    solicitor.broadcast_winner_block(&election).unwrap();
     // One publish through directed broadcasting and another through random flooding
 
     assert_eq!(
@@ -182,9 +176,7 @@ fn bypass_max_requests_cap() {
     let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
     // Add a vote for something else, not the winner
     for rep in &representatives {
-        election
-            .votes
-            .insert(rep.rep_key, VoteInfo::new(1, 1.into()));
+        election.add_vote(rep.rep_key, VoteInfo::new(1, 1.into()));
     }
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);

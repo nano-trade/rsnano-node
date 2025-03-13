@@ -78,7 +78,7 @@ impl ConfirmationSolicitor {
             if count >= self.max_election_broadcasts {
                 break;
             }
-            let should_broadcast = if let Some(existing) = election.votes.get(&i.rep_key) {
+            let should_broadcast = if let Some(existing) = election.votes().get(&i.rep_key) {
                 existing.hash != hash
             } else {
                 count += 1;
@@ -109,7 +109,7 @@ impl ConfirmationSolicitor {
                 break;
             }
             let mut full_queue = false;
-            let existing = election.votes.get(&rep.rep_key);
+            let existing = election.votes().get(&rep.rep_key);
             let exists = existing.is_some();
             let is_final = if let Some(existing) = existing {
                 !election.is_quorum() || existing.timestamp == u64::MAX

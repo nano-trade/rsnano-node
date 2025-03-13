@@ -74,7 +74,7 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .votes
+                .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .hash,
@@ -117,7 +117,7 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .votes
+                .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
@@ -187,13 +187,13 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .votes
+                .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
             Vote::TIMESTAMP_MIN * 2
         );
-        let votes = election1.lock().unwrap().votes.clone();
+        let votes = election1.lock().unwrap().votes().clone();
         assert_eq!(votes.len(), 2);
         assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
         assert_eq!(votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash, send2.hash());
