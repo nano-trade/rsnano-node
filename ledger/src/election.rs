@@ -52,7 +52,8 @@ pub struct Election {
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     pub votes: HashMap<PublicKey, VoteInfo>,
     pub final_weight: Amount,
-    block_tallies: HashMap<BlockHash, Amount>,
+    tallies_by_block: HashMap<BlockHash, Amount>,
+    ordered_tallies: BTreeMap<DescTallyKey, BlockHash>,
 
     /// The last time a vote for this election was generated
     last_vote_generated: Option<Instant>,
@@ -82,7 +83,8 @@ impl Election {
                 MaybeSavedBlock::Saved(block.clone()),
             )]),
             state: ElectionState::Passive,
-            block_tallies: HashMap::new(),
+            tallies_by_block: HashMap::new(),
+            ordered_tallies: BTreeMap::new(),
             final_weight: Amount::zero(),
             last_vote_generated: None,
             last_broadcasted_block: BlockHash::zero(),
@@ -150,8 +152,8 @@ impl Election {
         self.result.final_tally
     }
 
-    pub fn block_tallies(&self) -> &HashMap<BlockHash, Amount> {
-        &self.block_tallies
+    pub fn tallies_by_block(&self) -> &HashMap<BlockHash, Amount> {
+        &self.tallies_by_block
     }
 
     pub fn confirmation_request_count(&self) -> u32 {
@@ -417,38 +419,34 @@ impl Election {
     }
 
     pub fn remove_tally_below(&mut self, min_tally: Amount) -> Option<MaybeSavedBlock> {
-        let mut removed_block_hash = BlockHash::zero();
-        let winner_hash = self.winner_hash();
-        // Sort existing blocks tally
-        let mut sorted: Vec<_> = self
-            .block_tallies
-            .iter()
-            .map(|(hash, amount)| (*hash, *amount))
-            .collect();
+        if min_tally.is_zero() {
+            return None;
+        }
 
-        // Sort in ascending order
-        sorted.sort_by(|left, right| right.cmp(left));
+        let mut block_to_remove = BlockHash::zero();
+        let winner_hash = self.winner_hash();
 
         // Replace if lowest tally is below inactive cache new block weight
-        if min_tally > Amount::zero() && sorted.len() < Self::MAX_BLOCKS {
+        if self.ordered_tallies.len() < Self::MAX_BLOCKS {
             // If count of tally items is less than 10, remove any block without tally
             for (hash, _) in &self.candidate_blocks {
-                if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
-                    removed_block_hash = *hash;
+                if self.ordered_tallies.iter().all(|(_, h)| h != hash) && *hash != winner_hash {
+                    block_to_remove = *hash;
                     break;
                 }
             }
-        } else if min_tally > Amount::zero() && min_tally > sorted.first().unwrap().1 {
-            if sorted.first().unwrap().0 != winner_hash {
-                removed_block_hash = sorted[0].0;
-            } else if min_tally > sorted[1].1 {
+        } else if min_tally > **self.ordered_tallies.last_key_value().unwrap().0 {
+            let lowest_hash = self.ordered_tallies.last_key_value().unwrap().1.clone();
+            if lowest_hash != winner_hash {
+                block_to_remove = lowest_hash;
+            } else if min_tally > **self.ordered_tallies.iter().rev().nth(1).unwrap().0 {
                 // Avoid removing winner
-                removed_block_hash = sorted[1].0;
+                block_to_remove = *self.ordered_tallies.iter().rev().nth(1).unwrap().1;
             }
         }
 
-        let removed = if !removed_block_hash.is_zero() {
-            self.remove_block(&removed_block_hash)
+        let removed = if !block_to_remove.is_zero() {
+            self.remove_block(&block_to_remove)
         } else {
             None
         };
@@ -470,10 +468,20 @@ impl Election {
                 *final_weights.entry(info.hash).or_default() += rep_weight;
             }
         }
-        self.block_tallies.clear();
+        self.tallies_by_block.clear();
         for (&hash, &weight) in &block_weights {
-            self.block_tallies.insert(hash, weight);
+            self.tallies_by_block.insert(hash, weight);
         }
+
+        self.ordered_tallies.clear();
+        for (hash, weight) in &block_weights {
+            if let Some(block) = self.candidate_blocks.get(hash) {
+                self.ordered_tallies
+                    .insert(DescTallyKey(*weight), block.hash());
+            }
+        }
+
+        //----------------
 
         let mut result = BTreeMap::new();
         for (hash, weight) in &block_weights {
