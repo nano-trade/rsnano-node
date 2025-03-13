@@ -26,6 +26,7 @@ use crate::{
     wallets::Wallets,
 };
 
+/// Applies a vote to an election
 pub struct VoteApplier {
     ledger: Arc<Ledger>,
     network_params: NetworkParams,
@@ -73,118 +74,6 @@ impl VoteApplier {
 
     pub(crate) fn set_election_schedulers(&self, schedulers: &Arc<ElectionSchedulers>) {
         *self.election_schedulers.write().unwrap() = Some(Arc::downgrade(&schedulers));
-    }
-
-    /// Calculates minimum time delay between subsequent votes when processing non-final votes
-    pub fn cooldown_time(&self, weight: Amount) -> Duration {
-        let online_stake = { self.online_reps.lock().unwrap().trended_or_minimum_weight() };
-        if weight > online_stake / 20 {
-            // Reps with more than 5% weight
-            Duration::from_secs(1)
-        } else if weight > online_stake / 100 {
-            // Reps with more than 1% weight
-            Duration::from_secs(5)
-        } else {
-            // The rest of smaller reps
-            Duration::from_secs(15)
-        }
-    }
-
-    pub fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
-        if self.wallets.voting_enabled() {
-            // Remove votes from election
-            let root = *election.root();
-            let list_generated_votes = self.history.votes(&root, hash, false);
-            for vote in list_generated_votes {
-                election.remove_vote(&vote.voter);
-            }
-            // Clear votes cache
-            self.history.erase(&root);
-        }
-    }
-
-    pub fn have_quorum(&self, tally: &BTreeMap<DescTallyKey, MaybeSavedBlock>) -> bool {
-        let mut it = tally.keys();
-        let first = it.next().map(|i| i.amount()).unwrap_or_default();
-        let second = it.next().map(|i| i.amount()).unwrap_or_default();
-        let delta = self.online_reps.lock().unwrap().quorum_delta();
-        first - second >= delta
-    }
-
-    pub fn have_quorum2(&self, tally: &BTreeMap<DescTallyKey, BlockHash>) -> bool {
-        let mut it = tally.keys();
-        let first = it.next().map(|i| i.amount()).unwrap_or_default();
-        let second = it.next().map(|i| i.amount()).unwrap_or_default();
-        let delta = self.online_reps.lock().unwrap().quorum_delta();
-        first - second >= delta
-    }
-
-    fn confirm_if_quorum(
-        &self,
-        mut election: MutexGuard<Election>,
-        election_mutex: &Arc<Mutex<Election>>,
-    ) {
-        let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
-
-        election.calculate_tallies(&self.ledger.rep_weights);
-        let (amount, winner_hash) = election.tallies().first_key_value().unwrap();
-        let amount = amount.amount();
-        let winner_hash = winner_hash.clone();
-        let block = election
-            .candidate_blocks()
-            .get(&winner_hash)
-            .unwrap()
-            .clone();
-        election.set_tally(amount);
-        let final_weight = election.final_weight;
-        election.set_final_tally(final_weight);
-
-        let status_winner_hash = election.winner_hash();
-        let sum_tallies = election.sum_tallies();
-
-        if sum_tallies >= quorum_delta && winner_hash != status_winner_hash {
-            election.set_winner(block.clone());
-            self.remove_votes(&mut election, &status_winner_hash);
-            self.block_processor.force(block.clone().into());
-        }
-
-        if self.have_quorum2(election.tallies()) {
-            if election.swap_quorum_on() && self.wallets.voting_enabled() {
-                self.vote_generators
-                    .generate_final_vote(election.root(), &status_winner_hash);
-                election.vote_broadcasted();
-            }
-            if election.final_weight >= quorum_delta {
-                // In some edge cases block might get rolled back while the election
-                // is confirming, reprocess it to ensure it's present in the ledger
-                self.block_processor
-                    .add(block.into(), BlockSource::Election, ChannelId::LOOPBACK);
-                if election.update_status_to_confirmed() {
-                    drop(election);
-                    self.election_confirmed(election_mutex.clone());
-                } else {
-                    self.stats
-                        .inc(StatType::Election, DetailType::ConfirmOnceFailed);
-                }
-            }
-        }
-    }
-
-    pub fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
-        let (winner_hash, root) = {
-            let e = election.lock().unwrap();
-            (e.winner_hash(), e.qualified_root().clone())
-        };
-
-        self.recently_confirmed
-            .write()
-            .unwrap()
-            .put(root.clone(), winner_hash);
-
-        self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
-        trace!( qualified_root = ?root, "election confirmed");
-
-        self.confirming_set.add_with_election(winner_hash, election);
     }
 
     pub fn vote(
@@ -249,5 +138,99 @@ impl VoteApplier {
             self.confirm_if_quorum(election, election_mutex);
         }
         VoteCode::Vote
+    }
+
+    /// Calculates minimum time delay between subsequent votes when processing non-final votes
+    fn cooldown_time(&self, weight: Amount) -> Duration {
+        let online_stake = { self.online_reps.lock().unwrap().trended_or_minimum_weight() };
+        if weight > online_stake / 20 {
+            // Reps with more than 5% weight
+            Duration::from_secs(1)
+        } else if weight > online_stake / 100 {
+            // Reps with more than 1% weight
+            Duration::from_secs(5)
+        } else {
+            // The rest of smaller reps
+            Duration::from_secs(15)
+        }
+    }
+
+    fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
+        if self.wallets.voting_enabled() {
+            // Remove votes from election
+            let root = *election.root();
+            let list_generated_votes = self.history.votes(&root, hash, false);
+            for vote in list_generated_votes {
+                election.remove_vote(&vote.voter);
+            }
+            // Clear votes cache
+            self.history.erase(&root);
+        }
+    }
+
+    pub fn have_quorum(&self, tally: &BTreeMap<DescTallyKey, BlockHash>) -> bool {
+        let mut it = tally.keys();
+        let first = it.next().map(|i| i.amount()).unwrap_or_default();
+        let second = it.next().map(|i| i.amount()).unwrap_or_default();
+        let delta = self.online_reps.lock().unwrap().quorum_delta();
+        first - second >= delta
+    }
+
+    fn confirm_if_quorum(
+        &self,
+        mut election: MutexGuard<Election>,
+        election_mutex: &Arc<Mutex<Election>>,
+    ) {
+        let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
+
+        let old_winner_hash = election.winner().hash();
+        election.calculate_tallies(&self.ledger.rep_weights, quorum_delta);
+        let new_winner_hash = election.winner().hash();
+
+        if new_winner_hash != old_winner_hash {
+            self.remove_votes(&mut election, &old_winner_hash);
+            self.block_processor.force(election.winner().clone().into());
+        }
+
+        if self.have_quorum(election.tallies()) {
+            if election.swap_quorum_on() && self.wallets.voting_enabled() {
+                self.vote_generators
+                    .generate_final_vote(election.root(), &new_winner_hash);
+                election.vote_broadcasted();
+            }
+            if election.final_weight >= quorum_delta {
+                // In some edge cases block might get rolled back while the election
+                // is confirming, reprocess it to ensure it's present in the ledger
+                self.block_processor.add(
+                    election.winner().clone().into(),
+                    BlockSource::Election,
+                    ChannelId::LOOPBACK,
+                );
+                if election.update_status_to_confirmed() {
+                    drop(election);
+                    self.election_confirmed(election_mutex.clone());
+                } else {
+                    self.stats
+                        .inc(StatType::Election, DetailType::ConfirmOnceFailed);
+                }
+            }
+        }
+    }
+
+    pub fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
+        let (winner_hash, root) = {
+            let e = election.lock().unwrap();
+            (e.winner_hash(), e.qualified_root().clone())
+        };
+
+        self.recently_confirmed
+            .write()
+            .unwrap()
+            .put(root.clone(), winner_hash);
+
+        self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
+        trace!( qualified_root = ?root, "election confirmed");
+
+        self.confirming_set.add_with_election(winner_hash, election);
     }
 }

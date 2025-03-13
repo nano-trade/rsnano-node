@@ -256,10 +256,11 @@ fn non_final() {
         1,
     );
 
+    let quorum_delta = node.online_reps.lock().unwrap().quorum_delta();
     assert_timely_eq2(
         || {
             let mut e = election.lock().unwrap();
-            e.calculate_tallies(&node.ledger.rep_weights);
+            e.calculate_tallies(&node.ledger.rep_weights, quorum_delta);
             **e.tallies().first_key_value().unwrap().0
         },
         Amount::MAX - Amount::raw(100),

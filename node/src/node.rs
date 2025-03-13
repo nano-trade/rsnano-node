@@ -552,7 +552,6 @@ impl Node {
             stats: stats.clone(),
             vote_applier: vote_applier.clone(),
             vote_generators: vote_generators.clone(),
-            rep_weights: ledger.rep_weights.clone(),
         };
 
         let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(

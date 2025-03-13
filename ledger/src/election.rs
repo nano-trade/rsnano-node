@@ -453,8 +453,11 @@ impl Election {
         removed
     }
 
-    pub fn calculate_tallies(&mut self, rep_weights: &RepWeightCache) {
+    pub fn calculate_tallies(&mut self, rep_weights: &RepWeightCache, quorum_delta: Amount) {
         // TODO early return if confirmed
+
+        let old_winner_hash = self.winner().hash();
+
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let weights = rep_weights.read();
@@ -473,12 +476,34 @@ impl Election {
             }
         }
 
+        let new_winner_hash = self
+            .tallies
+            .first_key_value()
+            .map(|(_, hash)| *hash)
+            .unwrap_or(old_winner_hash);
+
+        let amount = self
+            .tallies
+            .first_key_value()
+            .map(|(tally, _)| tally.amount())
+            .unwrap_or_default();
+
         // Calculate final votes sum for winner
-        if !final_weights.is_empty() && !self.tallies.is_empty() {
-            let winner_hash = self.tallies.first_key_value().unwrap().1;
-            if let Some(final_weight) = final_weights.get(winner_hash) {
-                self.final_weight = *final_weight;
-            }
+        if let Some(final_weight) = final_weights.get(&new_winner_hash) {
+            self.final_weight = *final_weight;
+        }
+
+        self.set_tally(amount);
+        let final_weight = self.final_weight;
+        self.set_final_tally(final_weight);
+
+        if self.sum_tallies() >= quorum_delta && new_winner_hash != old_winner_hash {
+            let block = self
+                .candidate_blocks()
+                .get(&new_winner_hash)
+                .unwrap()
+                .clone();
+            self.set_winner(block.clone());
         }
     }
 
