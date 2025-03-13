@@ -140,11 +140,7 @@ impl VoteApplier {
         election.set_final_tally(final_weight);
 
         let status_winner_hash = election.winner_hash();
-
-        let mut sum_tallies = Amount::zero();
-        for k in election.tallies().keys() {
-            sum_tallies += k.amount();
-        }
+        let sum_tallies = election.sum_tallies();
 
         if sum_tallies >= quorum_delta && winner_hash != status_winner_hash {
             election.set_winner(block.clone());

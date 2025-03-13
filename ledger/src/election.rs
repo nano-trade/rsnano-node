@@ -453,10 +453,7 @@ impl Election {
         removed
     }
 
-    pub fn calculate_tallies(
-        &mut self,
-        rep_weights: &RepWeightCache,
-    ) -> BTreeMap<DescTallyKey, MaybeSavedBlock> {
+    pub fn calculate_tallies(&mut self, rep_weights: &RepWeightCache) {
         // TODO early return if confirmed
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
@@ -476,22 +473,21 @@ impl Election {
             }
         }
 
-        //----------------
-
-        let mut result = BTreeMap::new();
-        for (hash, weight) in &block_weights {
-            if let Some(block) = self.candidate_blocks.get(hash) {
-                result.insert(DescTallyKey(*weight), block.clone());
-            }
-        }
         // Calculate final votes sum for winner
-        if !final_weights.is_empty() && !result.is_empty() {
-            let winner_hash = result.first_key_value().unwrap().1.hash();
-            if let Some(final_weight) = final_weights.get(&winner_hash) {
+        if !final_weights.is_empty() && !self.tallies.is_empty() {
+            let winner_hash = self.tallies.first_key_value().unwrap().1;
+            if let Some(final_weight) = final_weights.get(winner_hash) {
                 self.final_weight = *final_weight;
             }
         }
-        result
+    }
+
+    pub fn sum_tallies(&self) -> Amount {
+        let mut sum = Amount::zero();
+        for k in self.tallies().keys() {
+            sum += k.amount();
+        }
+        sum
     }
 
     pub fn remove_vote(&mut self, voter: &PublicKey) {
