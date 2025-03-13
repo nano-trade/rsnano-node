@@ -80,12 +80,12 @@ impl Runnable for ActiveElectionsDriver {
             let new_state;
             {
                 let mut election = election_mutex.lock().unwrap();
-                let old_state = election.state;
+                let old_state = election.state();
 
                 election.transition_time();
 
                 root = election.qualified_root().clone();
-                new_state = election.state;
+                new_state = election.state();
 
                 match new_state {
                     ElectionState::Active => {

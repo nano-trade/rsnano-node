@@ -27,7 +27,7 @@ impl ElectionVoter {
         if self.vote_generators.voting_enabled() {
             self.stats
                 .inc(StatType::Election, DetailType::BroadcastVote);
-            election.result.vote_broadcast_count += 1;
+            election.vote_broadcasted();
 
             if election.is_confirmed()
                 || self

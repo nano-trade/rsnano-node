@@ -47,9 +47,9 @@ impl ElectionConfig {
 
 pub struct Election {
     qualified_root: QualifiedRoot,
-    pub result: EndedElection,
-    pub state: ElectionState,
-    pub candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
+    result: EndedElection,
+    state: ElectionState,
+    candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     pub votes: HashMap<PublicKey, VoteInfo>,
     pub final_weight: Amount,
     pub block_tallies: HashMap<BlockHash, Amount>,
@@ -107,6 +107,39 @@ impl Election {
 
     pub fn behavior(&self) -> ElectionBehavior {
         self.behavior
+    }
+
+    pub fn state(&self) -> ElectionState {
+        self.state
+    }
+
+    pub fn candidate_blocks(&self) -> &HashMap<BlockHash, MaybeSavedBlock> {
+        &self.candidate_blocks
+    }
+
+    pub fn add_block(&mut self, block: impl Into<MaybeSavedBlock>) {
+        let block = block.into();
+        self.candidate_blocks.insert(block.hash(), block);
+    }
+
+    pub fn get_result(&self) -> EndedElection {
+        self.result.clone()
+    }
+
+    pub fn set_tally(&mut self, tally: Amount) {
+        self.result.tally = tally;
+    }
+
+    pub fn set_final_tally(&mut self, tally: Amount) {
+        self.result.final_tally = tally;
+    }
+
+    pub fn tally(&self) -> Amount {
+        self.result.tally
+    }
+
+    pub fn final_tally(&self) -> Amount {
+        self.result.final_tally
     }
 
     pub fn confirmation_request_count(&self) -> u32 {
@@ -231,8 +264,16 @@ impl Election {
         self.result.vote_broadcast_count += 1;
     }
 
+    pub fn vote_broadcast_count(&self) -> u32 {
+        self.result.vote_broadcast_count
+    }
+
     pub fn time_since_last_block_broadcast(&self) -> Duration {
         self.last_block_broadcast.elapsed()
+    }
+
+    pub fn winner(&self) -> &MaybeSavedBlock {
+        &self.result.winner
     }
 
     pub fn winner_hash(&self) -> BlockHash {

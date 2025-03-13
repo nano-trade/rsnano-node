@@ -120,8 +120,9 @@ impl VoteApplier {
         assert!(!tally.is_empty());
         let (amount, block) = tally.first_key_value().unwrap();
         let winner_hash = block.hash();
-        election.result.tally = amount.amount();
-        election.result.final_tally = election.final_weight;
+        election.set_tally(amount.amount());
+        let final_weight = election.final_weight;
+        election.set_final_tally(final_weight);
         let status_winner_hash = election.winner_hash();
         let mut sum = Amount::zero();
         for k in tally.keys() {
@@ -156,7 +157,7 @@ impl VoteApplier {
     }
 
     pub fn confirm_once(&self, election: &mut Election, election_mutex: &Arc<Mutex<Election>>) {
-        let just_confirmed = election.state != ElectionState::Confirmed;
+        let just_confirmed = election.state() != ElectionState::Confirmed;
 
         if just_confirmed {
             election.update_status_to_confirmed();

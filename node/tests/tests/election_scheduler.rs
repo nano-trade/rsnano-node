@@ -302,7 +302,7 @@ mod election_scheduler {
             election.lock().unwrap().behavior(),
             ElectionBehavior::Optimistic
         );
-        assert_timely_eq2(|| election.lock().unwrap().result.vote_broadcast_count, 1);
+        assert_timely_eq2(|| election.lock().unwrap().vote_broadcast_count(), 1);
 
         // Confirm first block to allow upgrading second block's election
         node.confirm(blocks[howmany_blocks - 1].hash());
@@ -317,7 +317,7 @@ mod election_scheduler {
             ElectionBehavior::Priority
         );
         // Verify vote broadcast after transitioning
-        assert_timely_eq2(|| election.lock().unwrap().result.vote_broadcast_count, 2);
+        assert_timely_eq2(|| election.lock().unwrap().vote_broadcast_count(), 2);
         assert!(node.active.is_active(block));
     }
 }
