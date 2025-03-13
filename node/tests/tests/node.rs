@@ -800,7 +800,7 @@ fn fork_multi_flip() {
         *election
             .lock()
             .unwrap()
-            .block_tallies
+            .block_tallies()
             .get(&send1.hash())
             .unwrap()
     );
@@ -3044,7 +3044,7 @@ fn fork_keep() {
     });
     // The vote should be in agreement with what we already have.
     let guard = election1.lock().unwrap();
-    let (winner_hash, winner_tally) = guard.block_tallies.iter().next().unwrap();
+    let (winner_hash, winner_tally) = guard.block_tallies().iter().next().unwrap();
     assert_eq!(*winner_hash, send1.hash());
     assert_eq!(*winner_tally, Amount::MAX - Amount::raw(100));
     assert!(node1.block_exists(&send1.hash()));

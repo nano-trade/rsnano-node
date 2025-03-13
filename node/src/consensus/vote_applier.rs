@@ -8,7 +8,8 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
 use rsnano_core::{
-    Amount, BlockHash, DescTallyKey, MaybeSavedBlock, PublicKey, VoteCode, VoteSource,
+    Amount, BlockHash, DescTallyKey, MaybeSavedBlock, PublicKey, QualifiedRoot, VoteCode,
+    VoteSource,
 };
 use rsnano_ledger::{Election, ElectionState, Ledger, VoteInfo};
 use rsnano_network::ChannelId;
@@ -116,6 +117,8 @@ impl VoteApplier {
         mut election: MutexGuard<Election>,
         election_mutex: &Arc<Mutex<Election>>,
     ) {
+        let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
+
         let tally = election.calculate_tallies(&self.ledger.rep_weights);
         assert!(!tally.is_empty());
         let (amount, block) = tally.first_key_value().unwrap();
@@ -123,14 +126,15 @@ impl VoteApplier {
         election.set_tally(amount.amount());
         let final_weight = election.final_weight;
         election.set_final_tally(final_weight);
+
         let status_winner_hash = election.winner_hash();
-        let mut sum = Amount::zero();
+
+        let mut sum_tallies = Amount::zero();
         for k in tally.keys() {
-            sum += k.amount();
+            sum_tallies += k.amount();
         }
-        if sum >= self.online_reps.lock().unwrap().quorum_delta()
-            && winner_hash != status_winner_hash
-        {
+
+        if sum_tallies >= quorum_delta && winner_hash != status_winner_hash {
             election.set_winner(block.clone());
             self.remove_votes(&mut election, &status_winner_hash);
             self.block_processor.force(block.clone().into());
@@ -142,7 +146,6 @@ impl VoteApplier {
                     .generate_final_vote(election.root(), &status_winner_hash);
                 election.vote_broadcasted();
             }
-            let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
             if election.final_weight >= quorum_delta {
                 // In some edge cases block might get rolled back while the election
                 // is confirming, reprocess it to ensure it's present in the ledger
@@ -151,35 +154,32 @@ impl VoteApplier {
                     BlockSource::Election,
                     ChannelId::LOOPBACK,
                 );
-                self.confirm_once(&mut election, election_mutex);
+                if election.update_status_to_confirmed() {
+                    drop(election);
+                    self.election_confirmed(election_mutex.clone());
+                } else {
+                    self.stats
+                        .inc(StatType::Election, DetailType::ConfirmOnceFailed);
+                }
             }
         }
     }
 
-    pub fn confirm_once(&self, election: &mut Election, election_mutex: &Arc<Mutex<Election>>) {
-        let just_confirmed = election.state() != ElectionState::Confirmed;
+    pub fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
+        let (winner_hash, root) = {
+            let e = election.lock().unwrap();
+            (e.winner_hash(), e.qualified_root().clone())
+        };
 
-        if just_confirmed {
-            election.update_status_to_confirmed();
-            let winner_hash = election.winner_hash();
+        self.recently_confirmed
+            .write()
+            .unwrap()
+            .put(root.clone(), winner_hash);
 
-            self.recently_confirmed
-                .write()
-                .unwrap()
-                .put(election.qualified_root().clone(), winner_hash);
+        self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
+        trace!( qualified_root = ?root, "election confirmed");
 
-            self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
-            trace!(
-                qualified_root = ?election.qualified_root(),
-                "election confirmed"
-            );
-
-            self.confirming_set
-                .add_with_election(winner_hash, Some(election_mutex.clone()));
-        } else {
-            self.stats
-                .inc(StatType::Election, DetailType::ConfirmOnceFailed);
-        }
+        self.confirming_set.add_with_election(winner_hash, election);
     }
 
     pub fn vote(

@@ -52,7 +52,7 @@ pub struct Election {
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     pub votes: HashMap<PublicKey, VoteInfo>,
     pub final_weight: Amount,
-    pub block_tallies: HashMap<BlockHash, Amount>,
+    block_tallies: HashMap<BlockHash, Amount>,
 
     /// The last time a vote for this election was generated
     last_vote_generated: Option<Instant>,
@@ -148,6 +148,10 @@ impl Election {
 
     pub fn final_tally(&self) -> Amount {
         self.result.final_tally
+    }
+
+    pub fn block_tallies(&self) -> &HashMap<BlockHash, Amount> {
+        &self.block_tallies
     }
 
     pub fn confirmation_request_count(&self) -> u32 {
@@ -304,13 +308,18 @@ impl Election {
         }
     }
 
-    pub fn update_status_to_confirmed(&mut self) {
+    pub fn update_status_to_confirmed(&mut self) -> bool {
+        if self.state == ElectionState::Confirmed {
+            return false;
+        }
+
         self.state = ElectionState::Confirmed;
         self.result.election_end = SystemTime::now();
         self.result.election_duration = self.duration();
         self.result.confirmation_request_count = self.confirmation_request_count;
         self.result.block_count = self.candidate_blocks.len() as u32;
         self.result.voter_count = self.votes.len() as u32;
+        true
     }
 
     pub fn state_change(
@@ -465,6 +474,7 @@ impl Election {
         for (&hash, &weight) in &block_weights {
             self.block_tallies.insert(hash, weight);
         }
+
         let mut result = BTreeMap::new();
         for (hash, weight) in &block_weights {
             if let Some(block) = self.candidate_blocks.get(hash) {

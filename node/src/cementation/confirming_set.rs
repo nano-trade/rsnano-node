@@ -83,10 +83,14 @@ impl ConfirmingSet {
 
     /// Adds a block to the set of blocks to be confirmed
     pub fn add(&self, hash: BlockHash) {
-        self.add_with_election(hash, None)
+        self.add_with_election_opt(hash, None)
     }
 
-    pub fn add_with_election(&self, hash: BlockHash, election: Option<Arc<Mutex<Election>>>) {
+    pub fn add_with_election(&self, hash: BlockHash, election: Arc<Mutex<Election>>) {
+        self.add_with_election_opt(hash, Some(election));
+    }
+
+    fn add_with_election_opt(&self, hash: BlockHash, election: Option<Arc<Mutex<Election>>>) {
         self.thread.add(hash, election);
     }
 

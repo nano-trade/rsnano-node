@@ -31,7 +31,7 @@ impl RpcCommandHandler {
 
         for block in election.candidate_blocks().values() {
             let tally = election
-                .block_tallies
+                .block_tallies()
                 .get(&block.hash())
                 .cloned()
                 .unwrap_or_default();
