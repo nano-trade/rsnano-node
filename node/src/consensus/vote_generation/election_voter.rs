@@ -29,7 +29,6 @@ impl ElectionVoter {
                 .inc(StatType::Election, DetailType::BroadcastVote);
             election.vote_broadcasted();
 
-            election.calculate_tallies(&self.rep_weights);
             if election.is_confirmed() || self.vote_applier.have_quorum2(&election.tallies()) {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);

@@ -119,7 +119,7 @@ impl VoteApplier {
         first - second >= delta
     }
 
-    pub fn confirm_if_quorum(
+    fn confirm_if_quorum(
         &self,
         mut election: MutexGuard<Election>,
         election_mutex: &Arc<Mutex<Election>>,
