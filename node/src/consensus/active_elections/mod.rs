@@ -23,7 +23,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use super::{ElectionVoter, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter};
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
-    consensus::VoteApplierExt, transport::MessageFlooder,
+    transport::MessageFlooder,
 };
 
 pub type ElectionEndCallback =
@@ -222,7 +222,7 @@ impl ActiveElections {
         // Keep track of election count by election type
         *guard.count_by_behavior_mut(election.behavior()) -= 1;
         self.vote_router.disconnect_election(&election);
-        let winner_hash = election.winner_hash().unwrap();
+        let winner_hash = election.winner_hash();
 
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
@@ -393,7 +393,7 @@ impl ActiveElections {
                 .candidate_blocks
                 .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
-            if election.winner_hash().unwrap() == fork.hash() {
+            if election.winner_hash() == fork.hash() {
                 election.set_winner(MaybeSavedBlock::Unsaved(fork.clone()));
 
                 let message = Message::Publish(Publish::new_forward(fork.clone()));
@@ -449,9 +449,8 @@ impl ActiveElections {
             self.try_confirm(&dependent_election, &block.hash());
         }
 
-        let mut election_result = EndedElection::default();
+        let mut election_result = EndedElection::new(block.clone());
         let mut votes = Vec::new();
-        election_result.winner = Some(MaybeSavedBlock::Saved(block.clone()));
 
         // Check if the currently cemented block was part of an election that triggered the confirmation
         let mut handled = false;
@@ -459,10 +458,7 @@ impl ActiveElections {
             let election = source_election.lock().unwrap();
             if *election.qualified_root() == block.qualified_root() {
                 election_result = election.result.clone();
-                debug_assert_eq!(
-                    election_result.winner.as_ref().unwrap().hash(),
-                    block.hash()
-                );
+                debug_assert_eq!(election_result.winner.hash(), block.hash());
                 votes = election.votes_with_weight(&self.rep_weights);
                 election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 handled = true;
@@ -491,29 +487,27 @@ impl ActiveElections {
 
     fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
         let mut election = election_mutex.lock().unwrap();
-        if let Some(winner_hash) = &election.winner_hash() {
-            if winner_hash == hash {
-                if !election.is_confirmed() {
-                    election.update_status_to_confirmed();
+        let winner_hash = election.winner_hash();
+        if winner_hash == *hash {
+            if !election.is_confirmed() {
+                election.update_status_to_confirmed();
 
-                    self.recently_confirmed
-                        .write()
-                        .unwrap()
-                        .put(election.qualified_root().clone(), *winner_hash);
+                self.recently_confirmed
+                    .write()
+                    .unwrap()
+                    .put(election.qualified_root().clone(), winner_hash);
 
-                    self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
-                    trace!(
-                        qualified_root = ?election.qualified_root(),
-                        "election confirmed"
-                    );
-                }
+                self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
+                trace!(
+                    qualified_root = ?election.qualified_root(),
+                    "election confirmed"
+                );
             }
         }
     }
 
     fn notify_block_cemented(&self, status: EndedElection, votes: Vec<VoteWithWeightInfo>) {
-        let block = status.winner.as_ref().unwrap();
-        let MaybeSavedBlock::Saved(block) = block else {
+        let MaybeSavedBlock::Saved(block) = &status.winner else {
             return;
         };
         let block = block.clone();

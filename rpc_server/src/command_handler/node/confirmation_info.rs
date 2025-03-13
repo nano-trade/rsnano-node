@@ -24,7 +24,7 @@ impl RpcCommandHandler {
         let election = election_mutex.lock().unwrap();
         let announcements = election.result.confirmation_request_count;
         let voters = election.votes.len();
-        let last_winner = election.winner_hash().unwrap_or_default();
+        let last_winner = election.winner_hash();
 
         let final_tally = election.result.final_tally;
         let mut total_tally = Amount::zero();

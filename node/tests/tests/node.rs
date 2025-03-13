@@ -22,7 +22,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{AggregatorRequest, VoteApplierExt},
+    consensus::AggregatorRequest,
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
@@ -793,7 +793,7 @@ fn fork_multi_flip() {
     assert!(!node2.ledger.any().block_exists(&send2.hash()));
     assert!(!node2.ledger.any().block_exists_or_pruned(&send3.hash()));
 
-    let winner = election.lock().unwrap().winner_hash().unwrap();
+    let winner = election.lock().unwrap().winner_hash();
     assert_eq!(send1.hash(), winner);
     assert_eq!(
         Amount::MAX - Amount::raw(100),
@@ -828,7 +828,7 @@ fn fork_publish() {
     let votes1 = election.lock().unwrap().votes.clone();
     let existing1 = votes1.get(&DEV_GENESIS_PUB_KEY).unwrap();
     assert_eq!(send1.hash(), existing1.hash);
-    assert_eq!(election.lock().unwrap().winner_hash(), Some(send1.hash()));
+    assert_eq!(election.lock().unwrap().winner_hash(), send1.hash());
 }
 
 // In test case there used to be a race condition, it was worked around in:.
@@ -889,14 +889,7 @@ fn fork_publish_inactive() {
     assert!(find_block(send1.hash()));
     assert!(find_block(send2.hash()));
 
-    assert_eq!(
-        election.lock().unwrap().winner_hash().unwrap(),
-        send1.hash()
-    );
-    assert_ne!(
-        election.lock().unwrap().winner_hash().unwrap(),
-        send2.hash()
-    );
+    assert_eq!(election.lock().unwrap().winner_hash(), send1.hash());
 }
 
 #[test]
@@ -1789,10 +1782,7 @@ fn fork_open() {
         || election.lock().unwrap().candidate_blocks.len(),
         2,
     );
-    assert_eq!(
-        open1.hash(),
-        election.lock().unwrap().winner_hash().unwrap()
-    );
+    assert_eq!(open1.hash(), election.lock().unwrap().winner_hash());
 
     // wait for a second and check that the election did not get confirmed
     sleep(Duration::from_millis(1000));
@@ -2098,10 +2088,7 @@ fn rollback_vote_self() {
         || election.lock().unwrap().candidate_blocks.len(),
         2,
     );
-    assert_eq!(
-        election.lock().unwrap().winner_hash().unwrap(),
-        send2.hash()
-    );
+    assert_eq!(election.lock().unwrap().winner_hash(), send2.hash());
 
     {
         // The write guard prevents the block processor from performing the rollback
@@ -2132,7 +2119,7 @@ fn rollback_vote_self() {
                 .len()
         );
         // The winner changed
-        assert_eq!(election.lock().unwrap().winner_hash().unwrap(), fork.hash(),);
+        assert_eq!(election.lock().unwrap().winner_hash(), fork.hash(),);
 
         // Insert genesis key in the wallet
         node.wallets
@@ -2601,7 +2588,7 @@ fn fork_open_flip() {
     );
     assert_timely2(|| node1.block_confirmed(&open1.hash()));
     let election_status = election.lock().unwrap().result.clone();
-    assert_eq!(open1.hash(), election_status.winner.unwrap().hash());
+    assert_eq!(open1.hash(), election_status.winner.hash());
     assert_eq!(Amount::MAX - Amount::raw(1), election_status.tally);
 
     // check the correct blocks are in the ledgers

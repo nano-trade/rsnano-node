@@ -73,18 +73,14 @@ impl Election {
     pub fn new(block: SavedBlock, behavior: ElectionBehavior, config: ElectionConfig) -> Self {
         Self {
             qualified_root: block.qualified_root(),
-            result: EndedElection {
-                winner: Some(MaybeSavedBlock::Saved(block.clone())),
-                election_end: SystemTime::now(),
-                block_count: 1,
-                result: ElectionResult::Ongoing,
-                ..Default::default()
-            },
             votes: HashMap::from([(
                 HardenedConstants::get().not_an_account_key,
                 VoteInfo::new(0, block.hash()),
             )]),
-            candidate_blocks: HashMap::from([(block.hash(), MaybeSavedBlock::Saved(block))]),
+            candidate_blocks: HashMap::from([(
+                block.hash(),
+                MaybeSavedBlock::Saved(block.clone()),
+            )]),
             state: ElectionState::Passive,
             block_tallies: HashMap::new(),
             final_weight: Amount::zero(),
@@ -97,6 +93,7 @@ impl Election {
             last_block_broadcast: Instant::now(),
             election_start: Instant::now(),
             config,
+            result: EndedElection::new(block),
         }
     }
 
@@ -153,7 +150,7 @@ impl Election {
             true
         } else {
             // Or the current election winner has changed
-            self.winner_hash().unwrap() != self.last_broadcasted_block
+            self.winner_hash() != self.last_broadcasted_block
         }
     }
 
@@ -181,7 +178,7 @@ impl Election {
     }
 
     pub fn set_winner(&mut self, winner: MaybeSavedBlock) {
-        self.result.winner = Some(winner);
+        self.result.winner = winner;
     }
 
     pub fn cancel(&mut self) {
@@ -223,19 +220,23 @@ impl Election {
     }
 
     /// Returns true, if it was the initial broadcast
-    pub fn winner_block_broadcasted(&mut self) -> bool {
+    pub fn was_winner_block_broadcasted(&mut self) -> bool {
         let is_initial_broadcast = self.last_broadcasted_block.is_zero();
         self.last_block_broadcast = Instant::now();
-        self.last_broadcasted_block = self.winner_hash().unwrap();
+        self.last_broadcasted_block = self.winner_hash();
         is_initial_broadcast
+    }
+
+    pub fn vote_broadcasted(&mut self) {
+        self.result.vote_broadcast_count += 1;
     }
 
     pub fn time_since_last_block_broadcast(&self) -> Duration {
         self.last_block_broadcast.elapsed()
     }
 
-    pub fn winner_hash(&self) -> Option<BlockHash> {
-        self.result.winner.as_ref().map(|w| w.hash())
+    pub fn winner_hash(&self) -> BlockHash {
+        self.result.winner.hash()
     }
 
     pub fn should_send_confirm_req(&self) -> bool {
@@ -359,7 +360,7 @@ impl Election {
 
     pub fn remove_tally_below(&mut self, min_tally: Amount) -> Option<MaybeSavedBlock> {
         let mut removed_block_hash = BlockHash::zero();
-        let winner_hash = self.winner_hash().unwrap();
+        let winner_hash = self.winner_hash();
         // Sort existing blocks tally
         let mut sorted: Vec<_> = self
             .block_tallies
@@ -436,7 +437,7 @@ impl Election {
     }
 
     pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
-        if self.winner_hash().unwrap_or_default() != *hash {
+        if self.winner_hash() != *hash {
             let existing = self.candidate_blocks.remove(hash);
             if existing.is_some() {
                 self.votes.retain(|_, v| v.hash != *hash);
@@ -594,7 +595,7 @@ impl From<ElectionResult> for DetailType {
 /// Information about an ended election
 #[derive(Clone)]
 pub struct EndedElection {
-    pub winner: Option<MaybeSavedBlock>,
+    pub winner: MaybeSavedBlock,
     pub tally: Amount,
     pub final_tally: Amount,
     pub confirmation_request_count: u32,
@@ -606,18 +607,18 @@ pub struct EndedElection {
     pub vote_broadcast_count: u32,
 }
 
-impl Default for EndedElection {
-    fn default() -> Self {
+impl EndedElection {
+    pub fn new(block: SavedBlock) -> Self {
         Self {
-            winner: None,
+            winner: MaybeSavedBlock::Saved(block),
+            election_end: SystemTime::now(),
+            block_count: 1,
+            result: ElectionResult::Ongoing,
             tally: Amount::zero(),
             final_tally: Amount::zero(),
-            block_count: 0,
             voter_count: 0,
             confirmation_request_count: 0,
-            election_end: SystemTime::now(),
             election_duration: Duration::ZERO,
-            result: ElectionResult::InactiveConfirmationHeight,
             vote_broadcast_count: 0,
         }
     }

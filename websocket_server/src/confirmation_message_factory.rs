@@ -92,6 +92,8 @@ impl<'a> ConfirmationMessageFactory<'a> {
 
 #[cfg(test)]
 mod tests {
+    use rsnano_ledger::ElectionResult;
+
     use crate::ConfirmationJsonOptions;
 
     use super::*;
@@ -102,12 +104,14 @@ mod tests {
         let options = ConfirmationOptions::new(ConfirmationJsonOptions::default());
         let block = SavedBlock::new_test_instance();
         let amount = Amount::nano(123);
+        let mut election = EndedElection::new(block.clone());
+        election.result = ElectionResult::InactiveConfirmationHeight;
         let factory = ConfirmationMessageFactory {
             ledger: &ledger,
             options: &options,
             block: &block,
             amount: &amount,
-            election_status: &EndedElection::default(),
+            election_status: &election,
             election_votes: &Vec::new(),
         };
 
@@ -139,7 +143,7 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election_status: &EndedElection::default(),
+            election_status: &EndedElection::new(block.clone()),
             election_votes: &Vec::new(),
         };
 

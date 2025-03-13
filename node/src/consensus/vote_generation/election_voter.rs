@@ -36,14 +36,14 @@ impl ElectionVoter {
             {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
-                let winner = election.winner_hash().unwrap();
+                let winner = election.winner_hash();
                 trace!(qualified_root = ?election.qualified_root(), %winner, "type" = "final", "broadcast vote");
                 self.vote_generators
                     .generate_final_vote(election.root(), &winner); // Broadcasts vote to the network
             } else {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteNormal);
-                let winner = election.winner_hash().unwrap();
+                let winner = election.winner_hash();
                 trace!(qualified_root = ?election.qualified_root(), %winner, "type" = "normal", "broadcast vote");
                 self.vote_generators
                     .generate_non_final_vote(election.root(), &winner); // Broadcasts vote to the network

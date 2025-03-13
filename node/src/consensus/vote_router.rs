@@ -1,7 +1,3 @@
-use super::{RecentlyConfirmedCache, VoteApplier, VoteCache};
-use crate::consensus::VoteApplierExt;
-use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
-use rsnano_ledger::{Election, RepWeightCache};
 use std::{
     collections::HashMap,
     mem::size_of,
@@ -9,6 +5,11 @@ use std::{
     thread::JoinHandle,
     time::Duration,
 };
+
+use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_ledger::{Election, RepWeightCache};
+
+use super::{RecentlyConfirmedCache, VoteApplier, VoteCache};
 
 /// This class routes votes to their associated election
 /// This class holds a weak_ptr as this container does not own the elections
