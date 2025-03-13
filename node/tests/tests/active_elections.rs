@@ -258,14 +258,9 @@ fn non_final() {
 
     assert_timely_eq2(
         || {
-            election
-                .lock()
-                .unwrap()
-                .calculate_tallies(&node.ledger.rep_weights)
-                .first_key_value()
-                .unwrap()
-                .0
-                 .0
+            let mut e = election.lock().unwrap();
+            e.calculate_tallies(&node.ledger.rep_weights);
+            **e.tallies().first_key_value().unwrap().0
         },
         Amount::MAX - Amount::raw(100),
     );

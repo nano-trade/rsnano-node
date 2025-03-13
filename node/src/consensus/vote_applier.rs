@@ -8,10 +8,9 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
 use rsnano_core::{
-    Amount, BlockHash, DescTallyKey, MaybeSavedBlock, PublicKey, QualifiedRoot, VoteCode,
-    VoteSource,
+    Amount, BlockHash, DescTallyKey, MaybeSavedBlock, PublicKey, VoteCode, VoteSource,
 };
-use rsnano_ledger::{Election, ElectionState, Ledger, VoteInfo};
+use rsnano_ledger::{Election, Ledger, VoteInfo};
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -112,6 +111,14 @@ impl VoteApplier {
         first - second >= delta
     }
 
+    pub fn have_quorum2(&self, tally: &BTreeMap<DescTallyKey, BlockHash>) -> bool {
+        let mut it = tally.keys();
+        let first = it.next().map(|i| i.amount()).unwrap_or_default();
+        let second = it.next().map(|i| i.amount()).unwrap_or_default();
+        let delta = self.online_reps.lock().unwrap().quorum_delta();
+        first - second >= delta
+    }
+
     pub fn confirm_if_quorum(
         &self,
         mut election: MutexGuard<Election>,
@@ -119,18 +126,23 @@ impl VoteApplier {
     ) {
         let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
 
-        let tally = election.calculate_tallies(&self.ledger.rep_weights);
-        assert!(!tally.is_empty());
-        let (amount, block) = tally.first_key_value().unwrap();
-        let winner_hash = block.hash();
-        election.set_tally(amount.amount());
+        election.calculate_tallies(&self.ledger.rep_weights);
+        let (amount, winner_hash) = election.tallies().first_key_value().unwrap();
+        let amount = amount.amount();
+        let winner_hash = winner_hash.clone();
+        let block = election
+            .candidate_blocks()
+            .get(&winner_hash)
+            .unwrap()
+            .clone();
+        election.set_tally(amount);
         let final_weight = election.final_weight;
         election.set_final_tally(final_weight);
 
         let status_winner_hash = election.winner_hash();
 
         let mut sum_tallies = Amount::zero();
-        for k in tally.keys() {
+        for k in election.tallies().keys() {
             sum_tallies += k.amount();
         }
 
@@ -140,7 +152,7 @@ impl VoteApplier {
             self.block_processor.force(block.clone().into());
         }
 
-        if self.have_quorum(&tally) {
+        if self.have_quorum2(election.tallies()) {
             if election.swap_quorum_on() && self.wallets.voting_enabled() {
                 self.vote_generators
                     .generate_final_vote(election.root(), &status_winner_hash);
@@ -149,11 +161,8 @@ impl VoteApplier {
             if election.final_weight >= quorum_delta {
                 // In some edge cases block might get rolled back while the election
                 // is confirming, reprocess it to ensure it's present in the ledger
-                self.block_processor.add(
-                    (**block).clone(),
-                    BlockSource::Election,
-                    ChannelId::LOOPBACK,
-                );
+                self.block_processor
+                    .add(block.into(), BlockSource::Election, ChannelId::LOOPBACK);
                 if election.update_status_to_confirmed() {
                     drop(election);
                     self.election_confirmed(election_mutex.clone());

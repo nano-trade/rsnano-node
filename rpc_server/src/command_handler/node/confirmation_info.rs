@@ -31,9 +31,15 @@ impl RpcCommandHandler {
 
         for block in election.candidate_blocks().values() {
             let tally = election
-                .tallies_by_block()
-                .get(&block.hash())
-                .cloned()
+                .tallies()
+                .iter()
+                .find_map(|(tally, hash)| {
+                    if *hash == block.hash() {
+                        Some(**tally)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or_default();
 
             total_tally += tally;

@@ -82,9 +82,9 @@ mod votes {
         );
 
         let guard = election1.lock().unwrap();
-        let (hash, amount) = guard.tallies_by_block().iter().next().unwrap();
+        let (amount, hash) = guard.tallies().iter().next().unwrap();
         assert_eq!(*hash, send1.hash());
-        assert_eq!(*amount, Amount::MAX - Amount::raw(100));
+        assert_eq!(**amount, Amount::MAX - Amount::raw(100));
     }
 
     #[test]

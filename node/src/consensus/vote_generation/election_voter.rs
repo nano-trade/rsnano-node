@@ -29,11 +29,8 @@ impl ElectionVoter {
                 .inc(StatType::Election, DetailType::BroadcastVote);
             election.vote_broadcasted();
 
-            if election.is_confirmed()
-                || self
-                    .vote_applier
-                    .have_quorum(&election.calculate_tallies(&self.rep_weights))
-            {
+            election.calculate_tallies(&self.rep_weights);
+            if election.is_confirmed() || self.vote_applier.have_quorum2(&election.tallies()) {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
                 let winner = election.winner_hash();
