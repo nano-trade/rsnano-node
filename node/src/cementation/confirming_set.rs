@@ -199,7 +199,7 @@ impl ConfirmingSetThread {
         let added = {
             let mut guard = self.mutex.lock().unwrap();
             guard.set.push_back(CementingEntry {
-                hash,
+                confirmation_root: hash,
                 election,
                 timestamp: Instant::now(),
             })
@@ -237,7 +237,7 @@ impl ConfirmingSetThread {
                 {
                     let mut observers = self.observers.lock().unwrap();
                     for entry in evicted {
-                        observers.notify_cementing_failed(&entry.hash);
+                        observers.notify_cementing_failed(&entry.confirmation_root);
                     }
                 }
                 guard = self.mutex.lock().unwrap();
@@ -249,7 +249,7 @@ impl ConfirmingSetThread {
                 // Keep track of the blocks we're currently cementing, so that the .contains (...) check is accurate
                 debug_assert!(guard.current.is_empty());
                 for entry in &batch {
-                    guard.current.insert(entry.hash);
+                    guard.current.insert(entry.confirmation_root);
                 }
 
                 drop(guard);
@@ -374,7 +374,11 @@ impl<'a> CementingObserver for CementedNotifier<'a> {
             .lock()
             .unwrap()
             .deferred
-            .push_back(entry.clone());
+            .push_back(CementingEntry {
+                confirmation_root: entry.confirmation_root,
+                election: entry.election.clone(),
+                timestamp: Instant::now(),
+            });
     }
 }
 

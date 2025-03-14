@@ -751,13 +751,13 @@ impl Ledger {
                         .inc(StatType::ConfirmingSet, DetailType::Cementing);
 
                     // The block might be rolled back before it's fully cemented
-                    if !self.store.block.exists(&tx, &entry.hash) {
+                    if !self.store.block.exists(&tx, &entry.confirmation_root) {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::MissingBlock);
                         break;
                     }
 
-                    let added = self.confirm_max(&mut tx, entry.hash, max_blocks);
+                    let added = self.confirm_max(&mut tx, entry.confirmation_root, max_blocks);
 
                     if !added.is_empty() {
                         // Confirming this block may implicitly confirm more
@@ -773,11 +773,11 @@ impl Ledger {
                     } else {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
-                        observer.already_cemented(&entry.hash);
+                        observer.already_cemented(&entry.confirmation_root);
                     }
 
                     success = {
-                        if let Some(block) = self.store.block.get(&tx, &entry.hash) {
+                        if let Some(block) = self.store.block.get(&tx, &entry.confirmation_root) {
                             if let Some(conf_info) =
                                 self.store.confirmation_height.get(&tx, &block.account())
                             {

@@ -416,7 +416,12 @@ impl ActiveElections {
             // races where an election for a block that is already
             // cemented is inserted
             for (block, entry) in cemented {
-                let result = self.block_cemented(&mut guard, block, &entry.hash, &entry.election);
+                let result = self.block_cemented(
+                    &mut guard,
+                    block,
+                    &entry.confirmation_root,
+                    &entry.election,
+                );
                 results.push(result)
             }
         }

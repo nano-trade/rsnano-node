@@ -102,6 +102,10 @@ impl Election {
         }
     }
 
+    pub fn new_test_instance_with(block: SavedBlock) -> Self {
+        Self::new(block, ElectionBehavior::Priority, ElectionConfig::default())
+    }
+
     pub fn qualified_root(&self) -> &QualifiedRoot {
         &self.qualified_root
     }
@@ -633,7 +637,7 @@ impl From<ElectionBehavior> for DetailType {
 /// A block that is currently cementing
 #[derive(Clone)]
 pub struct CementingEntry {
-    pub hash: BlockHash,
+    pub confirmation_root: BlockHash,
     pub election: Option<Arc<Mutex<Election>>>,
     pub timestamp: Instant,
 }

@@ -10,7 +10,7 @@ pub(super) struct OrderedEntries {
 
 impl OrderedEntries {
     pub fn push_back(&mut self, entry: CementingEntry) -> bool {
-        let hash = entry.hash;
+        let hash = entry.confirmation_root;
         let mut inserted = true;
 
         self.by_hash
@@ -53,7 +53,7 @@ impl OrderedEntries {
 
     pub(crate) fn remove(&mut self, hash: &BlockHash) -> Option<CementingEntry> {
         if let Some(entry) = self.by_hash.remove(hash) {
-            self.sequenced.retain(|h| *h != entry.hash);
+            self.sequenced.retain(|h| *h != entry.confirmation_root);
             Some(entry)
         } else {
             None
