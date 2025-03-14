@@ -84,10 +84,7 @@ fn fork_replacement_tally() {
     // Check overflow of blocks
     assert_timely2(|| node1.active.election(&send_last.qualified_root()).is_some());
     let election = node1.active.election(&send_last.qualified_root()).unwrap();
-    assert_timely_eq2(
-        || election.lock().unwrap().candidate_blocks().len(),
-        MAX_BLOCKS,
-    );
+    assert_timely2(|| election.lock().unwrap().has_max_blocks());
 
     // Generate forks with votes to prevent new block insertion to election
     for i in 0..REPS_COUNT {
@@ -120,10 +117,7 @@ fn fork_replacement_tally() {
 
     // Check overflow of blocks
     assert_timely_eq2(|| count_rep_votes_in_election(), 9);
-    assert_eq!(
-        MAX_BLOCKS,
-        election.lock().unwrap().candidate_blocks().len()
-    );
+    assert!(election.lock().unwrap().has_max_blocks());
 
     // Process correct block
     let node2 = system
@@ -142,10 +136,7 @@ fn fork_replacement_tally() {
     });
 
     // Correct block without votes is ignored
-    assert_timely_eq2(
-        || election.lock().unwrap().candidate_blocks().len(),
-        MAX_BLOCKS,
-    );
+    assert_timely2(|| election.lock().unwrap().has_max_blocks());
     let blocks1 = election.lock().unwrap().candidate_blocks().clone();
     assert!(!blocks1.contains_key(&send_last.hash()));
 
@@ -180,13 +171,10 @@ fn fork_replacement_tally() {
     // the send_last block should replace one of the existing block of the election because it has higher vote weight
     let find_send_last_block = || {
         let guard = election.lock().unwrap();
-        guard.candidate_blocks().contains_key(&send_last.hash())
+        guard.contains_block(&send_last.hash())
     };
     assert_timely2(|| find_send_last_block());
-    assert_eq!(
-        MAX_BLOCKS,
-        election.lock().unwrap().candidate_blocks().len()
-    );
+    assert!(election.lock().unwrap().has_max_blocks());
 
     assert_timely_eq2(|| count_rep_votes_in_election(), 8);
 
@@ -300,17 +288,8 @@ fn inactive_votes_cache_fork() {
 
     node.process_active(send1.clone());
 
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || election.lock().unwrap().candidate_blocks().len(),
-        2,
-    );
-
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.block_confirmed(&send1.hash()),
-        true,
-    );
+    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
+    assert_timely_eq2(|| node.block_confirmed(&send1.hash()), true);
     assert_eq!(
         1,
         node.stats
@@ -931,7 +910,7 @@ fn fork_filter_cleanup() {
     // All forks were merged into the same election
     assert_timely2(|| node1.active.election(&send1.qualified_root()).is_some());
     let election = node1.active.election(&send1.qualified_root()).unwrap();
-    assert_timely_eq2(|| election.lock().unwrap().candidate_blocks().len(), 10);
+    assert_timely_eq2(|| election.lock().unwrap().block_count(), 10);
     assert_eq!(1, node1.active.len());
 
     // Instantiate a new node
@@ -1033,65 +1012,33 @@ fn activate_account_chain() {
 
     let election1 = start_election(&node, &send.hash());
     assert_eq!(1, node.active.len());
-    assert!(election1
-        .lock()
-        .unwrap()
-        .candidate_blocks()
-        .contains_key(&send.hash()));
+    assert!(election1.lock().unwrap().contains_block(&send.hash()));
     node.active.force_confirm(&election1);
-    assert_timely(Duration::from_secs(3), || {
-        node.block_confirmed(&send.hash())
-    });
+    assert_timely2(|| node.block_confirmed(&send.hash()));
 
     // On cementing, the next election is started
-    assert_timely(Duration::from_secs(3), || {
-        node.active.is_root_active(&send2.qualified_root())
-    });
+    assert_timely2(|| node.active.is_root_active(&send2.qualified_root()));
     let election3 = node.active.election(&send2.qualified_root()).unwrap();
-    assert!(election3
-        .lock()
-        .unwrap()
-        .candidate_blocks()
-        .contains_key(&send2.hash()));
+    assert!(election3.lock().unwrap().contains_block(&send2.hash()));
     node.active.force_confirm(&election3);
-    assert_timely(Duration::from_secs(3), || {
-        node.block_confirmed(&send2.hash())
-    });
+    assert_timely2(|| node.block_confirmed(&send2.hash()));
 
     // On cementing, the next election is started
-    assert_timely(Duration::from_secs(3), || {
-        node.active.is_root_active(&open.qualified_root())
-    }); // Destination account activated
-    assert_timely(Duration::from_secs(3), || {
-        node.active.is_root_active(&send3.qualified_root())
-    }); // Block successor activated
+    assert_timely2(|| node.active.is_root_active(&open.qualified_root())); // Destination account activated
+    assert_timely2(|| node.active.is_root_active(&send3.qualified_root())); // Block successor activated
     let election4 = node.active.election(&send3.qualified_root()).unwrap();
-    assert!(election4
-        .lock()
-        .unwrap()
-        .candidate_blocks()
-        .contains_key(&send3.hash()));
+    assert!(election4.lock().unwrap().contains_block(&send3.hash()));
     let election5 = node.active.election(&open.qualified_root()).unwrap();
-    assert!(election5
-        .lock()
-        .unwrap()
-        .candidate_blocks()
-        .contains_key(&open.hash()));
+    assert!(election5.lock().unwrap().contains_block(&open.hash()));
     node.active.force_confirm(&election5);
-    assert_timely(Duration::from_secs(3), || {
-        node.block_confirmed(&open.hash())
-    });
+    assert_timely2(|| node.block_confirmed(&open.hash()));
 
     // Until send3 is also confirmed, the receive block should not activate
     sleep(Duration::from_millis(200));
     assert!(!node.active.is_root_active(&receive.qualified_root()));
     node.active.force_confirm(&election4);
-    assert_timely(Duration::from_secs(3), || {
-        node.block_confirmed(&send3.hash())
-    });
-    assert_timely(Duration::from_secs(3), || {
-        node.active.is_root_active(&receive.qualified_root())
-    }); // Destination account activated
+    assert_timely2(|| node.block_confirmed(&send3.hash()));
+    assert_timely2(|| node.active.is_root_active(&receive.qualified_root())); // Destination account activated
 }
 
 #[test]

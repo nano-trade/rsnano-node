@@ -780,13 +780,7 @@ fn fork_multi_flip() {
 
     let election = start_election(&node2, &send2.hash());
 
-    assert_timely2(|| {
-        election
-            .lock()
-            .unwrap()
-            .candidate_blocks()
-            .contains_key(&send1.hash())
-    });
+    assert_timely2(|| election.lock().unwrap().contains_block(&send1.hash()));
 
     node1.confirm(send1.hash());
     assert_timely2(|| node2.ledger.any().block_exists_or_pruned(&send1.hash()));
@@ -865,15 +859,9 @@ fn fork_publish_inactive() {
         BlockStatus::Fork
     );
 
-    assert_timely_eq2(|| election.lock().unwrap().candidate_blocks().len(), 2);
+    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
 
-    let find_block = |hash: BlockHash| {
-        election
-            .lock()
-            .unwrap()
-            .candidate_blocks()
-            .contains_key(&hash)
-    };
+    let find_block = |hash: BlockHash| election.lock().unwrap().contains_block(&hash);
 
     assert!(find_block(send1.hash()));
     assert!(find_block(send2.hash()));
@@ -1766,7 +1754,7 @@ fn fork_open() {
 
     let election = node.active.election(&open2.qualified_root()).unwrap();
     // we expect to find 2 blocks in the election and we expect the first block to be the winner just because it was first
-    assert_timely_eq2(|| election.lock().unwrap().candidate_blocks().len(), 2);
+    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
     assert_eq!(open1.hash(), election.lock().unwrap().winner_hash());
 
     // wait for a second and check that the election did not get confirmed
@@ -1963,13 +1951,9 @@ fn fork_election_invalid_block_signature() {
         Message::Publish(Publish::new_forward(send1.clone())),
         channel.clone(),
     );
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.active.is_active(&send1),
-        "not active on node 1",
-    );
+    assert_timely2(|| node1.active.is_active(&send1));
     let election = node1.active.election(&send1.qualified_root()).unwrap();
-    assert_eq!(1, election.lock().unwrap().candidate_blocks().len());
+    assert_eq!(1, election.lock().unwrap().block_count());
 
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send3)),
@@ -1979,11 +1963,7 @@ fn fork_election_invalid_block_signature() {
         Message::Publish(Publish::new_forward(send2.clone())),
         channel.clone(),
     );
-    assert_timely_msg(
-        Duration::from_secs(3),
-        || election.lock().unwrap().candidate_blocks().len() > 1,
-        "block len was < 2",
-    );
+    assert_timely2(|| election.lock().unwrap().block_count() > 1);
     assert_eq!(
         election
             .lock()
@@ -2068,7 +2048,7 @@ fn rollback_vote_self() {
     );
     let election = node.active.election(&send2.qualified_root()).unwrap();
     node.process_active(fork.clone());
-    assert_timely_eq2(|| election.lock().unwrap().candidate_blocks().len(), 2);
+    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
     assert_eq!(election.lock().unwrap().winner_hash(), send2.hash());
 
     {

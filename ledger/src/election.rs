@@ -51,7 +51,7 @@ pub struct Election {
     state: ElectionState,
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     pub votes: HashMap<PublicKey, VoteInfo>,
-    pub final_weight: Amount,
+    final_weight: Amount,
     tallies: BTreeMap<DescTallyKey, BlockHash>,
 
     /// The last time a vote for this election was generated
@@ -111,6 +111,18 @@ impl Election {
 
     pub fn candidate_blocks(&self) -> &HashMap<BlockHash, MaybeSavedBlock> {
         &self.candidate_blocks
+    }
+
+    pub fn contains_block(&self, hash: &BlockHash) -> bool {
+        self.candidate_blocks.contains_key(hash)
+    }
+
+    pub fn block_count(&self) -> usize {
+        self.candidate_blocks.len()
+    }
+
+    pub fn has_max_blocks(&self) -> bool {
+        self.block_count() >= Self::MAX_BLOCKS
     }
 
     pub fn add_candidate_block(&mut self, block: impl Into<MaybeSavedBlock>) {
@@ -385,12 +397,12 @@ impl Election {
                 .or_default()
                 .push(vote_with_weight);
         }
-        let result: Vec<_> = sorted_votes
+
+        sorted_votes
             .values_mut()
             .map(|i| std::mem::take(i))
             .flatten()
-            .collect();
-        result
+            .collect()
     }
 
     pub fn remove_tally_below(&mut self, min_tally: Amount) -> Option<MaybeSavedBlock> {

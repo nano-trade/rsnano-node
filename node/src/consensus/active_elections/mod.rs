@@ -374,9 +374,7 @@ impl ActiveElections {
             return false;
         }
 
-        if election.candidate_blocks().len() >= Election::MAX_BLOCKS
-            && !election.candidate_blocks().contains_key(&fork.hash())
-        {
+        if election.has_max_blocks() && !election.contains_block(&fork.hash()) {
             let fork_tally = self.get_cached_tally(&fork.hash());
             let removed = election.remove_tally_below(fork_tally);
             if let Some(removed) = removed {
@@ -388,7 +386,7 @@ impl ActiveElections {
             }
         }
 
-        if election.candidate_blocks().get(&fork.hash()).is_some() {
+        if election.contains_block(&fork.hash()) {
             election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
 
             if election.winner_hash() == fork.hash() {

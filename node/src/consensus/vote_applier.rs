@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     sync::{Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
@@ -7,7 +6,7 @@ use std::{
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
-use rsnano_core::{Amount, BlockHash, DescTallyKey, PublicKey, VoteCode, VoteSource};
+use rsnano_core::{Amount, BlockHash, PublicKey, VoteCode, VoteSource};
 use rsnano_ledger::{Election, Ledger, VoteInfo};
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
