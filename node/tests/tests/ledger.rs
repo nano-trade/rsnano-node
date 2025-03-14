@@ -140,14 +140,13 @@ mod votes {
             0,
             vec![send2.hash()],
         ));
+
         // Pretend we've waited the timeout
-        election1
-            .lock()
-            .unwrap()
-            .votes
-            .get_mut(&DEV_GENESIS_PUB_KEY)
-            .unwrap()
-            .time = SystemTime::now() - Duration::from_secs(20);
+        election1.lock().unwrap().change_vote_timestamp(
+            &DEV_GENESIS_PUB_KEY,
+            SystemTime::now() - Duration::from_secs(20),
+        );
+
         assert_eq!(
             node1
                 .vote_router
@@ -160,20 +159,17 @@ mod votes {
             election1
                 .lock()
                 .unwrap()
-                .votes
+                .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
             Vote::TIMESTAMP_MIN * 2
         );
         // Also resend the old vote, and see if we respect the timestamp
-        election1
-            .lock()
-            .unwrap()
-            .votes
-            .get_mut(&DEV_GENESIS_PUB_KEY)
-            .unwrap()
-            .time = SystemTime::now() - Duration::from_secs(20);
+        election1.lock().unwrap().change_vote_timestamp(
+            &DEV_GENESIS_PUB_KEY,
+            SystemTime::now() - Duration::from_secs(20),
+        );
 
         assert_eq!(
             node1

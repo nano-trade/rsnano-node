@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rsnano_core::{Account, Amount, PublicKey};
+use rsnano_core::{Account, Amount, BlockHash, PublicKey};
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, Election, ElectionBehavior, VoteInfo,
     DEV_GENESIS_PUB_KEY,
@@ -119,7 +119,7 @@ fn different_hashes() {
 
     let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
     // Add a vote for something else, not the winner
-    election.add_vote(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
+    election.add_vote(*DEV_GENESIS_PUB_KEY, 1, BlockHash::from(1));
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);
     solicitor.broadcast_winner_block(&election).unwrap();
@@ -176,7 +176,7 @@ fn bypass_max_requests_cap() {
     let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
     // Add a vote for something else, not the winner
     for rep in &representatives {
-        election.add_vote(rep.rep_key, VoteInfo::new(1, 1.into()));
+        election.add_vote(rep.rep_key, 1, BlockHash::from(1));
     }
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);

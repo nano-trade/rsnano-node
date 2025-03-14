@@ -20,7 +20,7 @@ use std::fmt::{Debug, Display};
  * - [0x0002] Reserved for V3+ versioning
  * - [0x0004] Rebroadcasted flag
  */
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug)]
 pub struct ConfirmAck {
     vote: Vote,
     is_rebroadcasted: bool,

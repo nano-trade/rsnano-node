@@ -16,6 +16,7 @@ mod hardened_constants;
 mod node_id;
 mod public_key;
 mod vote;
+mod vote_timestamp;
 
 pub use account::Account;
 pub use amount::*;
@@ -29,6 +30,7 @@ pub use node_id::NodeId;
 pub use public_key::PublicKey;
 use serde::de::{Unexpected, Visitor};
 pub use vote::*;
+pub use vote_timestamp::*;
 
 mod private_key;
 pub use private_key::{PrivateKey, PrivateKeyFactory};

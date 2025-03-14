@@ -111,7 +111,7 @@ impl VoteApplier {
                 return VoteCode::Ignored;
             }
         }
-        election.add_vote(*rep, VoteInfo::new(timestamp, *block_hash));
+        election.add_vote(*rep, timestamp, *block_hash);
 
         if vote_source != VoteSource::Cache {
             // Representative is defined as online if replying to live votes or rep_crawler queries

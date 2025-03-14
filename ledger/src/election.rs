@@ -50,19 +50,20 @@ pub struct Election {
     result: EndedElection,
     state: ElectionState,
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
-    pub votes: HashMap<PublicKey, VoteInfo>,
+    votes: HashMap<PublicKey, VoteInfo>,
     final_weight: Amount,
     tallies: BTreeMap<DescTallyKey, BlockHash>,
 
-    /// The last time a vote for this election was generated
-    last_vote_generated: Option<Instant>,
-    last_broadcasted_block: BlockHash,
     behavior: ElectionBehavior,
     has_quorum: bool,
-    last_req: Option<Instant>,
-    confirmation_request_count: u32,
-    last_block_broadcast: Instant,
+
     election_start: Instant,
+    last_confirm_req_sent: Option<Instant>,
+    last_broadcasted_block: BlockHash,
+    last_block_broadcast: Instant,
+    last_vote_generated: Option<Instant>,
+    confirmation_request_count: u32,
+
     config: ElectionConfig,
 }
 
@@ -88,7 +89,7 @@ impl Election {
             last_broadcasted_block: BlockHash::zero(),
             behavior,
             has_quorum: false,
-            last_req: None,
+            last_confirm_req_sent: None,
             confirmation_request_count: 0,
             last_block_broadcast: Instant::now(),
             election_start: Instant::now(),
@@ -134,8 +135,8 @@ impl Election {
         &self.votes
     }
 
-    pub fn add_vote(&mut self, voter: PublicKey, vote: VoteInfo) {
-        self.votes.insert(voter, vote);
+    pub fn add_vote(&mut self, voter: PublicKey, timestamp: u64, hash: BlockHash) {
+        self.votes.insert(voter, VoteInfo::new(timestamp, hash));
     }
 
     pub fn get_result(&self) -> EndedElection {
@@ -290,12 +291,12 @@ impl Election {
     }
 
     pub fn confirm_request_sent(&mut self) {
-        self.last_req = Some(Instant::now());
+        self.last_confirm_req_sent = Some(Instant::now());
         self.confirmation_request_count += 1;
     }
 
     fn last_confirm_request_elapsed(&self) -> Duration {
-        match self.last_req {
+        match self.last_confirm_req_sent {
             Some(i) => i.elapsed(),
             None => Duration::MAX,
         }
@@ -531,6 +532,11 @@ impl Election {
         }
 
         None
+    }
+
+    /// TODO: Remove as soon as possible
+    pub fn change_vote_timestamp(&mut self, voter: &PublicKey, new_timestamp: SystemTime) {
+        self.votes.get_mut(voter).unwrap().time = new_timestamp;
     }
 }
 

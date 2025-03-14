@@ -94,13 +94,11 @@ fn add_old() {
         vec![send2.hash()],
     ));
 
-    election1
-        .lock()
-        .unwrap()
-        .votes
-        .get_mut(&DEV_GENESIS_PUB_KEY)
-        .unwrap()
-        .time = SystemTime::now() - Duration::from_secs(20);
+    election1.lock().unwrap().change_vote_timestamp(
+        &DEV_GENESIS_PUB_KEY,
+        SystemTime::now() - Duration::from_secs(20),
+    );
+
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
     let election1_guard = election1.lock().unwrap();

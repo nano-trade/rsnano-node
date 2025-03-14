@@ -2,7 +2,7 @@ use super::{
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Stream},
     Account, BlockHash, BlockHashBuilder, PrivateKey, Signature,
 };
-use crate::{utils::Serialize, Amount, PublicKey};
+use crate::{utils::Serialize, Amount, PublicKey, VoteTimestamp};
 use anyhow::Result;
 use std::time::{Duration, SystemTime};
 
@@ -34,10 +34,9 @@ impl VoteCode {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Debug)]
 pub struct Vote {
-    pub timestamp: u64,
+    timestamp: VoteTimestamp,
 
     // Account that's voting
     pub voter: PublicKey,
@@ -55,7 +54,7 @@ impl Vote {
     pub const MAX_HASHES: usize = 255;
     pub fn null() -> Self {
         Self {
-            timestamp: 0,
+            timestamp: 0.into(),
             voter: PublicKey::zero(),
             signature: Signature::new(),
             hashes: Vec::new(),
@@ -76,7 +75,7 @@ impl Vote {
         assert!(hashes.len() <= Self::MAX_HASHES);
         let mut result = Self {
             voter: priv_key.public_key(),
-            timestamp: packed_timestamp(timestamp, duration),
+            timestamp: VoteTimestamp::new(timestamp, duration),
             signature: Signature::new(),
             hashes,
         };
@@ -94,32 +93,21 @@ impl Vote {
     pub const DURATION_MAX: u8 = 0x0F;
     pub const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
     pub const TIMESTAMP_MIN: u64 = 0x0000_0000_0000_0010;
-    const TIMESTAMP_MASK: u64 = 0xFFFF_FFFF_FFFF_FFF0;
 
-    /// Returns the timestamp of the vote (with the duration bits masked, set to zero)
-    /// If it is a final vote, all the bits including duration bits are returned as they are, all FF
     pub fn timestamp(&self) -> u64 {
-        if self.is_final() {
-            self.timestamp //final vote
-        } else {
-            self.timestamp & Self::TIMESTAMP_MASK
-        }
+        self.timestamp.unix_timestamp()
     }
 
     pub fn is_final(&self) -> bool {
-        self.timestamp == Vote::FINAL_TIMESTAMP
+        self.timestamp.is_final()
     }
 
     pub fn duration_bits(&self) -> u8 {
-        // Duration field is specified in the 4 low-order bits of the timestamp.
-        // This makes the timestamp have a minimum granularity of 16ms
-        // The duration is specified as 2^(duration + 4) giving it a range of 16-524,288ms in power of two increments
-        let result = self.timestamp & !Self::TIMESTAMP_MASK;
-        result as u8
+        self.timestamp.duration_bits()
     }
 
     pub fn duration(&self) -> Duration {
-        Duration::from_millis(1 << (self.duration_bits() + 4))
+        self.timestamp.duration()
     }
 
     pub fn hash(&self) -> BlockHash {
@@ -137,7 +125,7 @@ impl Vote {
         self.signature = Signature::deserialize(stream)?;
         let mut buffer = [0; 8];
         stream.read_bytes(&mut buffer, 8)?;
-        self.timestamp = u64::from_le_bytes(buffer);
+        self.timestamp = VoteTimestamp::from_le_bytes(buffer);
         self.hashes = Vec::new();
         while stream.in_avail()? > 0 && self.hashes.len() < Self::MAX_HASHES {
             self.hashes.push(BlockHash::deserialize(stream)?);
@@ -178,12 +166,6 @@ impl PartialEq for Vote {
 }
 
 impl Eq for Vote {}
-
-fn packed_timestamp(timestamp: u64, duration: u8) -> u64 {
-    debug_assert!(duration <= Vote::DURATION_MAX);
-    debug_assert!(timestamp != Vote::TIMESTAMP_MAX || duration == Vote::DURATION_MAX);
-    (timestamp & Vote::TIMESTAMP_MASK) | (duration as u64)
-}
 
 #[derive(Clone, Debug)]
 pub struct VoteWithWeightInfo {
