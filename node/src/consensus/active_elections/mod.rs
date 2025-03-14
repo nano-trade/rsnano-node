@@ -399,8 +399,6 @@ impl ActiveElections {
             election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
 
             if election.winner().hash() == fork.hash() {
-                election.set_winner(MaybeSavedBlock::Unsaved(fork.clone()));
-
                 let message = Message::Publish(Publish::new_forward(fork.clone()));
                 let mut publisher = self.message_flooder.lock().unwrap();
                 publisher.flood(&message, TrafficType::BlockBroadcast, 1.0);
@@ -478,7 +476,7 @@ impl ActiveElections {
                 election_result.vote_broadcast_count = election.vote_broadcast_count() as u32;
                 election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 debug_assert_eq!(election_result.winner.hash(), block.hash());
-                votes = election.votes_with_weight(&self.rep_weights);
+                votes = election.votes_with_weight(&self.rep_weights.read());
                 handled = true;
             }
         }

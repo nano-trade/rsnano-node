@@ -2063,7 +2063,7 @@ fn rollback_vote_self() {
             election
                 .lock()
                 .unwrap()
-                .votes_with_weight(&node.ledger.rep_weights)
+                .votes_with_weight(&node.ledger.rep_weights.read())
                 .len()
         );
         // Vote with key to switch the winner
@@ -2079,7 +2079,7 @@ fn rollback_vote_self() {
             election
                 .lock()
                 .unwrap()
-                .votes_with_weight(&node.ledger.rep_weights)
+                .votes_with_weight(&node.ledger.rep_weights.read())
                 .len()
         );
         // The winner changed
@@ -2122,7 +2122,7 @@ fn rollback_vote_self() {
             election
                 .lock()
                 .unwrap()
-                .votes_with_weight(&node.ledger.rep_weights)
+                .votes_with_weight(&node.ledger.rep_weights.read())
                 .len()
         },
         2,
@@ -2130,7 +2130,7 @@ fn rollback_vote_self() {
     let votes_with_weight = election
         .lock()
         .unwrap()
-        .votes_with_weight(&node.ledger.rep_weights);
+        .votes_with_weight(&node.ledger.rep_weights.read());
     assert_eq!(1, votes_with_weight.iter().filter(is_genesis_vote).count());
     let vote = votes_with_weight.iter().find(is_genesis_vote).unwrap();
     assert_eq!(fork.hash(), vote.hash);

@@ -59,6 +59,13 @@ impl BlockTallies {
     pub fn sum(&self) -> Amount {
         self.tallies().sum()
     }
+
+    pub fn check_quorum(&self, quorum_delta: Amount) -> bool {
+        let mut it = self.tallies();
+        let first = it.next().unwrap_or_default();
+        let second = it.next().unwrap_or_default();
+        first - second >= quorum_delta
+    }
 }
 
 fn convert_entry((tally, hash): (&DescTallyKey, &BlockHash)) -> (Amount, BlockHash) {

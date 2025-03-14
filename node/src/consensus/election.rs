@@ -8,11 +8,10 @@ use rsnano_core::{
     utils::UnixMillisTimestamp, Amount, BlockHash, DescTallyKey, HardenedConstants,
     MaybeSavedBlock, Networks, PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
-use rsnano_ledger::RepWeightCache;
 use rsnano_nullable_clock::Timestamp;
-use rsnano_stats::{DetailType, StatType};
+use rsnano_stats::DetailType;
 
-use super::block_tallies::BlockTallies;
+use super::{block_tallies::BlockTallies, ElectionState};
 
 #[derive(Clone)]
 pub struct ElectionConfig {
@@ -54,6 +53,8 @@ pub struct Election {
     votes: HashMap<PublicKey, VoteInfo>,
     tally: Amount,
     final_tally: Amount,
+
+    /// All tallies (non-final or final)
     tallies: BlockTallies,
 
     behavior: ElectionBehavior,
@@ -180,31 +181,23 @@ impl Election {
         match self.state {
             ElectionState::Passive => {
                 if self.config.base_latency * Self::PASSIVE_DURATION_FACTOR < duration {
-                    self.state_change(ElectionState::Passive, ElectionState::Active)
-                        .unwrap();
+                    self.state = ElectionState::Active;
                 }
             }
             ElectionState::Confirmed => {
-                self.state_change(ElectionState::Confirmed, ElectionState::ExpiredConfirmed)
-                    .unwrap();
+                self.state = ElectionState::ExpiredConfirmed;
             }
-            ElectionState::Active
-            | ElectionState::ExpiredConfirmed
-            | ElectionState::ExpiredUnconfirmed
-            | ElectionState::Cancelled => {}
+            _ => {}
         }
 
-        if !self.state.is_confirmed() && self.time_to_live() < duration {
-            // It is possible the election confirmed while acquiring the mutex
-            // state_change returning true would indicate it
-            let state = self.state;
-            let _ = self.state_change(state, ElectionState::ExpiredUnconfirmed);
+        if !self.state.has_ended() && self.time_to_live() < duration {
+            self.state = ElectionState::ExpiredUnconfirmed;
         }
     }
 
     pub fn should_broadcast_winner_block(&self) -> bool {
         // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
-        if self.time_since_last_block_broadcast() < self.config.block_broadcast_interval {
+        if self.last_block_broadcast.elapsed() < self.config.block_broadcast_interval {
             true
         } else {
             // Or the current election winner has changed
@@ -285,10 +278,6 @@ impl Election {
         self.vote_broadcast_count
     }
 
-    pub fn time_since_last_block_broadcast(&self) -> Duration {
-        self.last_block_broadcast.elapsed()
-    }
-
     pub fn winner(&self) -> &MaybeSavedBlock {
         &self.winner
     }
@@ -318,7 +307,7 @@ impl Election {
         expected: ElectionState,
         desired: ElectionState,
     ) -> anyhow::Result<()> {
-        if Self::valid_change(expected, desired) {
+        if expected.valid_change(desired) {
             if self.state == expected {
                 self.state = desired;
                 return Ok(());
@@ -336,28 +325,6 @@ impl Election {
         match self.behavior {
             ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
             ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
-        }
-    }
-
-    fn valid_change(expected: ElectionState, desired: ElectionState) -> bool {
-        match expected {
-            ElectionState::Passive => matches!(
-                desired,
-                ElectionState::Active
-                    | ElectionState::Confirmed
-                    | ElectionState::ExpiredUnconfirmed
-                    | ElectionState::Cancelled
-            ),
-            ElectionState::Active => matches!(
-                desired,
-                ElectionState::Confirmed
-                    | ElectionState::ExpiredUnconfirmed
-                    | ElectionState::Cancelled
-            ),
-            ElectionState::Confirmed => matches!(desired, ElectionState::ExpiredConfirmed),
-            ElectionState::Cancelled
-            | ElectionState::ExpiredConfirmed
-            | ElectionState::ExpiredUnconfirmed => false,
         }
     }
 
@@ -381,13 +348,21 @@ impl Election {
         self.start
     }
 
-    pub fn votes_with_weight(&self, rep_weights: &RepWeightCache) -> Vec<VoteWithWeightInfo> {
+    pub fn votes_with_weight(
+        &self,
+        rep_weights: &HashMap<PublicKey, Amount>,
+    ) -> Vec<VoteWithWeightInfo> {
         let mut sorted_votes: BTreeMap<DescTallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
         for (&representative, info) in &self.votes {
             if representative == HardenedConstants::get().not_an_account_key {
                 continue;
             }
-            let weight = rep_weights.weight(&representative);
+
+            let weight = rep_weights
+                .get(&representative)
+                .cloned()
+                .unwrap_or_default();
+
             let vote_with_weight = VoteWithWeightInfo {
                 representative,
                 time: info.time,
@@ -457,38 +432,34 @@ impl Election {
 
         let old_winner_hash = self.winner().hash();
 
-        let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
-        let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
+        let mut block_tallies: HashMap<BlockHash, Amount> = HashMap::new();
+        let mut final_tallies: HashMap<BlockHash, Amount> = HashMap::new();
+
         for (account, info) in &self.votes {
             let weight = rep_weights.get(account).cloned().unwrap_or_default();
-            *block_weights.entry(info.hash).or_default() += weight;
+            *block_tallies.entry(info.hash).or_default() += weight;
             if info.timestamp == UnixMillisTimestamp::MAX {
-                *final_weights.entry(info.hash).or_default() += weight;
+                *final_tallies.entry(info.hash).or_default() += weight;
             }
         }
 
         self.tallies.clear();
-        for (hash, weight) in &block_weights {
+        for (hash, weight) in &block_tallies {
             if let Some(block) = self.candidate_blocks.get(hash) {
                 self.tallies.insert(*weight, block.hash());
             }
         }
 
-        let new_winner_hash = self
+        let (tally, new_winner_hash) = self
             .tallies
             .winner()
-            .map(|(_, hash)| hash)
-            .unwrap_or(old_winner_hash);
+            .unwrap_or((Amount::zero(), old_winner_hash));
 
-        self.tally = self
-            .tallies
-            .winner()
-            .map(|(tally, _)| tally)
-            .unwrap_or_default();
+        self.tally = tally;
 
         // Calculate final votes sum for winner
-        if let Some(final_weight) = final_weights.get(&new_winner_hash) {
-            self.final_tally = *final_weight;
+        if let Some(final_tally) = final_tallies.get(&new_winner_hash) {
+            self.final_tally = *final_tally;
         }
 
         if self.tallies.sum() >= quorum_delta && new_winner_hash != old_winner_hash {
@@ -497,23 +468,16 @@ impl Election {
                 .get(&new_winner_hash)
                 .unwrap()
                 .clone();
-            self.set_winner(block.clone());
+            self.winner = block;
         }
 
-        if self.check_quorum(quorum_delta) {
+        if self.tallies.check_quorum(quorum_delta) {
             self.has_quorum = true;
         }
 
         if self.final_tally >= quorum_delta {
             self.update_status_to_confirmed();
         }
-    }
-
-    fn check_quorum(&self, quorum_delta: Amount) -> bool {
-        let mut it = self.tallies.tallies();
-        let first = it.next().unwrap_or_default();
-        let second = it.next().unwrap_or_default();
-        first - second >= quorum_delta
     }
 
     pub fn remove_vote(&mut self, voter: &PublicKey) {
@@ -558,59 +522,6 @@ impl VoteInfo {
 impl Default for VoteInfo {
     fn default() -> Self {
         Self::new(UnixMillisTimestamp::ZERO, BlockHash::zero())
-    }
-}
-
-#[derive(FromPrimitive, Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ElectionState {
-    Passive,   // only listening for incoming votes
-    Active,    // actively request confirmations
-    Confirmed, // confirmed but still listening for votes
-    ExpiredConfirmed,
-    ExpiredUnconfirmed,
-    Cancelled,
-}
-
-impl ElectionState {
-    pub fn is_confirmed(&self) -> bool {
-        matches!(self, Self::Confirmed | Self::ExpiredConfirmed)
-    }
-
-    pub fn has_ended(&self) -> bool {
-        matches!(
-            self,
-            ElectionState::Confirmed
-                | ElectionState::Cancelled
-                | ElectionState::ExpiredConfirmed
-                | ElectionState::ExpiredUnconfirmed
-        )
-    }
-}
-
-impl From<ElectionState> for StatType {
-    fn from(value: ElectionState) -> Self {
-        match value {
-            ElectionState::Passive | ElectionState::Active => StatType::ActiveElectionsDropped,
-            ElectionState::Confirmed | ElectionState::ExpiredConfirmed => {
-                StatType::ActiveElectionsConfirmed
-            }
-            ElectionState::ExpiredUnconfirmed => StatType::ActiveElectionsTimeout,
-            ElectionState::Cancelled => StatType::ActiveElectionsCancelled,
-        }
-    }
-}
-
-impl From<ElectionState> for DetailType {
-    fn from(value: ElectionState) -> Self {
-        match value {
-            ElectionState::Passive => DetailType::Passive,
-            ElectionState::Active => DetailType::Active,
-            ElectionState::Confirmed => DetailType::Confirmed,
-            ElectionState::ExpiredConfirmed => DetailType::ExpiredConfirmed,
-            ElectionState::ExpiredUnconfirmed => DetailType::ExpiredUnconfirmed,
-            ElectionState::Cancelled => DetailType::Cancelled,
-        }
     }
 }
 
