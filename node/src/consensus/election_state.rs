@@ -24,28 +24,6 @@ impl ElectionState {
                 | ElectionState::ExpiredUnconfirmed
         )
     }
-
-    pub fn valid_change(&self, target: ElectionState) -> bool {
-        match self {
-            ElectionState::Passive => matches!(
-                target,
-                ElectionState::Active
-                    | ElectionState::Confirmed
-                    | ElectionState::ExpiredUnconfirmed
-                    | ElectionState::Cancelled
-            ),
-            ElectionState::Active => matches!(
-                target,
-                ElectionState::Confirmed
-                    | ElectionState::ExpiredUnconfirmed
-                    | ElectionState::Cancelled
-            ),
-            ElectionState::Confirmed => matches!(target, ElectionState::ExpiredConfirmed),
-            ElectionState::Cancelled
-            | ElectionState::ExpiredConfirmed
-            | ElectionState::ExpiredUnconfirmed => false,
-        }
-    }
 }
 
 impl From<ElectionState> for StatType {

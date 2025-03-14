@@ -146,9 +146,12 @@ impl Election {
         self.block_count() >= Self::MAX_BLOCKS
     }
 
-    pub fn add_candidate_block(&mut self, block: impl Into<MaybeSavedBlock>) {
+    pub fn add_candidate_block(&mut self, block: impl Into<MaybeSavedBlock>) -> bool {
+        if self.candidate_blocks.len() >= Self::MAX_BLOCKS {
+            return false;
+        }
         let block = block.into();
-        self.candidate_blocks.insert(block.hash(), block);
+        self.candidate_blocks.insert(block.hash(), block).is_none()
     }
 
     pub fn votes(&self) -> &HashMap<PublicKey, VoteInfo> {
@@ -224,13 +227,10 @@ impl Election {
         self.is_confirmed() || self.has_quorum()
     }
 
-    pub fn set_winner(&mut self, winner: MaybeSavedBlock) {
-        self.winner = winner;
-    }
-
     pub fn cancel(&mut self) {
-        let current = self.state;
-        let _ = self.state_change(current, ElectionState::Cancelled);
+        if !self.state.has_ended() {
+            self.state = ElectionState::Cancelled;
+        }
     }
 
     pub fn vote_count(&self) -> usize {
@@ -238,7 +238,9 @@ impl Election {
     }
 
     pub fn transition_active(&mut self) {
-        let _ = self.state_change(ElectionState::Passive, ElectionState::Active);
+        if self.state == ElectionState::Passive {
+            self.state = ElectionState::Active;
+        }
     }
 
     pub fn maybe_upgrade_to(&mut self, new_behavior: ElectionBehavior) -> bool {
@@ -300,25 +302,6 @@ impl Election {
 
     pub fn update_status_to_confirmed(&mut self) {
         self.state = ElectionState::Confirmed;
-    }
-
-    pub fn state_change(
-        &mut self,
-        expected: ElectionState,
-        desired: ElectionState,
-    ) -> anyhow::Result<()> {
-        if expected.valid_change(desired) {
-            if self.state == expected {
-                self.state = desired;
-                return Ok(());
-            }
-        }
-
-        Err(anyhow!(
-            "Invalid state change from {:?} to {:?}",
-            expected,
-            desired
-        ))
     }
 
     pub fn time_to_live(&self) -> Duration {

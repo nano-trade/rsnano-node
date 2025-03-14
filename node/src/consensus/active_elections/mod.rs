@@ -384,6 +384,7 @@ impl ActiveElections {
         }
 
         if election.has_max_blocks() && !election.contains_block(&fork.hash()) {
+            // Try to remove a block with lower tally, so that the fork can be added
             let fork_tally = self.get_cached_tally(&fork.hash());
             let removed = election.remove_tally_below(fork_tally);
             if let Some(removed) = removed {
@@ -391,13 +392,10 @@ impl ActiveElections {
                 self.notify(AecEvent::UnconfirmedBlockRemoved(removed.into()));
             } else {
                 self.notify(AecEvent::UnconfirmedBlockRemoved(fork.clone()));
-                return false;
             }
         }
 
         if election.contains_block(&fork.hash()) {
-            election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
-
             if election.winner().hash() == fork.hash() {
                 let message = Message::Publish(Publish::new_forward(fork.clone()));
                 let mut publisher = self.message_flooder.lock().unwrap();
@@ -407,9 +405,7 @@ impl ActiveElections {
             return false;
         }
 
-        election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
-
-        true
+        election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()))
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
