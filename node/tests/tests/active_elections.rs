@@ -580,7 +580,7 @@ fn republish_winner() {
         .vote(vote, None, VoteSource::Live);
     assert_timely2(|| election.lock().unwrap().is_confirmed());
 
-    assert_eq!(fork.hash(), election.lock().unwrap().winner_hash());
+    assert_eq!(fork.hash(), election.lock().unwrap().winner().hash());
 
     assert_timely2(|| node2.block_confirmed(&fork.hash()));
 }

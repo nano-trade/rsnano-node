@@ -283,10 +283,13 @@ fn block_hash_account_conflict() {
         .election(&open_epoch1.qualified_root())
         .unwrap();
 
-    assert_eq!(election1.lock().unwrap().winner_hash(), send1.hash());
-    assert_eq!(election2.lock().unwrap().winner_hash(), receive1.hash());
-    assert_eq!(election3.lock().unwrap().winner_hash(), send2.hash());
-    assert_eq!(election4.lock().unwrap().winner_hash(), open_epoch1.hash());
+    assert_eq!(election1.lock().unwrap().winner().hash(), send1.hash());
+    assert_eq!(election2.lock().unwrap().winner().hash(), receive1.hash());
+    assert_eq!(election3.lock().unwrap().winner().hash(), send2.hash());
+    assert_eq!(
+        election4.lock().unwrap().winner().hash(),
+        open_epoch1.hash()
+    );
 }
 
 #[test]

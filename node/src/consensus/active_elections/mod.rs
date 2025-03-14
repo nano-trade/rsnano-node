@@ -14,17 +14,18 @@ use rsnano_core::{
     VoteWithWeightInfo,
 };
 use rsnano_ledger::{
-    BlockStatus, CementingEntry, Election, ElectionBehavior, ElectionConfig, ElectionResult,
-    EndedElection, RepWeightCache,
+    BlockStatus, CementingEntry, Election, ElectionBehavior, ElectionConfig, RepWeightCache,
 };
 use rsnano_messages::{Message, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
-use super::{ElectionVoter, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter};
+use super::{
+    ElectionVoter, EndedElection, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter,
+};
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
-    transport::MessageFlooder,
+    consensus::ElectionResult, transport::MessageFlooder,
 };
 
 pub type ElectionEndCallback =
@@ -223,7 +224,7 @@ impl ActiveElections {
         // Keep track of election count by election type
         *guard.count_by_behavior_mut(election.behavior()) -= 1;
         self.vote_router.disconnect_election(&election);
-        let winner_hash = election.winner_hash();
+        let winner_hash = election.winner().hash();
 
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
@@ -390,7 +391,7 @@ impl ActiveElections {
         if election.contains_block(&fork.hash()) {
             election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
 
-            if election.winner_hash() == fork.hash() {
+            if election.winner().hash() == fork.hash() {
                 election.set_winner(MaybeSavedBlock::Unsaved(fork.clone()));
 
                 let message = Message::Publish(Publish::new_forward(fork.clone()));
@@ -455,11 +456,13 @@ impl ActiveElections {
                 election_result.winner = election.winner().clone();
                 election_result.tally = election.tally();
                 election_result.final_tally = election.final_tally();
-                election_result.confirmation_request_count = election.confirmation_request_count();
+                election_result.confirmation_request_count =
+                    election.confirmation_request_count() as u32;
                 election_result.block_count = election.block_count() as u32;
                 election_result.voter_count = election.votes().len() as u32;
+                election_result.election_duration = election.duration();
                 election_result.election_end = SystemTime::now();
-                election_result.vote_broadcast_count = election.vote_broadcast_count();
+                election_result.vote_broadcast_count = election.vote_broadcast_count() as u32;
                 election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 debug_assert_eq!(election_result.winner.hash(), block.hash());
                 votes = election.votes_with_weight(&self.rep_weights);
@@ -489,7 +492,7 @@ impl ActiveElections {
 
     fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
         let mut election = election_mutex.lock().unwrap();
-        let winner_hash = election.winner_hash();
+        let winner_hash = election.winner().hash();
         if winner_hash == *hash {
             if !election.is_confirmed() {
                 election.update_status_to_confirmed();
@@ -530,7 +533,6 @@ impl ActiveElections {
                 DetailType::InactiveConfHeight,
                 Direction::Out,
             ),
-            _ => {}
         }
 
         self.notify(AecEvent::BlockCemented(block, status, votes));

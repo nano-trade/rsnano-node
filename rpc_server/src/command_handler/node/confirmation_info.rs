@@ -24,7 +24,7 @@ impl RpcCommandHandler {
         let election = election_mutex.lock().unwrap();
         let announcements = election.confirmation_request_count();
         let voters = election.votes().len();
-        let last_winner = election.winner_hash();
+        let last_winner = election.winner().hash();
         let final_tally = election.final_tally();
         let mut total_tally = Amount::zero();
         let mut blocks = IndexMap::new();
@@ -74,7 +74,7 @@ impl RpcCommandHandler {
         }
 
         Ok(ConfirmationInfoDto {
-            announcements: announcements.into(),
+            announcements: (announcements as u32).into(),
             voters: voters.into(),
             last_winner,
             total_tally,

@@ -106,7 +106,7 @@ fn add_old() {
     let votes = election1_guard.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
     assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
-    assert_eq!(send1.hash(), election1_guard.winner_hash());
+    assert_eq!(send1.hash(), election1_guard.winner().hash());
 }
 
 // The voting cooldown is respected
@@ -150,7 +150,7 @@ fn add_cooldown() {
     let votes = election1_guard.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
     assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
-    assert_eq!(send1.hash(), election1_guard.winner_hash());
+    assert_eq!(send1.hash(), election1_guard.winner().hash());
 }
 
 // Assuming necessary imports and module declarations are present

@@ -787,7 +787,7 @@ fn fork_multi_flip() {
     assert!(!node2.ledger.any().block_exists(&send2.hash()));
     assert!(!node2.ledger.any().block_exists_or_pruned(&send3.hash()));
 
-    let winner = election.lock().unwrap().winner_hash();
+    let winner = election.lock().unwrap().winner().hash();
     assert_eq!(send1.hash(), winner);
     assert_eq!(
         Amount::MAX - Amount::raw(100),
@@ -824,7 +824,7 @@ fn fork_publish() {
     let votes1 = election.lock().unwrap().votes().clone();
     let existing1 = votes1.get(&DEV_GENESIS_PUB_KEY).unwrap();
     assert_eq!(send1.hash(), existing1.hash);
-    assert_eq!(election.lock().unwrap().winner_hash(), send1.hash());
+    assert_eq!(election.lock().unwrap().winner().hash(), send1.hash());
 }
 
 // In test case there used to be a race condition, it was worked around in:.
@@ -866,7 +866,7 @@ fn fork_publish_inactive() {
     assert!(find_block(send1.hash()));
     assert!(find_block(send2.hash()));
 
-    assert_eq!(election.lock().unwrap().winner_hash(), send1.hash());
+    assert_eq!(election.lock().unwrap().winner().hash(), send1.hash());
 }
 
 #[test]
@@ -1760,7 +1760,7 @@ fn fork_open() {
     let election = node.active.election(&open2.qualified_root()).unwrap();
     // we expect to find 2 blocks in the election and we expect the first block to be the winner just because it was first
     assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
-    assert_eq!(open1.hash(), election.lock().unwrap().winner_hash());
+    assert_eq!(open1.hash(), election.lock().unwrap().winner().hash());
 
     // wait for a second and check that the election did not get confirmed
     sleep(Duration::from_millis(1000));
@@ -2054,7 +2054,7 @@ fn rollback_vote_self() {
     let election = node.active.election(&send2.qualified_root()).unwrap();
     node.process_active(fork.clone());
     assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
-    assert_eq!(election.lock().unwrap().winner_hash(), send2.hash());
+    assert_eq!(election.lock().unwrap().winner().hash(), send2.hash());
 
     {
         // The write guard prevents the block processor from performing the rollback
@@ -2085,7 +2085,7 @@ fn rollback_vote_self() {
                 .len()
         );
         // The winner changed
-        assert_eq!(election.lock().unwrap().winner_hash(), fork.hash(),);
+        assert_eq!(election.lock().unwrap().winner().hash(), fork.hash(),);
 
         // Insert genesis key in the wallet
         node.wallets

@@ -17,8 +17,8 @@ use tokio_tungstenite::tungstenite::protocol::{frame::coding::CloseCode, CloseFr
 use tracing::{info, warn};
 
 use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
-use rsnano_ledger::{ElectionResult, EndedElection, Ledger};
-use rsnano_node::wallets::Wallets;
+use rsnano_ledger::Ledger;
+use rsnano_node::{consensus::EndedElection, wallets::Wallets};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
@@ -130,8 +130,6 @@ impl WebsocketListener {
         election_status: &EndedElection,
         election_votes: &Vec<VoteWithWeightInfo>,
     ) {
-        debug_assert!(election_status.result != ElectionResult::Ongoing);
-
         if !self.any_subscriber(Topic::Confirmation) {
             return;
         }

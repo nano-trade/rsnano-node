@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use bounded_vec_deque::BoundedVecDeque;
-use rsnano_ledger::EndedElection;
+
+use crate::consensus::EndedElection;
 
 /// When a block gets cemented, this struct inserts that
 /// block into the recently cemented cache

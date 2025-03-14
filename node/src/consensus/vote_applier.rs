@@ -211,7 +211,7 @@ impl VoteApplier {
     pub fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
         let (winner_hash, root) = {
             let e = election.lock().unwrap();
-            (e.winner_hash(), e.qualified_root().clone())
+            (e.winner().hash(), e.qualified_root().clone())
         };
 
         self.recently_confirmed
