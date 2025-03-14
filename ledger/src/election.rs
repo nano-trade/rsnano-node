@@ -429,7 +429,7 @@ impl Election {
     }
 
     /// Calculate tallies and try to confirm this election
-    pub fn progress(&mut self, rep_weights: &HashMap<PublicKey, Amount>, quorum_delta: Amount) {
+    pub fn try_confirm(&mut self, rep_weights: &HashMap<PublicKey, Amount>, quorum_delta: Amount) {
         // TODO early return if confirmed
 
         let old_winner_hash = self.winner().hash();

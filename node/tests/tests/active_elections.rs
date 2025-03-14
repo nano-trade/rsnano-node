@@ -264,7 +264,7 @@ fn non_final() {
     assert_timely_eq2(
         || {
             let mut e = election.lock().unwrap();
-            e.progress(&node.ledger.rep_weights.read(), quorum_delta);
+            e.try_confirm(&node.ledger.rep_weights.read(), quorum_delta);
             **e.tallies().first_key_value().unwrap().0
         },
         Amount::MAX - Amount::raw(100),
