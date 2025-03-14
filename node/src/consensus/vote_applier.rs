@@ -12,8 +12,8 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, LocalVoteHistory, RecentlyConfirmedCache,
-    VoteGenerators,
+    election_schedulers::ElectionSchedulers, CementingElectionsCache, LocalVoteHistory,
+    RecentlyConfirmedCache, VoteGenerators,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -37,6 +37,7 @@ pub struct VoteApplier {
     confirming_set: Arc<ConfirmingSet>,
     election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
     clock: Arc<SteadyClock>,
+    cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
 }
 
 impl VoteApplier {
@@ -52,6 +53,7 @@ impl VoteApplier {
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
+        cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
     ) -> Self {
         Self {
             ledger,
@@ -66,6 +68,7 @@ impl VoteApplier {
             confirming_set,
             election_schedulers: RwLock::new(None),
             clock,
+            cementing_elections_cache,
         }
     }
 
@@ -221,6 +224,11 @@ impl VoteApplier {
 
         self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
         trace!( qualified_root = ?root, "election confirmed");
+
+        self.cementing_elections_cache
+            .lock()
+            .unwrap()
+            .insert(election.clone());
 
         self.confirming_set.add_with_election(winner_hash, election);
     }

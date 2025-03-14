@@ -47,11 +47,11 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, ElectionVoter, EndedElection, LocalVoteHistory,
-        RecentlyConfirmedCache, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, VoteRouter,
+        ActiveElections, ActiveElectionsDriver, CementingElectionsCache, ElectionVoter,
+        EndedElection, LocalVoteHistory, RecentlyConfirmedCache, RepTiers, RequestAggregator,
+        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
+        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -512,6 +512,8 @@ impl Node {
             steady_clock.clone(),
         ));
 
+        let cementing_elections_cache = Arc::new(Mutex::new(CementingElectionsCache::default()));
+
         let vote_applier = Arc::new(VoteApplier::new(
             ledger.clone(),
             network_params.clone(),
@@ -524,6 +526,7 @@ impl Node {
             recently_confirmed.clone(),
             confirming_set.clone(),
             steady_clock.clone(),
+            cementing_elections_cache.clone(),
         ));
 
         let vote_router = Arc::new(VoteRouter::new(
@@ -570,6 +573,7 @@ impl Node {
             message_flooder.clone(),
             election_voter,
             election_config,
+            cementing_elections_cache,
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);

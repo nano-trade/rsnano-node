@@ -21,7 +21,8 @@ use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    ElectionVoter, EndedElection, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter,
+    CementingElectionsCache, ElectionVoter, EndedElection, RecentlyConfirmedCache, VoteApplier,
+    VoteCache, VoteRouter,
 };
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
@@ -77,6 +78,7 @@ pub struct ActiveElections {
     message_flooder: Mutex<MessageFlooder>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
     election_voter: ElectionVoter,
+    cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
 }
 
 impl ActiveElections {
@@ -92,6 +94,7 @@ impl ActiveElections {
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
+        cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
@@ -115,6 +118,7 @@ impl ActiveElections {
             message_flooder: Mutex::new(message_flooder),
             event_sender: RwLock::new(None),
             election_voter,
+            cementing_elections_cache,
         }
     }
 
@@ -452,6 +456,13 @@ impl ActiveElections {
 
         let mut election_result = EndedElection::new(block.clone());
         let mut votes = Vec::new();
+
+        let source_election = self
+            .cementing_elections_cache
+            .lock()
+            .unwrap()
+            .get(confirmation_root)
+            .cloned();
 
         // Check if the currently cemented block was part of an election that triggered the confirmation
         let mut handled = false;

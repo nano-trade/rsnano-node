@@ -37,7 +37,10 @@ impl CementingElectionsCache {
 
     pub fn insert(&mut self, election: Arc<Mutex<Election>>) {
         let winner_hash = election.lock().unwrap().winner().hash();
-        self.elections.insert(winner_hash, election);
+        let old = self.elections.insert(winner_hash, election);
+        if old.is_some() {
+            return;
+        }
         self.sequential.push_back(winner_hash);
         if self.sequential.len() > self.max_len {
             let winner = self.sequential.pop_front().unwrap();
@@ -116,6 +119,15 @@ mod tests {
         assert!(cache.get(&winner3).is_some());
         assert!(cache.get(&winner2).is_some());
         assert!(cache.get(&winner1).is_none());
+    }
+
+    #[test]
+    fn ignore_duplicates() {
+        let mut cache = CementingElectionsCache::default();
+        let (_, election) = create_election(1);
+        cache.insert(election.clone());
+        cache.insert(election);
+        assert_eq!(cache.len(), 1);
     }
 
     fn create_election(key: impl Into<PrivateKey>) -> (BlockHash, Arc<Mutex<Election>>) {
