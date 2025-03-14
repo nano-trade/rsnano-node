@@ -58,7 +58,7 @@ pub struct Election {
     last_vote_generated: Option<Instant>,
     last_broadcasted_block: BlockHash,
     behavior: ElectionBehavior,
-    is_quorum: bool,
+    has_quorum: bool,
     last_req: Option<Instant>,
     confirmation_request_count: u32,
     last_block_broadcast: Instant,
@@ -87,7 +87,7 @@ impl Election {
             last_vote_generated: None,
             last_broadcasted_block: BlockHash::zero(),
             behavior,
-            is_quorum: false,
+            has_quorum: false,
             last_req: None,
             confirmation_request_count: 0,
             last_block_broadcast: Instant::now(),
@@ -134,11 +134,11 @@ impl Election {
         self.result.clone()
     }
 
-    pub fn set_tally(&mut self, tally: Amount) {
+    fn set_tally(&mut self, tally: Amount) {
         self.result.tally = tally;
     }
 
-    pub fn set_final_tally(&mut self, tally: Amount) {
+    fn set_final_tally(&mut self, tally: Amount) {
         self.result.final_tally = tally;
     }
 
@@ -210,17 +210,17 @@ impl Election {
         }
     }
 
-    pub fn swap_quorum_on(&mut self) -> bool {
-        if !self.is_quorum {
-            self.is_quorum = true;
+    fn swap_quorum_on(&mut self) -> bool {
+        if !self.has_quorum {
+            self.has_quorum = true;
             true
         } else {
             false
         }
     }
 
-    pub fn is_quorum(&self) -> bool {
-        self.is_quorum
+    pub fn has_quorum(&self) -> bool {
+        self.has_quorum
     }
 
     pub fn set_winner(&mut self, winner: MaybeSavedBlock) {
@@ -309,18 +309,13 @@ impl Election {
         }
     }
 
-    pub fn update_status_to_confirmed(&mut self) -> bool {
-        if self.state == ElectionState::Confirmed {
-            return false;
-        }
-
+    pub fn update_status_to_confirmed(&mut self) {
         self.state = ElectionState::Confirmed;
         self.result.election_end = SystemTime::now();
         self.result.election_duration = self.duration();
         self.result.confirmation_request_count = self.confirmation_request_count;
         self.result.block_count = self.candidate_blocks.len() as u32;
         self.result.voter_count = self.votes.len() as u32;
-        true
     }
 
     pub fn state_change(
@@ -505,9 +500,17 @@ impl Election {
                 .clone();
             self.set_winner(block.clone());
         }
+
+        if self.check_quorum(quorum_delta) {
+            self.swap_quorum_on();
+        }
+
+        if self.final_weight >= quorum_delta {
+            self.update_status_to_confirmed();
+        }
     }
 
-    pub fn have_quorum(&self, quorum_delta: Amount) -> bool {
+    pub fn check_quorum(&self, quorum_delta: Amount) -> bool {
         let mut it = self.tallies.keys();
         let first = it.next().map(|i| i.amount()).unwrap_or_default();
         let second = it.next().map(|i| i.amount()).unwrap_or_default();

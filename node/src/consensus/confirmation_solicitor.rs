@@ -112,7 +112,7 @@ impl ConfirmationSolicitor {
             let existing = election.votes().get(&rep.rep_key);
             let exists = existing.is_some();
             let is_final = if let Some(existing) = existing {
-                !election.is_quorum() || existing.timestamp == u64::MAX
+                !election.has_quorum() || existing.timestamp == u64::MAX
             } else {
                 false
             };

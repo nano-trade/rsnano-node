@@ -267,10 +267,8 @@ impl ActiveElections {
     }
 
     pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
-        let confirmed = election.lock().unwrap().update_status_to_confirmed();
-        if confirmed {
-            self.vote_applier.election_confirmed(election.clone());
-        }
+        election.lock().unwrap().update_status_to_confirmed();
+        self.vote_applier.election_confirmed(election.clone());
     }
 
     pub fn insert(

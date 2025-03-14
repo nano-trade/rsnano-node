@@ -166,17 +166,6 @@ impl VoteApplier {
         }
     }
 
-    pub fn have_quorum(
-        &self,
-        tally: &BTreeMap<DescTallyKey, BlockHash>,
-        quorum_delta: Amount,
-    ) -> bool {
-        let mut it = tally.keys();
-        let first = it.next().map(|i| i.amount()).unwrap_or_default();
-        let second = it.next().map(|i| i.amount()).unwrap_or_default();
-        first - second >= quorum_delta
-    }
-
     fn confirm_if_quorum(
         &self,
         mut election: MutexGuard<Election>,
@@ -185,18 +174,19 @@ impl VoteApplier {
         let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
 
         let old_winner_hash = election.winner().hash();
-        election.progress(&self.ledger.rep_weights.read(), quorum_delta);
-        let new_winner_hash = election.winner().hash();
+        let old_has_quorum = election.has_quorum();
 
-        if new_winner_hash != old_winner_hash {
+        election.progress(&self.ledger.rep_weights.read(), quorum_delta);
+
+        if election.winner().hash() != old_winner_hash {
             self.remove_votes(&mut election, &old_winner_hash);
             self.block_processor.force(election.winner().clone().into());
         }
 
-        if election.have_quorum(quorum_delta) {
-            if election.swap_quorum_on() && self.wallets.voting_enabled() {
+        if election.has_quorum() {
+            if !old_has_quorum && self.wallets.voting_enabled() {
                 self.vote_generators
-                    .generate_final_vote(election.root(), &new_winner_hash);
+                    .generate_final_vote(election.root(), &election.winner().hash());
                 election.vote_broadcasted();
             }
             if election.final_weight >= quorum_delta {
@@ -207,13 +197,8 @@ impl VoteApplier {
                     BlockSource::Election,
                     ChannelId::LOOPBACK,
                 );
-                if election.update_status_to_confirmed() {
-                    drop(election);
-                    self.election_confirmed(election_mutex.clone());
-                } else {
-                    self.stats
-                        .inc(StatType::Election, DetailType::ConfirmOnceFailed);
-                }
+                drop(election);
+                self.election_confirmed(election_mutex.clone());
             }
         }
     }

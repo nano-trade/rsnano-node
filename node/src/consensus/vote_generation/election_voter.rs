@@ -30,7 +30,7 @@ impl ElectionVoter {
 
             let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
 
-            if election.is_confirmed() || election.have_quorum(quorum_delta) {
+            if election.is_confirmed() || election.check_quorum(quorum_delta) {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
                 let winner = election.winner_hash();
