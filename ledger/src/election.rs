@@ -7,7 +7,7 @@ use std::{
 
 use rsnano_core::{
     Amount, BlockHash, DescTallyKey, HardenedConstants, MaybeSavedBlock, Networks, PublicKey,
-    QualifiedRoot, Root, SavedBlock, VoteWithWeightInfo,
+    QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
 use rsnano_stats::{DetailType, StatType};
 
@@ -97,10 +97,6 @@ impl Election {
         }
     }
 
-    pub fn root(&self) -> &Root {
-        &self.qualified_root.root
-    }
-
     pub fn qualified_root(&self) -> &QualifiedRoot {
         &self.qualified_root
     }
@@ -117,7 +113,7 @@ impl Election {
         &self.candidate_blocks
     }
 
-    pub fn add_block(&mut self, block: impl Into<MaybeSavedBlock>) {
+    pub fn add_candidate_block(&mut self, block: impl Into<MaybeSavedBlock>) {
         let block = block.into();
         self.candidate_blocks.insert(block.hash(), block);
     }
@@ -132,14 +128,6 @@ impl Election {
 
     pub fn get_result(&self) -> EndedElection {
         self.result.clone()
-    }
-
-    fn set_tally(&mut self, tally: Amount) {
-        self.result.tally = tally;
-    }
-
-    fn set_final_tally(&mut self, tally: Amount) {
-        self.result.final_tally = tally;
     }
 
     pub fn tally(&self) -> Amount {
@@ -196,7 +184,7 @@ impl Election {
             true
         } else {
             // Or the current election winner has changed
-            self.winner_hash() != self.last_broadcasted_block
+            self.winner().hash() != self.last_broadcasted_block
         }
     }
 
@@ -210,17 +198,13 @@ impl Election {
         }
     }
 
-    fn swap_quorum_on(&mut self) -> bool {
-        if !self.has_quorum {
-            self.has_quorum = true;
-            true
-        } else {
-            false
-        }
-    }
-
     pub fn has_quorum(&self) -> bool {
         self.has_quorum
+    }
+
+    /// Returns true if final votes should be generated
+    pub fn is_final(&self) -> bool {
+        self.is_confirmed() || self.has_quorum()
     }
 
     pub fn set_winner(&mut self, winner: MaybeSavedBlock) {
@@ -271,10 +255,6 @@ impl Election {
         self.last_block_broadcast = Instant::now();
         self.last_broadcasted_block = self.winner_hash();
         is_initial_broadcast
-    }
-
-    pub fn vote_broadcasted(&mut self) {
-        self.result.vote_broadcast_count += 1;
     }
 
     pub fn vote_broadcast_count(&self) -> u32 {
@@ -366,18 +346,19 @@ impl Election {
         }
     }
 
-    pub fn set_last_vote(&mut self) {
+    pub fn voted(&mut self) {
         self.last_vote_generated = Some(Instant::now());
+        self.result.vote_broadcast_count += 1;
     }
 
-    pub fn last_vote_elapsed(&self) -> Duration {
+    fn last_vote_elapsed(&self) -> Duration {
         match &self.last_vote_generated {
             Some(i) => i.elapsed(),
             None => Duration::from_secs(60 * 60 * 24 * 365), // Duration::MAX caused problems with C++
         }
     }
 
-    pub fn should_vote(&self) -> bool {
+    pub fn can_vote(&self) -> bool {
         self.last_vote_elapsed() >= self.config.vote_broadcast_interval
     }
 
@@ -488,9 +469,8 @@ impl Election {
             self.final_weight = *final_weight;
         }
 
-        self.set_tally(amount);
-        let final_weight = self.final_weight;
-        self.set_final_tally(final_weight);
+        self.result.tally = amount;
+        self.result.final_tally = self.final_weight;
 
         if self.sum_tallies() >= quorum_delta && new_winner_hash != old_winner_hash {
             let block = self
@@ -502,7 +482,7 @@ impl Election {
         }
 
         if self.check_quorum(quorum_delta) {
-            self.swap_quorum_on();
+            self.has_quorum = true;
         }
 
         if self.final_weight >= quorum_delta {
@@ -510,14 +490,14 @@ impl Election {
         }
     }
 
-    pub fn check_quorum(&self, quorum_delta: Amount) -> bool {
+    fn check_quorum(&self, quorum_delta: Amount) -> bool {
         let mut it = self.tallies.keys();
         let first = it.next().map(|i| i.amount()).unwrap_or_default();
         let second = it.next().map(|i| i.amount()).unwrap_or_default();
         first - second >= quorum_delta
     }
 
-    pub fn sum_tallies(&self) -> Amount {
+    fn sum_tallies(&self) -> Amount {
         let mut sum = Amount::zero();
         for k in self.tallies().keys() {
             sum += k.amount();
@@ -529,7 +509,7 @@ impl Election {
         self.votes.remove(voter);
     }
 
-    pub fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
+    fn remove_block(&mut self, hash: &BlockHash) -> Option<MaybeSavedBlock> {
         if self.winner_hash() != *hash {
             let existing = self.candidate_blocks.remove(hash);
             if existing.is_some() {

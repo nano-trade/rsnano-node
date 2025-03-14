@@ -132,9 +132,7 @@ impl VoteApplier {
             ?weight,
             "vote processed");
 
-        if !election.is_confirmed() {
-            self.confirm_if_quorum(election, election_mutex);
-        }
+        self.confirm_if_quorum(election, election_mutex);
         VoteCode::Vote
     }
 
@@ -156,7 +154,7 @@ impl VoteApplier {
     fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
         if self.wallets.voting_enabled() {
             // Remove votes from election
-            let root = *election.root();
+            let root = election.qualified_root().root;
             let list_generated_votes = self.history.votes(&root, hash, false);
             for vote in list_generated_votes {
                 election.remove_vote(&vote.voter);
@@ -171,25 +169,33 @@ impl VoteApplier {
         mut election: MutexGuard<Election>,
         election_mutex: &Arc<Mutex<Election>>,
     ) {
+        if election.is_confirmed() {
+            return;
+        }
+
         let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
 
-        let old_winner_hash = election.winner().hash();
-        let old_has_quorum = election.has_quorum();
+        let old_winner = election.winner().hash();
+        let old_final = election.is_final();
 
         election.progress(&self.ledger.rep_weights.read(), quorum_delta);
 
-        if election.winner().hash() != old_winner_hash {
-            self.remove_votes(&mut election, &old_winner_hash);
+        let winner_changed = election.winner().hash() != old_winner;
+        if winner_changed {
+            self.remove_votes(&mut election, &old_winner);
+            // Roll back the previous winner and add the new winner to the ledger
             self.block_processor.force(election.winner().clone().into());
         }
 
-        if election.has_quorum() {
-            if !old_has_quorum && self.wallets.voting_enabled() {
-                self.vote_generators
-                    .generate_final_vote(election.root(), &election.winner().hash());
-                election.vote_broadcasted();
+        if election.is_final() {
+            if !old_final && self.wallets.voting_enabled() {
+                self.vote_generators.generate_final_vote(
+                    &election.qualified_root().root,
+                    &election.winner().hash(),
+                );
+                election.voted();
             }
-            if election.final_weight >= quorum_delta {
+            if election.is_confirmed() {
                 // In some edge cases block might get rolled back while the election
                 // is confirming, reprocess it to ensure it's present in the ledger
                 self.block_processor.add(

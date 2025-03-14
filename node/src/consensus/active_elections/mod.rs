@@ -389,7 +389,7 @@ impl ActiveElections {
         }
 
         if election.candidate_blocks().get(&fork.hash()).is_some() {
-            election.add_block(MaybeSavedBlock::Unsaved(fork.clone()));
+            election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
 
             if election.winner_hash() == fork.hash() {
                 election.set_winner(MaybeSavedBlock::Unsaved(fork.clone()));
@@ -402,7 +402,7 @@ impl ActiveElections {
             return false;
         }
 
-        election.add_block(MaybeSavedBlock::Unsaved(fork.clone()));
+        election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()));
 
         true
     }
