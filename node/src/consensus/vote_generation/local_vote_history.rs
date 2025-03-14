@@ -120,7 +120,7 @@ impl LocalVoteHistory {
         if let Some(ids) = data_lk.history_by_root.get(root) {
             for &id in ids.iter() {
                 let entry = &data_lk.history[&id];
-                if &entry.hash == hash && (!is_final || entry.vote.timestamp() == u64::MAX) {
+                if &entry.hash == hash && (!is_final || entry.vote.is_final()) {
                     result.push(entry.vote.clone())
                 }
             }

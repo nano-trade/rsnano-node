@@ -12,6 +12,7 @@ use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, start_electi
 
 mod votes {
     use super::*;
+    use rsnano_core::VoteTimestamp;
     use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
     use std::time::SystemTime;
     use test_helpers::start_election;
@@ -121,7 +122,7 @@ mod votes {
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
-            Vote::TIMESTAMP_MIN
+            VoteTimestamp::TIMESTAMP_MIN
         );
 
         let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
@@ -163,7 +164,7 @@ mod votes {
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
-            Vote::TIMESTAMP_MIN * 2
+            VoteTimestamp::TIMESTAMP_MIN * 2
         );
         // Also resend the old vote, and see if we respect the timestamp
         election1.lock().unwrap().change_vote_timestamp(
@@ -187,7 +188,7 @@ mod votes {
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
-            Vote::TIMESTAMP_MIN * 2
+            VoteTimestamp::TIMESTAMP_MIN * 2
         );
         let votes = election1.lock().unwrap().votes().clone();
         assert_eq!(votes.len(), 2);

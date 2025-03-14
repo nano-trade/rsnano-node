@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use rsnano_core::{Account, Amount, BlockHash, PublicKey};
+use rsnano_core::{utils::UnixTimestamp, Account, Amount, BlockHash, PublicKey};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, Election, ElectionBehavior, VoteInfo,
-    DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, Election, ElectionBehavior, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
@@ -119,7 +118,11 @@ fn different_hashes() {
 
     let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
     // Add a vote for something else, not the winner
-    election.add_vote(*DEV_GENESIS_PUB_KEY, 1, BlockHash::from(1));
+    election.add_vote(
+        *DEV_GENESIS_PUB_KEY,
+        UnixTimestamp::new(1),
+        BlockHash::from(1),
+    );
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);
     solicitor.broadcast_winner_block(&election).unwrap();
@@ -176,7 +179,7 @@ fn bypass_max_requests_cap() {
     let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
     // Add a vote for something else, not the winner
     for rep in &representatives {
-        election.add_vote(rep.rep_key, 1, BlockHash::from(1));
+        election.add_vote(rep.rep_key, UnixTimestamp::new(1), BlockHash::from(1));
     }
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);

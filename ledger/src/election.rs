@@ -6,8 +6,8 @@ use std::{
 };
 
 use rsnano_core::{
-    Amount, BlockHash, DescTallyKey, HardenedConstants, MaybeSavedBlock, Networks, PublicKey,
-    QualifiedRoot, SavedBlock, VoteWithWeightInfo,
+    utils::UnixTimestamp, Amount, BlockHash, DescTallyKey, HardenedConstants, MaybeSavedBlock,
+    Networks, PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
 use rsnano_stats::{DetailType, StatType};
 
@@ -76,7 +76,7 @@ impl Election {
             qualified_root: block.qualified_root(),
             votes: HashMap::from([(
                 HardenedConstants::get().not_an_account_key,
-                VoteInfo::new(0, block.hash()),
+                VoteInfo::new(UnixTimestamp::ZERO, block.hash()),
             )]),
             candidate_blocks: HashMap::from([(
                 block.hash(),
@@ -135,7 +135,7 @@ impl Election {
         &self.votes
     }
 
-    pub fn add_vote(&mut self, voter: PublicKey, timestamp: u64, hash: BlockHash) {
+    pub fn add_vote(&mut self, voter: PublicKey, timestamp: UnixTimestamp, hash: BlockHash) {
         self.votes.insert(voter, VoteInfo::new(timestamp, hash));
     }
 
@@ -453,7 +453,7 @@ impl Election {
         for (account, info) in &self.votes {
             let weight = rep_weights.get(account).cloned().unwrap_or_default();
             *block_weights.entry(info.hash).or_default() += weight;
-            if info.timestamp == u64::MAX {
+            if info.timestamp == UnixTimestamp::MAX {
                 *final_weights.entry(info.hash).or_default() += weight;
             }
         }
@@ -543,12 +543,12 @@ impl Election {
 #[derive(Clone)]
 pub struct VoteInfo {
     pub time: SystemTime, // TODO use Instant
-    pub timestamp: u64,
+    pub timestamp: UnixTimestamp,
     pub hash: BlockHash,
 }
 
 impl VoteInfo {
-    pub fn new(timestamp: u64, hash: BlockHash) -> Self {
+    pub fn new(timestamp: UnixTimestamp, hash: BlockHash) -> Self {
         Self {
             time: SystemTime::now(),
             timestamp,
@@ -559,7 +559,7 @@ impl VoteInfo {
 
 impl Default for VoteInfo {
     fn default() -> Self {
-        Self::new(0, BlockHash::zero())
+        Self::new(UnixTimestamp::ZERO, BlockHash::zero())
     }
 }
 

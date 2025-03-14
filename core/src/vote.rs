@@ -2,7 +2,10 @@ use super::{
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Stream},
     Account, BlockHash, BlockHashBuilder, PrivateKey, Signature,
 };
-use crate::{utils::Serialize, Amount, PublicKey, VoteTimestamp};
+use crate::{
+    utils::{Serialize, UnixTimestamp},
+    Amount, PublicKey, VoteTimestamp,
+};
 use anyhow::Result;
 use std::time::{Duration, SystemTime};
 
@@ -88,13 +91,11 @@ impl Vote {
         Self::new(&key, 1, 2, vec![BlockHash::from(5)])
     }
 
-    /// Timestamp for final vote
-    pub const FINAL_TIMESTAMP: u64 = u64::MAX;
     pub const DURATION_MAX: u8 = 0x0F;
     pub const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
     pub const TIMESTAMP_MIN: u64 = 0x0000_0000_0000_0010;
 
-    pub fn timestamp(&self) -> u64 {
+    pub fn timestamp(&self) -> UnixTimestamp {
         self.timestamp.unix_timestamp()
     }
 
@@ -171,7 +172,7 @@ impl Eq for Vote {}
 pub struct VoteWithWeightInfo {
     pub representative: PublicKey,
     pub time: SystemTime,
-    pub timestamp: u64,
+    pub timestamp: UnixTimestamp,
     pub hash: BlockHash,
     pub weight: Amount,
 }

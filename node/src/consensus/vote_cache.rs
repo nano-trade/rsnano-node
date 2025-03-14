@@ -705,7 +705,7 @@ mod tests {
 
         let peek2 = cache.find(&hash);
         assert_eq!(peek2.len(), 1);
-        assert_eq!(peek2.first().unwrap().timestamp(), Vote::FINAL_TIMESTAMP); // final timestamp
+        assert!(peek2.first().unwrap().is_final());
     }
 
     /*
@@ -729,7 +729,7 @@ mod tests {
         assert_eq!(
             peek2.first().unwrap().timestamp(),
             peek1.first().unwrap().timestamp()
-        ); // timestamp2 == timestamp1
+        );
     }
 
     /*

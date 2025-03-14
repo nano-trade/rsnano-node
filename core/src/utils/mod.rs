@@ -9,7 +9,7 @@ pub use fair_queue::*;
 pub use peer::*;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
-    ops::Add,
+    ops::{Add, Mul},
     sync::{Arc, Condvar, Mutex},
     thread::available_parallelism,
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
@@ -185,6 +185,14 @@ impl Add<Duration> for UnixTimestamp {
 
     fn add(self, rhs: Duration) -> Self::Output {
         Self(self.0 + rhs.as_secs())
+    }
+}
+
+impl Mul<u64> for UnixTimestamp {
+    type Output = UnixTimestamp;
+
+    fn mul(self, rhs: u64) -> Self::Output {
+        UnixTimestamp::new(self.0 * rhs)
     }
 }
 

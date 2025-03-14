@@ -1,4 +1,6 @@
-use rsnano_core::{Amount, PrivateKey, Signature, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY};
+use rsnano_core::{
+    Amount, PrivateKey, Signature, Vote, VoteCode, VoteSource, VoteTimestamp, DEV_GENESIS_KEY,
+};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{config::NodeFlags, consensus::RepTier, wallets::WalletsExt};
 use rsnano_stats::{DetailType, Direction, StatType};
@@ -154,22 +156,8 @@ fn empty_hashes() {
     let vote = Arc::new(Vote::new(&key, Vote::TIMESTAMP_MIN, 0, vec![]));
 
     assert_eq!(vote.voter, key.public_key());
-    assert_eq!(vote.timestamp(), Vote::TIMESTAMP_MIN);
+    assert_eq!(vote.timestamp(), VoteTimestamp::TIMESTAMP_MIN);
     assert_eq!(vote.hashes.len(), 0);
-}
-
-/**
- * basic test to check that the timestamp mask is applied correctly on vote timestamp and duration fields
- */
-#[test]
-fn timestamp_and_duration_masking() {
-    let key = PrivateKey::new();
-    let hash = vec![*DEV_GENESIS_HASH];
-    let vote = Arc::new(Vote::new(&key, 0x123f, 0xf, hash));
-
-    assert_eq!(vote.timestamp(), 0x1230);
-    assert_eq!(vote.duration().as_millis(), 524288);
-    assert_eq!(vote.duration_bits(), 0xf);
 }
 
 #[test]

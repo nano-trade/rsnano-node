@@ -9,9 +9,10 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::milliseconds_since_epoch, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
-    PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource,
-    VoteWithWeightInfo, DEV_GENESIS_KEY,
+    utils::{milliseconds_since_epoch, UnixTimestamp},
+    Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey, PublicKey, QualifiedRoot, Root,
+    Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource, VoteWithWeightInfo,
+    DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, ConfirmedSet, LedgerSet, Writer,
@@ -2067,7 +2068,7 @@ fn rollback_vote_self() {
         node.active.vote_applier.vote(
             &election,
             &key.public_key(),
-            0,
+            UnixTimestamp::ZERO,
             &fork.hash(),
             VoteSource::Live,
         );
