@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
 use rsnano_core::{utils::UnixMillisTimestamp, Account, Amount, BlockHash, PublicKey};
-use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, Election, ElectionBehavior, DEV_GENESIS_PUB_KEY,
-};
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
 use rsnano_node::{
     config::{NodeFlags, DEV_NETWORK_PARAMS},
-    consensus::ConfirmationSolicitor,
+    consensus::{ConfirmationSolicitor, Election, ElectionBehavior},
     representatives::PeeredRepInfo,
 };
 use rsnano_stats::{DetailType, Direction, StatType};

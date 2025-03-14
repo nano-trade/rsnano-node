@@ -1,6 +1,7 @@
 use rsnano_core::BlockHash;
-use rsnano_ledger::CementingEntry;
 use std::collections::{HashMap, VecDeque};
+
+use super::CementingEntry;
 
 #[derive(Default)]
 pub(super) struct OrderedEntries {

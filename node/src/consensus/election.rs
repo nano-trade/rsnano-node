@@ -8,9 +8,8 @@ use rsnano_core::{
     utils::UnixMillisTimestamp, Amount, BlockHash, DescTallyKey, HardenedConstants,
     MaybeSavedBlock, Networks, PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
+use rsnano_ledger::RepWeightCache;
 use rsnano_stats::{DetailType, StatType};
-
-use crate::RepWeightCache;
 
 #[derive(Clone)]
 pub struct ElectionConfig {
@@ -631,11 +630,4 @@ impl From<ElectionBehavior> for DetailType {
             ElectionBehavior::Optimistic => DetailType::Optimistic,
         }
     }
-}
-
-/// A block that is currently cementing
-#[derive(Clone)]
-pub struct CementingEntry {
-    pub confirmation_root: BlockHash,
-    pub timestamp: Instant,
 }

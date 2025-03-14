@@ -17,13 +17,13 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    AnySet, BlockStatus, Election, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
-    DEV_GENESIS_PUB_KEY,
+    AnySet, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NetworkParams, NodeConfig, NodeFlags},
+    consensus::Election,
     unique_path,
     wallets::WalletsExt,
     Node, NodeBuilder, NodeEvent,

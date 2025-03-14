@@ -13,14 +13,14 @@ use rsnano_core::{
     utils::ContainerInfo, Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock,
     VoteWithWeightInfo,
 };
-use rsnano_ledger::{BlockStatus, Election, ElectionBehavior, ElectionConfig, RepWeightCache};
+use rsnano_ledger::{BlockStatus, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
-    CementingElectionsCache, ElectionVoter, EndedElection, RecentlyConfirmedCache, VoteApplier,
-    VoteCache, VoteRouter,
+    CementingElectionsCache, Election, ElectionBehavior, ElectionConfig, ElectionVoter,
+    EndedElection, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter,
 };
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,

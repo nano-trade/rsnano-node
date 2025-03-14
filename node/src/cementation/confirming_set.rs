@@ -9,14 +9,22 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
-use rsnano_ledger::{BlockStatus, CementingEntry, CementingObserver, Election, Ledger};
+use rsnano_ledger::{BlockStatus, CementingObserver, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ordered_entries::OrderedEntries;
 use crate::{
     block_processing::BlockContext,
+    consensus::Election,
     utils::{ThreadPool, ThreadPoolImpl},
 };
+
+/// A block that is currently cementing
+#[derive(Clone)]
+pub struct CementingEntry {
+    pub confirmation_root: BlockHash,
+    pub timestamp: Instant,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConfirmingSetConfig {

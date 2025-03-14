@@ -8,7 +8,6 @@ mod block_cementer;
 mod block_insertion;
 mod block_rollback;
 mod dependent_blocks_finder;
-mod election;
 mod generate_cache_flags;
 mod ledger;
 mod ledger_constants;
@@ -25,7 +24,6 @@ mod ledger_tests;
 
 pub(crate) use block_rollback::BlockRollbackPerformer;
 pub use dependent_blocks_finder::*;
-pub use election::*;
 pub use generate_cache_flags::GenerateCacheFlags;
 pub use ledger::*;
 pub use ledger_constants::{

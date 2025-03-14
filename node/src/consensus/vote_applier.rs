@@ -7,12 +7,12 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
 use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, VoteCode, VoteSource};
-use rsnano_ledger::{Election, Ledger};
+use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, CementingElectionsCache, LocalVoteHistory,
+    election_schedulers::ElectionSchedulers, CementingElectionsCache, Election, LocalVoteHistory,
     RecentlyConfirmedCache, VoteGenerators,
 };
 use crate::{

@@ -17,7 +17,7 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
     VoteSource, VoteWithWeightInfo, WorkNonce,
 };
-use rsnano_ledger::{AnySet, BlockStatus, ElectionConfig, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -47,10 +47,10 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, CementingElectionsCache, ElectionVoter,
-        EndedElection, LocalVoteHistory, RecentlyConfirmedCache, RepTiers, RequestAggregator,
-        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
-        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        ActiveElections, ActiveElectionsDriver, CementingElectionsCache, ElectionConfig,
+        ElectionVoter, EndedElection, LocalVoteHistory, RecentlyConfirmedCache, RepTiers,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
     },
     ledger_event_processor::LedgerEventProcessor,

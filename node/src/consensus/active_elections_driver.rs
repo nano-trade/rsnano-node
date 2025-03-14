@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex, RwLock};
 
-use rsnano_ledger::{Election, ElectionState};
 use rsnano_network::Network;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -11,7 +10,7 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 
-use super::{ActiveElections, ConfirmationSolicitor};
+use super::{ActiveElections, ConfirmationSolicitor, Election, ElectionState};
 
 /// Periodically tries to transitions election state and send votes + blocks
 pub(crate) struct ActiveElectionsDriver {

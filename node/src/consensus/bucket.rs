@@ -4,12 +4,11 @@ use std::{
 };
 
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
-use rsnano_ledger::{Election, ElectionBehavior};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections,
+    ActiveElections, Election, ElectionBehavior,
 };
 
 #[derive(Clone, Debug, PartialEq)]

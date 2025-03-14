@@ -7,9 +7,9 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
-use rsnano_ledger::{Election, RepWeightCache};
+use rsnano_ledger::RepWeightCache;
 
-use super::{RecentlyConfirmedCache, VoteApplier, VoteCache};
+use super::{Election, RecentlyConfirmedCache, VoteApplier, VoteCache};
 
 /// This class routes votes to their associated election
 /// This class holds a weak_ptr as this container does not own the elections

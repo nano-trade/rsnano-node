@@ -4,7 +4,8 @@ use std::{
 };
 
 use rsnano_core::BlockHash;
-use rsnano_ledger::Election;
+
+use super::Election;
 
 pub(crate) struct CementingElectionsCache {
     max_len: usize,

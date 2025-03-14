@@ -6,8 +6,9 @@ use std::{
 };
 
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
-use rsnano_ledger::ElectionBehavior;
 use rsnano_stats::{DetailType, StatType, Stats};
+
+use crate::consensus::ElectionBehavior;
 
 use super::ActiveElections;
 
