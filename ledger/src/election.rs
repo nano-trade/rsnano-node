@@ -51,7 +51,8 @@ pub struct Election {
     state: ElectionState,
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     votes: HashMap<PublicKey, VoteInfo>,
-    final_weight: Amount,
+    tally: Amount,
+    final_tally: Amount,
     tallies: BTreeMap<DescTallyKey, BlockHash>,
 
     behavior: ElectionBehavior,
@@ -84,7 +85,8 @@ impl Election {
             )]),
             state: ElectionState::Passive,
             tallies: BTreeMap::new(),
-            final_weight: Amount::zero(),
+            tally: Amount::zero(),
+            final_tally: Amount::zero(),
             last_vote_generated: None,
             last_broadcasted_block: BlockHash::zero(),
             behavior,
@@ -139,16 +141,12 @@ impl Election {
         self.votes.insert(voter, VoteInfo::new(timestamp, hash));
     }
 
-    pub fn get_result(&self) -> EndedElection {
-        self.result.clone()
-    }
-
     pub fn tally(&self) -> Amount {
-        self.result.tally
+        self.tally
     }
 
     pub fn final_tally(&self) -> Amount {
-        self.result.final_tally
+        self.final_tally
     }
 
     /// Tallies for the candidate blocks, ordered by descending tally
@@ -471,7 +469,7 @@ impl Election {
             .map(|(_, hash)| *hash)
             .unwrap_or(old_winner_hash);
 
-        let amount = self
+        let tally = self
             .tallies
             .first_key_value()
             .map(|(tally, _)| tally.amount())
@@ -479,11 +477,12 @@ impl Election {
 
         // Calculate final votes sum for winner
         if let Some(final_weight) = final_weights.get(&new_winner_hash) {
-            self.final_weight = *final_weight;
+            self.final_tally = *final_weight;
         }
 
-        self.result.tally = amount;
-        self.result.final_tally = self.final_weight;
+        self.tally = tally;
+        self.result.tally = tally;
+        self.result.final_tally = self.final_tally;
 
         if self.sum_tallies() >= quorum_delta && new_winner_hash != old_winner_hash {
             let block = self
@@ -498,7 +497,7 @@ impl Election {
             self.has_quorum = true;
         }
 
-        if self.final_weight >= quorum_delta {
+        if self.final_tally >= quorum_delta {
             self.update_status_to_confirmed();
         }
     }

@@ -3,6 +3,7 @@ mod root_container;
 use std::{
     cmp::min,
     sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
+    time::SystemTime,
 };
 
 use root_container::{Entry, RootContainer};
@@ -451,10 +452,17 @@ impl ActiveElections {
         if let Some(source_election) = source_election {
             let election = source_election.lock().unwrap();
             if *election.qualified_root() == block.qualified_root() {
-                election_result = election.get_result();
+                election_result.winner = election.winner().clone();
+                election_result.tally = election.tally();
+                election_result.final_tally = election.final_tally();
+                election_result.confirmation_request_count = election.confirmation_request_count();
+                election_result.block_count = election.block_count() as u32;
+                election_result.voter_count = election.votes().len() as u32;
+                election_result.election_end = SystemTime::now();
+                election_result.vote_broadcast_count = election.vote_broadcast_count();
+                election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 debug_assert_eq!(election_result.winner.hash(), block.hash());
                 votes = election.votes_with_weight(&self.rep_weights);
-                election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 handled = true;
             }
         }
