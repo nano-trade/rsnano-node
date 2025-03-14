@@ -49,12 +49,21 @@ fn batches() {
 
     {
         for _ in 0..ConfirmReq::HASHES_MAX {
-            let election =
-                Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
+            let election = Election::new(
+                send.clone(),
+                ElectionBehavior::Priority,
+                Default::default(),
+                node2.steady_clock.now(),
+            );
             assert_eq!(solicitor.add(&election), true);
         }
         // Reached the maximum amount of requests for the channel
-        let election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
+        let election = Election::new(
+            send.clone(),
+            ElectionBehavior::Priority,
+            Default::default(),
+            node2.steady_clock.now(),
+        );
         // Broadcasting should be immediate
         assert_eq!(
             0,
@@ -114,7 +123,12 @@ fn different_hashes() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
+    let mut election = Election::new(
+        send.clone(),
+        ElectionBehavior::Priority,
+        Default::default(),
+        node2.steady_clock.now(),
+    );
     // Add a vote for something else, not the winner
     election.add_vote(
         *DEV_GENESIS_PUB_KEY,
@@ -174,7 +188,12 @@ fn bypass_max_requests_cap() {
     let send = lattice.genesis().send(Account::from(123), 100);
     let send = node2.process(send);
 
-    let mut election = Election::new(send.clone(), ElectionBehavior::Priority, Default::default());
+    let mut election = Election::new(
+        send.clone(),
+        ElectionBehavior::Priority,
+        Default::default(),
+        node2.steady_clock.now(),
+    );
     // Add a vote for something else, not the winner
     for rep in &representatives {
         election.add_vote(rep.rep_key, UnixMillisTimestamp::new(1), BlockHash::from(1));

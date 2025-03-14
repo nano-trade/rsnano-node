@@ -30,17 +30,7 @@ impl RpcCommandHandler {
         let mut blocks = IndexMap::new();
 
         for block in election.candidate_blocks().values() {
-            let tally = election
-                .tallies()
-                .iter()
-                .find_map(|(tally, hash)| {
-                    if *hash == block.hash() {
-                        Some(**tally)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default();
+            let tally = election.tallies().get(&block.hash()).unwrap_or_default();
 
             total_tally += tally;
 

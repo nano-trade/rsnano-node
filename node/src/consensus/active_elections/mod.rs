@@ -7,6 +7,7 @@ use std::{
 };
 
 use root_container::{Entry, RootContainer};
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use tracing::{debug, trace};
 
 use rsnano_core::{
@@ -77,6 +78,7 @@ pub struct ActiveElections {
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
     election_voter: ElectionVoter,
     cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
+    clock: Arc<SteadyClock>,
 }
 
 impl ActiveElections {
@@ -93,6 +95,7 @@ impl ActiveElections {
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
         cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
@@ -117,6 +120,7 @@ impl ActiveElections {
             event_sender: RwLock::new(None),
             election_voter,
             cementing_elections_cache,
+            clock,
         }
     }
 
@@ -248,7 +252,7 @@ impl ActiveElections {
         // Track election duration
         self.stats.sample(
             Sample::ActiveElectionDuration,
-            election.duration().as_millis() as i64,
+            election.start().elapsed(self.clock.now()).as_millis() as i64,
             (0, 1000 * 60 * 10),
         ); // 0-10 minutes range
 
@@ -293,11 +297,12 @@ impl ActiveElections {
 
         let hash = block.hash();
 
-        let result = self
-            .mutex
-            .lock()
-            .unwrap()
-            .insert(block, election_behavior, erased_callback);
+        let result = self.mutex.lock().unwrap().insert(
+            block,
+            election_behavior,
+            erased_callback,
+            self.clock.now(),
+        );
 
         if let Some(info) = &result {
             if info.inserted {
@@ -468,7 +473,7 @@ impl ActiveElections {
                     election.confirmation_request_count() as u32;
                 election_result.block_count = election.block_count() as u32;
                 election_result.voter_count = election.votes().len() as u32;
-                election_result.election_duration = election.duration();
+                election_result.election_duration = election.start().elapsed(self.clock.now());
                 election_result.election_end = SystemTime::now();
                 election_result.vote_broadcast_count = election.vote_broadcast_count() as u32;
                 election_result.result = ElectionResult::ActiveConfirmedQuorum;
@@ -644,6 +649,7 @@ impl ActiveElectionsState {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
+        now: Timestamp,
     ) -> Option<ElectionInsertInfo> {
         if self.stopped {
             return None;
@@ -666,6 +672,7 @@ impl ActiveElectionsState {
                 block,
                 election_behavior,
                 self.config.clone(),
+                now,
             )));
 
             self.roots.insert(Entry {

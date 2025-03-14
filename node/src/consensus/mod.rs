@@ -1,5 +1,6 @@
 mod active_elections;
 mod active_elections_driver;
+mod block_tallies;
 mod bootstrap_weights;
 mod bucket;
 mod bucketing;
@@ -23,6 +24,7 @@ mod vote_router;
 
 pub use active_elections::*;
 pub(crate) use active_elections_driver::ActiveElectionsDriver;
+pub use block_tallies::*;
 pub(crate) use bootstrap_weights::*;
 pub use bucket::*;
 pub use bucketing::Bucketing;

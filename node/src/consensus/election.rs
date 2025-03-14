@@ -9,7 +9,10 @@ use rsnano_core::{
     MaybeSavedBlock, Networks, PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
 use rsnano_ledger::RepWeightCache;
+use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{DetailType, StatType};
+
+use super::block_tallies::BlockTallies;
 
 #[derive(Clone)]
 pub struct ElectionConfig {
@@ -51,12 +54,12 @@ pub struct Election {
     votes: HashMap<PublicKey, VoteInfo>,
     tally: Amount,
     final_tally: Amount,
-    tallies: BTreeMap<DescTallyKey, BlockHash>,
+    tallies: BlockTallies,
 
     behavior: ElectionBehavior,
     has_quorum: bool,
 
-    election_start: Instant,
+    start: Timestamp,
     last_confirm_req_sent: Option<Instant>,
     last_broadcasted_block: BlockHash,
     last_block_broadcast: Instant,
@@ -71,7 +74,12 @@ impl Election {
     const PASSIVE_DURATION_FACTOR: u32 = 5;
     pub const MAX_BLOCKS: usize = 10;
 
-    pub fn new(block: SavedBlock, behavior: ElectionBehavior, config: ElectionConfig) -> Self {
+    pub fn new(
+        block: SavedBlock,
+        behavior: ElectionBehavior,
+        config: ElectionConfig,
+        now: Timestamp,
+    ) -> Self {
         Self {
             qualified_root: block.qualified_root(),
             votes: HashMap::from([(
@@ -83,7 +91,7 @@ impl Election {
                 MaybeSavedBlock::Saved(block.clone()),
             )]),
             state: ElectionState::Passive,
-            tallies: BTreeMap::new(),
+            tallies: BlockTallies::new(),
             tally: Amount::zero(),
             final_tally: Amount::zero(),
             last_vote_generated: None,
@@ -94,14 +102,19 @@ impl Election {
             confirmation_request_count: 0,
             vote_broadcast_count: 0,
             last_block_broadcast: Instant::now(),
-            election_start: Instant::now(),
+            start: now,
             config,
             winner: MaybeSavedBlock::Saved(block),
         }
     }
 
     pub fn new_test_instance_with(block: SavedBlock) -> Self {
-        Self::new(block, ElectionBehavior::Priority, ElectionConfig::default())
+        Self::new(
+            block,
+            ElectionBehavior::Priority,
+            ElectionConfig::default(),
+            Timestamp::new_test_instance(),
+        )
     }
 
     pub fn qualified_root(&self) -> &QualifiedRoot {
@@ -154,7 +167,7 @@ impl Election {
     }
 
     /// Tallies for the candidate blocks, ordered by descending tally
-    pub fn tallies(&self) -> &BTreeMap<DescTallyKey, BlockHash> {
+    pub fn tallies(&self) -> &BlockTallies {
         &self.tallies
     }
 
@@ -162,10 +175,11 @@ impl Election {
         self.confirmation_request_count
     }
 
-    pub fn transition_time(&mut self) {
+    pub fn transition_time(&mut self, now: Timestamp) {
+        let duration = self.start.elapsed(now);
         match self.state {
             ElectionState::Passive => {
-                if self.config.base_latency * Self::PASSIVE_DURATION_FACTOR < self.duration() {
+                if self.config.base_latency * Self::PASSIVE_DURATION_FACTOR < duration {
                     self.state_change(ElectionState::Passive, ElectionState::Active)
                         .unwrap();
                 }
@@ -180,7 +194,7 @@ impl Election {
             | ElectionState::Cancelled => {}
         }
 
-        if !self.state.is_confirmed() && self.time_to_live() < self.duration() {
+        if !self.state.is_confirmed() && self.time_to_live() < duration {
             // It is possible the election confirmed while acquiring the mutex
             // state_change returning true would indicate it
             let state = self.state;
@@ -363,8 +377,8 @@ impl Election {
         self.last_vote_elapsed() >= self.config.vote_broadcast_interval
     }
 
-    pub fn duration(&self) -> Duration {
-        self.election_start.elapsed()
+    pub fn start(&self) -> Timestamp {
+        self.start
     }
 
     pub fn votes_with_weight(&self, rep_weights: &RepWeightCache) -> Vec<VoteWithWeightInfo> {
@@ -406,18 +420,25 @@ impl Election {
         if self.tallies.len() < Self::MAX_BLOCKS {
             // If count of tally items is less than 10, remove any block without tally
             for (hash, _) in &self.candidate_blocks {
-                if self.tallies.iter().all(|(_, h)| h != hash) && *hash != winner_hash {
+                if !self.tallies.contains(hash) && *hash != winner_hash {
                     block_to_remove = *hash;
                     break;
                 }
             }
-        } else if min_tally > **self.tallies.last_key_value().unwrap().0 {
-            let lowest_hash = self.tallies.last_key_value().unwrap().1.clone();
-            if lowest_hash != winner_hash {
-                block_to_remove = lowest_hash;
-            } else if min_tally > **self.tallies.iter().rev().nth(1).unwrap().0 {
-                // Avoid removing winner
-                block_to_remove = *self.tallies.iter().rev().nth(1).unwrap().1;
+        } else {
+            let (lowest_tally, lowest_hash) = self.tallies.lowest().unwrap();
+            if min_tally > lowest_tally {
+                if lowest_hash != winner_hash {
+                    block_to_remove = lowest_hash;
+                } else {
+                    let (second_lowest_tally, second_lowest_hash) =
+                        self.tallies.iter().rev().nth(1).unwrap();
+
+                    if min_tally > second_lowest_tally {
+                        // Avoid removing winner
+                        block_to_remove = second_lowest_hash;
+                    }
+                }
             }
         }
 
@@ -449,20 +470,20 @@ impl Election {
         self.tallies.clear();
         for (hash, weight) in &block_weights {
             if let Some(block) = self.candidate_blocks.get(hash) {
-                self.tallies.insert(DescTallyKey(*weight), block.hash());
+                self.tallies.insert(*weight, block.hash());
             }
         }
 
         let new_winner_hash = self
             .tallies
-            .first_key_value()
-            .map(|(_, hash)| *hash)
+            .winner()
+            .map(|(_, hash)| hash)
             .unwrap_or(old_winner_hash);
 
         self.tally = self
             .tallies
-            .first_key_value()
-            .map(|(tally, _)| tally.amount())
+            .winner()
+            .map(|(tally, _)| tally)
             .unwrap_or_default();
 
         // Calculate final votes sum for winner
@@ -470,7 +491,7 @@ impl Election {
             self.final_tally = *final_weight;
         }
 
-        if self.sum_tallies() >= quorum_delta && new_winner_hash != old_winner_hash {
+        if self.tallies.sum() >= quorum_delta && new_winner_hash != old_winner_hash {
             let block = self
                 .candidate_blocks()
                 .get(&new_winner_hash)
@@ -489,18 +510,10 @@ impl Election {
     }
 
     fn check_quorum(&self, quorum_delta: Amount) -> bool {
-        let mut it = self.tallies.keys();
-        let first = it.next().map(|i| i.amount()).unwrap_or_default();
-        let second = it.next().map(|i| i.amount()).unwrap_or_default();
+        let mut it = self.tallies.tallies();
+        let first = it.next().unwrap_or_default();
+        let second = it.next().unwrap_or_default();
         first - second >= quorum_delta
-    }
-
-    fn sum_tallies(&self) -> Amount {
-        let mut sum = Amount::zero();
-        for k in self.tallies().keys() {
-            sum += k.amount();
-        }
-        sum
     }
 
     pub fn remove_vote(&mut self, voter: &PublicKey) {
@@ -601,8 +614,7 @@ impl From<ElectionState> for DetailType {
     }
 }
 
-#[derive(FromPrimitive, Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ElectionBehavior {
     Manual,
     Priority,

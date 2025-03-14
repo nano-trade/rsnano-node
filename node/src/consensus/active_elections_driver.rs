@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use rsnano_network::Network;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
@@ -20,6 +21,7 @@ pub(crate) struct ActiveElectionsDriver {
     pub network_params: NetworkParams,
     pub online_reps: Arc<Mutex<OnlineReps>>,
     pub network: Arc<RwLock<Network>>,
+    pub clock: Arc<SteadyClock>,
 }
 
 impl ActiveElectionsDriver {
@@ -81,7 +83,7 @@ impl Runnable for ActiveElectionsDriver {
                 let mut election = election_mutex.lock().unwrap();
                 let old_state = election.state();
 
-                election.transition_time();
+                election.transition_time(self.clock.now());
 
                 root = election.qualified_root().clone();
                 new_state = election.state();

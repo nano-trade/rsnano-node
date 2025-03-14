@@ -265,7 +265,7 @@ fn non_final() {
         || {
             let mut e = election.lock().unwrap();
             e.try_confirm(&node.ledger.rep_weights.read(), quorum_delta);
-            **e.tallies().first_key_value().unwrap().0
+            e.tallies().winner().unwrap().0
         },
         Amount::MAX - Amount::raw(100),
     );

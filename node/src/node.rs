@@ -574,7 +574,9 @@ impl Node {
             election_voter,
             election_config,
             cementing_elections_cache,
+            steady_clock.clone(),
         );
+
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
 
@@ -585,6 +587,7 @@ impl Node {
             network_params: network_params.clone(),
             online_reps: online_reps.clone(),
             network: network.clone(),
+            clock: steady_clock.clone(),
         };
 
         let active_w = Arc::downgrade(&active_elections);
