@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use rsnano_core::{utils::UnixTimestamp, BlockHash, Root};
+use rsnano_core::{utils::UnixMillisTimestamp, BlockHash, Root};
 use rsnano_ledger::Election;
 use rsnano_messages::{ConfirmReq, Message, Publish};
 use rsnano_network::{Channel, ChannelId, Network, TrafficType};
@@ -112,7 +112,7 @@ impl ConfirmationSolicitor {
             let existing = election.votes().get(&rep.rep_key);
             let exists = existing.is_some();
             let is_final = if let Some(existing) = existing {
-                !election.has_quorum() || existing.timestamp == UnixTimestamp::MAX
+                !election.has_quorum() || existing.timestamp == UnixMillisTimestamp::MAX
             } else {
                 false
             };

@@ -10,7 +10,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{milliseconds_since_epoch, ContainerInfo},
+    utils::{ContainerInfo, UnixMillisTimestamp},
     BlockHash, Root, SavedBlock, Vote,
 };
 use rsnano_ledger::{AnySet, Ledger};
@@ -297,7 +297,7 @@ impl SharedState {
             let timestamp = if self.is_final {
                 Vote::TIMESTAMP_MAX
             } else {
-                milliseconds_since_epoch()
+                UnixMillisTimestamp::now()
             };
             let duration = if self.is_final {
                 Vote::DURATION_MAX

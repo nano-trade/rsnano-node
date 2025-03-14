@@ -531,16 +531,12 @@ impl OrderedVoters {
 mod tests {
     use super::*;
     use mock_instant::thread_local::MockClock;
-    use rsnano_core::PrivateKey;
+    use rsnano_core::{utils::UnixMillisTimestamp, PrivateKey};
     use rsnano_stats::Direction;
 
     fn create_vote(rep: &PrivateKey, hash: &BlockHash, timestamp_offset: u64) -> Arc<Vote> {
-        Arc::new(Vote::new(
-            &rep,
-            timestamp_offset * 1024 * 1024,
-            0,
-            vec![*hash],
-        ))
+        let timestamp = UnixMillisTimestamp::new(timestamp_offset * 1024 * 1024);
+        Arc::new(Vote::new(&rep, timestamp, 0, vec![*hash]))
     }
 
     fn create_final_vote(rep: &PrivateKey, hash: &BlockHash) -> Arc<Vote> {

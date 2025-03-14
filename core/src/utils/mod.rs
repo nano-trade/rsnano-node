@@ -144,7 +144,7 @@ impl UnixTimestamp {
         Self(Self::seconds_since_unix_epoch())
     }
 
-    pub fn as_u64(&self) -> u64 {
+    pub const fn as_u64(&self) -> u64 {
         self.0
     }
 
@@ -211,6 +211,73 @@ impl std::fmt::Display for UnixTimestamp {
 }
 
 impl std::fmt::Debug for UnixTimestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+/// Elapsed milliseconds since UNIX_EPOCH
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Default)]
+pub struct UnixMillisTimestamp(u64);
+
+impl UnixMillisTimestamp {
+    pub const ZERO: Self = Self(0);
+    pub const MAX: Self = Self(u64::MAX);
+
+    pub const fn new(millis_since_epoch: u64) -> Self {
+        Self(millis_since_epoch)
+    }
+
+    pub const fn new_test_instance() -> Self {
+        Self::new(1740000000000)
+    }
+
+    pub fn now() -> Self {
+        Self(milliseconds_since_epoch())
+    }
+
+    pub const fn as_u64(&self) -> u64 {
+        self.0
+    }
+
+    pub fn to_be_bytes(&self) -> [u8; 8] {
+        self.0.to_be_bytes()
+    }
+
+    pub fn from_be_bytes(bytes: [u8; 8]) -> Self {
+        Self(u64::from_be_bytes(bytes))
+    }
+}
+
+impl From<u64> for UnixMillisTimestamp {
+    fn from(value: u64) -> Self {
+        Self::new(value)
+    }
+}
+
+impl Add<Duration> for UnixMillisTimestamp {
+    type Output = UnixMillisTimestamp;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self(self.0 + rhs.as_secs())
+    }
+}
+
+impl Mul<u64> for UnixMillisTimestamp {
+    type Output = UnixMillisTimestamp;
+
+    fn mul(self, rhs: u64) -> Self::Output {
+        UnixMillisTimestamp::new(self.0 * rhs)
+    }
+}
+
+impl std::fmt::Display for UnixMillisTimestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl std::fmt::Debug for UnixMillisTimestamp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(&self.0, f)
     }

@@ -1,8 +1,8 @@
 use std::{ops::Deref, sync::Arc, thread::sleep, time::Duration};
 
 use rsnano_core::{
-    Account, Amount, Block, Networks, PrivateKey, ProtocolInfo, Root, StateBlockArgs, Vote,
-    DEV_GENESIS_KEY,
+    utils::UnixMillisTimestamp, Account, Amount, Block, Networks, PrivateKey, ProtocolInfo, Root,
+    StateBlockArgs, Vote, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
@@ -298,7 +298,12 @@ fn duplicate_vote_detection() {
     let node0 = system.make_node();
     let node1 = system.make_node();
 
-    let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
+    let vote = Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    );
     let message = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
 
     // Publish duplicate detection through TCP
@@ -373,10 +378,20 @@ fn duplicate_revert_vote() {
         })
         .finish();
 
-    let vote1 = Vote::new(&DEV_GENESIS_KEY, 1, 0, vec![*DEV_GENESIS_HASH]);
+    let vote1 = Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::new(1),
+        0,
+        vec![*DEV_GENESIS_HASH],
+    );
     let message1 = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote1));
 
-    let vote2 = Vote::new(&DEV_GENESIS_KEY, 2, 2, vec![*DEV_GENESIS_HASH]);
+    let vote2 = Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::new(2),
+        2,
+        vec![*DEV_GENESIS_HASH],
+    );
     let message2 = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote2));
 
     // Publish duplicate detection through TCP
@@ -451,7 +466,12 @@ fn expire_duplicate_filter() {
         })
         .finish();
 
-    let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
+    let vote = Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    );
     let message = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
 
     // Publish duplicate detection through TCP

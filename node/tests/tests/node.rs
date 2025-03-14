@@ -9,10 +9,9 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{milliseconds_since_epoch, UnixTimestamp},
-    Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey, PublicKey, QualifiedRoot, Root,
-    Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource, VoteWithWeightInfo,
-    DEV_GENESIS_KEY,
+    utils::UnixMillisTimestamp, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
+    PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource,
+    VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, ConfirmedSet, LedgerSet, Writer,
@@ -1667,7 +1666,12 @@ fn fork_no_vote_quorum() {
     }
     .into();
 
-    let vote = Vote::new(&PrivateKey::new(), 0, 0, vec![send2.hash()]);
+    let vote = Vote::new(
+        &PrivateKey::new(),
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send2.hash()],
+    );
     let confirm = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
     let channel = node2
         .network
@@ -1775,7 +1779,7 @@ fn online_reps_rep_crawler() {
     let node = system.build_node().flags(flags).finish();
     let vote = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
-        milliseconds_since_epoch(),
+        UnixMillisTimestamp::now(),
         0,
         vec![*DEV_GENESIS_HASH],
     ));
@@ -1822,7 +1826,7 @@ fn online_reps_election() {
     // Process vote for ongoing election
     let vote = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
-        milliseconds_since_epoch(),
+        UnixMillisTimestamp::now(),
         0,
         vec![send1.hash()],
     ));
@@ -2068,7 +2072,7 @@ fn rollback_vote_self() {
         node.active.vote_applier.vote(
             &election,
             &key.public_key(),
-            UnixTimestamp::ZERO,
+            UnixMillisTimestamp::ZERO,
             &fork.hash(),
             VoteSource::Live,
         );
@@ -2168,7 +2172,12 @@ fn rep_crawler_rep_remove() {
     let channel_rep1 = make_fake_channel(&searching_node);
 
     // Ensure Rep1 is found by the rep_crawler after receiving a vote from it
-    let vote_rep1 = Arc::new(Vote::new(&key_rep1, 0, 0, vec![*DEV_GENESIS_HASH]));
+    let vote_rep1 = Arc::new(Vote::new(
+        &key_rep1,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
     searching_node
         .rep_crawler
         .force_process2(vote_rep1, channel_rep1.clone());
@@ -2220,7 +2229,12 @@ fn rep_crawler_rep_remove() {
         .clone();
 
     // genesis_rep should be found as principal representative after receiving a vote from it
-    let vote_genesis_rep = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]));
+    let vote_genesis_rep = Arc::new(Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
     searching_node
         .rep_crawler
         .force_process2(vote_genesis_rep, channel_genesis_rep);
@@ -2264,7 +2278,12 @@ fn rep_crawler_rep_remove() {
         .clone();
 
     // Rep2 should be found as a principal representative after receiving a vote from it
-    let vote_rep2 = Arc::new(Vote::new(&key_rep2, 0, 0, vec![*DEV_GENESIS_HASH]));
+    let vote_rep2 = Arc::new(Vote::new(
+        &key_rep2,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
     searching_node
         .rep_crawler
         .force_process2(vote_rep2, channel_rep2);

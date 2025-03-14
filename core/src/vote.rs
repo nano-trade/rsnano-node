@@ -3,7 +3,7 @@ use super::{
     Account, BlockHash, BlockHashBuilder, PrivateKey, Signature,
 };
 use crate::{
-    utils::{Serialize, UnixTimestamp},
+    utils::{Serialize, UnixMillisTimestamp},
     Amount, PublicKey, VoteTimestamp,
 };
 use anyhow::Result;
@@ -71,7 +71,7 @@ impl Vote {
 
     pub fn new(
         priv_key: &PrivateKey,
-        timestamp: u64,
+        timestamp: UnixMillisTimestamp,
         duration: u8,
         hashes: Vec<BlockHash>,
     ) -> Self {
@@ -88,14 +88,19 @@ impl Vote {
 
     pub fn new_test_instance() -> Self {
         let key = PrivateKey::from(42);
-        Self::new(&key, 1, 2, vec![BlockHash::from(5)])
+        Self::new(
+            &key,
+            UnixMillisTimestamp::new(1),
+            2,
+            vec![BlockHash::from(5)],
+        )
     }
 
     pub const DURATION_MAX: u8 = 0x0F;
-    pub const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
-    pub const TIMESTAMP_MIN: u64 = 0x0000_0000_0000_0010;
+    pub const TIMESTAMP_MAX: UnixMillisTimestamp = UnixMillisTimestamp::new(0xFFFF_FFFF_FFFF_FFF0);
+    pub const TIMESTAMP_MIN: UnixMillisTimestamp = UnixMillisTimestamp::new(0x0000_0000_0000_0010);
 
-    pub fn timestamp(&self) -> UnixTimestamp {
+    pub fn timestamp(&self) -> UnixMillisTimestamp {
         self.timestamp.unix_timestamp()
     }
 
@@ -172,7 +177,7 @@ impl Eq for Vote {}
 pub struct VoteWithWeightInfo {
     pub representative: PublicKey,
     pub time: SystemTime,
-    pub timestamp: UnixTimestamp,
+    pub timestamp: UnixMillisTimestamp,
     pub hash: BlockHash,
     pub weight: Amount,
 }

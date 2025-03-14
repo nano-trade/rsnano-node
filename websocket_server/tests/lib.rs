@@ -7,7 +7,8 @@ use std::{
 
 use futures_util::{SinkExt, StreamExt};
 use rsnano_core::{
-    Amount, Block, JsonBlock, Networks, PrivateKey, SendBlockArgs, Vote, VoteCode, DEV_GENESIS_KEY,
+    utils::UnixMillisTimestamp, Amount, Block, JsonBlock, Networks, PrivateKey, SendBlockArgs,
+    Vote, VoteCode, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
@@ -484,7 +485,7 @@ fn vote_options_type() {
         ws_stream.next().await.unwrap().unwrap();
 
 	    // Custom made votes for simplicity
-        let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
+        let vote = Vote::new(&DEV_GENESIS_KEY, UnixMillisTimestamp::ZERO, 0, vec![*DEV_GENESIS_HASH]);
 
         spawn_blocking(move ||{
             websocket.broadcast(&vote_received(&vote, VoteCode::Replay));

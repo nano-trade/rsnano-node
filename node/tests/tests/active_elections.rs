@@ -1,7 +1,8 @@
 use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration, usize};
 
 use rsnano_core::{
-    utils::MemoryStream, Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
+    utils::{MemoryStream, UnixMillisTimestamp},
+    Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
@@ -90,7 +91,12 @@ fn fork_replacement_tally() {
     for i in 0..REPS_COUNT {
         let mut fork_l = fork_lattice.clone();
         let fork = fork_l.genesis().send(&key, Amount::raw(1 + i as u128));
-        let vote = Arc::new(Vote::new(&keys[i], 0, 0, vec![fork.hash()]));
+        let vote = Arc::new(Vote::new(
+            &keys[i],
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![fork.hash()],
+        ));
         node1
             .vote_processor_queue
             .vote(vote, None, VoteSource::Live);
@@ -141,7 +147,12 @@ fn fork_replacement_tally() {
     assert!(!blocks1.contains_key(&send_last.hash()));
 
     // Process vote for correct block & replace existing lowest tally block
-    let vote = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![send_last.hash()]));
+    let vote = Arc::new(Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send_last.hash()],
+    ));
     node1
         .vote_processor_queue
         .vote(vote, None, VoteSource::Live);
@@ -219,7 +230,12 @@ fn non_final() {
     let send = lattice.genesis().send(Account::from(42), 100);
 
     // Non-final vote
-    let vote = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![send.hash()]));
+    let vote = Arc::new(Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send.hash()],
+    ));
     node.vote_processor_queue.vote(vote, None, VoteSource::Live);
     assert_timely_eq(
         Duration::from_secs(5),
@@ -319,7 +335,12 @@ fn inactive_votes_cache_existing_vote() {
     );
 
     // Insert vote
-    let vote1 = Arc::new(Vote::new(&key, 0, 0, vec![send.hash()]));
+    let vote1 = Arc::new(Vote::new(
+        &key,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send.hash()],
+    ));
     node.vote_processor_queue
         .vote(vote1.clone(), None, VoteSource::Live);
 
@@ -386,11 +407,21 @@ fn inactive_votes_cache_multiple_votes() {
     node.process(open.clone());
 
     // Process votes
-    let vote1 = Arc::new(Vote::new(&key, 0, 0, vec![send1.hash()]));
+    let vote1 = Arc::new(Vote::new(
+        &key,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send1.hash()],
+    ));
     node.vote_processor_queue
         .vote(vote1, None, VoteSource::Live);
 
-    let vote2 = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![send1.hash()]));
+    let vote2 = Arc::new(Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send1.hash()],
+    ));
     node.vote_processor_queue
         .vote(vote2, None, VoteSource::Live);
 
@@ -443,7 +474,7 @@ fn inactive_votes_cache_election_start() {
     // Inactive votes
     let vote1 = Arc::new(Vote::new(
         &key1,
-        0,
+        UnixMillisTimestamp::ZERO,
         0,
         vec![open1.hash(), open2.hash(), send4.hash()],
     ));
@@ -456,7 +487,7 @@ fn inactive_votes_cache_election_start() {
     // 2 votes are required to start election (dev network)
     let vote2 = Arc::new(Vote::new(
         &key2,
-        0,
+        UnixMillisTimestamp::ZERO,
         0,
         vec![open1.hash(), open2.hash(), send4.hash()],
     ));
@@ -1148,7 +1179,12 @@ fn vote_replays() {
 
     // vote2_send2 is a non final vote with little weight, vote1_send2 is the vote that confirms the election
     let vote1_send2 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    let vote2_send2 = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![send2.hash()]));
+    let vote2_send2 = Arc::new(Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![send2.hash()],
+    ));
 
     // this vote cannot confirm the election
     assert_eq!(

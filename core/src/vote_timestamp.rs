@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::utils::UnixTimestamp;
+use crate::utils::UnixMillisTimestamp;
 
 /// Combination of a unix timestamp + duration.
 /// Duration field is specified in the 4 low-order bits of the timestamp.
@@ -12,14 +12,16 @@ pub struct VoteTimestamp(u64);
 impl VoteTimestamp {
     pub const FINAL: VoteTimestamp = VoteTimestamp(u64::MAX);
     pub const DURATION_MAX: u8 = 0x0F;
-    pub const TIMESTAMP_MIN: UnixTimestamp = UnixTimestamp::new(0x0000_0000_0000_0010);
-    const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
+    pub const TIMESTAMP_MIN: UnixMillisTimestamp = UnixMillisTimestamp::new(0x0000_0000_0000_0010);
+    const TIMESTAMP_MAX: UnixMillisTimestamp = UnixMillisTimestamp::new(0xFFFF_FFFF_FFFF_FFF0);
     const TIMESTAMP_MASK: u64 = 0xFFFF_FFFF_FFFF_FFF0;
 
-    pub const fn new(timestamp: u64, duration: u8) -> Self {
+    pub const fn new(timestamp: UnixMillisTimestamp, duration: u8) -> Self {
         debug_assert!(duration <= Self::DURATION_MAX);
-        debug_assert!(timestamp != Self::TIMESTAMP_MAX || duration == Self::DURATION_MAX);
-        let value = (timestamp & Self::TIMESTAMP_MASK) | (duration as u64);
+        debug_assert!(
+            timestamp.as_u64() != Self::TIMESTAMP_MAX.as_u64() || duration == Self::DURATION_MAX
+        );
+        let value = (timestamp.as_u64() & Self::TIMESTAMP_MASK) | (duration as u64);
         Self(value)
     }
 
@@ -30,11 +32,11 @@ impl VoteTimestamp {
 
     /// Returns the timestamp of the vote (with the duration bits masked, set to zero)
     /// If it is a final vote, all the bits including duration bits are returned as they are, all FF
-    pub fn unix_timestamp(&self) -> UnixTimestamp {
+    pub fn unix_timestamp(&self) -> UnixMillisTimestamp {
         if self.is_final() {
-            UnixTimestamp::new(self.0)
+            UnixMillisTimestamp::new(self.0)
         } else {
-            UnixTimestamp::new(self.0 & Self::TIMESTAMP_MASK)
+            UnixMillisTimestamp::new(self.0 & Self::TIMESTAMP_MASK)
         }
     }
 
@@ -77,8 +79,8 @@ mod tests {
 
     #[test]
     fn timestamp_and_duration_masking() {
-        let ts = VoteTimestamp::new(0x123f, 0xf);
-        assert_eq!(ts.unix_timestamp(), UnixTimestamp::new(0x1230));
+        let ts = VoteTimestamp::new(UnixMillisTimestamp::new(0x123f), 0xf);
+        assert_eq!(ts.unix_timestamp(), UnixMillisTimestamp::new(0x1230));
         assert_eq!(ts.duration().as_millis(), 524288);
         assert_eq!(ts.duration_bits(), 0xf);
     }

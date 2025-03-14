@@ -6,7 +6,7 @@ use std::{
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
-use rsnano_core::{utils::UnixTimestamp, Amount, BlockHash, PublicKey, VoteCode, VoteSource};
+use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, VoteCode, VoteSource};
 use rsnano_ledger::{Election, Ledger};
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -77,7 +77,7 @@ impl VoteApplier {
         &self,
         election_mutex: &Arc<Mutex<Election>>,
         rep: &PublicKey,
-        timestamp: UnixTimestamp,
+        timestamp: UnixMillisTimestamp,
         block_hash: &BlockHash,
         vote_source: VoteSource,
     ) -> VoteCode {
@@ -98,7 +98,7 @@ impl VoteApplier {
                 return VoteCode::Replay;
             }
 
-            let max_vote = timestamp == UnixTimestamp::MAX && last_vote.timestamp < timestamp;
+            let max_vote = timestamp == UnixMillisTimestamp::MAX && last_vote.timestamp < timestamp;
 
             let mut past_cooldown = true;
             // Only cooldown live votes

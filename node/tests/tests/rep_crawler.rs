@@ -1,4 +1,4 @@
-use rsnano_core::{Amount, PrivateKey, Vote, DEV_GENESIS_KEY};
+use rsnano_core::{utils::UnixMillisTimestamp, Amount, PrivateKey, Vote, DEV_GENESIS_KEY};
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
     DEV_GENESIS_PUB_KEY,
@@ -41,7 +41,12 @@ fn ignore_rebroadcast() {
     );
 
     // Now we spam the vote for genesis, so it appears as a rebroadcasted vote
-    let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
+    let vote = Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    );
     node1
         .rep_crawler
         .force_query(*DEV_GENESIS_HASH, channel1to2);
@@ -104,9 +109,24 @@ fn rep_weight() {
         )
     };
 
-    let vote0 = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]));
-    let vote1 = Arc::new(Vote::new(&key_non_pr, 0, 0, vec![*DEV_GENESIS_HASH]));
-    let vote2 = Arc::new(Vote::new(&key_pr, 0, 0, vec![*DEV_GENESIS_HASH]));
+    let vote0 = Arc::new(Vote::new(
+        &DEV_GENESIS_KEY,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
+    let vote1 = Arc::new(Vote::new(
+        &key_non_pr,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
+    let vote2 = Arc::new(Vote::new(
+        &key_pr,
+        UnixMillisTimestamp::ZERO,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
 
     node.rep_crawler.force_process2(vote0, channel1.clone());
     node.rep_crawler.force_process2(vote1, channel2.clone());
