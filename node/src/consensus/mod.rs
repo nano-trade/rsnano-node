@@ -25,7 +25,7 @@ pub(crate) use active_elections_driver::ActiveElectionsDriver;
 pub(crate) use bootstrap_weights::*;
 pub use bucket::*;
 pub use bucketing::Bucketing;
-pub use cementing_elections_cache::*;
+pub(crate) use cementing_elections_cache::*;
 pub use confirmation_solicitor::ConfirmationSolicitor;
 pub use election_result::*;
 pub(crate) use rebroadcast::*;

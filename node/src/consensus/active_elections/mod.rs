@@ -13,9 +13,7 @@ use rsnano_core::{
     utils::ContainerInfo, Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock,
     VoteWithWeightInfo,
 };
-use rsnano_ledger::{
-    BlockStatus, CementingEntry, Election, ElectionBehavior, ElectionConfig, RepWeightCache,
-};
+use rsnano_ledger::{BlockStatus, Election, ElectionBehavior, ElectionConfig, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
@@ -412,20 +410,15 @@ impl ActiveElections {
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
-    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, CementingEntry)>) {
+    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, BlockHash)>) {
         let mut results = Vec::new();
         {
             let mut guard = self.mutex.lock().unwrap();
             // Process all cemented blocks while holding the lock to avoid
             // races where an election for a block that is already
             // cemented is inserted
-            for (block, entry) in cemented {
-                let result = self.block_cemented(
-                    &mut guard,
-                    block,
-                    &entry.confirmation_root,
-                    &entry.election,
-                );
+            for (block, _) in cemented {
+                let result = self.block_cemented(&mut guard, block);
                 results.push(result)
             }
         }
@@ -441,8 +434,6 @@ impl ActiveElections {
         &self,
         guard: &mut ActiveElectionsState,
         block: &SavedBlock,
-        confirmation_root: &BlockHash,
-        source_election: &Option<Arc<Mutex<Election>>>,
     ) -> (EndedElection, Vec<VoteWithWeightInfo>) {
         // Dependent elections are implicitly confirmed when their block is cemented
         let dependent_election = guard.election(&block.qualified_root());
@@ -457,15 +448,16 @@ impl ActiveElections {
         let mut election_result = EndedElection::new(block.clone());
         let mut votes = Vec::new();
 
+        let mut handled = false;
+
         let source_election = self
             .cementing_elections_cache
             .lock()
             .unwrap()
-            .get(confirmation_root)
+            .get(&block.hash())
             .cloned();
 
         // Check if the currently cemented block was part of an election that triggered the confirmation
-        let mut handled = false;
         if let Some(source_election) = source_election {
             let election = source_election.lock().unwrap();
             if *election.qualified_root() == block.qualified_root() {
@@ -500,8 +492,6 @@ impl ActiveElections {
             StatType::ActiveElectionsCemented,
             election_result.result.into(),
         );
-
-        trace!(?block, %confirmation_root, "active cemented");
 
         (election_result, votes)
     }

@@ -2,9 +2,9 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
-    AnySet, BlockRollbackPerformer, BorrowingAnySet, CementingEntry, ConfirmedSet,
-    GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
-    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, Writer,
+    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
+    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
+    RepWeightCache, RepWeightsUpdater, Writer,
 };
 use rsnano_core::{
     utils::{ContainerInfo, UnixTimestamp},
@@ -104,7 +104,8 @@ impl From<BlockStatus> for DetailType {
 }
 
 pub enum LedgerEvent {
-    BatchCemented(Vec<(SavedBlock, CementingEntry)>),
+    /// The cemented block + it's confirmation root
+    BatchCemented(Vec<(SavedBlock, BlockHash)>),
 }
 
 pub struct Ledger {
@@ -712,7 +713,7 @@ impl Ledger {
 
     pub fn confirm_batch<'a, O>(
         &self,
-        batch: impl IntoIterator<Item = CementingEntry>,
+        batch: impl IntoIterator<Item = &'a BlockHash>,
         stopped: &AtomicBool,
         max_blocks: usize,
         observer: &mut O,
@@ -724,7 +725,7 @@ impl Ledger {
         {
             let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
 
-            for entry in batch.into_iter() {
+            for confirmation_root in batch.into_iter() {
                 let mut success = false;
                 loop {
                     tx.refresh_if_needed();
@@ -751,13 +752,13 @@ impl Ledger {
                         .inc(StatType::ConfirmingSet, DetailType::Cementing);
 
                     // The block might be rolled back before it's fully cemented
-                    if !self.store.block.exists(&tx, &entry.confirmation_root) {
+                    if !self.store.block.exists(&tx, confirmation_root) {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::MissingBlock);
                         break;
                     }
 
-                    let added = self.confirm_max(&mut tx, entry.confirmation_root, max_blocks);
+                    let added = self.confirm_max(&mut tx, *confirmation_root, max_blocks);
 
                     if !added.is_empty() {
                         // Confirming this block may implicitly confirm more
@@ -768,16 +769,16 @@ impl Ledger {
                         );
                         blocks_cemented += added.len();
                         for block in added {
-                            cemented.push((block, entry.clone()));
+                            cemented.push((block, *confirmation_root));
                         }
                     } else {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
-                        observer.already_cemented(&entry.confirmation_root);
+                        observer.already_cemented(confirmation_root);
                     }
 
                     success = {
-                        if let Some(block) = self.store.block.get(&tx, &entry.confirmation_root) {
+                        if let Some(block) = self.store.block.get(&tx, confirmation_root) {
                             if let Some(conf_info) =
                                 self.store.confirmation_height.get(&tx, &block.account())
                             {
@@ -804,7 +805,7 @@ impl Ledger {
 
                     // Requeue failed blocks for processing later
                     // Add them to the deferred set while still holding the exclusive database write transaction to avoid block processor races
-                    observer.cementing_failed(&entry);
+                    observer.cementing_failed(confirmation_root);
                 }
             }
         }
@@ -898,5 +899,5 @@ pub struct BatchProcessResult {
 
 pub trait CementingObserver {
     fn already_cemented(&mut self, hash: &BlockHash);
-    fn cementing_failed(&mut self, entry: &CementingEntry);
+    fn cementing_failed(&mut self, hash: &BlockHash);
 }

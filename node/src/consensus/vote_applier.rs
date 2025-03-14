@@ -228,8 +228,8 @@ impl VoteApplier {
         self.cementing_elections_cache
             .lock()
             .unwrap()
-            .insert(election.clone());
+            .insert(election);
 
-        self.confirming_set.add_with_election(winner_hash, election);
+        self.confirming_set.add(winner_hash);
     }
 }

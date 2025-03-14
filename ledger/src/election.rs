@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
-    sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -638,6 +637,5 @@ impl From<ElectionBehavior> for DetailType {
 #[derive(Clone)]
 pub struct CementingEntry {
     pub confirmation_root: BlockHash,
-    pub election: Option<Arc<Mutex<Election>>>,
     pub timestamp: Instant,
 }

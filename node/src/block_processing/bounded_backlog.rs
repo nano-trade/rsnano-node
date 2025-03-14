@@ -8,7 +8,7 @@ use std::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, BlockStatus, CementingEntry, Ledger, LedgerSet, OwningAnySet};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -206,7 +206,7 @@ impl BoundedBacklog {
             })
     }
 
-    pub fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, CementingEntry)>) {
+    pub fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
         // Remove cemented blocks from the backlog
         self.erase_hashes(confirmed.iter().map(|i| i.0.hash()));
     }

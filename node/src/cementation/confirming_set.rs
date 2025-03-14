@@ -83,15 +83,7 @@ impl ConfirmingSet {
 
     /// Adds a block to the set of blocks to be confirmed
     pub fn add(&self, hash: BlockHash) {
-        self.add_with_election_opt(hash, None)
-    }
-
-    pub fn add_with_election(&self, hash: BlockHash, election: Arc<Mutex<Election>>) {
-        self.add_with_election_opt(hash, Some(election));
-    }
-
-    fn add_with_election_opt(&self, hash: BlockHash, election: Option<Arc<Mutex<Election>>>) {
-        self.thread.add(hash, election);
+        self.thread.add(hash);
     }
 
     pub fn start(&self) {
@@ -195,12 +187,11 @@ impl ConfirmingSetThread {
         self.condition.notify_all();
     }
 
-    fn add(&self, hash: BlockHash, election: Option<Arc<Mutex<Election>>>) {
+    fn add(&self, hash: BlockHash) {
         let added = {
             let mut guard = self.mutex.lock().unwrap();
             guard.set.push_back(CementingEntry {
                 confirmation_root: hash,
-                election,
                 timestamp: Instant::now(),
             })
         };
@@ -269,8 +260,12 @@ impl ConfirmingSetThread {
 
     fn run_batch(&self, batch: VecDeque<CementingEntry>) {
         let mut notifier = CementedNotifier::new(self);
-        self.ledger
-            .confirm_batch(batch, &self.stopped, self.config.max_blocks, &mut notifier);
+        self.ledger.confirm_batch(
+            batch.iter().map(|i| &i.confirmation_root),
+            &self.stopped,
+            self.config.max_blocks,
+            &mut notifier,
+        );
 
         // Clear current set only after the transaction is committed
         self.mutex.lock().unwrap().current.clear();
@@ -368,15 +363,14 @@ impl<'a> CementingObserver for CementedNotifier<'a> {
         self.already_cemented.push_back(*hash);
     }
 
-    fn cementing_failed(&mut self, entry: &CementingEntry) {
+    fn cementing_failed(&mut self, hash: &BlockHash) {
         self.confirming_set
             .mutex
             .lock()
             .unwrap()
             .deferred
             .push_back(CementingEntry {
-                confirmation_root: entry.confirmation_root,
-                election: entry.election.clone(),
+                confirmation_root: *hash,
                 timestamp: Instant::now(),
             });
     }

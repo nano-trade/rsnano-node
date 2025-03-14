@@ -13,7 +13,7 @@ pub(crate) struct CementingElectionsCache {
 }
 
 impl CementingElectionsCache {
-    const DEFAULT_MAX_LEN: usize = 128 * 128;
+    const DEFAULT_MAX_LEN: usize = 4096;
 
     pub fn with_max_len(max_len: usize) -> Self {
         Self {
@@ -23,10 +23,12 @@ impl CementingElectionsCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn max_len(&self) -> usize {
         self.max_len
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.sequential.len()
     }
@@ -64,7 +66,7 @@ mod tests {
     #[test]
     fn empty() {
         let cache = CementingElectionsCache::default();
-        assert_eq!(cache.max_len(), 16384);
+        assert_eq!(cache.max_len(), 4096);
         assert_eq!(cache.len(), 0);
         assert!(cache.get(&BlockHash::from(123)).is_none());
     }
