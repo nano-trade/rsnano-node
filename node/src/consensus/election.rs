@@ -1,12 +1,12 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fmt::Debug,
     time::{Duration, Instant, SystemTime},
 };
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, BlockHash, DescTallyKey, MaybeSavedBlock, Networks,
-    PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
+    utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, Networks, PublicKey,
+    QualifiedRoot, SavedBlock,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
@@ -50,7 +50,7 @@ pub struct Election {
     winner: MaybeSavedBlock,
     state: ElectionState,
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
-    votes: HashMap<PublicKey, VoteInfo>,
+    votes: HashMap<PublicKey, VoteSummary>,
     tally: Amount,
     final_tally: Amount,
 
@@ -151,12 +151,13 @@ impl Election {
         self.candidate_blocks.insert(block.hash(), block).is_none()
     }
 
-    pub fn votes(&self) -> &HashMap<PublicKey, VoteInfo> {
+    pub fn votes(&self) -> &HashMap<PublicKey, VoteSummary> {
         &self.votes
     }
 
     pub fn add_vote(&mut self, voter: PublicKey, timestamp: UnixMillisTimestamp, hash: BlockHash) {
-        self.votes.insert(voter, VoteInfo::new(timestamp, hash));
+        self.votes
+            .insert(voter, VoteSummary::new(voter, timestamp, hash));
     }
 
     pub fn tally(&self) -> Amount {
@@ -328,37 +329,6 @@ impl Election {
         self.start
     }
 
-    pub fn votes_with_weight(
-        &self,
-        rep_weights: &HashMap<PublicKey, Amount>,
-    ) -> Vec<VoteWithWeightInfo> {
-        let mut sorted_votes: BTreeMap<DescTallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
-        for (&representative, info) in &self.votes {
-            let weight = rep_weights
-                .get(&representative)
-                .cloned()
-                .unwrap_or_default();
-
-            let vote_with_weight = VoteWithWeightInfo {
-                representative,
-                time: info.time,
-                timestamp: info.timestamp,
-                hash: info.hash,
-                weight,
-            };
-            sorted_votes
-                .entry(DescTallyKey(weight))
-                .or_default()
-                .push(vote_with_weight);
-        }
-
-        sorted_votes
-            .values_mut()
-            .map(|i| std::mem::take(i))
-            .flatten()
-            .collect()
-    }
-
     pub fn remove_tally_below(&mut self, min_tally: Amount) -> Option<MaybeSavedBlock> {
         if min_tally.is_zero() {
             return None;
@@ -413,11 +383,11 @@ impl Election {
         let mut block_tallies: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_tallies: HashMap<BlockHash, Amount> = HashMap::new();
 
-        for (account, info) in &self.votes {
-            let weight = rep_weights.get(account).cloned().unwrap_or_default();
-            *block_tallies.entry(info.hash).or_default() += weight;
+        for (account, info) in self.votes.iter_mut() {
+            info.weight = rep_weights.get(account).cloned().unwrap_or_default();
+            *block_tallies.entry(info.hash).or_default() += info.weight;
             if info.timestamp == UnixMillisTimestamp::MAX {
-                *final_tallies.entry(info.hash).or_default() += weight;
+                *final_tallies.entry(info.hash).or_default() += info.weight;
             }
         }
 
@@ -481,25 +451,23 @@ impl Election {
 }
 
 #[derive(Clone)]
-pub struct VoteInfo {
+pub struct VoteSummary {
+    pub voter: PublicKey,
     pub time: SystemTime, // TODO use Instant
     pub timestamp: UnixMillisTimestamp,
     pub hash: BlockHash,
+    pub weight: Amount,
 }
 
-impl VoteInfo {
-    pub fn new(timestamp: UnixMillisTimestamp, hash: BlockHash) -> Self {
+impl VoteSummary {
+    pub fn new(voter: PublicKey, timestamp: UnixMillisTimestamp, hash: BlockHash) -> Self {
         Self {
+            voter,
             time: SystemTime::now(),
             timestamp,
             hash,
+            weight: Amount::zero(),
         }
-    }
-}
-
-impl Default for VoteInfo {
-    fn default() -> Self {
-        Self::new(UnixMillisTimestamp::ZERO, BlockHash::zero())
     }
 }
 

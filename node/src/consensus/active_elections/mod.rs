@@ -12,7 +12,6 @@ use tracing::{debug, trace};
 
 use rsnano_core::{
     utils::ContainerInfo, Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock,
-    VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, RepWeightCache};
 use rsnano_messages::{Message, Publish};
@@ -21,15 +20,12 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
     CementingElectionsCache, Election, ElectionBehavior, ElectionConfig, ElectionVoter,
-    EndedElection, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter,
+    EndedElection, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter, VoteSummary,
 };
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
     consensus::ElectionResult, transport::MessageFlooder,
 };
-
-pub type ElectionEndCallback =
-    Box<dyn Fn(&EndedElection, &Vec<VoteWithWeightInfo>, &SavedBlock, Amount) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -57,7 +53,7 @@ impl Default for ActiveElectionsConfig {
 pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
-    BlockCemented(SavedBlock, EndedElection, Vec<VoteWithWeightInfo>),
+    BlockCemented(SavedBlock, EndedElection, Vec<VoteSummary>),
     BlockAddedToElection(BlockHash),
     UnconfirmedBlockRemoved(Block),
     VacancyUpdated,
@@ -433,7 +429,7 @@ impl ActiveElections {
         &self,
         guard: &mut ActiveElectionsState,
         block: &SavedBlock,
-    ) -> (EndedElection, Vec<VoteWithWeightInfo>) {
+    ) -> (EndedElection, Vec<VoteSummary>) {
         // Dependent elections are implicitly confirmed when their block is cemented
         let dependent_election = guard.election(&block.qualified_root());
         if let Some(dependent_election) = &dependent_election {
@@ -472,7 +468,9 @@ impl ActiveElections {
                 election_result.vote_broadcast_count = election.vote_broadcast_count() as u32;
                 election_result.result = ElectionResult::ActiveConfirmedQuorum;
                 debug_assert_eq!(election_result.winner.hash(), block.hash());
-                votes = election.votes_with_weight(&self.rep_weights.read());
+                votes = election.votes().values().cloned().collect();
+                // sort descending
+                votes.sort_by(|a, b| b.weight.cmp(&a.weight));
                 handled = true;
             }
         }
@@ -516,7 +514,7 @@ impl ActiveElections {
         }
     }
 
-    fn notify_block_cemented(&self, status: EndedElection, votes: Vec<VoteWithWeightInfo>) {
+    fn notify_block_cemented(&self, status: EndedElection, votes: Vec<VoteSummary>) {
         let MaybeSavedBlock::Saved(block) = &status.winner else {
             return;
         };

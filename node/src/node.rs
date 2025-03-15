@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
-    VoteSource, VoteWithWeightInfo, WorkNonce,
+    VoteSource, WorkNonce,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;
@@ -52,6 +52,7 @@ use crate::{
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
         VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
+        VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -1656,7 +1657,7 @@ fn make_store(
 pub enum NodeEvent {
     AecActiveStarted(BlockHash),
     AecActiveStopped(BlockHash),
-    BlockCemented(SavedBlock, EndedElection, Vec<VoteWithWeightInfo>),
+    BlockCemented(SavedBlock, EndedElection, Vec<VoteSummary>),
 }
 
 pub trait NodeEventHandler {

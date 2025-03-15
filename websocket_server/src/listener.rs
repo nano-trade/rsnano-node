@@ -16,9 +16,12 @@ use tokio::{
 use tokio_tungstenite::tungstenite::protocol::{frame::coding::CloseCode, CloseFrame};
 use tracing::{info, warn};
 
-use rsnano_core::{Account, Amount, BlockSideband, SavedBlock, VoteWithWeightInfo};
+use rsnano_core::{Account, Amount, BlockSideband, SavedBlock};
 use rsnano_ledger::Ledger;
-use rsnano_node::{consensus::EndedElection, wallets::Wallets};
+use rsnano_node::{
+    consensus::{EndedElection, VoteSummary},
+    wallets::Wallets,
+};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
@@ -128,7 +131,7 @@ impl WebsocketListener {
         block: &SavedBlock,
         amount: &Amount,
         election_status: &EndedElection,
-        election_votes: &Vec<VoteWithWeightInfo>,
+        election_votes: &Vec<VoteSummary>,
     ) {
         if !self.any_subscriber(Topic::Confirmation) {
             return;
@@ -324,10 +327,10 @@ pub struct JsonVoteSummary {
     pub weight: String,
 }
 
-impl From<&VoteWithWeightInfo> for JsonVoteSummary {
-    fn from(v: &VoteWithWeightInfo) -> Self {
+impl From<&VoteSummary> for JsonVoteSummary {
+    fn from(v: &VoteSummary) -> Self {
         Self {
-            representative: Account::from(v.representative).encode_account(),
+            representative: Account::from(v.voter).encode_account(),
             timestamp: v.timestamp.to_string(),
             hash: v.hash.to_string(),
             weight: v.weight.to_string_dec(),

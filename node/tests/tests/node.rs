@@ -11,7 +11,7 @@ use std::{
 use rsnano_core::{
     utils::UnixMillisTimestamp, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
     PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource,
-    VoteWithWeightInfo, DEV_GENESIS_KEY,
+    DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, ConfirmedSet, LedgerSet, Writer,
@@ -22,7 +22,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::AggregatorRequest,
+    consensus::{AggregatorRequest, VoteSummary},
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
@@ -2058,14 +2058,7 @@ fn rollback_vote_self() {
         // The write guard prevents the block processor from performing the rollback
         let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
-        assert_eq!(
-            0,
-            election
-                .lock()
-                .unwrap()
-                .votes_with_weight(&node.ledger.rep_weights.read())
-                .len()
-        );
+        assert_eq!(0, election.lock().unwrap().votes().len());
         // Vote with key to switch the winner
         node.active.vote_applier.vote(
             &election,
@@ -2074,14 +2067,7 @@ fn rollback_vote_self() {
             &fork.hash(),
             VoteSource::Live,
         );
-        assert_eq!(
-            1,
-            election
-                .lock()
-                .unwrap()
-                .votes_with_weight(&node.ledger.rep_weights.read())
-                .len()
-        );
+        assert_eq!(1, election.lock().unwrap().votes().len());
         // The winner changed
         assert_eq!(election.lock().unwrap().winner().hash(), fork.hash(),);
 
@@ -2115,24 +2101,12 @@ fn rollback_vote_self() {
     }
 
     // A vote is eventually generated from the local representative
-    let is_genesis_vote = |info: &&VoteWithWeightInfo| info.representative == *DEV_GENESIS_PUB_KEY;
+    let is_genesis_vote = |info: &&VoteSummary| info.voter == *DEV_GENESIS_PUB_KEY;
 
-    assert_timely_eq2(
-        || {
-            election
-                .lock()
-                .unwrap()
-                .votes_with_weight(&node.ledger.rep_weights.read())
-                .len()
-        },
-        2,
-    );
-    let votes_with_weight = election
-        .lock()
-        .unwrap()
-        .votes_with_weight(&node.ledger.rep_weights.read());
-    assert_eq!(1, votes_with_weight.iter().filter(is_genesis_vote).count());
-    let vote = votes_with_weight.iter().find(is_genesis_vote).unwrap();
+    assert_timely_eq2(|| election.lock().unwrap().votes().len(), 2);
+    let votes = election.lock().unwrap().votes().clone();
+    assert_eq!(1, votes.values().filter(is_genesis_vote).count());
+    let vote = votes.values().find(is_genesis_vote).unwrap();
     assert_eq!(fork.hash(), vote.hash);
 }
 

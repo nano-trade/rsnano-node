@@ -1,6 +1,6 @@
-use rsnano_core::{Amount, BlockType, SavedBlock, VoteWithWeightInfo};
+use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
-use rsnano_node::consensus::EndedElection;
+use rsnano_node::consensus::{EndedElection, VoteSummary};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
@@ -11,7 +11,7 @@ pub(super) struct ConfirmationMessageFactory<'a> {
     pub block: &'a SavedBlock,
     pub amount: &'a Amount,
     pub election_status: &'a EndedElection,
-    pub election_votes: &'a Vec<VoteWithWeightInfo>,
+    pub election_votes: &'a Vec<VoteSummary>,
 }
 
 impl<'a> ConfirmationMessageFactory<'a> {

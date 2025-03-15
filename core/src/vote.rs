@@ -172,12 +172,3 @@ impl PartialEq for Vote {
 }
 
 impl Eq for Vote {}
-
-#[derive(Clone, Debug)]
-pub struct VoteWithWeightInfo {
-    pub representative: PublicKey,
-    pub time: SystemTime,
-    pub timestamp: UnixMillisTimestamp,
-    pub hash: BlockHash,
-    pub weight: Amount,
-}
