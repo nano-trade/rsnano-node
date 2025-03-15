@@ -5,8 +5,8 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, BlockHash, DescTallyKey, HardenedConstants,
-    MaybeSavedBlock, Networks, PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
+    utils::UnixMillisTimestamp, Amount, BlockHash, DescTallyKey, MaybeSavedBlock, Networks,
+    PublicKey, QualifiedRoot, SavedBlock, VoteWithWeightInfo,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
@@ -83,10 +83,7 @@ impl Election {
     ) -> Self {
         Self {
             qualified_root: block.qualified_root(),
-            votes: HashMap::from([(
-                HardenedConstants::get().not_an_account_key,
-                VoteInfo::new(UnixMillisTimestamp::ZERO, block.hash()),
-            )]),
+            votes: HashMap::new(),
             candidate_blocks: HashMap::from([(
                 block.hash(),
                 MaybeSavedBlock::Saved(block.clone()),
@@ -147,7 +144,7 @@ impl Election {
     }
 
     pub fn add_candidate_block(&mut self, block: impl Into<MaybeSavedBlock>) -> bool {
-        if self.candidate_blocks.len() >= Self::MAX_BLOCKS {
+        if self.has_max_blocks() {
             return false;
         }
         let block = block.into();
@@ -337,10 +334,6 @@ impl Election {
     ) -> Vec<VoteWithWeightInfo> {
         let mut sorted_votes: BTreeMap<DescTallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
         for (&representative, info) in &self.votes {
-            if representative == HardenedConstants::get().not_an_account_key {
-                continue;
-            }
-
             let weight = rep_weights
                 .get(&representative)
                 .cloned()
@@ -383,17 +376,19 @@ impl Election {
                     break;
                 }
             }
-        } else {
+        }
+
+        if block_to_remove.is_zero() {
             let (lowest_tally, lowest_hash) = self.tallies.lowest().unwrap();
             if min_tally > lowest_tally {
                 if lowest_hash != winner_hash {
                     block_to_remove = lowest_hash;
                 } else {
+                    // Avoid removing winner
                     let (second_lowest_tally, second_lowest_hash) =
                         self.tallies.iter().rev().nth(1).unwrap();
 
                     if min_tally > second_lowest_tally {
-                        // Avoid removing winner
                         block_to_remove = second_lowest_hash;
                     }
                 }

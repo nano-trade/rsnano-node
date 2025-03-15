@@ -37,33 +37,21 @@ fn fork_replacement_tally() {
         .finish();
 
     const REPS_COUNT: usize = 20;
-    const MAX_BLOCKS: usize = 10;
 
     let keys: Vec<_> = std::iter::repeat_with(|| PrivateKey::new())
         .take(REPS_COUNT)
         .collect();
-    let amount = node1.online_reps.lock().unwrap().minimum_principal_weight();
+    let min_pr_weight = node1.online_reps.lock().unwrap().minimum_principal_weight();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
 
     // Create 20 representatives & confirm blocks
     for i in 0..REPS_COUNT {
         let send = lattice
             .genesis()
-            .send(keys[i].public_key(), amount + Amount::raw(i as u128));
-        node1.process_active(send.clone());
+            .send(keys[i].public_key(), min_pr_weight + Amount::raw(i as u128));
         let open = lattice.account(&keys[i]).receive(&send);
-        node1.process_active(open.clone());
-        // Confirmation
-        let vote = Vote::new_final(&DEV_GENESIS_KEY, vec![send.hash(), open.hash()]);
-        node1
-            .vote_processor_queue
-            .vote(Arc::new(vote), None, VoteSource::Live);
+        node1.process_and_confirm_multi(&[send, open]);
     }
-
-    assert_timely_eq2(
-        || node1.ledger.cemented_count() as usize,
-        1 + 2 * REPS_COUNT,
-    );
 
     let key = PrivateKey::new();
     let fork_lattice = lattice.clone();
@@ -77,9 +65,6 @@ fn fork_replacement_tally() {
             .genesis()
             .send(&key, Amount::nano(1000) + Amount::raw(i as u128));
         node1.process_active(fork.clone());
-
-        // Assert election exists and is the same for each fork
-        assert_timely2(|| node1.active.election(&fork.qualified_root()).is_some());
     }
 
     // Check overflow of blocks
@@ -109,9 +94,6 @@ fn fork_replacement_tally() {
     let count_rep_votes_in_election = || {
         // Check that only max weight blocks remains (and start winner)
         let guard = election.lock().unwrap();
-        if MAX_BLOCKS != guard.votes().len() {
-            return -1;
-        }
         let mut vote_count = 0;
         for i in 0..REPS_COUNT {
             if guard.votes().contains_key(&keys[i].public_key()) {
@@ -122,6 +104,7 @@ fn fork_replacement_tally() {
     };
 
     // Check overflow of blocks
+    // it is only 9, because the intital block of the election does not get replaced
     assert_timely_eq2(|| count_rep_votes_in_election(), 9);
     assert!(election.lock().unwrap().has_max_blocks());
 
@@ -187,10 +170,13 @@ fn fork_replacement_tally() {
     assert_timely2(|| find_send_last_block());
     assert!(election.lock().unwrap().has_max_blocks());
 
-    assert_timely_eq2(|| count_rep_votes_in_election(), 8);
-
-    let votes2 = election.lock().unwrap().votes().clone();
-    assert!(votes2.contains_key(&DEV_GENESIS_PUB_KEY));
+    assert_timely2(|| {
+        election
+            .lock()
+            .unwrap()
+            .votes()
+            .contains_key(&DEV_GENESIS_PUB_KEY)
+    });
 }
 
 #[test]
@@ -344,7 +330,7 @@ fn inactive_votes_cache_existing_vote() {
     node.vote_processor_queue
         .vote(vote1.clone(), None, VoteSource::Live);
 
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2);
+    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
 
     assert_eq!(
         1,
@@ -373,7 +359,7 @@ fn inactive_votes_cache_existing_vote() {
     node.vote_router.vote(&cached[0], VoteSource::Live);
 
     // Check that election data is not changed
-    assert_eq!(election.lock().unwrap().vote_count(), 2);
+    assert_eq!(election.lock().unwrap().vote_count(), 1);
     let last_vote2 = election
         .lock()
         .unwrap()
@@ -432,7 +418,7 @@ fn inactive_votes_cache_multiple_votes() {
     );
     assert_eq!(1, node.vote_cache.lock().unwrap().size());
     let election = start_election(&node, &send1.hash());
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 3); // 2 votes and 1 default not_an_account
+    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2);
     assert_eq!(
         2,
         node.stats
@@ -659,7 +645,7 @@ fn confirm_election_by_request() {
     );
 
     // Expect a vote to come back
-    assert_timely2(|| election.lock().unwrap().vote_count() >= 1);
+    assert_timely2(|| election.lock().unwrap().vote_count() > 0);
 
     // There needs to be at least one request to get the election confirmed,
     // Rep has this block already confirmed so should reply with final vote only

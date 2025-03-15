@@ -440,7 +440,7 @@ fn confirm_quorum() {
 
     let election = node1.active.election(&send1.qualified_root()).unwrap();
     assert!(!election.lock().unwrap().is_confirmed());
-    assert_eq!(1, election.lock().unwrap().votes().len());
+    assert_eq!(0, election.lock().unwrap().votes().len());
     assert_eq!(Amount::zero(), node1.balance(&DEV_GENESIS_ACCOUNT));
 }
 
@@ -673,7 +673,7 @@ fn rep_self_vote() {
     let election1 = start_election(&node0, &block0.hash());
 
     // Wait until representatives are activated & make vote
-    assert_timely_eq2(|| election1.lock().unwrap().vote_count(), 3);
+    assert_timely_eq2(|| election1.lock().unwrap().vote_count(), 2);
 
     // Election should receive votes from representatives hosted on the same node
     let rep_votes = election1.lock().unwrap().votes().clone();
@@ -818,7 +818,7 @@ fn fork_publish() {
     assert_timely2(|| node1.active.is_active(&send2));
     let election = node1.active.election(&send1.qualified_root()).unwrap();
     // Wait until the genesis rep activated & makes vote
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2);
+    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
     let votes1 = election.lock().unwrap().votes().clone();
     let existing1 = votes1.get(&DEV_GENESIS_PUB_KEY).unwrap();
     assert_eq!(send1.hash(), existing1.hash);
@@ -2389,7 +2389,7 @@ fn node_receive_quorum() {
 
     let election = node1.active.election(&send.qualified_root()).unwrap();
     assert!(!election.lock().unwrap().is_confirmed());
-    assert_eq!(1, election.lock().unwrap().votes().len());
+    assert_eq!(0, election.lock().unwrap().votes().len());
 
     let node2 = system.make_disconnected_node();
     let wallet_id2 = node2.wallets.wallet_ids()[0];
@@ -2557,7 +2557,7 @@ fn fork_open_flip() {
     node1.process_active(open2.clone().into());
     node2.process_active(open1.clone().into());
 
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2); // one more than expected due to elections having dummy votes
+    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
 
     // Node2 should eventually settle on open1
     assert_timely_msg(
@@ -3035,12 +3035,12 @@ fn fork_keep() {
             *DEV_GENESIS_HASH,
         ))
         .unwrap();
-    assert_eq!(election1.lock().unwrap().vote_count(), 1);
+    assert_eq!(election1.lock().unwrap().vote_count(), 0);
     assert!(node1.block_exists(&send1.hash()));
     assert!(node2.block_exists(&send1.hash()));
     // Wait until the genesis rep makes a vote
     assert_timely(Duration::from_secs(60), || {
-        election1.lock().unwrap().vote_count() != 1
+        election1.lock().unwrap().vote_count() != 0
     });
     // The vote should be in agreement with what we already have.
     let guard = election1.lock().unwrap();

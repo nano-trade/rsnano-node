@@ -33,7 +33,7 @@ fn confirmation_info() {
         .unwrap();
 
     assert_eq!(result.announcements, 0.into());
-    assert_eq!(result.voters, 1.into());
+    assert_eq!(result.voters, 0.into());
     assert_eq!(result.last_winner, send.hash());
 
     let blocks = result.blocks;
@@ -41,7 +41,7 @@ fn confirmation_info() {
 
     let block = blocks.get(&send.hash()).unwrap();
     let representatives = block.representatives.clone().unwrap();
-    assert_eq!(representatives.len(), 1);
+    assert_eq!(representatives.len(), 0);
 
     assert_eq!(result.total_tally, Amount::zero());
 

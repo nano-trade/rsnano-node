@@ -384,7 +384,7 @@ impl ActiveElections {
         }
 
         if election.has_max_blocks() && !election.contains_block(&fork.hash()) {
-            // Try to remove a block with lower tally, so that the fork can be added
+            // Try to remove a block with a lower tally, so that the fork can be added
             let fork_tally = self.get_cached_tally(&fork.hash());
             let removed = election.remove_tally_below(fork_tally);
             if let Some(removed) = removed {

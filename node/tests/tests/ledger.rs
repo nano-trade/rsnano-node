@@ -36,7 +36,7 @@ mod votes {
         });
 
         let election1 = node1.active.election(&send1.qualified_root()).unwrap();
-        assert_eq!(election1.lock().unwrap().vote_count(), 1);
+        assert_eq!(election1.lock().unwrap().vote_count(), 0);
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN,
@@ -70,7 +70,7 @@ mod votes {
             &VoteCode::Ignored
         );
 
-        assert_eq!(election1.lock().unwrap().vote_count(), 2);
+        assert_eq!(election1.lock().unwrap().vote_count(), 1);
         assert_eq!(
             election1
                 .lock()
@@ -191,7 +191,7 @@ mod votes {
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
         let votes = election1.lock().unwrap().votes().clone();
-        assert_eq!(votes.len(), 2);
+        assert_eq!(votes.len(), 1);
         assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
         assert_eq!(votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash, send2.hash());
     }
