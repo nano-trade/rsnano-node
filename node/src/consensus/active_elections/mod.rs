@@ -271,7 +271,7 @@ impl ActiveElections {
     }
 
     pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
-        election.lock().unwrap().update_status_to_confirmed();
+        election.lock().unwrap().force_confirm();
         self.vote_applier.election_confirmed(election.clone());
     }
 
@@ -493,13 +493,11 @@ impl ActiveElections {
         (election_result, votes)
     }
 
-    fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, hash: &BlockHash) {
+    fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, cemented_hash: &BlockHash) {
         let mut election = election_mutex.lock().unwrap();
         let winner_hash = election.winner().hash();
-        if winner_hash == *hash {
-            if !election.is_confirmed() {
-                election.update_status_to_confirmed();
-
+        if winner_hash == *cemented_hash {
+            if election.force_confirm() {
                 self.recently_confirmed
                     .write()
                     .unwrap()

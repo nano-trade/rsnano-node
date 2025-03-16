@@ -32,7 +32,7 @@ impl ActiveElectionsDriver {
     ) {
         if election.should_broadcast_winner_block() {
             if solicitor.broadcast_winner_block(election).is_ok() {
-                let is_initial = election.was_winner_block_broadcasted();
+                let is_initial = election.winner_block_broadcasted();
 
                 self.stats.inc(
                     StatType::Election,

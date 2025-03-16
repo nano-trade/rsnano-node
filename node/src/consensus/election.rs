@@ -267,7 +267,7 @@ impl Election {
     }
 
     /// Returns true, if it was the initial broadcast
-    pub fn was_winner_block_broadcasted(&mut self) -> bool {
+    pub fn winner_block_broadcasted(&mut self) -> bool {
         let is_initial_broadcast = self.last_broadcasted_block.is_zero();
         self.last_block_broadcast = Instant::now();
         self.last_broadcasted_block = self.winner.hash();
@@ -298,11 +298,16 @@ impl Election {
         }
     }
 
-    pub fn update_status_to_confirmed(&mut self) {
-        self.state = ElectionState::Confirmed;
+    pub fn force_confirm(&mut self) -> bool {
+        if !self.state.has_ended() {
+            self.state = ElectionState::Confirmed;
+            true
+        } else {
+            false
+        }
     }
 
-    pub fn time_to_live(&self) -> Duration {
+    fn time_to_live(&self) -> Duration {
         match self.behavior {
             ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
             ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
@@ -424,7 +429,7 @@ impl Election {
         }
 
         if self.final_tally >= quorum_delta {
-            self.update_status_to_confirmed();
+            self.state = ElectionState::Confirmed;
         }
     }
 
