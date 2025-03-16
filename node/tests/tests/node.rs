@@ -3013,9 +3013,9 @@ fn fork_keep() {
     });
     // The vote should be in agreement with what we already have.
     let guard = election1.lock().unwrap();
-    let (winner_tally, winner_hash) = guard.tallies().winner().unwrap();
-    assert_eq!(winner_hash, send1.hash());
-    assert_eq!(winner_tally, Amount::MAX - Amount::raw(100));
+    let (winner_hash, winner_tally) = guard.tallies().winner().unwrap();
+    assert_eq!(*winner_hash, send1.hash());
+    assert_eq!(*winner_tally, Amount::MAX - Amount::raw(100));
     assert!(node1.block_exists(&send1.hash()));
     assert!(node2.block_exists(&send1.hash()));
 }

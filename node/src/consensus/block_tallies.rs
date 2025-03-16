@@ -1,14 +1,13 @@
-use std::collections::{BTreeMap, HashMap};
+use rsnano_core::{Amount, BlockHash};
 
-use rsnano_core::{Amount, BlockHash, DescTallyKey};
-
-use super::VoteSummary;
+use super::{Election, VoteSummary};
 
 /// Counts the tally per block in an election.
 /// It is sorted by descending tally
 #[derive(Default)]
 pub struct BlockTallies {
-    tallies: BTreeMap<DescTallyKey, BlockHash>,
+    tallies: [(BlockHash, Amount); Election::MAX_BLOCKS],
+    len: usize,
 }
 
 impl BlockTallies {
@@ -17,44 +16,33 @@ impl BlockTallies {
     }
 
     pub fn len(&self) -> usize {
-        self.tallies.len()
+        self.len
     }
 
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (Amount, BlockHash)> + use<'_> {
-        self.tallies.iter().map(convert_entry)
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &'_ (BlockHash, Amount)> {
+        self.tallies[..self.len()].iter()
     }
 
     pub fn tallies(&self) -> impl Iterator<Item = Amount> + use<'_> {
-        self.tallies.keys().map(|k| k.amount())
+        self.iter().map(|(_, tally)| *tally)
     }
 
-    pub fn winner(&self) -> Option<(Amount, BlockHash)> {
-        self.tallies.first_key_value().map(convert_entry)
+    pub fn winner(&self) -> Option<&(BlockHash, Amount)> {
+        self.iter().next()
     }
 
-    pub fn lowest(&self) -> Option<(Amount, BlockHash)> {
-        self.tallies.last_key_value().map(convert_entry)
+    pub fn lowest(&self) -> Option<&(BlockHash, Amount)> {
+        self.iter().last()
     }
 
     pub fn get(&self, hash: &BlockHash) -> Amount {
-        self.tallies
-            .iter()
-            .find_map(|(tally, h)| {
-                if h == hash {
-                    Some(tally.amount())
-                } else {
-                    None
-                }
-            })
+        self.iter()
+            .find_map(|(h, tally)| if h == hash { Some(*tally) } else { None })
             .unwrap_or_default()
     }
 
     pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.tallies.iter().any(|(_, h)| h == hash)
-    }
-
-    pub fn insert(&mut self, tally: Amount, hash: BlockHash) {
-        self.tallies.insert(DescTallyKey(tally), hash);
+        self.iter().any(|(h, _)| h == hash)
     }
 
     pub fn sum(&self) -> Amount {
@@ -69,19 +57,34 @@ impl BlockTallies {
     }
 
     pub fn calculate<'a, 'b>(&'a mut self, votes: impl IntoIterator<Item = &'b VoteSummary>) {
-        self.tallies.clear();
+        self.len = 0;
 
-        let mut block_tallies: HashMap<BlockHash, Amount> = HashMap::new();
         for vote in votes.into_iter() {
-            *block_tallies.entry(vote.hash).or_default() += vote.weight;
+            if let Some((_, tally)) = self.tallies[..self.len]
+                .iter_mut()
+                .find(|(hash, _)| *hash == vote.hash)
+            {
+                *tally += vote.weight;
+            } else {
+                self.insert(vote.hash, vote.weight);
+            }
         }
 
-        for (hash, weight) in block_tallies {
-            self.insert(weight, hash);
-        }
+        self.sort_by_descending_tally();
     }
-}
 
-fn convert_entry((tally, hash): (&DescTallyKey, &BlockHash)) -> (Amount, BlockHash) {
-    (tally.amount(), *hash)
+    fn insert(&mut self, hash: BlockHash, tally: Amount) {
+        if self.len == Election::MAX_BLOCKS {
+            panic!(
+                "Tallies can only be counted for {} blocks",
+                Election::MAX_BLOCKS
+            );
+        }
+        self.tallies[self.len] = (hash, tally);
+        self.len += 1;
+    }
+
+    fn sort_by_descending_tally(&mut self) {
+        self.tallies[..self.len].sort_by(|(_, left), (_, right)| right.cmp(left));
+    }
 }

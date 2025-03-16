@@ -357,17 +357,17 @@ impl Election {
         }
 
         if block_to_remove.is_zero() {
-            let (lowest_tally, lowest_hash) = self.tallies.lowest().unwrap();
-            if min_tally > lowest_tally {
-                if lowest_hash != winner_hash {
-                    block_to_remove = lowest_hash;
+            let (lowest_hash, lowest_tally) = self.tallies.lowest().unwrap();
+            if min_tally > *lowest_tally {
+                if *lowest_hash != winner_hash {
+                    block_to_remove = *lowest_hash;
                 } else {
                     // Avoid removing winner
-                    let (second_lowest_tally, second_lowest_hash) =
+                    let (second_lowest_hash, second_lowest_tally) =
                         self.tallies.iter().rev().nth(1).unwrap();
 
-                    if min_tally > second_lowest_tally {
-                        block_to_remove = second_lowest_hash;
+                    if min_tally > *second_lowest_tally {
+                        block_to_remove = *second_lowest_hash;
                     }
                 }
             }
@@ -423,7 +423,7 @@ impl Election {
         }
 
         let old_winner = self.winner.hash();
-        let new_winner = self.tallies.winner().map(|(_, h)| h).unwrap_or(old_winner);
+        let new_winner = self.tallies.winner().map(|(h, _)| *h).unwrap_or(old_winner);
         if new_winner != old_winner {
             Some(new_winner)
         } else {
