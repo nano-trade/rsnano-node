@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rsnano_core::{Amount, BlockHash, DescTallyKey};
+
+use super::VoteSummary;
 
 /// Counts the tally per block in an election.
 /// It is sorted by descending tally
@@ -34,14 +36,17 @@ impl BlockTallies {
         self.tallies.last_key_value().map(convert_entry)
     }
 
-    pub fn get(&self, hash: &BlockHash) -> Option<Amount> {
-        self.tallies.iter().find_map(|(tally, h)| {
-            if h == hash {
-                Some(tally.amount())
-            } else {
-                None
-            }
-        })
+    pub fn get(&self, hash: &BlockHash) -> Amount {
+        self.tallies
+            .iter()
+            .find_map(|(tally, h)| {
+                if h == hash {
+                    Some(tally.amount())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default()
     }
 
     pub fn contains(&self, hash: &BlockHash) -> bool {
@@ -50,10 +55,6 @@ impl BlockTallies {
 
     pub fn insert(&mut self, tally: Amount, hash: BlockHash) {
         self.tallies.insert(DescTallyKey(tally), hash);
-    }
-
-    pub fn clear(&mut self) {
-        self.tallies.clear();
     }
 
     pub fn sum(&self) -> Amount {
@@ -65,6 +66,19 @@ impl BlockTallies {
         let first = it.next().unwrap_or_default();
         let second = it.next().unwrap_or_default();
         first - second >= quorum_delta
+    }
+
+    pub fn calculate<'a, 'b>(&'a mut self, votes: impl IntoIterator<Item = &'b VoteSummary>) {
+        self.tallies.clear();
+
+        let mut block_tallies: HashMap<BlockHash, Amount> = HashMap::new();
+        for vote in votes.into_iter() {
+            *block_tallies.entry(vote.hash).or_default() += vote.weight;
+        }
+
+        for (hash, weight) in block_tallies {
+            self.insert(weight, hash);
+        }
     }
 }
 

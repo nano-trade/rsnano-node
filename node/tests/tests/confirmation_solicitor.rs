@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use rsnano_core::{utils::UnixMillisTimestamp, Account, Amount, BlockHash, PublicKey};
+use rsnano_core::{
+    utils::UnixMillisTimestamp, Account, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
+};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
@@ -130,10 +132,12 @@ fn different_hashes() {
         node2.steady_clock.now(),
     );
     // Add a vote for something else, not the winner
+    let another_block = Block::new_test_instance();
+    election.add_candidate_block(MaybeSavedBlock::Unsaved(another_block.clone()));
     election.add_vote(
         *DEV_GENESIS_PUB_KEY,
         UnixMillisTimestamp::new(1),
-        BlockHash::from(1),
+        another_block.hash(),
     );
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);
@@ -195,8 +199,14 @@ fn bypass_max_requests_cap() {
         node2.steady_clock.now(),
     );
     // Add a vote for something else, not the winner
+    let another_block = Block::new_test_instance();
+    election.add_candidate_block(MaybeSavedBlock::Unsaved(another_block.clone()));
     for rep in &representatives {
-        election.add_vote(rep.rep_key, UnixMillisTimestamp::new(1), BlockHash::from(1));
+        election.add_vote(
+            rep.rep_key,
+            UnixMillisTimestamp::new(1),
+            another_block.hash(),
+        );
     }
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);

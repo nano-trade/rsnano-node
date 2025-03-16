@@ -455,10 +455,11 @@ impl ActiveElections {
         // Check if the currently cemented block was part of an election that triggered the confirmation
         if let Some(source_election) = source_election {
             let election = source_election.lock().unwrap();
+            // TODO compare winner hash instead!
             if *election.qualified_root() == block.qualified_root() {
                 election_result.winner = election.winner().clone();
-                election_result.tally = election.tally();
-                election_result.final_tally = election.final_tally();
+                election_result.tally = election.winner_tally();
+                election_result.final_tally = election.winner_final_tally();
                 election_result.confirmation_request_count =
                     election.confirmation_request_count() as u32;
                 election_result.block_count = election.block_count() as u32;

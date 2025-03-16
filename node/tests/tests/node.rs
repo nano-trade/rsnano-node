@@ -791,12 +791,7 @@ fn fork_multi_flip() {
     assert_eq!(send1.hash(), winner);
     assert_eq!(
         Amount::MAX - Amount::raw(100),
-        election
-            .lock()
-            .unwrap()
-            .tallies()
-            .get(&send1.hash())
-            .unwrap()
+        election.lock().unwrap().tallies().get(&send1.hash())
     );
 }
 
@@ -2542,7 +2537,7 @@ fn fork_open_flip() {
     assert_timely2(|| node1.block_confirmed(&open1.hash()));
     let el = election.lock().unwrap();
     assert_eq!(open1.hash(), el.winner().hash());
-    assert_eq!(Amount::MAX - Amount::raw(1), el.tally());
+    assert_eq!(Amount::MAX - Amount::raw(1), el.winner_tally());
 
     // check the correct blocks are in the ledgers
     assert!(node1.block_exists(&open1.hash()));

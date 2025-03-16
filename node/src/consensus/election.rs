@@ -51,11 +51,12 @@ pub struct Election {
     state: ElectionState,
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     votes: HashMap<PublicKey, VoteSummary>,
-    tally: Amount,
-    final_tally: Amount,
+    winner_tally: Amount,
+    winner_final_tally: Amount,
 
     /// All tallies (non-final or final)
     tallies: BlockTallies,
+    final_tallies: BlockTallies,
 
     behavior: ElectionBehavior,
     has_quorum: bool,
@@ -90,8 +91,9 @@ impl Election {
             )]),
             state: ElectionState::Passive,
             tallies: BlockTallies::new(),
-            tally: Amount::zero(),
-            final_tally: Amount::zero(),
+            final_tallies: BlockTallies::new(),
+            winner_tally: Amount::zero(),
+            winner_final_tally: Amount::zero(),
             last_vote_generated: None,
             last_broadcasted_block: BlockHash::zero(),
             behavior,
@@ -156,16 +158,17 @@ impl Election {
     }
 
     pub fn add_vote(&mut self, voter: PublicKey, timestamp: UnixMillisTimestamp, hash: BlockHash) {
+        debug_assert!(self.candidate_blocks.contains_key(&hash));
         self.votes
             .insert(voter, VoteSummary::new(voter, timestamp, hash));
     }
 
-    pub fn tally(&self) -> Amount {
-        self.tally
+    pub fn winner_tally(&self) -> Amount {
+        self.winner_tally
     }
 
-    pub fn final_tally(&self) -> Amount {
-        self.final_tally
+    pub fn winner_final_tally(&self) -> Amount {
+        self.winner_final_tally
     }
 
     /// Tallies for the candidate blocks, ordered by descending tally
@@ -380,55 +383,72 @@ impl Election {
     }
 
     /// Calculate tallies and try to confirm this election
-    pub fn try_confirm(&mut self, rep_weights: &HashMap<PublicKey, Amount>, quorum_delta: Amount) {
-        // TODO early return if confirmed
-
-        let old_winner_hash = self.winner().hash();
-
-        let mut block_tallies: HashMap<BlockHash, Amount> = HashMap::new();
-        let mut final_tallies: HashMap<BlockHash, Amount> = HashMap::new();
-
-        for (account, info) in self.votes.iter_mut() {
-            info.weight = rep_weights.get(account).cloned().unwrap_or_default();
-            *block_tallies.entry(info.hash).or_default() += info.weight;
-            if info.timestamp == UnixMillisTimestamp::MAX {
-                *final_tallies.entry(info.hash).or_default() += info.weight;
-            }
+    pub fn update_tallies(
+        &mut self,
+        rep_weights: &HashMap<PublicKey, Amount>,
+        quorum_delta: Amount,
+    ) {
+        if self.state.has_ended() {
+            return;
         }
 
-        self.tallies.clear();
-        for (hash, weight) in &block_tallies {
-            if let Some(block) = self.candidate_blocks.get(hash) {
-                self.tallies.insert(*weight, block.hash());
-            }
+        self.update_vote_weights(rep_weights);
+        self.recalculate_tallies();
+
+        if let Some(new_winner) = self.check_new_winner(quorum_delta) {
+            self.change_winner_to(&new_winner);
         }
 
-        let (tally, new_winner_hash) = self
-            .tallies
-            .winner()
-            .unwrap_or((Amount::zero(), old_winner_hash));
+        self.update_winner_tally();
+        self.try_set_quorum(quorum_delta);
+        self.try_confirm(quorum_delta);
+    }
 
-        self.tally = tally;
+    fn update_vote_weights(&mut self, rep_weights: &HashMap<PublicKey, Amount>) {
+        for vote in self.votes.values_mut() {
+            vote.weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
+        }
+    }
 
-        // Calculate final votes sum for winner
-        if let Some(final_tally) = final_tallies.get(&new_winner_hash) {
-            self.final_tally = *final_tally;
+    fn recalculate_tallies(&mut self) {
+        self.tallies.calculate(self.votes.values());
+        self.final_tallies
+            .calculate(self.votes.values().filter(|v| v.is_final_vote()));
+    }
+
+    fn check_new_winner(&self, quorum_delta: Amount) -> Option<BlockHash> {
+        if self.tallies.sum() < quorum_delta {
+            // The winner can only be changed after a super majority of votes has been observed!
+            return None;
         }
 
-        if self.tallies.sum() >= quorum_delta && new_winner_hash != old_winner_hash {
-            let block = self
-                .candidate_blocks()
-                .get(&new_winner_hash)
-                .unwrap()
-                .clone();
-            self.winner = block;
+        let old_winner = self.winner.hash();
+        let new_winner = self.tallies.winner().map(|(_, h)| h).unwrap_or(old_winner);
+        if new_winner != old_winner {
+            Some(new_winner)
+        } else {
+            None
         }
+    }
 
+    fn change_winner_to(&mut self, new_winner: &BlockHash) {
+        self.winner = self.candidate_blocks().get(&new_winner).unwrap().clone();
+    }
+
+    fn update_winner_tally(&mut self) {
+        let winner_hash = self.winner.hash();
+        self.winner_tally = self.tallies.get(&winner_hash);
+        self.winner_final_tally = self.final_tallies.get(&winner_hash);
+    }
+
+    fn try_set_quorum(&mut self, quorum_delta: Amount) {
         if self.tallies.check_quorum(quorum_delta) {
             self.has_quorum = true;
         }
+    }
 
-        if self.final_tally >= quorum_delta {
+    fn try_confirm(&mut self, quorum_delta: Amount) {
+        if self.winner_final_tally >= quorum_delta {
             self.state = ElectionState::Confirmed;
         }
     }
@@ -473,6 +493,10 @@ impl VoteSummary {
             hash,
             weight: Amount::zero(),
         }
+    }
+
+    pub fn is_final_vote(&self) -> bool {
+        self.timestamp == UnixMillisTimestamp::MAX
     }
 }
 

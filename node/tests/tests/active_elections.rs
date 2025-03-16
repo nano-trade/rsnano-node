@@ -250,7 +250,7 @@ fn non_final() {
     assert_timely_eq2(
         || {
             let mut e = election.lock().unwrap();
-            e.try_confirm(&node.ledger.rep_weights.read(), quorum_delta);
+            e.update_tallies(&node.ledger.rep_weights.read(), quorum_delta);
             e.tallies().winner().unwrap().0
         },
         Amount::MAX - Amount::raw(100),
@@ -1254,15 +1254,15 @@ fn confirm_new() {
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let send = lattice.genesis().send(Account::from(1), 100);
     node1.process_active(send.clone());
-    assert_timely_eq(Duration::from_secs(5), || node1.active.len(), 1);
+    assert_timely_eq2(|| node1.active.len(), 1);
     let node2 = system.make_node();
     // Add key to node2
     node2.insert_into_wallet(&DEV_GENESIS_KEY);
     // Let node2 know about the block
-    assert_timely(Duration::from_secs(5), || node2.block_exists(&send.hash()));
+    assert_timely2(|| node2.block_exists(&send.hash()));
     // Wait confirmation
-    assert_timely_eq(Duration::from_secs(5), || node1.ledger.cemented_count(), 2);
-    assert_timely_eq(Duration::from_secs(5), || node2.ledger.cemented_count(), 2);
+    assert_timely_eq2(|| node1.ledger.cemented_count(), 2);
+    assert_timely_eq2(|| node2.ledger.cemented_count(), 2);
 }
 
 #[test]

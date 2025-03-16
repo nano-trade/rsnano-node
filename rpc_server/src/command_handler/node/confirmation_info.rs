@@ -25,12 +25,12 @@ impl RpcCommandHandler {
         let announcements = election.confirmation_request_count();
         let voters = election.votes().len();
         let last_winner = election.winner().hash();
-        let final_tally = election.final_tally();
+        let final_tally = election.winner_final_tally();
         let mut total_tally = Amount::zero();
         let mut blocks = IndexMap::new();
 
         for block in election.candidate_blocks().values() {
-            let tally = election.tallies().get(&block.hash()).unwrap_or_default();
+            let tally = election.tallies().get(&block.hash());
 
             total_tally += tally;
 

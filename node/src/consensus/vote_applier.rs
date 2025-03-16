@@ -180,7 +180,7 @@ impl VoteApplier {
         let old_winner = election.winner().hash();
         let old_final = election.is_final();
 
-        election.try_confirm(&self.ledger.rep_weights.read(), quorum_delta);
+        election.update_tallies(&self.ledger.rep_weights.read(), quorum_delta);
 
         let winner_changed = election.winner().hash() != old_winner;
         if winner_changed {
