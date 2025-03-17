@@ -1409,7 +1409,7 @@ fn search_receivable() {
         .unwrap();
 
     // Now confirm the election
-    node.active.force_confirm(&election.unwrap());
+    node.vote_applier.force_confirm(&election.unwrap());
     assert_timely(Duration::from_secs(5), || {
         node.block_confirmed(&send.hash()) && node.active.len() == 0
     });

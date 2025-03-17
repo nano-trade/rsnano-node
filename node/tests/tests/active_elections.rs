@@ -481,7 +481,7 @@ fn inactive_votes_cache_election_start() {
         .vote(vote2, None, VoteSource::Live);
     // Only election for send1 should start, other blocks are missing dependencies and don't have enough final weight
     assert_timely_eq2(|| node.active.len(), 1);
-    assert!(node.vote_router.lock().unwrap().active(&send1.hash()));
+    assert!(node.vote_router.lock().unwrap().is_active(&send1.hash()));
 
     // Confirm elections with weight quorum
     let vote0 = Arc::new(Vote::new_final(
@@ -556,7 +556,7 @@ fn republish_winner() {
     let fork = fork_lattice.genesis().send(&key, Amount::nano(2000));
     node1.process_active(fork.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1.vote_router.lock().unwrap().active(&fork.hash())
+        node1.vote_router.lock().unwrap().is_active(&fork.hash())
     });
 
     let election = node1.active.election(&fork.qualified_root()).unwrap();
@@ -758,7 +758,7 @@ fn bound_election_winners() {
                 .unwrap()
                 .election(&block.hash())
                 .unwrap();
-            node.active.force_confirm(&election);
+            node.vote_applier.force_confirm(&election);
         }
 
         assert_timely2(|| node.active.vacancy() < 0);
@@ -850,7 +850,7 @@ fn dropped_cleanup() {
     assert!(node.network_filter.apply(&block_bytes).1);
 
     let election = start_election(&node, &hash);
-    node.active.force_confirm(&election);
+    node.vote_applier.force_confirm(&election);
     assert_timely2(|| election.lock().unwrap().is_confirmed());
     node.active.erase(&qual_root);
 
@@ -1035,14 +1035,14 @@ fn activate_account_chain() {
     let election1 = start_election(&node, &send.hash());
     assert_eq!(1, node.active.len());
     assert!(election1.lock().unwrap().contains_block(&send.hash()));
-    node.active.force_confirm(&election1);
+    node.vote_applier.force_confirm(&election1);
     assert_timely2(|| node.block_confirmed(&send.hash()));
 
     // On cementing, the next election is started
     assert_timely2(|| node.active.is_root_active(&send2.qualified_root()));
     let election3 = node.active.election(&send2.qualified_root()).unwrap();
     assert!(election3.lock().unwrap().contains_block(&send2.hash()));
-    node.active.force_confirm(&election3);
+    node.vote_applier.force_confirm(&election3);
     assert_timely2(|| node.block_confirmed(&send2.hash()));
 
     // On cementing, the next election is started
@@ -1052,13 +1052,13 @@ fn activate_account_chain() {
     assert!(election4.lock().unwrap().contains_block(&send3.hash()));
     let election5 = node.active.election(&open.qualified_root()).unwrap();
     assert!(election5.lock().unwrap().contains_block(&open.hash()));
-    node.active.force_confirm(&election5);
+    node.vote_applier.force_confirm(&election5);
     assert_timely2(|| node.block_confirmed(&open.hash()));
 
     // Until send3 is also confirmed, the receive block should not activate
     sleep(Duration::from_millis(200));
     assert!(!node.active.is_root_active(&receive.qualified_root()));
-    node.active.force_confirm(&election4);
+    node.vote_applier.force_confirm(&election4);
     assert_timely2(|| node.block_confirmed(&send3.hash()));
     assert_timely2(|| node.active.is_root_active(&receive.qualified_root())); // Destination account activated
 }
@@ -1297,7 +1297,7 @@ fn active_inactive() {
     node.process_multi(&[send.clone(), send2.clone(), open]);
 
     let election = start_election(&node, &send2.hash());
-    node.active.force_confirm(&election);
+    node.vote_applier.force_confirm(&election);
 
     assert_timely(Duration::from_secs(5), || {
         !node.confirming_set.contains(&send2.hash())

@@ -244,7 +244,7 @@ mod election_scheduler {
         assert!(node.active.election(&block2.qualified_root()).is_none());
 
         // Election confirmed, next in queue should begin
-        node.active.force_confirm(&election.unwrap());
+        node.vote_applier.force_confirm(&election.unwrap());
         assert_timely2(|| node.active.election(&block2.qualified_root()).is_some());
         assert!(node.election_schedulers.priority.is_empty());
     }
@@ -295,7 +295,7 @@ mod election_scheduler {
 
         // Wait for optimistic election to start for last block
         let block = blocks.last().unwrap();
-        assert_timely2(|| node.vote_router.lock().unwrap().active(&block.hash()));
+        assert_timely2(|| node.vote_router.lock().unwrap().is_active(&block.hash()));
         let election = node.active.election(&block.qualified_root()).unwrap();
         assert_eq!(
             election.lock().unwrap().behavior(),

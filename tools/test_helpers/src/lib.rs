@@ -430,7 +430,7 @@ pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {
     for hash in hashes {
         let election = start_election(node, hash);
         if forced {
-            node.active.force_confirm(&election);
+            node.vote_applier.force_confirm(&election);
         }
     }
 }

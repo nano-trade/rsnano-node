@@ -16,7 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     election_schedulers::ElectionSchedulers, CementingElectionsCache, Election, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators, VoteRouter, VoteRouterEvent,
+    RecentlyConfirmedCache, VoteGenerators, VoteRouter,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -26,29 +26,70 @@ use crate::{
     wallets::Wallets,
 };
 
-pub struct VoteApplier2 {
-    vote_router: Arc<Mutex<VoteRouter>>,
-    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    vote_applier: Arc<VoteApplier>,
-    event_senders: RwLock<Vec<SyncSender<VoteRouterEvent>>>,
+pub enum VoteRouterEvent {
+    VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
 }
 
-impl VoteApplier2 {
-    pub fn new(
+/// Applies a vote to an election
+pub struct VoteApplier {
+    vote_router: Arc<Mutex<VoteRouter>>,
+    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
+    event_senders: RwLock<Vec<SyncSender<VoteRouterEvent>>>,
+    ledger: Arc<Ledger>,
+    network_params: NetworkParams,
+    online_reps: Arc<Mutex<OnlineReps>>,
+    stats: Arc<Stats>,
+    vote_generators: Arc<VoteGenerators>,
+    block_processor: Arc<BlockProcessor>,
+    history: Arc<LocalVoteHistory>,
+    wallets: Arc<Wallets>,
+    confirming_set: Arc<ConfirmingSet>,
+    election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
+    clock: Arc<SteadyClock>,
+    cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
+}
+
+impl VoteApplier {
+    pub(crate) fn new(
         vote_router: Arc<Mutex<VoteRouter>>,
+        ledger: Arc<Ledger>,
+        network_params: NetworkParams,
+        online_reps: Arc<Mutex<OnlineReps>>,
+        stats: Arc<Stats>,
+        vote_generators: Arc<VoteGenerators>,
+        block_processor: Arc<BlockProcessor>,
+        history: Arc<LocalVoteHistory>,
+        wallets: Arc<Wallets>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        vote_applier: Arc<VoteApplier>,
+        confirming_set: Arc<ConfirmingSet>,
+        clock: Arc<SteadyClock>,
+        cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
     ) -> Self {
         Self {
             vote_router,
             recently_confirmed,
-            vote_applier,
             event_senders: RwLock::new(Vec::new()),
+            ledger,
+            network_params,
+            online_reps,
+            stats,
+            vote_generators,
+            block_processor,
+            history,
+            wallets,
+            confirming_set,
+            election_schedulers: RwLock::new(None),
+            clock,
+            cementing_elections_cache,
         }
     }
 
     pub fn add_event_sink(&self, sink: SyncSender<VoteRouterEvent>) {
         self.event_senders.write().unwrap().push(sink);
+    }
+
+    pub(crate) fn set_election_schedulers(&self, schedulers: &Arc<ElectionSchedulers>) {
+        *self.election_schedulers.write().unwrap() = Some(Arc::downgrade(&schedulers));
     }
 
     pub fn stop(&self) {
@@ -105,7 +146,7 @@ impl VoteApplier2 {
         }
 
         for (block_hash, election) in process {
-            let vote_result = self.vote_applier.vote(
+            let vote_result = self.apply_vote(
                 &election,
                 &vote.voter,
                 vote.timestamp(),
@@ -120,78 +161,12 @@ impl VoteApplier2 {
         results
     }
 
-    fn notify_vote_processed(
-        &self,
-        vote: &Arc<Vote>,
-        source: VoteSource,
-        results: &HashMap<BlockHash, VoteCode>,
-    ) {
-        for sender in self.event_senders.read().unwrap().iter() {
-            sender
-                .send(VoteRouterEvent::VoteProcessed(
-                    vote.clone(),
-                    source,
-                    results.clone(),
-                ))
-                .unwrap();
-        }
-    }
-}
-
-/// Applies a vote to an election
-pub struct VoteApplier {
-    ledger: Arc<Ledger>,
-    network_params: NetworkParams,
-    online_reps: Arc<Mutex<OnlineReps>>,
-    stats: Arc<Stats>,
-    vote_generators: Arc<VoteGenerators>,
-    block_processor: Arc<BlockProcessor>,
-    history: Arc<LocalVoteHistory>,
-    wallets: Arc<Wallets>,
-    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    confirming_set: Arc<ConfirmingSet>,
-    election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
-    clock: Arc<SteadyClock>,
-    cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
-}
-
-impl VoteApplier {
-    pub(crate) fn new(
-        ledger: Arc<Ledger>,
-        network_params: NetworkParams,
-        online_reps: Arc<Mutex<OnlineReps>>,
-        stats: Arc<Stats>,
-        vote_generators: Arc<VoteGenerators>,
-        block_processor: Arc<BlockProcessor>,
-        history: Arc<LocalVoteHistory>,
-        wallets: Arc<Wallets>,
-        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        confirming_set: Arc<ConfirmingSet>,
-        clock: Arc<SteadyClock>,
-        cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
-    ) -> Self {
-        Self {
-            ledger,
-            network_params,
-            online_reps,
-            stats,
-            vote_generators,
-            block_processor,
-            history,
-            wallets,
-            recently_confirmed,
-            confirming_set,
-            election_schedulers: RwLock::new(None),
-            clock,
-            cementing_elections_cache,
-        }
+    pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
+        election.lock().unwrap().force_confirm();
+        self.election_confirmed(election.clone());
     }
 
-    pub(crate) fn set_election_schedulers(&self, schedulers: &Arc<ElectionSchedulers>) {
-        *self.election_schedulers.write().unwrap() = Some(Arc::downgrade(&schedulers));
-    }
-
-    pub fn vote(
+    pub fn apply_vote(
         &self,
         election_mutex: &Arc<Mutex<Election>>,
         rep: &PublicKey,
@@ -253,34 +228,6 @@ impl VoteApplier {
         VoteCode::Vote
     }
 
-    /// Calculates minimum time delay between subsequent votes when processing non-final votes
-    fn cooldown_time(&self, weight: Amount) -> Duration {
-        let online_stake = { self.online_reps.lock().unwrap().trended_or_minimum_weight() };
-        if weight > online_stake / 20 {
-            // Reps with more than 5% weight
-            Duration::from_secs(1)
-        } else if weight > online_stake / 100 {
-            // Reps with more than 1% weight
-            Duration::from_secs(5)
-        } else {
-            // The rest of smaller reps
-            Duration::from_secs(15)
-        }
-    }
-
-    fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
-        if self.wallets.voting_enabled() {
-            // Remove votes from election
-            let root = election.qualified_root().root;
-            let list_generated_votes = self.history.votes(&root, hash, false);
-            for vote in list_generated_votes {
-                election.remove_vote(&vote.voter);
-            }
-            // Clear votes cache
-            self.history.erase(&root);
-        }
-    }
-
     fn confirm_if_quorum(
         &self,
         mut election: MutexGuard<Election>,
@@ -323,6 +270,51 @@ impl VoteApplier {
                 drop(election);
                 self.election_confirmed(election_mutex.clone());
             }
+        }
+    }
+
+    fn remove_votes(&self, election: &mut Election, hash: &BlockHash) {
+        if self.wallets.voting_enabled() {
+            // Remove votes from election
+            let root = election.qualified_root().root;
+            let list_generated_votes = self.history.votes(&root, hash, false);
+            for vote in list_generated_votes {
+                election.remove_vote(&vote.voter);
+            }
+            // Clear votes cache
+            self.history.erase(&root);
+        }
+    }
+
+    /// Calculates minimum time delay between subsequent votes when processing non-final votes
+    fn cooldown_time(&self, weight: Amount) -> Duration {
+        let online_stake = { self.online_reps.lock().unwrap().trended_or_minimum_weight() };
+        if weight > online_stake / 20 {
+            // Reps with more than 5% weight
+            Duration::from_secs(1)
+        } else if weight > online_stake / 100 {
+            // Reps with more than 1% weight
+            Duration::from_secs(5)
+        } else {
+            // The rest of smaller reps
+            Duration::from_secs(15)
+        }
+    }
+
+    fn notify_vote_processed(
+        &self,
+        vote: &Arc<Vote>,
+        source: VoteSource,
+        results: &HashMap<BlockHash, VoteCode>,
+    ) {
+        for sender in self.event_senders.read().unwrap().iter() {
+            sender
+                .send(VoteRouterEvent::VoteProcessed(
+                    vote.clone(),
+                    source,
+                    results.clone(),
+                ))
+                .unwrap();
         }
     }
 

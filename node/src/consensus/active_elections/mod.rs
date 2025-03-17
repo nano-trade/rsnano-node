@@ -20,7 +20,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 
 use super::{
     CementingElectionsCache, Election, ElectionBehavior, ElectionConfig, ElectionVoter,
-    EndedElection, RecentlyConfirmedCache, VoteApplier, VoteCache, VoteRouter, VoteSummary,
+    EndedElection, RecentlyConfirmedCache, VoteCache, VoteRouter, VoteSummary,
 };
 use crate::{
     block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
@@ -68,7 +68,6 @@ pub struct ActiveElections {
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    pub vote_applier: Arc<VoteApplier>,
     vote_router: Arc<Mutex<VoteRouter>>,
     message_flooder: Mutex<MessageFlooder>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
@@ -85,7 +84,6 @@ impl ActiveElections {
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        vote_applier: Arc<VoteApplier>,
         vote_router: Arc<Mutex<VoteRouter>>,
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
@@ -110,7 +108,6 @@ impl ActiveElections {
             config: node_config.active_elections.clone(),
             vote_cache,
             stats,
-            vote_applier,
             vote_router,
             message_flooder: Mutex::new(message_flooder),
             event_sender: RwLock::new(None),
@@ -270,11 +267,6 @@ impl ActiveElections {
                 self.notify(AecEvent::UnconfirmedBlockRemoved(block.clone().into()));
             }
         }
-    }
-
-    pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
-        election.lock().unwrap().force_confirm();
-        self.vote_applier.election_confirmed(election.clone());
     }
 
     pub fn insert(

@@ -4,13 +4,9 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{utils::ContainerInfo, BlockHash};
 
 use super::Election;
-
-pub enum VoteRouterEvent {
-    VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
-}
 
 /// This class routes votes to their associated election
 /// This class holds a weak_ptr as this container does not own the elections
@@ -62,7 +58,7 @@ impl VoteRouter {
         self.elections.get(hash)?.upgrade()
     }
 
-    pub fn active(&self, hash: &BlockHash) -> bool {
+    pub fn is_active(&self, hash: &BlockHash) -> bool {
         if let Some(existing) = self.elections.get(hash) {
             existing.strong_count() > 0
         } else {

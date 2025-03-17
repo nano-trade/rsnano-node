@@ -7,14 +7,14 @@ use std::{
 use rsnano_core::{utils::ContainerInfo, BlockHash, VoteSource};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{VoteApplier2, VoteCache, VoteProcessorConfig};
+use super::{VoteApplier, VoteCache, VoteProcessorConfig};
 
 pub(crate) struct VoteCacheProcessor {
     state: Arc<Mutex<State>>,
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_applier: Arc<VoteApplier2>,
+    vote_applier: Arc<VoteApplier>,
     config: VoteProcessorConfig,
 }
 
@@ -22,7 +22,7 @@ impl VoteCacheProcessor {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,
-        vote_applier: Arc<VoteApplier2>,
+        vote_applier: Arc<VoteApplier>,
         config: VoteProcessorConfig,
     ) -> Self {
         Self {
@@ -114,7 +114,7 @@ struct VoteCacheLoop {
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_applier: Arc<VoteApplier2>,
+    vote_applier: Arc<VoteApplier>,
 }
 
 impl VoteCacheLoop {

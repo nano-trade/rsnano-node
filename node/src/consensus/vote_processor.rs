@@ -14,7 +14,7 @@ use rsnano_core::{Vote, VoteCode, VoteSource};
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{VoteApplier2, VoteProcessorQueue};
+use super::{VoteApplier, VoteProcessorQueue};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteProcessorConfig {
@@ -45,7 +45,7 @@ pub type VoteProcessedCallback2 =
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
     queue: Arc<VoteProcessorQueue>,
-    vote_applier: Arc<VoteApplier2>,
+    vote_applier: Arc<VoteApplier>,
     stats: Arc<Stats>,
     vote_processed: Mutex<Vec<VoteProcessedCallback2>>,
     pub total_processed: AtomicU64,
@@ -54,7 +54,7 @@ pub struct VoteProcessor {
 impl VoteProcessor {
     pub(crate) fn new(
         queue: Arc<VoteProcessorQueue>,
-        vote_applier: Arc<VoteApplier2>,
+        vote_applier: Arc<VoteApplier>,
         stats: Arc<Stats>,
     ) -> Self {
         Self {

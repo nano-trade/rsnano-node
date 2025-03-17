@@ -215,7 +215,7 @@ fn deferred_dependent_elections() {
     assert!(!node1.active.election(&open.qualified_root()).is_some());
     assert!(!node1.active.election(&send2.qualified_root()).is_some());
 
-    node1.active.force_confirm(&election_send1);
+    node1.vote_applier.force_confirm(&election_send1);
     assert_timely(std::time::Duration::from_secs(5), || {
         node1.block_confirmed(&send1.hash())
     });
@@ -234,7 +234,9 @@ fn deferred_dependent_elections() {
     node1.process_local(receive.clone().into()).unwrap();
     assert!(node1.active.election(&receive.qualified_root()).is_none());
 
-    node1.active.force_confirm(election_open.as_ref().unwrap());
+    node1
+        .vote_applier
+        .force_confirm(election_open.as_ref().unwrap());
     assert_timely(std::time::Duration::from_secs(5), || {
         node1.block_confirmed(&open.hash())
     });
@@ -269,7 +271,7 @@ fn deferred_dependent_elections() {
         node1.active.election(&receive.qualified_root()).is_some()
     });
 
-    node1.active.force_confirm(&election_send2);
+    node1.vote_applier.force_confirm(&election_send2);
     assert_timely(std::time::Duration::from_secs(5), || {
         node1.block_confirmed(&send2.hash())
     });
@@ -649,7 +651,7 @@ fn rep_self_vote() {
 
     assert_timely2(|| node0.active.election(&open_big.qualified_root()).is_some());
     let election = node0.active.election(&open_big.qualified_root()).unwrap();
-    node0.active.force_confirm(&election);
+    node0.vote_applier.force_confirm(&election);
 
     // Insert representatives into the node to allow voting
     node0.insert_into_wallet(&rep_big);
@@ -1716,7 +1718,7 @@ fn fork_open() {
         "election not found",
     );
     let election = node.active.election(&send1.qualified_root()).unwrap();
-    node.active.force_confirm(&election);
+    node.vote_applier.force_confirm(&election);
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
 
     // register key for genesis account, not sure why we do this, it seems needless,
@@ -2051,7 +2053,7 @@ fn rollback_vote_self() {
 
         assert_eq!(0, election.lock().unwrap().votes().len());
         // Vote with key to switch the winner
-        node.active.vote_applier.vote(
+        node.vote_applier.apply_vote(
             &election,
             &key.public_key(),
             UnixMillisTimestamp::ZERO,
@@ -2314,7 +2316,7 @@ fn epoch_conflict_confirm() {
     activate_hashes(&node0, &[change.hash(), epoch_open.hash()]);
     assert_timely2(|| {
         let router = node0.vote_router.lock().unwrap();
-        router.active(&change.hash()) && router.active(&epoch_open.hash())
+        router.is_active(&change.hash()) && router.is_active(&epoch_open.hash())
     });
 
     // Make node1 a representative so it can vote for both blocks
@@ -2956,7 +2958,7 @@ fn dependency_graph() {
 
         // Ensure that active blocks have their ancestors confirmed
         let error = dependency_graph.iter().any(|entry| {
-            if node.vote_router.lock().unwrap().active(entry.0) {
+            if node.vote_router.lock().unwrap().is_active(entry.0) {
                 for ancestor in entry.1 {
                     if !node.block_confirmed(ancestor) {
                         return true;
