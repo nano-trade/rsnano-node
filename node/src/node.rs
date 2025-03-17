@@ -47,12 +47,12 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, CementingElectionsCache, ElectionConfig,
-        ElectionVoter, EndedElection, LocalVoteHistory, RecentlyConfirmedCache, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, VoteRouter, VoteRouterCleanup, VoteSummary,
+        ActiveElections, ActiveElectionsDriver, ElectionConfig, ElectionVoter, EndedElection,
+        LocalVoteHistory, RecentlyConfirmedCache, RepTiers, RequestAggregator,
+        RequestAggregatorCleanup, VoteApplier, VoteApplierEvent, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
+        VoteRouterCleanup, VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -625,8 +625,6 @@ impl Node {
                 }
             }
         }));
-
-        vote_applier.set_election_schedulers(&election_schedulers);
 
         let mut bootstrap_sender = MessageSender::new_with_buffer_size(
             stats.clone(),

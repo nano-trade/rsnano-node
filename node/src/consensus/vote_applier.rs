@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock, Weak},
+    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock},
     time::{Duration, SystemTime},
 };
 
@@ -16,9 +16,8 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, ActiveElections, CementingElectionsCache, Election,
-    EndedElection, LocalVoteHistory, RecentlyConfirmedCache, VoteGenerators, VoteRouter,
-    VoteSummary,
+    ActiveElections, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
+    RecentlyConfirmedCache, VoteGenerators, VoteRouter, VoteSummary,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -50,9 +49,8 @@ pub struct VoteApplier {
     history: Arc<LocalVoteHistory>,
     wallets: Arc<Wallets>,
     confirming_set: Arc<ConfirmingSet>,
-    election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
     clock: Arc<SteadyClock>,
-    cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
+    cementing_elections_cache: Mutex<CementingElectionsCache>,
 }
 
 impl VoteApplier {
@@ -85,18 +83,13 @@ impl VoteApplier {
             history,
             wallets,
             confirming_set,
-            election_schedulers: RwLock::new(None),
             clock,
-            cementing_elections_cache: Arc::new(Mutex::new(CementingElectionsCache::default())),
+            cementing_elections_cache: Mutex::new(CementingElectionsCache::default()),
         }
     }
 
     pub fn add_event_sink(&self, sink: SyncSender<VoteApplierEvent>) {
         self.event_senders.write().unwrap().push(sink);
-    }
-
-    pub(crate) fn set_election_schedulers(&self, schedulers: &Arc<ElectionSchedulers>) {
-        *self.election_schedulers.write().unwrap() = Some(Arc::downgrade(&schedulers));
     }
 
     pub fn stop(&self) {
