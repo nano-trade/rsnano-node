@@ -80,7 +80,6 @@ impl ActiveElections {
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        vote_router: Arc<Mutex<VoteRouter>>,
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
@@ -103,7 +102,7 @@ impl ActiveElections {
             config,
             vote_cache,
             stats,
-            vote_router,
+            vote_router: Arc::new(Mutex::new(VoteRouter::new())),
             message_flooder: Mutex::new(message_flooder),
             event_sender: RwLock::new(None),
             election_voter,
@@ -191,7 +190,11 @@ impl ActiveElections {
     }
 
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
-        self.vote_router.lock().unwrap().election(block_hash)
+        self.vote_router
+            .lock()
+            .unwrap()
+            .election(block_hash)
+            .cloned()
     }
 
     pub fn get_all(&self) -> Vec<Arc<Mutex<Election>>> {
@@ -297,7 +300,7 @@ impl ActiveElections {
                 self.vote_router
                     .lock()
                     .unwrap()
-                    .connect(hash, Arc::downgrade(&info.election));
+                    .connect(hash, info.election.clone());
 
                 // Skip passive phase for blocks without cached votes to avoid bootstrap delays
                 let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
@@ -352,7 +355,7 @@ impl ActiveElections {
                 self.vote_router
                     .lock()
                     .unwrap()
-                    .connect(fork.hash(), Arc::downgrade(&election_mutex));
+                    .connect(fork.hash(), election_mutex);
                 drop(guard);
 
                 self.notify(AecEvent::BlockAddedToElection(fork.hash()));
@@ -420,7 +423,7 @@ impl ActiveElections {
     pub fn iter_batch<'a>(
         &self,
         blocks: impl IntoIterator<Item = &'a BlockHash>,
-        mut handle: impl FnMut(&BlockHash, Option<Arc<Mutex<Election>>>),
+        mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>),
     ) {
         let router = self.vote_router.lock().unwrap();
         for hash in blocks.into_iter() {

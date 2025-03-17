@@ -52,7 +52,7 @@ use crate::{
         RequestAggregatorCleanup, VoteApplier, VoteApplierEvent, VoteBroadcaster, VoteCache,
         VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
-        VoteRouterCleanup, VoteSummary,
+        VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -114,7 +114,6 @@ pub struct Node {
     pub vote_generators: Arc<VoteGenerators>,
     pub active: Arc<ActiveElections>,
     pub vote_applier: Arc<VoteApplier>,
-    vote_router_cleanup: TimerThread<VoteRouterCleanup>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
     pub rep_crawler: Arc<RepCrawler>,
@@ -514,8 +513,6 @@ impl Node {
             steady_clock.clone(),
         ));
 
-        let vote_router = Arc::new(Mutex::new(VoteRouter::new()));
-
         let election_voter = ElectionVoter {
             stats: stats.clone(),
             vote_generators: vote_generators.clone(),
@@ -531,7 +528,6 @@ impl Node {
             vote_cache.clone(),
             stats.clone(),
             recently_confirmed.clone(),
-            vote_router.clone(),
             message_flooder.clone(),
             election_voter,
             election_config,
@@ -1145,8 +1141,6 @@ impl Node {
             recently_cemented: recently_cemented.clone(),
         };
 
-        let vote_router_cleanup = VoteRouterCleanup::new(vote_router.clone());
-
         let mut aec_event_processor = AecEventProcessor {
             receiver: aec_receiver,
             vote_cache_processor: vote_cache_processor.clone(),
@@ -1240,7 +1234,6 @@ impl Node {
             online_reps,
             rep_tiers,
             vote_applier,
-            vote_router_cleanup: TimerThread::new("Vote router", vote_router_cleanup),
             vote_processor_queue,
             history,
             confirming_set,
@@ -1574,8 +1567,6 @@ impl Node {
             self.peer_cache_connector
                 .start(self.config.network.cached_peer_reachout);
         }
-        self.vote_router_cleanup.start(Duration::from_secs(15));
-
         if self.config.enable_monitor {
             self.monitor.start_delayed(self.config.monitor.interval);
         }
@@ -1598,7 +1589,6 @@ impl Node {
         self.ledger.stop();
         self.ledger_notification_thread.stop();
         self.online_weight_calculation.stop();
-        self.vote_router_cleanup.stop();
         self.vote_applier.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();
