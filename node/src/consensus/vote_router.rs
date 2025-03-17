@@ -1,9 +1,7 @@
 use std::{
     collections::HashMap,
     mem::size_of,
-    sync::{Arc, Condvar, Mutex, RwLock, Weak},
-    thread::JoinHandle,
-    time::Duration,
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
@@ -15,8 +13,7 @@ use super::{Election, RecentlyConfirmedCache, VoteApplier, VoteCache};
 /// This class holds a weak_ptr as this container does not own the elections
 /// Routing entries are removed periodically if the weak_ptr has expired
 pub struct VoteRouter {
-    thread: Mutex<Option<JoinHandle<()>>>,
-    shared: Arc<(Condvar, Mutex<State>)>,
+    shared: Arc<Mutex<State>>,
     vote_processed_observers: Mutex<Vec<VoteProcessedCallback>>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_applier: Arc<VoteApplier>,
@@ -32,14 +29,10 @@ impl VoteRouter {
         rep_weights: Arc<RepWeightCache>,
     ) -> Self {
         Self {
-            thread: Mutex::new(None),
-            shared: Arc::new((
-                Condvar::new(),
-                Mutex::new(State {
-                    stopped: false,
-                    elections: HashMap::new(),
-                }),
-            )),
+            shared: Arc::new(Mutex::new(State {
+                stopped: false,
+                elections: HashMap::new(),
+            })),
             vote_processed_observers: Mutex::new(Vec::new()),
             recently_confirmed,
             vote_applier,
@@ -48,33 +41,8 @@ impl VoteRouter {
         }
     }
 
-    pub fn start(&self) {
-        let shared = self.shared.clone();
-        *self.thread.lock().unwrap() = Some(
-            std::thread::Builder::new()
-                .name("Voute router".to_owned())
-                .spawn(move || {
-                    let (condition, state) = &*shared;
-                    let mut guard = state.lock().unwrap();
-                    while !guard.stopped {
-                        guard.clean_up();
-                        guard = condition
-                            .wait_timeout_while(guard, Duration::from_secs(15), |g| !g.stopped)
-                            .unwrap()
-                            .0;
-                    }
-                })
-                .unwrap(),
-        )
-    }
-
-    pub fn stop(&self) {
-        self.shared.1.lock().unwrap().stopped = true;
-        self.shared.0.notify_all();
-        let thread = self.thread.lock().unwrap().take();
-        if let Some(thread) = thread {
-            thread.join().unwrap();
-        }
+    pub fn clean_up(&self) {
+        self.shared.lock().unwrap().clean_up();
     }
 
     pub fn on_vote_processed(&self, observer: VoteProcessedCallback) {
@@ -83,24 +51,19 @@ impl VoteRouter {
     /// This is meant to be a fast check and may return false positives
     /// if weak pointers have expired, but we don't care about that here
     pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.shared.1.lock().unwrap().elections.contains_key(hash)
+        self.shared.lock().unwrap().elections.contains_key(hash)
     }
 
     /// Add a route for 'hash' to 'election'
     /// Existing routes will be replaced
     /// Election must hold the block for the hash being passed in
     pub fn connect(&self, hash: BlockHash, election: Weak<Mutex<Election>>) {
-        self.shared
-            .1
-            .lock()
-            .unwrap()
-            .elections
-            .insert(hash, election);
+        self.shared.lock().unwrap().elections.insert(hash, election);
     }
 
     /// Remove all routes to this election
     pub fn disconnect_election(&self, election: &Election) {
-        let mut state = self.shared.1.lock().unwrap();
+        let mut state = self.shared.lock().unwrap();
         for hash in election.candidate_blocks().keys() {
             state.elections.remove(hash);
         }
@@ -108,12 +71,12 @@ impl VoteRouter {
 
     /// Remove all routes to this election
     pub fn disconnect(&self, hash: &BlockHash) {
-        let mut state = self.shared.1.lock().unwrap();
+        let mut state = self.shared.lock().unwrap();
         state.elections.remove(hash);
     }
 
     pub fn election(&self, hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
-        let state = self.shared.1.lock().unwrap();
+        let state = self.shared.lock().unwrap();
         state.elections.get(hash)?.upgrade()
     }
 
@@ -134,7 +97,7 @@ impl VoteRouter {
         let mut results = HashMap::new();
         let mut process = HashMap::new();
         {
-            let guard = self.shared.1.lock().unwrap();
+            let guard = self.shared.lock().unwrap();
             let recently_confirmed = self.recently_confirmed.read().unwrap();
             for hash in &vote.hashes {
                 // Ignore votes for other hashes if a filter is set
@@ -192,7 +155,7 @@ impl VoteRouter {
     }
 
     pub fn active(&self, hash: &BlockHash) -> bool {
-        let state = self.shared.1.lock().unwrap();
+        let state = self.shared.lock().unwrap();
         if let Some(existing) = state.elections.get(hash) {
             existing.strong_count() > 0
         } else {
@@ -213,20 +176,13 @@ impl VoteRouter {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.shared.1.lock().unwrap();
+        let guard = self.shared.lock().unwrap();
         [(
             "elections",
             guard.elections.len(),
             size_of::<BlockHash>() + size_of::<Weak<Mutex<Election>>>(),
         )]
         .into()
-    }
-}
-
-impl Drop for VoteRouter {
-    fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none())
     }
 }
 

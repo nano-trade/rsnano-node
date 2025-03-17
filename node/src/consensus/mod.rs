@@ -22,6 +22,7 @@ mod vote_generation;
 mod vote_processor;
 mod vote_processor_queue;
 mod vote_router;
+mod vote_router_cleanup;
 
 pub use active_elections::*;
 pub(crate) use active_elections_driver::ActiveElectionsDriver;
@@ -45,3 +46,4 @@ pub use vote_generation::*;
 pub use vote_processor::*;
 pub use vote_processor_queue::*;
 pub use vote_router::*;
+pub(crate) use vote_router_cleanup::VoteRouterCleanup;
