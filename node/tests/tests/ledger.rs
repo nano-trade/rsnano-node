@@ -46,6 +46,8 @@ mod votes {
         assert_eq!(
             node1
                 .vote_router
+                .lock()
+                .unwrap()
                 .vote(&vote1, VoteSource::Live)
                 .values()
                 .next()
@@ -63,6 +65,8 @@ mod votes {
         assert_eq!(
             node1
                 .vote_router
+                .lock()
+                .unwrap()
                 .vote(&vote2, VoteSource::Live)
                 .values()
                 .next()
@@ -111,7 +115,11 @@ mod votes {
             0,
             vec![send1.hash()],
         ));
-        node1.vote_router.vote(&vote1, VoteSource::Live);
+        node1
+            .vote_router
+            .lock()
+            .unwrap()
+            .vote(&vote1, VoteSource::Live);
         // Block is already processed from vote
         node1.active.handle_fork(&send1);
         assert_eq!(
@@ -151,6 +159,8 @@ mod votes {
         assert_eq!(
             node1
                 .vote_router
+                .lock()
+                .unwrap()
                 .vote(&vote2, VoteSource::Live)
                 .get(&send2.hash())
                 .unwrap(),
@@ -175,6 +185,8 @@ mod votes {
         assert_eq!(
             node1
                 .vote_router
+                .lock()
+                .unwrap()
                 .vote(&vote1, VoteSource::Live)
                 .get(&send1.hash())
                 .unwrap(),

@@ -45,7 +45,7 @@ pub type VoteProcessedCallback2 =
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
     queue: Arc<VoteProcessorQueue>,
-    vote_router: Arc<VoteRouter>,
+    vote_router: Arc<Mutex<VoteRouter>>,
     stats: Arc<Stats>,
     vote_processed: Mutex<Vec<VoteProcessedCallback2>>,
     pub total_processed: AtomicU64,
@@ -54,7 +54,7 @@ pub struct VoteProcessor {
 impl VoteProcessor {
     pub fn new(
         queue: Arc<VoteProcessorQueue>,
-        vote_router: Arc<VoteRouter>,
+        vote_router: Arc<Mutex<VoteRouter>>,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
@@ -118,7 +118,7 @@ impl VoteProcessor {
     ) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let vote_results = self.vote_router.vote(vote, source);
+            let vote_results = self.vote_router.lock().unwrap().vote(vote, source);
 
             // Aggregate results for individual hashes
             let mut replay = false;

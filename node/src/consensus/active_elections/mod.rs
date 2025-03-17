@@ -69,7 +69,7 @@ pub struct ActiveElections {
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     pub vote_applier: Arc<VoteApplier>,
-    vote_router: Arc<VoteRouter>,
+    vote_router: Arc<Mutex<VoteRouter>>,
     message_flooder: Mutex<MessageFlooder>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
     election_voter: ElectionVoter,
@@ -86,7 +86,7 @@ impl ActiveElections {
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
-        vote_router: Arc<VoteRouter>,
+        vote_router: Arc<Mutex<VoteRouter>>,
         message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
@@ -221,11 +221,13 @@ impl ActiveElections {
 
     /// Erase all blocks from active, if not confirmed, clear digests from network filters
     fn cleanup_election<'a>(&self, mut guard: MutexGuard<'a, ActiveElectionsState>, entry: Entry) {
+        // lock vote router before locking election to prevent dead lock!
+        let vote_router = self.vote_router.lock().unwrap();
         let election = entry.election.lock().unwrap();
 
         // Keep track of election count by election type
         *guard.count_by_behavior_mut(election.behavior()) -= 1;
-        self.vote_router.disconnect_election(&election);
+        vote_router.disconnect_election(&election);
         let winner_hash = election.winner().hash();
 
         self.stats
@@ -303,6 +305,8 @@ impl ActiveElections {
         if let Some(info) = &result {
             if info.inserted {
                 self.vote_router
+                    .lock()
+                    .unwrap()
                     .connect(hash, Arc::downgrade(&info.election));
 
                 // Skip passive phase for blocks without cached votes to avoid bootstrap delays
@@ -356,6 +360,8 @@ impl ActiveElections {
             if added {
                 guard = self.mutex.lock().unwrap();
                 self.vote_router
+                    .lock()
+                    .unwrap()
                     .connect(fork.hash(), Arc::downgrade(&election_mutex));
                 drop(guard);
 
@@ -384,7 +390,7 @@ impl ActiveElections {
             let fork_tally = self.get_cached_tally(&fork.hash());
             let removed = election.remove_tally_below(fork_tally);
             if let Some(removed) = removed {
-                self.vote_router.disconnect(&removed.hash());
+                self.vote_router.lock().unwrap().disconnect(&removed.hash());
                 self.notify(AecEvent::UnconfirmedBlockRemoved(removed.into()));
             } else {
                 self.notify(AecEvent::UnconfirmedBlockRemoved(fork.clone()));

@@ -1,9 +1,7 @@
 use std::{
+    cmp::max,
     collections::HashMap,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::{mpsc::sync_channel, Arc},
     thread::sleep,
     time::Duration,
 };
@@ -22,7 +20,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{AggregatorRequest, VoteSummary},
+    consensus::{AggregatorRequest, VoteRouterEvent, VoteSummary},
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
@@ -376,18 +374,9 @@ fn vote_by_hash_bundle() {
         .unwrap();
 
     // Set up an observer to track the maximum number of hashes in a vote
-    let max_hashes = Arc::new(AtomicUsize::new(0));
-    let max_hashes_clone = Arc::clone(&max_hashes);
 
-    node.vote_router.on_vote_processed(Box::new(
-        move |vote: &Arc<Vote>, _vote_source, _vote_code| {
-            let hashes_size = vote.hashes.len();
-            let current_max = max_hashes_clone.load(Ordering::Relaxed);
-            if hashes_size > current_max {
-                max_hashes_clone.store(hashes_size, Ordering::Relaxed);
-            }
-        },
-    ));
+    let (tx, rx) = sync_channel(128);
+    node.vote_router.lock().unwrap().add_event_sink(tx);
 
     // Enqueue vote requests for all the blocks
     for block in &blocks {
@@ -395,10 +384,17 @@ fn vote_by_hash_bundle() {
             .generate_non_final_vote(&block.root(), &block.hash());
     }
 
-    // Verify that bundling occurs
-    assert_timely(Duration::from_secs(20), || {
-        max_hashes.load(Ordering::Relaxed) >= 3
-    });
+    let mut max_hashes = 0;
+    while let Ok(e) = rx.recv_timeout(Duration::from_secs(2)) {
+        let VoteRouterEvent::VoteProcessed(vote, _, _) = e;
+        max_hashes = max(max_hashes, vote.hashes.len());
+
+        if max_hashes >= 3 {
+            break;
+        }
+    }
+
+    assert!(max_hashes >= 3);
 }
 
 #[test]
@@ -2317,7 +2313,8 @@ fn epoch_conflict_confirm() {
     // Start elections on node0 for conflicting change and epoch_open blocks (those two blocks have the same root)
     activate_hashes(&node0, &[change.hash(), epoch_open.hash()]);
     assert_timely2(|| {
-        node0.vote_router.active(&change.hash()) && node0.vote_router.active(&epoch_open.hash())
+        let router = node0.vote_router.lock().unwrap();
+        router.active(&change.hash()) && router.active(&epoch_open.hash())
     });
 
     // Make node1 a representative so it can vote for both blocks
@@ -2959,7 +2956,7 @@ fn dependency_graph() {
 
         // Ensure that active blocks have their ancestors confirmed
         let error = dependency_graph.iter().any(|entry| {
-            if node.vote_router.active(entry.0) {
+            if node.vote_router.lock().unwrap().active(entry.0) {
                 for ancestor in entry.1 {
                     if !node.block_confirmed(ancestor) {
                         return true;

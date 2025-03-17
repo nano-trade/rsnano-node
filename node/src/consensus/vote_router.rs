@@ -1,69 +1,70 @@
 use std::{
     collections::HashMap,
     mem::size_of,
-    sync::{Arc, Mutex, RwLock, Weak},
+    sync::{mpsc::SyncSender, Arc, Mutex, RwLock, Weak},
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
-use rsnano_ledger::RepWeightCache;
 
-use super::{Election, RecentlyConfirmedCache, VoteApplier, VoteCache};
+use super::{Election, RecentlyConfirmedCache, VoteApplier};
+
+pub enum VoteRouterEvent {
+    VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
+}
 
 /// This class routes votes to their associated election
 /// This class holds a weak_ptr as this container does not own the elections
 /// Routing entries are removed periodically if the weak_ptr has expired
 pub struct VoteRouter {
-    shared: Arc<Mutex<State>>,
-    vote_processed_observers: Mutex<Vec<VoteProcessedCallback>>,
+    state: Arc<Mutex<State>>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_applier: Arc<VoteApplier>,
-    vote_cache: Arc<Mutex<VoteCache>>,
-    rep_weights: Arc<RepWeightCache>,
+    event_senders: Vec<SyncSender<VoteRouterEvent>>,
 }
 
 impl VoteRouter {
     pub fn new(
-        vote_cache: Arc<Mutex<VoteCache>>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         vote_applier: Arc<VoteApplier>,
-        rep_weights: Arc<RepWeightCache>,
     ) -> Self {
         Self {
-            shared: Arc::new(Mutex::new(State {
-                stopped: false,
+            state: Arc::new(Mutex::new(State {
                 elections: HashMap::new(),
             })),
-            vote_processed_observers: Mutex::new(Vec::new()),
             recently_confirmed,
             vote_applier,
-            vote_cache,
-            rep_weights,
+            event_senders: Vec::new(),
         }
     }
 
-    pub fn clean_up(&self) {
-        self.shared.lock().unwrap().clean_up();
+    pub fn add_event_sink(&mut self, sink: SyncSender<VoteRouterEvent>) {
+        self.event_senders.push(sink);
     }
 
-    pub fn on_vote_processed(&self, observer: VoteProcessedCallback) {
-        self.vote_processed_observers.lock().unwrap().push(observer);
+    pub fn stop(&mut self) {
+        self.event_senders.clear();
     }
+
+    pub fn clean_up(&self) {
+        self.state.lock().unwrap().clean_up();
+    }
+
     /// This is meant to be a fast check and may return false positives
     /// if weak pointers have expired, but we don't care about that here
     pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.shared.lock().unwrap().elections.contains_key(hash)
+        self.state.lock().unwrap().elections.contains_key(hash)
     }
 
     /// Add a route for 'hash' to 'election'
     /// Existing routes will be replaced
     /// Election must hold the block for the hash being passed in
     pub fn connect(&self, hash: BlockHash, election: Weak<Mutex<Election>>) {
-        self.shared.lock().unwrap().elections.insert(hash, election);
+        self.state.lock().unwrap().elections.insert(hash, election);
     }
 
     /// Remove all routes to this election
     pub fn disconnect_election(&self, election: &Election) {
-        let mut state = self.shared.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
         for hash in election.candidate_blocks().keys() {
             state.elections.remove(hash);
         }
@@ -71,12 +72,12 @@ impl VoteRouter {
 
     /// Remove all routes to this election
     pub fn disconnect(&self, hash: &BlockHash) {
-        let mut state = self.shared.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
         state.elections.remove(hash);
     }
 
     pub fn election(&self, hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
-        let state = self.shared.lock().unwrap();
+        let state = self.state.lock().unwrap();
         state.elections.get(hash)?.upgrade()
     }
 
@@ -97,7 +98,7 @@ impl VoteRouter {
         let mut results = HashMap::new();
         let mut process = HashMap::new();
         {
-            let guard = self.shared.lock().unwrap();
+            let guard = self.state.lock().unwrap();
             let recently_confirmed = self.recently_confirmed.read().unwrap();
             for hash in &vote.hashes {
                 // Ignore votes for other hashes if a filter is set
@@ -134,15 +135,6 @@ impl VoteRouter {
             results.insert(block_hash, vote_result);
         }
 
-        // Cache the votes that didn't match any election
-        if source != VoteSource::Cache {
-            let rep_weight = self.rep_weights.weight(&vote.voter);
-            self.vote_cache
-                .lock()
-                .unwrap()
-                .insert(vote, rep_weight, &results);
-        }
-
         self.notify_vote_processed(vote, source, &results);
 
         results
@@ -155,7 +147,7 @@ impl VoteRouter {
     }
 
     pub fn active(&self, hash: &BlockHash) -> bool {
-        let state = self.shared.lock().unwrap();
+        let state = self.state.lock().unwrap();
         if let Some(existing) = state.elections.get(hash) {
             existing.strong_count() > 0
         } else {
@@ -169,14 +161,19 @@ impl VoteRouter {
         source: VoteSource,
         results: &HashMap<BlockHash, VoteCode>,
     ) {
-        let observers = self.vote_processed_observers.lock().unwrap();
-        for o in observers.iter() {
-            o(vote, source, results);
+        for sender in &self.event_senders {
+            sender
+                .send(VoteRouterEvent::VoteProcessed(
+                    vote.clone(),
+                    source,
+                    results.clone(),
+                ))
+                .unwrap();
         }
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.shared.lock().unwrap();
+        let guard = self.state.lock().unwrap();
         [(
             "elections",
             guard.elections.len(),
@@ -187,7 +184,6 @@ impl VoteRouter {
 }
 
 struct State {
-    stopped: bool,
     // Mapping of block hashes to elections.
     // Election already contains the associated block
     elections: HashMap<BlockHash, Weak<Mutex<Election>>>,

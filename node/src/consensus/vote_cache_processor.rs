@@ -14,7 +14,7 @@ pub(crate) struct VoteCacheProcessor {
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_router: Arc<VoteRouter>,
+    vote_router: Arc<Mutex<VoteRouter>>,
     config: VoteProcessorConfig,
 }
 
@@ -22,7 +22,7 @@ impl VoteCacheProcessor {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,
-        vote_router: Arc<VoteRouter>,
+        vote_router: Arc<Mutex<VoteRouter>>,
         config: VoteProcessorConfig,
     ) -> Self {
         Self {
@@ -114,7 +114,7 @@ struct VoteCacheLoop {
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_router: Arc<VoteRouter>,
+    vote_router: Arc<Mutex<VoteRouter>>,
 }
 
 impl VoteCacheLoop {
@@ -149,9 +149,9 @@ impl VoteCacheLoop {
 
         for hash in hashes {
             let cached = self.vote_cache.lock().unwrap().find(&hash);
+            let router = self.vote_router.lock().unwrap();
             for cached_vote in cached {
-                self.vote_router
-                    .vote_filter(&cached_vote, VoteSource::Cache, &hash);
+                router.vote_filter(&cached_vote, VoteSource::Cache, &hash);
             }
         }
     }

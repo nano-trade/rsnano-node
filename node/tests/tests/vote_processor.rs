@@ -8,7 +8,9 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use test_helpers::{assert_timely, assert_timely_eq2, setup_chain, start_election, System};
+use test_helpers::{
+    assert_timely, assert_timely2, assert_timely_eq2, setup_chain, start_election, System,
+};
 
 #[test]
 fn codes() {
@@ -18,6 +20,7 @@ fn codes() {
     config.enable_optimistic_scheduler = false;
     let node = system.build_node().config(config).finish();
     let blocks = setup_chain(&node, 1, &DEV_GENESIS_KEY, false);
+
     let vote = Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN,
@@ -44,14 +47,13 @@ fn codes() {
             .vote_blocking(&vote, None, VoteSource::Live)
     );
 
+    assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 1);
     // Clear vote cache before starting election
     node.vote_cache.lock().unwrap().clear();
 
     // First vote from an account for an ongoing election
     start_election(&node, &blocks[0].hash());
-    assert_timely(Duration::from_secs(5), || {
-        node.active.election(&blocks[0].qualified_root()).is_some()
-    });
+    assert_timely2(|| node.active.election(&blocks[0].qualified_root()).is_some());
     let _election = node.active.election(&blocks[0].qualified_root()).unwrap();
     assert_eq!(
         VoteCode::Vote,

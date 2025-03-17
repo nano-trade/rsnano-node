@@ -356,7 +356,10 @@ fn inactive_votes_cache_existing_vote() {
 
     let cached = node.vote_cache.lock().unwrap().find(&send.hash());
     assert_eq!(cached.len(), 1);
-    node.vote_router.vote(&cached[0], VoteSource::Live);
+    node.vote_router
+        .lock()
+        .unwrap()
+        .vote(&cached[0], VoteSource::Live);
 
     // Check that election data is not changed
     assert_eq!(election.lock().unwrap().vote_count(), 1);
@@ -481,7 +484,7 @@ fn inactive_votes_cache_election_start() {
         .vote(vote2, None, VoteSource::Live);
     // Only election for send1 should start, other blocks are missing dependencies and don't have enough final weight
     assert_timely_eq2(|| node.active.len(), 1);
-    assert!(node.vote_router.active(&send1.hash()));
+    assert!(node.vote_router.lock().unwrap().active(&send1.hash()));
 
     // Confirm elections with weight quorum
     let vote0 = Arc::new(Vote::new_final(
@@ -556,7 +559,7 @@ fn republish_winner() {
     let fork = fork_lattice.genesis().send(&key, Amount::nano(2000));
     node1.process_active(fork.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1.vote_router.active(&fork.hash())
+        node1.vote_router.lock().unwrap().active(&fork.hash())
     });
 
     let election = node1.active.election(&fork.qualified_root()).unwrap();
@@ -752,7 +755,12 @@ fn bound_election_winners() {
         assert!(node.active.vacancy() > 0);
 
         for block in blocks {
-            let election = node.vote_router.election(&block.hash()).unwrap();
+            let election = node
+                .vote_router
+                .lock()
+                .unwrap()
+                .election(&block.hash())
+                .unwrap();
             node.active.force_confirm(&election);
         }
 
@@ -1106,6 +1114,8 @@ fn vote_replays() {
     let vote_send1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
@@ -1113,6 +1123,8 @@ fn vote_replays() {
     );
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
@@ -1123,6 +1135,8 @@ fn vote_replays() {
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
@@ -1133,6 +1147,8 @@ fn vote_replays() {
     let vote_open1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![open1.hash()]));
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
@@ -1140,6 +1156,8 @@ fn vote_replays() {
     );
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
@@ -1150,6 +1168,8 @@ fn vote_replays() {
 
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
@@ -1175,6 +1195,8 @@ fn vote_replays() {
     // this vote cannot confirm the election
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote2_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1185,6 +1207,8 @@ fn vote_replays() {
     // this vote confirms the election
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1194,6 +1218,8 @@ fn vote_replays() {
     // this should still return replay, either because the election is still in the AEC or because it is recently confirmed
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1202,6 +1228,8 @@ fn vote_replays() {
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1209,6 +1237,8 @@ fn vote_replays() {
     );
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote2_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1219,6 +1249,8 @@ fn vote_replays() {
     node.recently_confirmed.write().unwrap().clear();
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
@@ -1226,6 +1258,8 @@ fn vote_replays() {
     );
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
@@ -1233,6 +1267,8 @@ fn vote_replays() {
     );
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1240,6 +1276,8 @@ fn vote_replays() {
     );
     assert_eq!(
         node.vote_router
+            .lock()
+            .unwrap()
             .vote(&vote2_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),

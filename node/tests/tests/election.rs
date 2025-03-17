@@ -60,7 +60,11 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     assert_eq!(1, election.lock().unwrap().block_count());
 
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1.vote_router.vote(&vote1, VoteSource::Live);
+    node1
+        .vote_router
+        .lock()
+        .unwrap()
+        .vote(&vote1, VoteSource::Live);
 
     let channel = node1
         .network
@@ -80,7 +84,11 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .lock()
         .unwrap()
         .set_online(config.online_weight_minimum + Amount::raw(20));
-    node1.vote_router.vote(&vote2, VoteSource::Live);
+    node1
+        .vote_router
+        .lock()
+        .unwrap()
+        .vote(&vote2, VoteSource::Live);
     assert_timely2(|| election.lock().unwrap().is_confirmed());
     assert!(node1.block(&send1.hash()).is_some());
 }
@@ -148,7 +156,11 @@ fn quorum_minimum_confirm_fail() {
     assert_eq!(1, election.lock().unwrap().block_count());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1.vote_router.vote(&vote, VoteSource::Live);
+    node1
+        .vote_router
+        .lock()
+        .unwrap()
+        .vote(&vote, VoteSource::Live);
 
     // Give the election a chance to confirm
     std::thread::sleep(Duration::from_secs(1));
@@ -190,7 +202,11 @@ fn quorum_minimum_confirm_success() {
     assert_eq!(1, election.lock().unwrap().block_count());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1.vote_router.vote(&vote, VoteSource::Live);
+    node1
+        .vote_router
+        .lock()
+        .unwrap()
+        .vote(&vote, VoteSource::Live);
 
     assert!(node1.block_exists(&send1.hash()));
     assert_timely2(|| election.lock().unwrap().is_confirmed());
@@ -236,7 +252,11 @@ fn quorum_minimum_flip_fail() {
     // Genesis generates a final vote for send2 but it should not be enough to reach quorum
     // due to the online_weight_minimum being so high
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node1.vote_router.vote(&vote, VoteSource::Live);
+    node1
+        .vote_router
+        .lock()
+        .unwrap()
+        .vote(&vote, VoteSource::Live);
 
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
@@ -283,7 +303,11 @@ fn quorum_minimum_flip_success() {
 
     // Genesis generates a final vote for send2
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node1.vote_router.vote(&vote, VoteSource::Live);
+    node1
+        .vote_router
+        .lock()
+        .unwrap()
+        .vote(&vote, VoteSource::Live);
 
     // Wait for the election to be confirmed
     let election = node1.active.election(&send2.qualified_root()).unwrap();

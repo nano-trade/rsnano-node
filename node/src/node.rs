@@ -52,7 +52,7 @@ use crate::{
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
         VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
-        VoteRouterCleanup, VoteSummary,
+        VoteRouterCleanup, VoteRouterEvent, VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -113,7 +113,7 @@ pub struct Node {
     pub wallets: Arc<Wallets>,
     pub vote_generators: Arc<VoteGenerators>,
     pub active: Arc<ActiveElections>,
-    pub vote_router: Arc<VoteRouter>,
+    pub vote_router: Arc<Mutex<VoteRouter>>,
     vote_router_cleanup: TimerThread<VoteRouterCleanup>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -531,12 +531,10 @@ impl Node {
             cementing_elections_cache.clone(),
         ));
 
-        let vote_router = Arc::new(VoteRouter::new(
-            vote_cache.clone(),
+        let vote_router = Arc::new(Mutex::new(VoteRouter::new(
             recently_confirmed.clone(),
             vote_applier.clone(),
-            rep_weights.clone(),
-        ));
+        )));
 
         let vote_processor = Arc::new(VoteProcessor::new(
             vote_processor_queue.clone(),
@@ -836,7 +834,7 @@ impl Node {
             }
 
             if let Some(i) = vote_router_w.upgrade() {
-                if i.contains(hash) {
+                if i.lock().unwrap().contains(hash) {
                     return false;
                 }
             }
@@ -881,7 +879,7 @@ impl Node {
             }
 
             if let Some(i) = vote_router_w.upgrade() {
-                if i.contains(hash) {
+                if i.lock().unwrap().contains(hash) {
                     return false;
                 }
             }
@@ -1018,10 +1016,6 @@ impl Node {
             message_flooder.clone(),
             stats.clone(),
         );
-
-        vote_router.on_vote_processed(Box::new(move |vote, _source, results| {
-            vote_rebroadcast_queue.handle_processed_vote(vote, results);
-        }));
 
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
         let message_publisher_l = Arc::new(Mutex::new(message_sender.clone()));
@@ -1161,6 +1155,8 @@ impl Node {
             recently_cemented: recently_cemented.clone(),
         };
 
+        let vote_router_cleanup = VoteRouterCleanup::new(vote_router.clone());
+
         let mut aec_event_processor = AecEventProcessor {
             receiver: aec_receiver,
             vote_cache_processor: vote_cache_processor.clone(),
@@ -1194,7 +1190,30 @@ impl Node {
             })
             .unwrap();
 
-        let vote_router_cleanup = VoteRouterCleanup::new(vote_router.clone());
+        let (vote_route_tx, vote_route_rx) = sync_channel(128);
+        vote_router.lock().unwrap().add_event_sink(vote_route_tx);
+
+        let rep_weights_l = rep_weights.clone();
+        let vote_cache_l = vote_cache.clone();
+        std::thread::Builder::new()
+            .name("Vote rout proc".to_owned())
+            .spawn(move || {
+                while let Ok(e) = vote_route_rx.recv() {
+                    let VoteRouterEvent::VoteProcessed(vote, source, results) = e;
+
+                    // Cache the votes that didn't match any election
+                    if source != VoteSource::Cache {
+                        let rep_weight = rep_weights_l.weight(&vote.voter);
+                        vote_cache_l
+                            .lock()
+                            .unwrap()
+                            .insert(&vote, rep_weight, &results);
+                    }
+
+                    vote_rebroadcast_queue.handle_processed_vote(&vote, &results);
+                }
+            })
+            .unwrap();
 
         Self {
             is_nulled,
@@ -1283,6 +1302,8 @@ impl Node {
         )]
         .into();
 
+        let vote_router = self.vote_router.lock().unwrap().container_info();
+
         ContainerInfo::builder()
             .node("work", self.work.container_info())
             .node("ledger", self.ledger.container_info())
@@ -1309,7 +1330,7 @@ impl Node {
                 self.election_schedulers.container_info(),
             )
             .node("vote_cache", vote_cache)
-            .node("vote_router", self.vote_router.container_info())
+            .node("vote_router", vote_router)
             .node("vote_generators", self.vote_generators.container_info())
             .node("bootstrap_ascending", self.bootstrapper.container_info())
             .node("unchecked", self.unchecked.container_info())
@@ -1583,6 +1604,7 @@ impl Node {
         self.ledger_notification_thread.stop();
         self.online_weight_calculation.stop();
         self.vote_router_cleanup.stop();
+        self.vote_router.lock().unwrap().stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();
         self.peer_cache_connector.stop();
