@@ -8,31 +8,37 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, Vote, VoteCode, VoteSource,
+    utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot,
+    SavedBlock, Vote, VoteCode, VoteSource,
 };
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    election_schedulers::ElectionSchedulers, CementingElectionsCache, Election, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators, VoteRouter,
+    election_schedulers::ElectionSchedulers, ActiveElections, CementingElectionsCache, Election,
+    EndedElection, LocalVoteHistory, RecentlyConfirmedCache, VoteGenerators, VoteRouter,
+    VoteSummary,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::NetworkParams,
+    consensus::ElectionResult,
     representatives::OnlineReps,
     wallets::Wallets,
 };
 
+#[derive(Clone)]
 pub enum VoteApplierEvent {
     VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
+    BlockCemented(SavedBlock, EndedElection, Vec<VoteSummary>),
 }
 
 /// Applies a vote to an election
 pub struct VoteApplier {
     vote_router: Arc<Mutex<VoteRouter>>,
+    active_elections: Arc<ActiveElections>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     event_senders: RwLock<Vec<SyncSender<VoteApplierEvent>>>,
     ledger: Arc<Ledger>,
@@ -52,6 +58,7 @@ pub struct VoteApplier {
 impl VoteApplier {
     pub(crate) fn new(
         vote_router: Arc<Mutex<VoteRouter>>,
+        active_elections: Arc<ActiveElections>,
         ledger: Arc<Ledger>,
         network_params: NetworkParams,
         online_reps: Arc<Mutex<OnlineReps>>,
@@ -63,10 +70,10 @@ impl VoteApplier {
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
-        cementing_elections_cache: Arc<Mutex<CementingElectionsCache>>,
     ) -> Self {
         Self {
             vote_router,
+            active_elections,
             recently_confirmed,
             event_senders: RwLock::new(Vec::new()),
             ledger,
@@ -80,7 +87,7 @@ impl VoteApplier {
             confirming_set,
             election_schedulers: RwLock::new(None),
             clock,
-            cementing_elections_cache,
+            cementing_elections_cache: Arc::new(Mutex::new(CementingElectionsCache::default())),
         }
     }
 
@@ -318,6 +325,12 @@ impl VoteApplier {
         }
     }
 
+    fn notify(&self, event: VoteApplierEvent) {
+        for sender in self.event_senders.read().unwrap().iter() {
+            sender.send(event.clone()).unwrap();
+        }
+    }
+
     pub fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
         let (winner_hash, root) = {
             let e = election.lock().unwrap();
@@ -338,5 +351,143 @@ impl VoteApplier {
             .insert(election);
 
         self.confirming_set.add(winner_hash);
+    }
+
+    /// Cementing blocks might implicitly confirm dependent elections
+    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, BlockHash)>) {
+        let mut results = Vec::new();
+        let roots = cemented
+            .iter()
+            .map(|(block, _)| (block.qualified_root(), block));
+
+        // Process all cemented blocks while holding the lock to avoid
+        // races where an election for a block that is already
+        // cemented is inserted
+        self.active_elections
+            .modify_batch(roots, |root, election, block| {
+                let result = self.block_cemented(root, election, block);
+                results.push(result)
+            });
+
+        // TODO: This could be offloaded to a separate notification worker, profiling is needed
+        for (status, votes) in results {
+            self.notify_block_cemented(status, votes);
+        }
+    }
+
+    /// Distinguishes replay votes, cannot be determined if the block is not in any election
+    fn block_cemented(
+        &self,
+        _root: QualifiedRoot,
+        dependent_election: Option<&Arc<Mutex<Election>>>,
+        block: &SavedBlock,
+    ) -> (EndedElection, Vec<VoteSummary>) {
+        // Dependent elections are implicitly confirmed when their block is cemented
+        if let Some(dependent_election) = &dependent_election {
+            self.stats
+                .inc(StatType::ActiveElections, DetailType::ConfirmDependent);
+
+            // TODO: This should either confirm or cancel the election
+            self.try_confirm(&dependent_election, &block.hash());
+        }
+
+        let mut election_result = EndedElection::new(block.clone());
+        let mut votes = Vec::new();
+
+        let mut handled = false;
+
+        let source_election = self
+            .cementing_elections_cache
+            .lock()
+            .unwrap()
+            .get(&block.hash())
+            .cloned();
+
+        // Check if the currently cemented block was part of an election that triggered the confirmation
+        if let Some(source_election) = source_election {
+            let election = source_election.lock().unwrap();
+            // TODO compare winner hash instead!
+            if *election.qualified_root() == block.qualified_root() {
+                election_result.winner = election.winner().clone();
+                election_result.tally = election.winner_tally();
+                election_result.final_tally = election.winner_final_tally();
+                election_result.confirmation_request_count =
+                    election.confirmation_request_count() as u32;
+                election_result.block_count = election.block_count() as u32;
+                election_result.voter_count = election.votes().len() as u32;
+                election_result.election_duration = election.start().elapsed(self.clock.now());
+                election_result.election_end = SystemTime::now();
+                election_result.vote_broadcast_count = election.vote_broadcast_count() as u32;
+                election_result.result = ElectionResult::ActiveConfirmedQuorum;
+                debug_assert_eq!(election_result.winner.hash(), block.hash());
+                votes = election.votes().values().cloned().collect();
+                // sort descending
+                votes.sort_by(|a, b| b.weight.cmp(&a.weight));
+                handled = true;
+            }
+        }
+
+        if handled {
+            // already handled
+        } else if dependent_election.is_some() {
+            election_result.result = ElectionResult::ActiveConfirmationHeight;
+        } else {
+            election_result.result = ElectionResult::InactiveConfirmationHeight;
+        }
+
+        self.stats
+            .inc(StatType::ActiveElections, DetailType::Cemented);
+        self.stats.inc(
+            StatType::ActiveElectionsCemented,
+            election_result.result.into(),
+        );
+
+        (election_result, votes)
+    }
+
+    fn try_confirm(&self, election_mutex: &Arc<Mutex<Election>>, cemented_hash: &BlockHash) {
+        let mut election = election_mutex.lock().unwrap();
+        let winner_hash = election.winner().hash();
+        if winner_hash == *cemented_hash {
+            if election.force_confirm() {
+                self.recently_confirmed
+                    .write()
+                    .unwrap()
+                    .put(election.qualified_root().clone(), winner_hash);
+
+                self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
+                trace!(
+                    qualified_root = ?election.qualified_root(),
+                    "election confirmed"
+                );
+            }
+        }
+    }
+
+    fn notify_block_cemented(&self, status: EndedElection, votes: Vec<VoteSummary>) {
+        let MaybeSavedBlock::Saved(block) = &status.winner else {
+            return;
+        };
+        let block = block.clone();
+
+        match status.result {
+            ElectionResult::ActiveConfirmedQuorum => self.stats.inc_dir(
+                StatType::ConfirmationObserver,
+                DetailType::ActiveQuorum,
+                Direction::Out,
+            ),
+            ElectionResult::ActiveConfirmationHeight => self.stats.inc_dir(
+                StatType::ConfirmationObserver,
+                DetailType::ActiveConfHeight,
+                Direction::Out,
+            ),
+            ElectionResult::InactiveConfirmationHeight => self.stats.inc_dir(
+                StatType::ConfirmationObserver,
+                DetailType::InactiveConfHeight,
+                Direction::Out,
+            ),
+        }
+
+        self.notify(VoteApplierEvent::BlockCemented(block, status, votes));
     }
 }

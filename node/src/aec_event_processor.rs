@@ -8,7 +8,6 @@ use rsnano_messages::NetworkFilter;
 
 use crate::{
     consensus::{election_schedulers::ElectionSchedulers, AecEvent, VoteCacheProcessor},
-    recently_cemented_inserter::RecentlyCementedInserter,
     NodeEvent,
 };
 
@@ -18,7 +17,6 @@ pub(crate) struct AecEventProcessor {
     pub vote_cache_processor: Arc<VoteCacheProcessor>,
     pub node_event_sender: Option<SyncSender<NodeEvent>>,
     pub election_schedulers: Arc<ElectionSchedulers>,
-    pub recently_cemented_inserter: RecentlyCementedInserter,
     pub network_filter: Arc<NetworkFilter>,
 }
 
@@ -38,13 +36,6 @@ impl AecEventProcessor {
                     }
                 }
 
-                AecEvent::BlockCemented(block, status, votes) => {
-                    if let Some(tx) = &self.node_event_sender {
-                        tx.send(NodeEvent::BlockCemented(block, status.clone(), votes))
-                            .unwrap();
-                    }
-                    self.recently_cemented_inserter.insert(status);
-                }
                 AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
                 AecEvent::BlockRemovedFromElection(block) => {
                     let mut buf = MemoryStream::new();

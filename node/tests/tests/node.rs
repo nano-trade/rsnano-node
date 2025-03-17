@@ -388,11 +388,12 @@ fn vote_by_hash_bundle() {
 
     let mut max_hashes = 0;
     while let Ok(e) = rx.recv_timeout(Duration::from_secs(2)) {
-        let VoteApplierEvent::VoteProcessed(vote, _, _) = e;
-        max_hashes = max(max_hashes, vote.hashes.len());
+        if let VoteApplierEvent::VoteProcessed(vote, _, _) = e {
+            max_hashes = max(max_hashes, vote.hashes.len());
 
-        if max_hashes >= 3 {
-            break;
+            if max_hashes >= 3 {
+                break;
+            }
         }
     }
 

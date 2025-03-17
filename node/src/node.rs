@@ -515,47 +515,12 @@ impl Node {
             steady_clock.clone(),
         ));
 
-        let cementing_elections_cache = Arc::new(Mutex::new(CementingElectionsCache::default()));
-
         let vote_router = Arc::new(Mutex::new(VoteRouter::new()));
-
-        let vote_applier = Arc::new(VoteApplier::new(
-            vote_router.clone(),
-            ledger.clone(),
-            network_params.clone(),
-            online_reps.clone(),
-            stats.clone(),
-            vote_generators.clone(),
-            block_processor.clone(),
-            history.clone(),
-            wallets.clone(),
-            recently_confirmed.clone(),
-            confirming_set.clone(),
-            steady_clock.clone(),
-            cementing_elections_cache.clone(),
-        ));
-
-        let vote_processor = Arc::new(VoteProcessor::new(
-            vote_processor_queue.clone(),
-            vote_applier.clone(),
-            stats.clone(),
-        ));
-
-        let vote_cache_processor = Arc::new(VoteCacheProcessor::new(
-            stats.clone(),
-            vote_cache.clone(),
-            vote_applier.clone(),
-            config.vote_processor.clone(),
-        ));
 
         let election_voter = ElectionVoter {
             stats: stats.clone(),
             vote_generators: vote_generators.clone(),
         };
-
-        let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(
-            config.active_elections.confirmation_history_size,
-        )));
 
         let election_config = ElectionConfig::default_for(network_params.network.current_network);
 
@@ -571,12 +536,43 @@ impl Node {
             message_flooder.clone(),
             election_voter,
             election_config,
-            cementing_elections_cache,
             steady_clock.clone(),
         );
-
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
+
+        let vote_applier = Arc::new(VoteApplier::new(
+            vote_router.clone(),
+            active_elections.clone(),
+            ledger.clone(),
+            network_params.clone(),
+            online_reps.clone(),
+            stats.clone(),
+            vote_generators.clone(),
+            block_processor.clone(),
+            history.clone(),
+            wallets.clone(),
+            recently_confirmed.clone(),
+            confirming_set.clone(),
+            steady_clock.clone(),
+        ));
+
+        let vote_processor = Arc::new(VoteProcessor::new(
+            vote_processor_queue.clone(),
+            vote_applier.clone(),
+            stats.clone(),
+        ));
+
+        let vote_cache_processor = Arc::new(VoteCacheProcessor::new(
+            stats.clone(),
+            vote_cache.clone(),
+            vote_applier.clone(),
+            config.vote_processor.clone(),
+        ));
+
+        let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(
+            config.active_elections.confirmation_history_size,
+        )));
 
         let confirmation_requester = ActiveElectionsDriver {
             active_elections: active_elections.clone(),
@@ -1158,9 +1154,8 @@ impl Node {
         let mut aec_event_processor = AecEventProcessor {
             receiver: aec_receiver,
             vote_cache_processor: vote_cache_processor.clone(),
-            node_event_sender,
+            node_event_sender: node_event_sender.clone(),
             election_schedulers: election_schedulers.clone(),
-            recently_cemented_inserter,
             network_filter: network_filter.clone(),
         };
 
@@ -1174,7 +1169,7 @@ impl Node {
         let mut ledger_event_processor = LedgerEventProcessor {
             receiver: ledger_rx,
             local_block_broadcaster: local_block_broadcaster.clone(),
-            active_elections: active_elections.clone(),
+            vote_applier: vote_applier.clone(),
             election_schedulers: election_schedulers.clone(),
             flags: flags.clone(),
             wallets: wallets.clone(),
@@ -1197,18 +1192,27 @@ impl Node {
             .name("Vote appl proc".to_owned())
             .spawn(move || {
                 while let Ok(e) = vote_route_rx.recv() {
-                    let VoteApplierEvent::VoteProcessed(vote, source, results) = e;
+                    match e {
+                        VoteApplierEvent::VoteProcessed(vote, source, results) => {
+                            // Cache the votes that didn't match any election
+                            if source != VoteSource::Cache {
+                                let rep_weight = rep_weights_l.weight(&vote.voter);
+                                vote_cache_l
+                                    .lock()
+                                    .unwrap()
+                                    .insert(&vote, rep_weight, &results);
+                            }
 
-                    // Cache the votes that didn't match any election
-                    if source != VoteSource::Cache {
-                        let rep_weight = rep_weights_l.weight(&vote.voter);
-                        vote_cache_l
-                            .lock()
-                            .unwrap()
-                            .insert(&vote, rep_weight, &results);
+                            vote_rebroadcast_queue.handle_processed_vote(&vote, &results);
+                        }
+                        VoteApplierEvent::BlockCemented(block, status, votes) => {
+                            if let Some(tx) = &node_event_sender {
+                                tx.send(NodeEvent::BlockCemented(block, status.clone(), votes))
+                                    .unwrap();
+                            }
+                            recently_cemented_inserter.insert(status);
+                        }
                     }
-
-                    vote_rebroadcast_queue.handle_processed_vote(&vote, &results);
                 }
             })
             .unwrap();
