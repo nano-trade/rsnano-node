@@ -9,7 +9,7 @@ use rsnano_core::{utils::ContainerInfo, BlockHash};
 use super::Election;
 
 /// This class routes votes to their associated election
-pub struct VoteRouter {
+pub(crate) struct VoteRouter {
     // Mapping of block hashes to elections.
     // Election already contains the associated block
     elections: HashMap<BlockHash, Arc<Mutex<Election>>>,
