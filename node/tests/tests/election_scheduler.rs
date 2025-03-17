@@ -295,7 +295,7 @@ mod election_scheduler {
 
         // Wait for optimistic election to start for last block
         let block = blocks.last().unwrap();
-        assert_timely2(|| node.vote_router.lock().unwrap().is_active(&block.hash()));
+        assert_timely2(|| node.active.is_active_hash(&block.hash()));
         let election = node.active.election(&block.qualified_root()).unwrap();
         assert_eq!(
             election.lock().unwrap().behavior(),
@@ -317,6 +317,6 @@ mod election_scheduler {
         );
         // Verify vote broadcast after transitioning
         assert_timely_eq2(|| election.lock().unwrap().vote_broadcast_count(), 2);
-        assert!(node.active.is_active(block));
+        assert!(node.active.is_active_root(&block.qualified_root()));
     }
 }

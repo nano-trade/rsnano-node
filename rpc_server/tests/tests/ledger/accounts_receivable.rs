@@ -7,8 +7,7 @@ use rsnano_ledger::{
 use rsnano_node::{wallets::WalletsExt, Node};
 use rsnano_rpc_messages::{AccountsReceivableArgs, AccountsReceivableResponse};
 use std::sync::Arc;
-use std::time::Duration;
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 fn send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
     let any = node.ledger.any();
@@ -30,11 +29,7 @@ fn send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
     .into();
 
     node.process_active(send.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&send),
-        "not active on node",
-    );
+    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 
     send
 }

@@ -4,8 +4,8 @@ use rsnano_ledger::{
 };
 use rsnano_node::Node;
 use rsnano_rpc_messages::RepublishArgs;
-use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_timely2, assert_timely_msg, setup_rpc_client_and_server, System};
+use std::sync::Arc;
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -14,20 +14,12 @@ fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     // Create and process send block
     let send = lattice.genesis().send(&key, 100);
     node.process_active(send.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&send),
-        "send not active on node 1",
-    );
+    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 
     // Create and process open block
     let open = lattice.account(&key).receive(&send);
     node.process_active(open.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&open),
-        "open not active on node 1",
-    );
+    assert_timely2(|| node.active.is_active_root(&open.qualified_root()));
 
     open.hash()
 }

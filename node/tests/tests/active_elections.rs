@@ -481,7 +481,7 @@ fn inactive_votes_cache_election_start() {
         .vote(vote2, None, VoteSource::Live);
     // Only election for send1 should start, other blocks are missing dependencies and don't have enough final weight
     assert_timely_eq2(|| node.active.len(), 1);
-    assert!(node.vote_router.lock().unwrap().is_active(&send1.hash()));
+    assert!(node.active.is_active_hash(&send1.hash()));
 
     // Confirm elections with weight quorum
     let vote0 = Arc::new(Vote::new_final(
@@ -540,7 +540,7 @@ fn republish_winner() {
         let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
         let fork = fork_lattice.genesis().send(&key, Amount::raw(1 + i));
         node1.process_active(fork.clone());
-        assert_timely(Duration::from_secs(5), || node1.active.is_active(&fork));
+        assert_timely2(|| node1.active.is_active_root(&fork.qualified_root()));
     }
 
     assert_timely(Duration::from_secs(3), || node1.active.len() > 0);
@@ -556,7 +556,7 @@ fn republish_winner() {
     let fork = fork_lattice.genesis().send(&key, Amount::nano(2000));
     node1.process_active(fork.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1.vote_router.lock().unwrap().is_active(&fork.hash())
+        node1.active.is_active_hash(&fork.hash())
     });
 
     let election = node1.active.election(&fork.qualified_root()).unwrap();
@@ -740,7 +740,9 @@ fn bound_election_winners() {
     // Start elections for a couple of blocks, number of elections is larger than the election winner set limit
     let blocks = setup_independent_blocks(&node, 10, &DEV_GENESIS_KEY);
     assert_timely(Duration::from_secs(5), || {
-        blocks.iter().all(|block| node.active.is_active(block))
+        blocks
+            .iter()
+            .all(|block| node.active.is_active_root(&block.qualified_root()))
     });
 
     {
@@ -796,7 +798,7 @@ fn broadcast_block_on_activation() {
 
     // Activating the election should broadcast the block
     node1.election_schedulers.add_manual(send1.clone());
-    assert_timely2(|| node1.active.is_root_active(&send1.qualified_root()));
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
     assert_timely2(|| node2.block_exists(&send1.hash()));
 }
 
@@ -1039,15 +1041,15 @@ fn activate_account_chain() {
     assert_timely2(|| node.block_confirmed(&send.hash()));
 
     // On cementing, the next election is started
-    assert_timely2(|| node.active.is_root_active(&send2.qualified_root()));
+    assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
     let election3 = node.active.election(&send2.qualified_root()).unwrap();
     assert!(election3.lock().unwrap().contains_block(&send2.hash()));
     node.vote_applier.force_confirm(&election3);
     assert_timely2(|| node.block_confirmed(&send2.hash()));
 
     // On cementing, the next election is started
-    assert_timely2(|| node.active.is_root_active(&open.qualified_root())); // Destination account activated
-    assert_timely2(|| node.active.is_root_active(&send3.qualified_root())); // Block successor activated
+    assert_timely2(|| node.active.is_active_root(&open.qualified_root())); // Destination account activated
+    assert_timely2(|| node.active.is_active_root(&send3.qualified_root())); // Block successor activated
     let election4 = node.active.election(&send3.qualified_root()).unwrap();
     assert!(election4.lock().unwrap().contains_block(&send3.hash()));
     let election5 = node.active.election(&open.qualified_root()).unwrap();
@@ -1057,10 +1059,10 @@ fn activate_account_chain() {
 
     // Until send3 is also confirmed, the receive block should not activate
     sleep(Duration::from_millis(200));
-    assert!(!node.active.is_root_active(&receive.qualified_root()));
+    assert!(!node.active.is_active_root(&receive.qualified_root()));
     node.vote_applier.force_confirm(&election4);
     assert_timely2(|| node.block_confirmed(&send3.hash()));
-    assert_timely2(|| node.active.is_root_active(&receive.qualified_root())); // Destination account activated
+    assert_timely2(|| node.active.is_active_root(&receive.qualified_root())); // Destination account activated
 }
 
 #[test]
@@ -1407,5 +1409,5 @@ fn activate_inactive() {
     );
 
     // Cementing of send should activate open
-    assert_timely(Duration::from_secs(5), || node.active.is_active(&open))
+    assert_timely2(|| node.active.is_active_root(&open.qualified_root()))
 }

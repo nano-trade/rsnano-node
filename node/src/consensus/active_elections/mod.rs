@@ -22,8 +22,7 @@ use super::{
     VoteRouter,
 };
 use crate::{
-    block_processing::BlockContext, cementation::ConfirmingSet, config::NodeConfig,
-    transport::MessageFlooder,
+    block_processing::BlockContext, cementation::ConfirmingSet, transport::MessageFlooder,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -75,7 +74,7 @@ pub struct ActiveElections {
 
 impl ActiveElections {
     pub(crate) fn new(
-        node_config: NodeConfig,
+        config: ActiveElectionsConfig,
         rep_weights: Arc<RepWeightCache>,
         confirming_set: Arc<ConfirmingSet>,
         vote_cache: Arc<Mutex<VoteCache>>,
@@ -101,7 +100,7 @@ impl ActiveElections {
             rep_weights,
             confirming_set,
             recently_confirmed,
-            config: node_config.active_elections.clone(),
+            config,
             vote_cache,
             stats,
             vote_router,
@@ -162,13 +161,13 @@ impl ActiveElections {
         self.notify(AecEvent::VacancyUpdated);
     }
 
-    pub fn is_root_active(&self, root: &QualifiedRoot) -> bool {
+    pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
         let guard = self.mutex.lock().unwrap();
         guard.roots.get(root).is_some()
     }
 
-    pub fn is_active(&self, block: &Block) -> bool {
-        self.is_root_active(&block.qualified_root())
+    pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
+        self.vote_router.lock().unwrap().is_active(block_hash)
     }
 
     fn get_cached_tally(&self, hash: &BlockHash) -> Amount {

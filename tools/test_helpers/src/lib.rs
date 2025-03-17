@@ -669,11 +669,7 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
     .into();
 
     node.process_active(send.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&send),
-        "not active on node",
-    );
+    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 
     send
 }

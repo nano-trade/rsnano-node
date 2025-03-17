@@ -526,7 +526,7 @@ impl Node {
 
         let (aec_sender, aec_receiver) = sync_channel(1024);
         let mut active_elections = ActiveElections::new(
-            config.clone(),
+            config.active_elections.clone(),
             ledger.rep_weights.clone(),
             confirming_set.clone(),
             vote_cache.clone(),

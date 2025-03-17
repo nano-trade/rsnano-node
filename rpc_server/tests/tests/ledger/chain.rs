@@ -2,8 +2,7 @@ use rsnano_core::{Amount, PrivateKey, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::ChainArgs;
-use std::{time::Duration, u64};
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 #[test]
 fn chain() {
@@ -35,11 +34,7 @@ fn chain() {
         )
         .unwrap();
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&block),
-        "block not active on node",
-    );
+    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
 
     let result = node.runtime.block_on(async {
         server
@@ -86,11 +81,7 @@ fn chain_limit() {
         )
         .unwrap();
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&block),
-        "block not active on node",
-    );
+    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
 
     let result = node.runtime.block_on(async {
         server
@@ -136,11 +127,7 @@ fn chain_offset() {
         )
         .unwrap();
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&block),
-        "block not active on node",
-    );
+    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
 
     let args = ChainArgs::builder(block.hash(), u64::MAX).offset(1).build();
 

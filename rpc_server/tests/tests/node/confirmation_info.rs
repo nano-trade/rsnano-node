@@ -1,8 +1,7 @@
 use rsnano_core::{Account, Amount, JsonBlock};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_HASH};
 use rsnano_rpc_messages::ConfirmationInfoArgs;
-use std::time::Duration;
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 #[test]
 fn confirmation_info() {
@@ -13,11 +12,7 @@ fn confirmation_info() {
     let send = lattice.genesis().send(Account::zero(), 100);
     node.process_active(send.clone());
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&send),
-        "not active on node 1",
-    );
+    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 
     let server = setup_rpc_client_and_server(node.clone(), false);
 

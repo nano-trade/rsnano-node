@@ -3,7 +3,7 @@ use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
 use rsnano_network::ChannelId;
 use rsnano_node::block_processing::BlockSource;
 use std::time::Duration;
-use test_helpers::{assert_timely, start_election, start_elections, System};
+use test_helpers::{assert_timely, assert_timely2, start_election, start_elections, System};
 
 #[test]
 fn start_stop() {
@@ -37,7 +37,7 @@ fn add_existing() {
     start_election(&node1, &send1.hash());
 
     // wait for election to be started before processing send2
-    assert_timely(Duration::from_secs(5), || node1.active.is_active(&send1));
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
     let key2 = PrivateKey::new();
@@ -50,9 +50,9 @@ fn add_existing() {
         .block_processor
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
-    assert!(node1.active.is_active(&send1));
+    assert!(node1.active.is_active_root(&send1.qualified_root()));
     assert_timely(Duration::from_secs(5), || {
-        node1.active.is_root_active(&send2.qualified_root())
+        node1.active.is_active_root(&send2.qualified_root())
     });
 }
 

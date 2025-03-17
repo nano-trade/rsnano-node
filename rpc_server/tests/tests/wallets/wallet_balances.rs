@@ -2,19 +2,15 @@ use rsnano_core::{Account, Amount, PublicKey, RawKey, WalletId};
 use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
 use rsnano_node::{wallets::WalletsExt, Node};
 use rsnano_rpc_messages::{AccountBalanceResponse, AccountsBalancesResponse, WalletBalancesArgs};
-use std::{collections::HashMap, sync::Arc, time::Duration};
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use std::{collections::HashMap, sync::Arc};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 fn send_block(node: Arc<Node>, account: Account) {
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let send1 = lattice.genesis().send(account, 1);
 
     node.process_active(send1.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&send1),
-        "not active on node 1",
-    );
+    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
 }
 
 #[test]

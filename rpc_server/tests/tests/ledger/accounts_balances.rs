@@ -3,19 +3,14 @@ use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUN
 use rsnano_node::Node;
 use rsnano_rpc_messages::AccountsBalancesArgs;
 use std::sync::Arc;
-use std::time::Duration;
-use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
+use test_helpers::{assert_timely2, setup_rpc_client_and_server, System};
 
 fn send_block(node: Arc<Node>) {
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let send = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
 
     node.process_active(send.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.is_active(&send),
-        "not active on node 1",
-    );
+    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 }
 
 #[test]
