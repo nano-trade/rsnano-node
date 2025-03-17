@@ -376,24 +376,21 @@ impl ActiveElections {
         added
     }
 
-    pub fn modify_batch<'a, 'b, T>(
+    pub fn iter_batch_by_root<'a, 'b, T>(
         &'a self,
         roots: impl IntoIterator<Item = (QualifiedRoot, &'b T)>,
-        mut modify: impl FnMut(QualifiedRoot, Option<&Arc<Mutex<Election>>>, &'b T),
+        mut handle: impl FnMut(QualifiedRoot, Option<&Arc<Mutex<Election>>>, &'b T),
     ) where
         T: 'b,
     {
         let guard = self.mutex.lock().unwrap();
         for (root, context) in roots.into_iter() {
-            if let Some(election) = guard.election(&root) {
-                modify(root, Some(&election), context);
-            } else {
-                modify(root, None, context)
-            }
+            let election = guard.election(&root);
+            handle(root, election, context);
         }
     }
 
-    pub fn iter_batch<'a>(
+    pub fn iter_batch_by_hash<'a>(
         &self,
         blocks: impl IntoIterator<Item = &'a BlockHash>,
         mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>),

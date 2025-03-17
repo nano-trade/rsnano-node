@@ -127,22 +127,23 @@ impl VoteApplier {
                 }
             });
 
-            self.active_elections.iter_batch(hashes, |hash, election| {
-                // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-                if results.contains_key(hash) {
-                    return;
-                }
-
-                if let Some(election) = election {
-                    process.insert(*hash, election.clone());
-                } else {
-                    if !recently_confirmed.hash_exists(hash) {
-                        results.insert(*hash, VoteCode::Indeterminate);
-                    } else {
-                        results.insert(*hash, VoteCode::Replay);
+            self.active_elections
+                .iter_batch_by_hash(hashes, |hash, election| {
+                    // Ignore duplicate hashes (should not happen with a well-behaved voting node)
+                    if results.contains_key(hash) {
+                        return;
                     }
-                }
-            });
+
+                    if let Some(election) = election {
+                        process.insert(*hash, election.clone());
+                    } else {
+                        if !recently_confirmed.hash_exists(hash) {
+                            results.insert(*hash, VoteCode::Indeterminate);
+                        } else {
+                            results.insert(*hash, VoteCode::Replay);
+                        }
+                    }
+                });
         }
 
         for (block_hash, election) in process {
@@ -153,6 +154,7 @@ impl VoteApplier {
                 &block_hash,
                 source,
             );
+
             results.insert(block_hash, vote_result);
         }
 
@@ -357,7 +359,7 @@ impl VoteApplier {
         // races where an election for a block that is already
         // cemented is inserted
         self.active_elections
-            .modify_batch(roots, |root, election, block| {
+            .iter_batch_by_root(roots, |root, election, block| {
                 let result = self.block_cemented(root, election, block);
                 results.push(result)
             });
