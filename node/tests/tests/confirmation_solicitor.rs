@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rsnano_core::{utils::UnixMillisTimestamp, Account, Amount, Block, MaybeSavedBlock, PublicKey};
+use rsnano_core::{utils::UnixMillisTimestamp, Account, Amount, Block, PublicKey};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
@@ -131,7 +131,7 @@ fn different_hashes() {
     );
     // Add a vote for something else, not the winner
     let another_block = Block::new_test_instance();
-    election.add_candidate_block(MaybeSavedBlock::Unsaved(another_block.clone()));
+    election.add_fork(another_block.clone(), Amount::nano(1));
     election.add_vote(
         *DEV_GENESIS_PUB_KEY,
         UnixMillisTimestamp::new(1),
@@ -198,7 +198,7 @@ fn bypass_max_requests_cap() {
     );
     // Add a vote for something else, not the winner
     let another_block = Block::new_test_instance();
-    election.add_candidate_block(MaybeSavedBlock::Unsaved(another_block.clone()));
+    election.add_fork(another_block.clone(), Amount::nano(1));
     for rep in &representatives {
         election.add_vote(
             rep.rep_key,

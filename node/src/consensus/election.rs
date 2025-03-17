@@ -5,7 +5,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, Networks, PublicKey,
+    utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, Networks, PublicKey,
     QualifiedRoot, SavedBlock,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -145,12 +145,32 @@ impl Election {
         self.block_count() >= Self::MAX_BLOCKS
     }
 
-    pub fn add_candidate_block(&mut self, block: impl Into<MaybeSavedBlock>) -> bool {
-        if self.has_max_blocks() {
-            return false;
+    pub fn add_fork(&mut self, fork: Block, fork_tally: Amount) -> AddForkResult {
+        // Do not insert new blocks if already confirmed
+        if self.state.has_ended() {
+            return AddForkResult::ElectionEnded;
         }
-        let block = block.into();
-        self.candidate_blocks.insert(block.hash(), block).is_none()
+
+        if self.contains_block(&fork.hash()) {
+            return AddForkResult::Duplicate;
+        }
+
+        let mut removed = None;
+        if self.has_max_blocks() {
+            removed = self.remove_tally_below(fork_tally);
+            if removed.is_none() {
+                return AddForkResult::TallyTooLow;
+            }
+        }
+
+        self.tallies.insert(fork.hash(), fork_tally);
+        self.candidate_blocks
+            .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork));
+
+        match removed {
+            Some(removed) => AddForkResult::Replaced(removed),
+            None => AddForkResult::Added,
+        }
     }
 
     pub fn votes(&self) -> &HashMap<PublicKey, VoteSummary> {
@@ -462,6 +482,8 @@ impl Election {
             let existing = self.candidate_blocks.remove(hash);
             if existing.is_some() {
                 self.votes.retain(|_, v| v.hash != *hash);
+                self.tallies.remove(hash);
+                self.final_tallies.remove(hash);
                 return existing;
             }
         }
@@ -528,4 +550,12 @@ impl From<ElectionBehavior> for DetailType {
             ElectionBehavior::Optimistic => DetailType::Optimistic,
         }
     }
+}
+
+pub enum AddForkResult {
+    Added,
+    Replaced(MaybeSavedBlock),
+    TallyTooLow,
+    Duplicate,
+    ElectionEnded,
 }

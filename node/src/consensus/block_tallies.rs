@@ -49,6 +49,18 @@ impl BlockTallies {
         self.tallies().sum()
     }
 
+    pub fn remove(&mut self, hash: &BlockHash) {
+        let index = self
+            .iter()
+            .enumerate()
+            .find_map(|(i, (h, _))| if h == hash { Some(i) } else { None });
+
+        if let Some(i) = index {
+            self.tallies[i..].rotate_left(1);
+            self.len -= 1;
+        }
+    }
+
     pub fn check_quorum(&self, quorum_delta: Amount) -> bool {
         let mut it = self.tallies();
         let first = it.next().unwrap_or_default();
@@ -66,14 +78,19 @@ impl BlockTallies {
             {
                 *tally += vote.weight;
             } else {
-                self.insert(vote.hash, vote.weight);
+                self.insert_unsorted(vote.hash, vote.weight);
             }
         }
 
         self.sort_by_descending_tally();
     }
 
-    fn insert(&mut self, hash: BlockHash, tally: Amount) {
+    pub fn insert(&mut self, hash: BlockHash, tally: Amount) {
+        self.insert_unsorted(hash, tally);
+        self.sort_by_descending_tally();
+    }
+
+    fn insert_unsorted(&mut self, hash: BlockHash, tally: Amount) {
         if self.len == Election::MAX_BLOCKS {
             panic!(
                 "Tallies can only be counted for {} blocks",

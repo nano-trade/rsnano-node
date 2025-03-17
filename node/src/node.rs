@@ -527,7 +527,6 @@ impl Node {
             vote_cache.clone(),
             stats.clone(),
             recently_confirmed.clone(),
-            message_flooder.clone(),
             election_voter,
             election_config,
             steady_clock.clone(),

@@ -37,7 +37,7 @@ impl AecEventProcessor {
                 }
 
                 AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
-                AecEvent::BlockRemovedFromElection(block) => {
+                AecEvent::BlockDiscarded(block) => {
                     let mut buf = MemoryStream::new();
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());

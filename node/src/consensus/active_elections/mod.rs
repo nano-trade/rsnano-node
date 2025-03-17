@@ -9,21 +9,15 @@ use root_container::{Entry, RootContainer};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use tracing::debug;
 
-use rsnano_core::{
-    utils::ContainerInfo, Amount, Block, BlockHash, MaybeSavedBlock, QualifiedRoot, SavedBlock,
-};
+use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_ledger::{BlockStatus, RepWeightCache};
-use rsnano_messages::{Message, Publish};
-use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{
-    Election, ElectionBehavior, ElectionConfig, ElectionVoter, RecentlyConfirmedCache, VoteCache,
-    VoteRouter,
+    AddForkResult, Election, ElectionBehavior, ElectionConfig, ElectionVoter,
+    RecentlyConfirmedCache, VoteCache, VoteRouter,
 };
-use crate::{
-    block_processing::BlockContext, cementation::ConfirmingSet, transport::MessageFlooder,
-};
+use crate::{block_processing::BlockContext, cementation::ConfirmingSet};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -52,7 +46,7 @@ pub enum AecEvent {
     ActiveStarted(BlockHash),
     ActiveStopped(BlockHash),
     BlockAddedToElection(BlockHash),
-    BlockRemovedFromElection(Block),
+    BlockDiscarded(Block),
     VacancyUpdated,
 }
 
@@ -65,7 +59,6 @@ pub struct ActiveElections {
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    message_flooder: Mutex<MessageFlooder>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
     election_voter: ElectionVoter,
     clock: Arc<SteadyClock>,
@@ -79,7 +72,6 @@ impl ActiveElections {
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        message_flooder: MessageFlooder,
         election_voter: ElectionVoter,
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
@@ -102,7 +94,6 @@ impl ActiveElections {
             config,
             vote_cache,
             stats,
-            message_flooder: Mutex::new(message_flooder),
             event_sender: RwLock::new(None),
             election_voter,
             clock,
@@ -264,7 +255,7 @@ impl ActiveElections {
             }
 
             if !election.is_confirmed() {
-                self.notify(AecEvent::BlockRemovedFromElection(block.clone().into()));
+                self.notify(AecEvent::BlockDiscarded(block.clone().into()));
             }
         }
     }
@@ -365,34 +356,24 @@ impl ActiveElections {
         election: &mut Election,
         fork: &Block,
     ) -> bool {
-        // Do not insert new blocks if already confirmed
-        if election.is_confirmed() {
-            return false;
-        }
+        // Try to remove a block with a lower tally, so that the fork can be added
+        let fork_tally = self.get_cached_tally(&fork.hash());
 
-        if election.has_max_blocks() && !election.contains_block(&fork.hash()) {
-            // Try to remove a block with a lower tally, so that the fork can be added
-            let fork_tally = self.get_cached_tally(&fork.hash());
-            let removed = election.remove_tally_below(fork_tally);
-            if let Some(removed) = removed {
+        let added = match election.add_fork(fork.clone(), fork_tally) {
+            AddForkResult::Added => true,
+            AddForkResult::Replaced(removed) => {
                 state.vote_router.disconnect(&removed.hash());
-                self.notify(AecEvent::BlockRemovedFromElection(removed.into()));
-            } else {
-                self.notify(AecEvent::BlockRemovedFromElection(fork.clone()));
+                self.notify(AecEvent::BlockDiscarded(removed.into()));
+                true
             }
-        }
-
-        if election.contains_block(&fork.hash()) {
-            if election.winner().hash() == fork.hash() {
-                let message = Message::Publish(Publish::new_forward(fork.clone()));
-                let mut publisher = self.message_flooder.lock().unwrap();
-                publisher.flood(&message, TrafficType::BlockBroadcast, 1.0);
+            AddForkResult::Duplicate => false,
+            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => {
+                self.notify(AecEvent::BlockDiscarded(fork.clone()));
+                false
             }
+        };
 
-            return false;
-        }
-
-        election.add_candidate_block(MaybeSavedBlock::Unsaved(fork.clone()))
+        added
     }
 
     pub fn modify_batch<'a, 'b, T>(
