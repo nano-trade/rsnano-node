@@ -222,7 +222,7 @@ impl ActiveElections {
     /// Erase all blocks from active, if not confirmed, clear digests from network filters
     fn cleanup_election<'a>(&self, mut guard: MutexGuard<'a, ActiveElectionsState>, entry: Entry) {
         // lock vote router before locking election to prevent dead lock!
-        let vote_router = self.vote_router.lock().unwrap();
+        let mut vote_router = self.vote_router.lock().unwrap();
         let election = entry.election.lock().unwrap();
 
         // Keep track of election count by election type

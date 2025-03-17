@@ -16,7 +16,9 @@ pub enum VoteRouterEvent {
 /// This class holds a weak_ptr as this container does not own the elections
 /// Routing entries are removed periodically if the weak_ptr has expired
 pub struct VoteRouter {
-    state: Arc<Mutex<State>>,
+    // Mapping of block hashes to elections.
+    // Election already contains the associated block
+    elections: HashMap<BlockHash, Weak<Mutex<Election>>>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_applier: Arc<VoteApplier>,
     event_senders: Vec<SyncSender<VoteRouterEvent>>,
@@ -28,9 +30,7 @@ impl VoteRouter {
         vote_applier: Arc<VoteApplier>,
     ) -> Self {
         Self {
-            state: Arc::new(Mutex::new(State {
-                elections: HashMap::new(),
-            })),
+            elections: HashMap::new(),
             recently_confirmed,
             vote_applier,
             event_senders: Vec::new(),
@@ -45,40 +45,38 @@ impl VoteRouter {
         self.event_senders.clear();
     }
 
-    pub fn clean_up(&self) {
-        self.state.lock().unwrap().clean_up();
+    pub fn clean_up(&mut self) {
+        self.elections
+            .retain(|_, election| election.strong_count() > 0);
     }
 
     /// This is meant to be a fast check and may return false positives
     /// if weak pointers have expired, but we don't care about that here
-    pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.state.lock().unwrap().elections.contains_key(hash)
+    pub fn contains(&mut self, hash: &BlockHash) -> bool {
+        self.elections.contains_key(hash)
     }
 
     /// Add a route for 'hash' to 'election'
     /// Existing routes will be replaced
     /// Election must hold the block for the hash being passed in
-    pub fn connect(&self, hash: BlockHash, election: Weak<Mutex<Election>>) {
-        self.state.lock().unwrap().elections.insert(hash, election);
+    pub fn connect(&mut self, hash: BlockHash, election: Weak<Mutex<Election>>) {
+        self.elections.insert(hash, election);
     }
 
     /// Remove all routes to this election
-    pub fn disconnect_election(&self, election: &Election) {
-        let mut state = self.state.lock().unwrap();
+    pub fn disconnect_election(&mut self, election: &Election) {
         for hash in election.candidate_blocks().keys() {
-            state.elections.remove(hash);
+            self.elections.remove(hash);
         }
     }
 
     /// Remove all routes to this election
-    pub fn disconnect(&self, hash: &BlockHash) {
-        let mut state = self.state.lock().unwrap();
-        state.elections.remove(hash);
+    pub fn disconnect(&mut self, hash: &BlockHash) {
+        self.elections.remove(hash);
     }
 
     pub fn election(&self, hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
-        let state = self.state.lock().unwrap();
-        state.elections.get(hash)?.upgrade()
+        self.elections.get(hash)?.upgrade()
     }
 
     /// Route vote to associated elections
@@ -98,7 +96,6 @@ impl VoteRouter {
         let mut results = HashMap::new();
         let mut process = HashMap::new();
         {
-            let guard = self.state.lock().unwrap();
             let recently_confirmed = self.recently_confirmed.read().unwrap();
             for hash in &vote.hashes {
                 // Ignore votes for other hashes if a filter is set
@@ -111,7 +108,7 @@ impl VoteRouter {
                     continue;
                 }
 
-                let election = guard.elections.get(hash).and_then(|e| e.upgrade());
+                let election = self.elections.get(hash).and_then(|e| e.upgrade());
                 if let Some(election) = election {
                     process.insert(*hash, election.clone());
                 } else {
@@ -147,8 +144,7 @@ impl VoteRouter {
     }
 
     pub fn active(&self, hash: &BlockHash) -> bool {
-        let state = self.state.lock().unwrap();
-        if let Some(existing) = state.elections.get(hash) {
+        if let Some(existing) = self.elections.get(hash) {
             existing.strong_count() > 0
         } else {
             false
@@ -173,28 +169,11 @@ impl VoteRouter {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.state.lock().unwrap();
         [(
             "elections",
-            guard.elections.len(),
+            self.elections.len(),
             size_of::<BlockHash>() + size_of::<Weak<Mutex<Election>>>(),
         )]
         .into()
     }
 }
-
-struct State {
-    // Mapping of block hashes to elections.
-    // Election already contains the associated block
-    elections: HashMap<BlockHash, Weak<Mutex<Election>>>,
-}
-
-impl State {
-    fn clean_up(&mut self) {
-        self.elections
-            .retain(|_, election| election.strong_count() > 0);
-    }
-}
-
-pub type VoteProcessedCallback =
-    Box<dyn Fn(&Arc<Vote>, VoteSource, &HashMap<BlockHash, VoteCode>) + Send + Sync>;
