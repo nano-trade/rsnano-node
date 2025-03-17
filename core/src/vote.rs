@@ -4,10 +4,10 @@ use super::{
 };
 use crate::{
     utils::{Serialize, UnixMillisTimestamp},
-    Amount, PublicKey, VoteTimestamp,
+    PublicKey, VoteTimestamp,
 };
 use anyhow::Result;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 #[derive(FromPrimitive, Copy, Clone, PartialEq, Eq, Debug)]
 pub enum VoteSource {

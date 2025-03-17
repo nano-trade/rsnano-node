@@ -14,7 +14,7 @@ use rsnano_core::{Vote, VoteCode, VoteSource};
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{VoteProcessorQueue, VoteRouter};
+use super::{VoteApplier2, VoteProcessorQueue};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteProcessorConfig {
@@ -45,21 +45,21 @@ pub type VoteProcessedCallback2 =
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
     queue: Arc<VoteProcessorQueue>,
-    vote_router: Arc<Mutex<VoteRouter>>,
+    vote_applier: Arc<VoteApplier2>,
     stats: Arc<Stats>,
     vote_processed: Mutex<Vec<VoteProcessedCallback2>>,
     pub total_processed: AtomicU64,
 }
 
 impl VoteProcessor {
-    pub fn new(
+    pub(crate) fn new(
         queue: Arc<VoteProcessorQueue>,
-        vote_router: Arc<Mutex<VoteRouter>>,
+        vote_applier: Arc<VoteApplier2>,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
             queue,
-            vote_router,
+            vote_applier,
             stats,
             vote_processed: Mutex::new(Vec::new()),
             threads: Mutex::new(Vec::new()),
@@ -118,7 +118,7 @@ impl VoteProcessor {
     ) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let vote_results = self.vote_router.lock().unwrap().vote(vote, source);
+            let vote_results = self.vote_applier.vote(vote, source);
 
             // Aggregate results for individual hashes
             let mut replay = false;

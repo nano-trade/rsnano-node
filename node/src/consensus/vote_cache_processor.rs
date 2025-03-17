@@ -7,14 +7,14 @@ use std::{
 use rsnano_core::{utils::ContainerInfo, BlockHash, VoteSource};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{VoteCache, VoteProcessorConfig, VoteRouter};
+use super::{VoteApplier2, VoteCache, VoteProcessorConfig};
 
 pub(crate) struct VoteCacheProcessor {
     state: Arc<Mutex<State>>,
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_router: Arc<Mutex<VoteRouter>>,
+    vote_applier: Arc<VoteApplier2>,
     config: VoteProcessorConfig,
 }
 
@@ -22,7 +22,7 @@ impl VoteCacheProcessor {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,
-        vote_router: Arc<Mutex<VoteRouter>>,
+        vote_applier: Arc<VoteApplier2>,
         config: VoteProcessorConfig,
     ) -> Self {
         Self {
@@ -33,7 +33,7 @@ impl VoteCacheProcessor {
             })),
             condition: Arc::new(Condvar::new()),
             stats,
-            vote_router,
+            vote_applier,
             vote_cache,
             config,
         }
@@ -48,7 +48,7 @@ impl VoteCacheProcessor {
             condition: self.condition.clone(),
             stats: self.stats.clone(),
             vote_cache: self.vote_cache.clone(),
-            vote_router: self.vote_router.clone(),
+            vote_applier: self.vote_applier.clone(),
         };
 
         self.state.lock().unwrap().thread = Some(
@@ -114,7 +114,7 @@ struct VoteCacheLoop {
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_router: Arc<Mutex<VoteRouter>>,
+    vote_applier: Arc<VoteApplier2>,
 }
 
 impl VoteCacheLoop {
@@ -149,9 +149,9 @@ impl VoteCacheLoop {
 
         for hash in hashes {
             let cached = self.vote_cache.lock().unwrap().find(&hash);
-            let router = self.vote_router.lock().unwrap();
             for cached_vote in cached {
-                router.vote_filter(&cached_vote, VoteSource::Cache, &hash);
+                self.vote_applier
+                    .vote_filter(&cached_vote, VoteSource::Cache, &hash);
             }
         }
     }

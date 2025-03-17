@@ -356,10 +356,7 @@ fn inactive_votes_cache_existing_vote() {
 
     let cached = node.vote_cache.lock().unwrap().find(&send.hash());
     assert_eq!(cached.len(), 1);
-    node.vote_router
-        .lock()
-        .unwrap()
-        .vote(&cached[0], VoteSource::Live);
+    node.vote_applier.vote(&cached[0], VoteSource::Live);
 
     // Check that election data is not changed
     assert_eq!(election.lock().unwrap().vote_count(), 1);
@@ -1113,18 +1110,14 @@ fn vote_replays() {
     // First vote is not a replay and confirms the election, second vote should be a replay since the election has confirmed but not yet removed
     let vote_send1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
         &VoteCode::Vote
     );
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
@@ -1134,9 +1127,7 @@ fn vote_replays() {
     // Wait until the election is removed, at which point the vote is still a replay since it's been recently confirmed
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
@@ -1146,18 +1137,14 @@ fn vote_replays() {
     // Open new account
     let vote_open1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![open1.hash()]));
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
         &VoteCode::Vote
     );
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
@@ -1167,9 +1154,7 @@ fn vote_replays() {
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
 
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
@@ -1194,9 +1179,7 @@ fn vote_replays() {
 
     // this vote cannot confirm the election
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote2_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1206,9 +1189,7 @@ fn vote_replays() {
 
     // this vote confirms the election
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1217,9 +1198,7 @@ fn vote_replays() {
 
     // this should still return replay, either because the election is still in the AEC or because it is recently confirmed
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1227,18 +1206,14 @@ fn vote_replays() {
     );
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
         &VoteCode::Replay
     );
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote2_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
@@ -1248,36 +1223,28 @@ fn vote_replays() {
     // Removing blocks as recently confirmed makes every vote indeterminate
     node.recently_confirmed.write().unwrap().clear();
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_send1, VoteSource::Live)
             .get(&send1.hash())
             .unwrap(),
         &VoteCode::Indeterminate
     );
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote_open1, VoteSource::Live)
             .get(&open1.hash())
             .unwrap(),
         &VoteCode::Indeterminate
     );
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote1_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),
         &VoteCode::Indeterminate
     );
     assert_eq!(
-        node.vote_router
-            .lock()
-            .unwrap()
+        node.vote_applier
             .vote(&vote2_send2, VoteSource::Live)
             .get(&send2.hash())
             .unwrap(),

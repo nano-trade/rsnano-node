@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::{Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
@@ -6,14 +7,16 @@ use std::{
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
-use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, VoteCode, VoteSource};
+use rsnano_core::{
+    utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, Vote, VoteCode, VoteSource,
+};
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     election_schedulers::ElectionSchedulers, CementingElectionsCache, Election, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators,
+    RecentlyConfirmedCache, VoteGenerators, VoteRouter,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -22,6 +25,79 @@ use crate::{
     representatives::OnlineReps,
     wallets::Wallets,
 };
+
+pub struct VoteApplier2 {
+    pub vote_router: Arc<Mutex<VoteRouter>>,
+    pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
+    pub vote_applier: Arc<VoteApplier>,
+}
+
+impl VoteApplier2 {
+    /// Route vote to associated elections
+    /// Distinguishes replay votes, cannot be determined if the block is not in any election
+    pub fn vote(&self, vote: &Arc<Vote>, source: VoteSource) -> HashMap<BlockHash, VoteCode> {
+        self.vote_filter(vote, source, &BlockHash::zero())
+    }
+
+    /// Route vote to associated elections
+    /// Distinguishes replay votes, cannot be determined if the block is not in any election
+    /// If 'filter' parameter is non-zero, only elections for the specified hash are notified.
+    /// This eliminates duplicate processing when triggering votes from the vote_cache as the result of a specific election being created.
+    pub fn vote_filter(
+        &self,
+        vote: &Arc<Vote>,
+        source: VoteSource,
+        filter: &BlockHash,
+    ) -> HashMap<BlockHash, VoteCode> {
+        let guard = self.vote_router.lock().unwrap();
+        debug_assert!(vote.validate().is_ok());
+        // If present, filter should be set to one of the hashes in the vote
+        debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
+
+        let mut results = HashMap::new();
+        let mut process = HashMap::new();
+        {
+            let recently_confirmed = self.recently_confirmed.read().unwrap();
+            for hash in &vote.hashes {
+                // Ignore votes for other hashes if a filter is set
+                if !filter.is_zero() && hash != filter {
+                    continue;
+                }
+
+                // Ignore duplicate hashes (should not happen with a well-behaved voting node)
+                if results.contains_key(hash) {
+                    continue;
+                }
+
+                let election = guard.election(hash);
+                if let Some(election) = election {
+                    process.insert(*hash, election.clone());
+                } else {
+                    if !recently_confirmed.hash_exists(hash) {
+                        results.insert(*hash, VoteCode::Indeterminate);
+                    } else {
+                        results.insert(*hash, VoteCode::Replay);
+                    }
+                }
+            }
+        }
+
+        for (block_hash, election) in process {
+            let vote_result = self.vote_applier.vote(
+                &election,
+                &vote.voter,
+                vote.timestamp(),
+                &block_hash,
+                source,
+            );
+            results.insert(block_hash, vote_result);
+        }
+
+        guard.notify_vote_processed(vote, source, &results);
+
+        results
+    }
+}
 
 /// Applies a vote to an election
 pub struct VoteApplier {

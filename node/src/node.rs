@@ -49,10 +49,10 @@ use crate::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, CementingElectionsCache, ElectionConfig,
         ElectionVoter, EndedElection, LocalVoteHistory, RecentlyConfirmedCache, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
-        VoteRouterCleanup, VoteRouterEvent, VoteSummary,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplier2, VoteBroadcaster,
+        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
+        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
+        VoteRouter, VoteRouterCleanup, VoteRouterEvent, VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -114,6 +114,7 @@ pub struct Node {
     pub vote_generators: Arc<VoteGenerators>,
     pub active: Arc<ActiveElections>,
     pub vote_router: Arc<Mutex<VoteRouter>>,
+    pub vote_applier: Arc<VoteApplier2>,
     vote_router_cleanup: TimerThread<VoteRouterCleanup>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -536,16 +537,22 @@ impl Node {
             vote_applier.clone(),
         )));
 
+        let vote_applier2 = Arc::new(VoteApplier2 {
+            vote_router: vote_router.clone(),
+            recently_confirmed: recently_confirmed.clone(),
+            vote_applier: vote_applier.clone(),
+        });
+
         let vote_processor = Arc::new(VoteProcessor::new(
             vote_processor_queue.clone(),
-            vote_router.clone(),
+            vote_applier2.clone(),
             stats.clone(),
         ));
 
         let vote_cache_processor = Arc::new(VoteCacheProcessor::new(
             stats.clone(),
             vote_cache.clone(),
-            vote_router.clone(),
+            vote_applier2.clone(),
             config.vote_processor.clone(),
         ));
 
@@ -1241,6 +1248,7 @@ impl Node {
             online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
             online_reps,
             rep_tiers,
+            vote_applier: vote_applier2,
             vote_router,
             vote_router_cleanup: TimerThread::new("Vote router", vote_router_cleanup),
             vote_processor_queue,

@@ -79,70 +79,6 @@ impl VoteRouter {
         self.elections.get(hash)?.upgrade()
     }
 
-    /// Route vote to associated elections
-    /// Distinguishes replay votes, cannot be determined if the block is not in any election
-    /// If 'filter' parameter is non-zero, only elections for the specified hash are notified.
-    /// This eliminates duplicate processing when triggering votes from the vote_cache as the result of a specific election being created.
-    pub fn vote_filter(
-        &self,
-        vote: &Arc<Vote>,
-        source: VoteSource,
-        filter: &BlockHash,
-    ) -> HashMap<BlockHash, VoteCode> {
-        debug_assert!(vote.validate().is_ok());
-        // If present, filter should be set to one of the hashes in the vote
-        debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
-
-        let mut results = HashMap::new();
-        let mut process = HashMap::new();
-        {
-            let recently_confirmed = self.recently_confirmed.read().unwrap();
-            for hash in &vote.hashes {
-                // Ignore votes for other hashes if a filter is set
-                if !filter.is_zero() && hash != filter {
-                    continue;
-                }
-
-                // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-                if results.contains_key(hash) {
-                    continue;
-                }
-
-                let election = self.elections.get(hash).and_then(|e| e.upgrade());
-                if let Some(election) = election {
-                    process.insert(*hash, election.clone());
-                } else {
-                    if !recently_confirmed.hash_exists(hash) {
-                        results.insert(*hash, VoteCode::Indeterminate);
-                    } else {
-                        results.insert(*hash, VoteCode::Replay);
-                    }
-                }
-            }
-        }
-
-        for (block_hash, election) in process {
-            let vote_result = self.vote_applier.vote(
-                &election,
-                &vote.voter,
-                vote.timestamp(),
-                &block_hash,
-                source,
-            );
-            results.insert(block_hash, vote_result);
-        }
-
-        self.notify_vote_processed(vote, source, &results);
-
-        results
-    }
-
-    /// Route vote to associated elections
-    /// Distinguishes replay votes, cannot be determined if the block is not in any election
-    pub fn vote(&self, vote: &Arc<Vote>, source: VoteSource) -> HashMap<BlockHash, VoteCode> {
-        self.vote_filter(vote, source, &BlockHash::zero())
-    }
-
     pub fn active(&self, hash: &BlockHash) -> bool {
         if let Some(existing) = self.elections.get(hash) {
             existing.strong_count() > 0
@@ -151,7 +87,7 @@ impl VoteRouter {
         }
     }
 
-    fn notify_vote_processed(
+    pub fn notify_vote_processed(
         &self,
         vote: &Arc<Vote>,
         source: VoteSource,
