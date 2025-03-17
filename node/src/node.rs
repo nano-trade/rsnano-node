@@ -49,10 +49,10 @@ use crate::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, CementingElectionsCache, ElectionConfig,
         ElectionVoter, EndedElection, LocalVoteHistory, RecentlyConfirmedCache, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteRouter,
-        VoteRouterCleanup, VoteRouterEvent, VoteSummary,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, VoteRouter, VoteRouterCleanup, VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -1194,10 +1194,10 @@ impl Node {
         let rep_weights_l = rep_weights.clone();
         let vote_cache_l = vote_cache.clone();
         std::thread::Builder::new()
-            .name("Vote rout proc".to_owned())
+            .name("Vote appl proc".to_owned())
             .spawn(move || {
                 while let Ok(e) = vote_route_rx.recv() {
-                    let VoteRouterEvent::VoteProcessed(vote, source, results) = e;
+                    let VoteApplierEvent::VoteProcessed(vote, source, results) = e;
 
                     // Cache the votes that didn't match any election
                     if source != VoteSource::Cache {

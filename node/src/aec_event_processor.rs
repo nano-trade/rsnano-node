@@ -46,7 +46,7 @@ impl AecEventProcessor {
                     self.recently_cemented_inserter.insert(status);
                 }
                 AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
-                AecEvent::UnconfirmedBlockRemoved(block) => {
+                AecEvent::BlockRemovedFromElection(block) => {
                     let mut buf = MemoryStream::new();
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());

@@ -55,7 +55,7 @@ pub enum AecEvent {
     ActiveStopped(BlockHash),
     BlockCemented(SavedBlock, EndedElection, Vec<VoteSummary>),
     BlockAddedToElection(BlockHash),
-    UnconfirmedBlockRemoved(Block),
+    BlockRemovedFromElection(Block),
     VacancyUpdated,
 }
 
@@ -264,7 +264,7 @@ impl ActiveElections {
             }
 
             if !election.is_confirmed() {
-                self.notify(AecEvent::UnconfirmedBlockRemoved(block.clone().into()));
+                self.notify(AecEvent::BlockRemovedFromElection(block.clone().into()));
             }
         }
     }
@@ -383,9 +383,9 @@ impl ActiveElections {
             let removed = election.remove_tally_below(fork_tally);
             if let Some(removed) = removed {
                 self.vote_router.lock().unwrap().disconnect(&removed.hash());
-                self.notify(AecEvent::UnconfirmedBlockRemoved(removed.into()));
+                self.notify(AecEvent::BlockRemovedFromElection(removed.into()));
             } else {
-                self.notify(AecEvent::UnconfirmedBlockRemoved(fork.clone()));
+                self.notify(AecEvent::BlockRemovedFromElection(fork.clone()));
             }
         }
 

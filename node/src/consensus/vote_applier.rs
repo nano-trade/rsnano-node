@@ -26,7 +26,7 @@ use crate::{
     wallets::Wallets,
 };
 
-pub enum VoteRouterEvent {
+pub enum VoteApplierEvent {
     VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
 }
 
@@ -34,7 +34,7 @@ pub enum VoteRouterEvent {
 pub struct VoteApplier {
     vote_router: Arc<Mutex<VoteRouter>>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    event_senders: RwLock<Vec<SyncSender<VoteRouterEvent>>>,
+    event_senders: RwLock<Vec<SyncSender<VoteApplierEvent>>>,
     ledger: Arc<Ledger>,
     network_params: NetworkParams,
     online_reps: Arc<Mutex<OnlineReps>>,
@@ -84,7 +84,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn add_event_sink(&self, sink: SyncSender<VoteRouterEvent>) {
+    pub fn add_event_sink(&self, sink: SyncSender<VoteApplierEvent>) {
         self.event_senders.write().unwrap().push(sink);
     }
 
@@ -309,7 +309,7 @@ impl VoteApplier {
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
             sender
-                .send(VoteRouterEvent::VoteProcessed(
+                .send(VoteApplierEvent::VoteProcessed(
                     vote.clone(),
                     source,
                     results.clone(),
