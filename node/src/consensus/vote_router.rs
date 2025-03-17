@@ -1,12 +1,12 @@
 use std::{
     collections::HashMap,
     mem::size_of,
-    sync::{mpsc::SyncSender, Arc, Mutex, RwLock, Weak},
+    sync::{Arc, Mutex, Weak},
 };
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode, VoteSource};
 
-use super::{Election, RecentlyConfirmedCache, VoteApplier};
+use super::Election;
 
 pub enum VoteRouterEvent {
     VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
@@ -19,30 +19,13 @@ pub struct VoteRouter {
     // Mapping of block hashes to elections.
     // Election already contains the associated block
     elections: HashMap<BlockHash, Weak<Mutex<Election>>>,
-    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    vote_applier: Arc<VoteApplier>,
-    event_senders: Vec<SyncSender<VoteRouterEvent>>,
 }
 
 impl VoteRouter {
-    pub fn new(
-        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        vote_applier: Arc<VoteApplier>,
-    ) -> Self {
+    pub fn new() -> Self {
         Self {
             elections: HashMap::new(),
-            recently_confirmed,
-            vote_applier,
-            event_senders: Vec::new(),
         }
-    }
-
-    pub fn add_event_sink(&mut self, sink: SyncSender<VoteRouterEvent>) {
-        self.event_senders.push(sink);
-    }
-
-    pub fn stop(&mut self) {
-        self.event_senders.clear();
     }
 
     pub fn clean_up(&mut self) {
@@ -84,23 +67,6 @@ impl VoteRouter {
             existing.strong_count() > 0
         } else {
             false
-        }
-    }
-
-    pub fn notify_vote_processed(
-        &self,
-        vote: &Arc<Vote>,
-        source: VoteSource,
-        results: &HashMap<BlockHash, VoteCode>,
-    ) {
-        for sender in &self.event_senders {
-            sender
-                .send(VoteRouterEvent::VoteProcessed(
-                    vote.clone(),
-                    source,
-                    results.clone(),
-                ))
-                .unwrap();
         }
     }
 

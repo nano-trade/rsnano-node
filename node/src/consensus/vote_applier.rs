@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard, RwLock, Weak},
+    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
 
@@ -16,7 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     election_schedulers::ElectionSchedulers, CementingElectionsCache, Election, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators, VoteRouter,
+    RecentlyConfirmedCache, VoteGenerators, VoteRouter, VoteRouterEvent,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -27,12 +27,34 @@ use crate::{
 };
 
 pub struct VoteApplier2 {
-    pub vote_router: Arc<Mutex<VoteRouter>>,
-    pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    pub vote_applier: Arc<VoteApplier>,
+    vote_router: Arc<Mutex<VoteRouter>>,
+    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
+    vote_applier: Arc<VoteApplier>,
+    event_senders: RwLock<Vec<SyncSender<VoteRouterEvent>>>,
 }
 
 impl VoteApplier2 {
+    pub fn new(
+        vote_router: Arc<Mutex<VoteRouter>>,
+        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
+        vote_applier: Arc<VoteApplier>,
+    ) -> Self {
+        Self {
+            vote_router,
+            recently_confirmed,
+            vote_applier,
+            event_senders: RwLock::new(Vec::new()),
+        }
+    }
+
+    pub fn add_event_sink(&self, sink: SyncSender<VoteRouterEvent>) {
+        self.event_senders.write().unwrap().push(sink);
+    }
+
+    pub fn stop(&self) {
+        self.event_senders.write().unwrap().clear();
+    }
+
     /// Route vote to associated elections
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     pub fn vote(&self, vote: &Arc<Vote>, source: VoteSource) -> HashMap<BlockHash, VoteCode> {
@@ -49,7 +71,6 @@ impl VoteApplier2 {
         source: VoteSource,
         filter: &BlockHash,
     ) -> HashMap<BlockHash, VoteCode> {
-        let guard = self.vote_router.lock().unwrap();
         debug_assert!(vote.validate().is_ok());
         // If present, filter should be set to one of the hashes in the vote
         debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
@@ -58,6 +79,7 @@ impl VoteApplier2 {
         let mut process = HashMap::new();
         {
             let recently_confirmed = self.recently_confirmed.read().unwrap();
+            let router = self.vote_router.lock().unwrap();
             for hash in &vote.hashes {
                 // Ignore votes for other hashes if a filter is set
                 if !filter.is_zero() && hash != filter {
@@ -69,7 +91,7 @@ impl VoteApplier2 {
                     continue;
                 }
 
-                let election = guard.election(hash);
+                let election = router.election(hash);
                 if let Some(election) = election {
                     process.insert(*hash, election.clone());
                 } else {
@@ -93,9 +115,26 @@ impl VoteApplier2 {
             results.insert(block_hash, vote_result);
         }
 
-        guard.notify_vote_processed(vote, source, &results);
+        self.notify_vote_processed(vote, source, &results);
 
         results
+    }
+
+    fn notify_vote_processed(
+        &self,
+        vote: &Arc<Vote>,
+        source: VoteSource,
+        results: &HashMap<BlockHash, VoteCode>,
+    ) {
+        for sender in self.event_senders.read().unwrap().iter() {
+            sender
+                .send(VoteRouterEvent::VoteProcessed(
+                    vote.clone(),
+                    source,
+                    results.clone(),
+                ))
+                .unwrap();
+        }
     }
 }
 

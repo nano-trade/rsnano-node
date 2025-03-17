@@ -532,16 +532,13 @@ impl Node {
             cementing_elections_cache.clone(),
         ));
 
-        let vote_router = Arc::new(Mutex::new(VoteRouter::new(
+        let vote_router = Arc::new(Mutex::new(VoteRouter::new()));
+
+        let vote_applier2 = Arc::new(VoteApplier2::new(
+            vote_router.clone(),
             recently_confirmed.clone(),
             vote_applier.clone(),
-        )));
-
-        let vote_applier2 = Arc::new(VoteApplier2 {
-            vote_router: vote_router.clone(),
-            recently_confirmed: recently_confirmed.clone(),
-            vote_applier: vote_applier.clone(),
-        });
+        ));
 
         let vote_processor = Arc::new(VoteProcessor::new(
             vote_processor_queue.clone(),
@@ -1198,7 +1195,7 @@ impl Node {
             .unwrap();
 
         let (vote_route_tx, vote_route_rx) = sync_channel(128);
-        vote_router.lock().unwrap().add_event_sink(vote_route_tx);
+        vote_applier2.add_event_sink(vote_route_tx);
 
         let rep_weights_l = rep_weights.clone();
         let vote_cache_l = vote_cache.clone();
@@ -1612,7 +1609,7 @@ impl Node {
         self.ledger_notification_thread.stop();
         self.online_weight_calculation.stop();
         self.vote_router_cleanup.stop();
-        self.vote_router.lock().unwrap().stop();
+        self.vote_applier.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();
         self.peer_cache_connector.stop();

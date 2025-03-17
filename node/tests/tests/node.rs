@@ -376,7 +376,7 @@ fn vote_by_hash_bundle() {
     // Set up an observer to track the maximum number of hashes in a vote
 
     let (tx, rx) = sync_channel(128);
-    node.vote_router.lock().unwrap().add_event_sink(tx);
+    node.vote_applier.add_event_sink(tx);
 
     // Enqueue vote requests for all the blocks
     for block in &blocks {
