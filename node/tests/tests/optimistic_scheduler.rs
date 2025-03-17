@@ -32,7 +32,7 @@ pub fn activate_one() {
     let block = blocks.last().unwrap();
     let mut election = None;
     assert_timely2(|| {
-        election = node.active.election(&block.qualified_root());
+        election = node.active.election_for_root(&block.qualified_root());
         election.is_some()
     });
 
@@ -68,7 +68,7 @@ pub fn activate_one_zero_conf() {
 
     let mut election = None;
     assert_timely2(|| {
-        election = node.active.election(&block.qualified_root());
+        election = node.active.election_for_root(&block.qualified_root());
         election.is_some()
     });
 
@@ -102,7 +102,7 @@ pub fn activate_many() {
     assert_timely(Duration::from_secs(20), || {
         chains.iter().all(|(_, blocks)| {
             let block = blocks.last().unwrap();
-            let Some(election) = node.active.election(&block.qualified_root()) else {
+            let Some(election) = node.active.election_for_root(&block.qualified_root()) else {
                 return false;
             };
 

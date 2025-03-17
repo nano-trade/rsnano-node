@@ -17,7 +17,7 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
     ActiveElections, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators, VoteRouter, VoteSummary,
+    RecentlyConfirmedCache, VoteGenerators, VoteSummary,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -36,7 +36,6 @@ pub enum VoteApplierEvent {
 
 /// Applies a vote to an election
 pub struct VoteApplier {
-    vote_router: Arc<Mutex<VoteRouter>>,
     active_elections: Arc<ActiveElections>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     event_senders: RwLock<Vec<SyncSender<VoteApplierEvent>>>,
@@ -55,7 +54,6 @@ pub struct VoteApplier {
 
 impl VoteApplier {
     pub(crate) fn new(
-        vote_router: Arc<Mutex<VoteRouter>>,
         active_elections: Arc<ActiveElections>,
         ledger: Arc<Ledger>,
         network_params: NetworkParams,
@@ -70,7 +68,6 @@ impl VoteApplier {
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
-            vote_router,
             active_elections,
             recently_confirmed,
             event_senders: RwLock::new(Vec::new()),
@@ -120,19 +117,22 @@ impl VoteApplier {
         let mut process = HashMap::new();
         {
             let recently_confirmed = self.recently_confirmed.read().unwrap();
-            let router = self.vote_router.lock().unwrap();
-            for hash in &vote.hashes {
-                // Ignore votes for other hashes if a filter is set
-                if !filter.is_zero() && hash != filter {
-                    continue;
-                }
 
+            let hashes = vote.hashes.iter().filter(|h| {
+                // Ignore votes for other hashes if a filter is set
+                if !filter.is_zero() && *h != filter {
+                    false
+                } else {
+                    true
+                }
+            });
+
+            self.active_elections.iter_batch(hashes, |hash, election| {
                 // Ignore duplicate hashes (should not happen with a well-behaved voting node)
                 if results.contains_key(hash) {
-                    continue;
+                    return;
                 }
 
-                let election = router.election(hash);
                 if let Some(election) = election {
                     process.insert(*hash, election.clone());
                 } else {
@@ -142,7 +142,7 @@ impl VoteApplier {
                         results.insert(*hash, VoteCode::Replay);
                     }
                 }
-            }
+            });
         }
 
         for (block_hash, election) in process {

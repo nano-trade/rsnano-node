@@ -32,10 +32,16 @@ mod votes {
             .push(send1.clone().into(), None);
 
         assert_timely(Duration::from_secs(5), || {
-            node1.active.election(&send1.qualified_root()).is_some()
+            node1
+                .active
+                .election_for_root(&send1.qualified_root())
+                .is_some()
         });
 
-        let election1 = node1.active.election(&send1.qualified_root()).unwrap();
+        let election1 = node1
+            .active
+            .election_for_root(&send1.qualified_root())
+            .unwrap();
         assert_eq!(election1.lock().unwrap().vote_count(), 0);
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
@@ -275,12 +281,21 @@ fn block_hash_account_conflict() {
         ],
         false,
     );
-    let election1 = node1.active.election(&send1.qualified_root()).unwrap();
-    let election2 = node1.active.election(&receive1.qualified_root()).unwrap();
-    let election3 = node1.active.election(&send2.qualified_root()).unwrap();
+    let election1 = node1
+        .active
+        .election_for_root(&send1.qualified_root())
+        .unwrap();
+    let election2 = node1
+        .active
+        .election_for_root(&receive1.qualified_root())
+        .unwrap();
+    let election3 = node1
+        .active
+        .election_for_root(&send2.qualified_root())
+        .unwrap();
     let election4 = node1
         .active
-        .election(&open_epoch1.qualified_root())
+        .election_for_root(&open_epoch1.qualified_root())
         .unwrap();
 
     assert_eq!(election1.lock().unwrap().winner().hash(), send1.hash());

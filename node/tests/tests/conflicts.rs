@@ -81,6 +81,12 @@ fn add_two() {
     node.process(send_b.clone());
     start_elections(&node, &[send_a.hash(), send_b.hash()], false);
 
-    assert!(node.active.election(&send_a.qualified_root()).is_some());
-    assert!(node.active.election(&send_b.qualified_root()).is_some());
+    assert!(node
+        .active
+        .election_for_root(&send_a.qualified_root())
+        .is_some());
+    assert!(node
+        .active
+        .election_for_root(&send_b.qualified_root())
+        .is_some());
 }

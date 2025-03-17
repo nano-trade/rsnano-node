@@ -54,7 +54,10 @@ fn started_election() {
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
         node1.inbound_message_queue.put(publish1, channel1);
         assert_timely(Duration::from_secs(1), || {
-            node1.active.election(&send1.qualified_root()).is_some()
+            node1
+                .active
+                .election_for_root(&send1.qualified_root())
+                .is_some()
         });
 
         let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
@@ -94,7 +97,10 @@ fn stopped_election() {
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
         node1.inbound_message_queue.put(publish1, channel1);
         assert_timely(Duration::from_secs(1), || {
-            node1.active.election(&send1.qualified_root()).is_some()
+            node1
+                .active
+                .election_for_root(&send1.qualified_root())
+                .is_some()
         });
         let active = node1.active.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))

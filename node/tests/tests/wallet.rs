@@ -1394,7 +1394,7 @@ fn search_receivable() {
     node.wallets.search_receivable_wallet(wallet_id).unwrap();
     let mut election = None;
     assert_timely(Duration::from_secs(5), || {
-        match node.active.election(&send.qualified_root()) {
+        match node.active.election_for_root(&send.qualified_root()) {
             Some(e) => {
                 election = Some(e);
                 true

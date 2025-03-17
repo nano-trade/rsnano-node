@@ -186,8 +186,12 @@ impl ActiveElections {
         self.election_voter.try_vote(election);
     }
 
-    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
+    pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
         self.mutex.lock().unwrap().election(root).cloned()
+    }
+
+    pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
+        self.vote_router.lock().unwrap().election(block_hash)
     }
 
     pub fn get_all(&self) -> Vec<Arc<Mutex<Election>>> {
@@ -413,6 +417,18 @@ impl ActiveElections {
         }
     }
 
+    pub fn iter_batch<'a>(
+        &self,
+        blocks: impl IntoIterator<Item = &'a BlockHash>,
+        mut handle: impl FnMut(&BlockHash, Option<Arc<Mutex<Election>>>),
+    ) {
+        let router = self.vote_router.lock().unwrap();
+        for hash in blocks.into_iter() {
+            let election = router.election(hash);
+            handle(hash, election);
+        }
+    }
+
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stopped = true;
         self.condition.notify_all();
@@ -422,6 +438,7 @@ impl ActiveElections {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
+        let vote_router = self.vote_router.lock().unwrap().container_info();
         let guard = self.mutex.lock().unwrap();
 
         ContainerInfo::builder()
@@ -445,6 +462,7 @@ impl ActiveElections {
                 "recently_confirmed",
                 self.recently_confirmed.read().unwrap().container_info(),
             )
+            .node("vote_router", vote_router)
             .finish()
     }
 

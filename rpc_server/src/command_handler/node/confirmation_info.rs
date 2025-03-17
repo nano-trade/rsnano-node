@@ -14,7 +14,7 @@ impl RpcCommandHandler {
         let election_mutex = self
             .node
             .active
-            .election(&args.root)
+            .election_for_root(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 
         if election_mutex.lock().unwrap().is_confirmed() {

@@ -113,7 +113,6 @@ pub struct Node {
     pub wallets: Arc<Wallets>,
     pub vote_generators: Arc<VoteGenerators>,
     pub active: Arc<ActiveElections>,
-    pub vote_router: Arc<Mutex<VoteRouter>>,
     pub vote_applier: Arc<VoteApplier>,
     vote_router_cleanup: TimerThread<VoteRouterCleanup>,
     pub vote_processor: Arc<VoteProcessor>,
@@ -542,7 +541,6 @@ impl Node {
         let active_elections = Arc::new(active_elections);
 
         let vote_applier = Arc::new(VoteApplier::new(
-            vote_router.clone(),
             active_elections.clone(),
             ledger.clone(),
             network_params.clone(),
@@ -811,7 +809,7 @@ impl Node {
         local_block_broadcaster.initialize();
 
         let vote_cache_w = Arc::downgrade(&vote_cache);
-        let vote_router_w = Arc::downgrade(&vote_router);
+        let active_w = Arc::downgrade(&active_elections);
         let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
         let scheduler_w = Arc::downgrade(&election_schedulers);
         let confirming_set_w = Arc::downgrade(&confirming_set);
@@ -825,8 +823,8 @@ impl Node {
                 }
             }
 
-            if let Some(i) = vote_router_w.upgrade() {
-                if i.lock().unwrap().contains(hash) {
+            if let Some(i) = active_w.upgrade() {
+                if i.is_active_hash(hash) {
                     return false;
                 }
             }
@@ -858,7 +856,7 @@ impl Node {
         });
 
         let vote_cache_w = Arc::downgrade(&vote_cache);
-        let vote_router_w = Arc::downgrade(&vote_router);
+        let active_w = Arc::downgrade(&active_elections);
         let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
         let scheduler_w = Arc::downgrade(&election_schedulers);
         let confirming_set_w = Arc::downgrade(&confirming_set);
@@ -870,8 +868,8 @@ impl Node {
                 }
             }
 
-            if let Some(i) = vote_router_w.upgrade() {
-                if i.lock().unwrap().contains(hash) {
+            if let Some(i) = active_w.upgrade() {
+                if i.is_active_hash(hash) {
                     return false;
                 }
             }
@@ -1242,7 +1240,6 @@ impl Node {
             online_reps,
             rep_tiers,
             vote_applier,
-            vote_router,
             vote_router_cleanup: TimerThread::new("Vote router", vote_router_cleanup),
             vote_processor_queue,
             history,
@@ -1303,8 +1300,6 @@ impl Node {
         )]
         .into();
 
-        let vote_router = self.vote_router.lock().unwrap().container_info();
-
         ContainerInfo::builder()
             .node("work", self.work.container_info())
             .node("ledger", self.ledger.container_info())
@@ -1331,7 +1326,6 @@ impl Node {
                 self.election_schedulers.container_info(),
             )
             .node("vote_cache", vote_cache)
-            .node("vote_router", vote_router)
             .node("vote_generators", self.vote_generators.container_info())
             .node("bootstrap_ascending", self.bootstrapper.container_info())
             .node("unchecked", self.unchecked.container_info())

@@ -183,8 +183,14 @@ fn deferred_dependent_elections() {
     });
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.election(&open.qualified_root()).is_some()
-            || node1.active.election(&send2.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&open.qualified_root())
+            .is_some()
+            || node1
+                .active
+                .election_for_root(&send2.qualified_root())
+                .is_some()
     });
 
     assert_timely(std::time::Duration::from_secs(5), || {
@@ -197,42 +203,69 @@ fn deferred_dependent_elections() {
     node1.process_local(open.clone().into()).unwrap();
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.election(&open.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&open.qualified_root())
+            .is_some()
     });
 
     start_election(&node1, &open.hash());
     node1.active.erase(&open.qualified_root());
-    assert!(node1.active.election(&open.qualified_root()).is_none());
+    assert!(node1
+        .active
+        .election_for_root(&open.qualified_root())
+        .is_none());
 
     node1.process_local(open.clone().into()).unwrap();
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.election(&open.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&open.qualified_root())
+            .is_some()
     });
 
     node1.active.erase(&open.qualified_root());
     node1.active.erase(&send2.qualified_root());
-    assert!(!node1.active.election(&open.qualified_root()).is_some());
-    assert!(!node1.active.election(&send2.qualified_root()).is_some());
+    assert!(!node1
+        .active
+        .election_for_root(&open.qualified_root())
+        .is_some());
+    assert!(!node1
+        .active
+        .election_for_root(&send2.qualified_root())
+        .is_some());
 
     node1.vote_applier.force_confirm(&election_send1);
     assert_timely(std::time::Duration::from_secs(5), || {
         node1.block_confirmed(&send1.hash())
     });
     assert_timely(std::time::Duration::from_secs(5), || {
-        node1.active.election(&open.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&open.qualified_root())
+            .is_some()
     });
     assert_timely(std::time::Duration::from_secs(5), || {
-        node1.active.election(&send2.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&send2.qualified_root())
+            .is_some()
     });
 
-    let election_open = node1.active.election(&open.qualified_root());
+    let election_open = node1.active.election_for_root(&open.qualified_root());
     assert!(election_open.is_some());
 
-    let election_send2 = node1.active.election(&send2.qualified_root()).unwrap();
+    let election_send2 = node1
+        .active
+        .election_for_root(&send2.qualified_root())
+        .unwrap();
 
     node1.process_local(receive.clone().into()).unwrap();
-    assert!(node1.active.election(&receive.qualified_root()).is_none());
+    assert!(node1
+        .active
+        .election_for_root(&receive.qualified_root())
+        .is_none());
 
     node1
         .vote_applier
@@ -246,7 +279,10 @@ fn deferred_dependent_elections() {
         .dependents_confirmed_for_unsaved_block(&receive));
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.election(&receive.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&receive.qualified_root())
+            .is_some()
     });
 
     node1.ledger.rollback(&receive.hash()).unwrap();
@@ -258,7 +294,10 @@ fn deferred_dependent_elections() {
     });
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.election(&receive.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&receive.qualified_root())
+            .is_some()
     });
 
     assert_eq!(
@@ -268,7 +307,10 @@ fn deferred_dependent_elections() {
 
     node1.process_local(fork.clone().into()).unwrap();
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.election(&receive.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&receive.qualified_root())
+            .is_some()
     });
 
     node1.vote_applier.force_confirm(&election_send2);
@@ -276,7 +318,10 @@ fn deferred_dependent_elections() {
         node1.block_confirmed(&send2.hash())
     });
     assert_timely(std::time::Duration::from_secs(5), || {
-        node1.active.election(&receive.qualified_root()).is_some()
+        node1
+            .active
+            .election_for_root(&receive.qualified_root())
+            .is_some()
     });
 }
 
@@ -435,9 +480,17 @@ fn confirm_quorum() {
         )
         .unwrap();
 
-    assert_timely2(|| node1.active.election(&send1.qualified_root()).is_some());
+    assert_timely2(|| {
+        node1
+            .active
+            .election_for_root(&send1.qualified_root())
+            .is_some()
+    });
 
-    let election = node1.active.election(&send1.qualified_root()).unwrap();
+    let election = node1
+        .active
+        .election_for_root(&send1.qualified_root())
+        .unwrap();
     assert!(!election.lock().unwrap().is_confirmed());
     assert_eq!(0, election.lock().unwrap().votes().len());
     assert_eq!(Amount::zero(), node1.balance(&DEV_GENESIS_ACCOUNT));
@@ -650,8 +703,16 @@ fn rep_self_vote() {
     // Confirm both blocks, allowing voting on the upcoming block
     start_election(&node0, &open_big.hash());
 
-    assert_timely2(|| node0.active.election(&open_big.qualified_root()).is_some());
-    let election = node0.active.election(&open_big.qualified_root()).unwrap();
+    assert_timely2(|| {
+        node0
+            .active
+            .election_for_root(&open_big.qualified_root())
+            .is_some()
+    });
+    let election = node0
+        .active
+        .election_for_root(&open_big.qualified_root())
+        .unwrap();
     node0.vote_applier.force_confirm(&election);
 
     // Insert representatives into the node to allow voting
@@ -810,7 +871,10 @@ fn fork_publish() {
     node1.process_active(send2.clone());
     assert_timely_eq2(|| node1.active.len(), 1);
     assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
-    let election = node1.active.election(&send1.qualified_root()).unwrap();
+    let election = node1
+        .active
+        .election_for_root(&send1.qualified_root())
+        .unwrap();
     // Wait until the genesis rep activated & makes vote
     assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
     let votes1 = election.lock().unwrap().votes().clone();
@@ -842,9 +906,16 @@ fn fork_publish_inactive() {
 
     node.process_active(send1.clone());
     assert_timely2(|| node.block_exists(&send1.hash()));
-    assert_timely2(|| node.active.election(&send1.qualified_root()).is_some());
+    assert_timely2(|| {
+        node.active
+            .election_for_root(&send1.qualified_root())
+            .is_some()
+    });
 
-    let election = node.active.election(&send1.qualified_root()).unwrap();
+    let election = node
+        .active
+        .election_for_root(&send1.qualified_root())
+        .unwrap();
 
     assert_eq!(
         node.process_local(send2.clone()).unwrap(),
@@ -963,11 +1034,17 @@ fn search_receivable_confirmed() {
     node.wallets.search_receivable_wallet(wallet_id).unwrap();
 
     assert_timely(Duration::from_secs(5), || {
-        !node.active.election(&send1.qualified_root()).is_some()
+        !node
+            .active
+            .election_for_root(&send1.qualified_root())
+            .is_some()
     });
 
     assert_timely(Duration::from_secs(5), || {
-        !node.active.election(&send2.qualified_root()).is_some()
+        !node
+            .active
+            .election_for_root(&send2.qualified_root())
+            .is_some()
     });
 
     assert_timely_eq(
@@ -1715,10 +1792,17 @@ fn fork_open() {
 
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.election(&send1.qualified_root()).is_some(),
+        || {
+            node.active
+                .election_for_root(&send1.qualified_root())
+                .is_some()
+        },
         "election not found",
     );
-    let election = node.active.election(&send1.qualified_root()).unwrap();
+    let election = node
+        .active
+        .election_for_root(&send1.qualified_root())
+        .unwrap();
     node.vote_applier.force_confirm(&election);
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
 
@@ -1745,11 +1829,18 @@ fn fork_open() {
     );
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.election(&open2.qualified_root()).is_some(),
+        || {
+            node.active
+                .election_for_root(&open2.qualified_root())
+                .is_some()
+        },
         "no election for open2",
     );
 
-    let election = node.active.election(&open2.qualified_root()).unwrap();
+    let election = node
+        .active
+        .election_for_root(&open2.qualified_root())
+        .unwrap();
     // we expect to find 2 blocks in the election and we expect the first block to be the winner just because it was first
     assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
     assert_eq!(open1.hash(), election.lock().unwrap().winner().hash());
@@ -1949,7 +2040,10 @@ fn fork_election_invalid_block_signature() {
         channel.clone(),
     );
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
-    let election = node1.active.election(&send1.qualified_root()).unwrap();
+    let election = node1
+        .active
+        .election_for_root(&send1.qualified_root())
+        .unwrap();
     assert_eq!(1, election.lock().unwrap().block_count());
 
     node1.inbound_message_queue.put(
@@ -2040,10 +2134,17 @@ fn rollback_vote_self() {
     node.process_active(send2.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.election(&send2.qualified_root()).is_some(),
+        || {
+            node.active
+                .election_for_root(&send2.qualified_root())
+                .is_some()
+        },
         "election not found",
     );
-    let election = node.active.election(&send2.qualified_root()).unwrap();
+    let election = node
+        .active
+        .election_for_root(&send2.qualified_root())
+        .unwrap();
     node.process_active(fork.clone());
     assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
     assert_eq!(election.lock().unwrap().winner().hash(), send2.hash());
@@ -2352,11 +2453,19 @@ fn node_receive_quorum() {
 
     assert_timely_msg(
         Duration::from_secs(10),
-        || node1.active.election(&send.qualified_root()).is_some(),
+        || {
+            node1
+                .active
+                .election_for_root(&send.qualified_root())
+                .is_some()
+        },
         "election not found",
     );
 
-    let election = node1.active.election(&send.qualified_root()).unwrap();
+    let election = node1
+        .active
+        .election_for_root(&send.qualified_root())
+        .unwrap();
     assert!(!election.lock().unwrap().is_confirmed());
     assert_eq!(0, election.lock().unwrap().votes().len());
 
@@ -2479,10 +2588,18 @@ fn fork_open_flip() {
     node1.election_schedulers.manual.push(open1.clone(), None);
     assert_timely_msg(
         Duration::from_secs(5),
-        || node1.active.election(&open1.qualified_root()).is_some(),
+        || {
+            node1
+                .active
+                .election_for_root(&open1.qualified_root())
+                .is_some()
+        },
         "election for open1 not found",
     );
-    let election = node1.active.election(&open1.qualified_root()).unwrap();
+    let election = node1
+        .active
+        .election_for_root(&open1.qualified_root())
+        .unwrap();
     election.lock().unwrap().transition_active();
 
     // create node2, with blocks send1 and open2 pre-initialised in the ledger,
@@ -2502,10 +2619,18 @@ fn fork_open_flip() {
     node2.election_schedulers.manual.push(open2.clone(), None);
     assert_timely_msg(
         Duration::from_secs(5),
-        || node2.active.election(&open2.qualified_root()).is_some(),
+        || {
+            node2
+                .active
+                .election_for_root(&open2.qualified_root())
+                .is_some()
+        },
         "election for open2 not found",
     );
-    let election2 = node2.active.election(&open2.qualified_root()).unwrap();
+    let election2 = node2
+        .active
+        .election_for_root(&open2.qualified_root())
+        .unwrap();
     election2.lock().unwrap().transition_active();
 
     assert_timely_eq(Duration::from_secs(5), || node1.active.len(), 2);
@@ -2769,7 +2894,12 @@ fn block_confirm() {
 
     assert_timely_eq(
         Duration::from_secs(5),
-        || node2.active.election(&send1.qualified_root()).is_some() as u64,
+        || {
+            node2
+                .active
+                .election_for_root(&send1.qualified_root())
+                .is_some() as u64
+        },
         1,
     );
 
@@ -2999,7 +3129,7 @@ fn fork_keep() {
     node2.process_active(send2.clone());
     let election1 = node2
         .active
-        .election(&QualifiedRoot::new(
+        .election_for_root(&QualifiedRoot::new(
             (*DEV_GENESIS_HASH).into(),
             *DEV_GENESIS_HASH,
         ))

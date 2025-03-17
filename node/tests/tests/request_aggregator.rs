@@ -610,7 +610,11 @@ fn cannot_vote() {
     node.election_schedulers.add_manual(send2.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.election(&send2.qualified_root()).is_some(),
+        || {
+            node.active
+                .election_for_root(&send2.qualified_root())
+                .is_some()
+        },
         "no election",
     );
 
