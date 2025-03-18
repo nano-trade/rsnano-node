@@ -237,7 +237,7 @@ mod election_scheduler {
         assert_eq!(node.active.is_active_root(&block2.qualified_root()), false);
 
         // Election confirmed, next in queue should begin
-        node.vote_applier.force_confirm_block(&block1.hash());
+        node.vote_applier.force_confirm(&block1.hash());
         assert_timely2(|| node.active.is_active_root(&block2.qualified_root()));
         assert!(node.election_schedulers.priority.is_empty());
     }

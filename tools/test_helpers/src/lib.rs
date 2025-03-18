@@ -420,7 +420,7 @@ pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {
     for hash in hashes {
         start_election(node, hash);
         if forced {
-            node.vote_applier.force_confirm_block(hash);
+            node.vote_applier.force_confirm(hash);
         }
     }
 }

@@ -255,6 +255,15 @@ impl ActiveElections {
         }
     }
 
+    pub fn transition_active_hash(&self, block_hash: &BlockHash) -> bool {
+        let container = self.container.write().unwrap();
+        let Some(election) = container.election_for_block(block_hash) else {
+            return false;
+        };
+        election.lock().unwrap().transition_active();
+        true
+    }
+
     // TODO: Delete!
     pub fn transition_active(&self, root: &QualifiedRoot) {
         self.container

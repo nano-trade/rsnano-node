@@ -19,8 +19,7 @@ impl BootstrapElectionActivator {
             return;
         }
 
-        if let Some(election) = self.active_elections.election_for_block(&hash) {
-            election.lock().unwrap().transition_active();
+        if self.active_elections.transition_active_hash(&hash) {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
         }

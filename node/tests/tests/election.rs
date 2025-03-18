@@ -281,6 +281,7 @@ fn election_behavior() {
     start_election(&node, &chain[0].hash());
     assert_eq!(
         node.active
+            .read()
             .election_for_block(&chain[0].hash())
             .unwrap()
             .lock()

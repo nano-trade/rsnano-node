@@ -160,17 +160,13 @@ impl VoteApplier {
         results
     }
 
-    pub fn force_confirm(&self, election: &Arc<Mutex<Election>>) {
-        election.lock().unwrap().force_confirm();
-        self.election_confirmed(election.clone());
-    }
-
-    pub fn force_confirm_block(&self, block_hash: &BlockHash) {
+    pub fn force_confirm(&self, block_hash: &BlockHash) {
         let election = self
             .active_elections
             .election_for_block(block_hash)
             .expect("no election found for given block");
         election.lock().unwrap().force_confirm();
+
         self.election_confirmed(election.clone());
     }
 

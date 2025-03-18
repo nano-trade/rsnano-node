@@ -846,7 +846,7 @@ fn bound_election_winners() {
         assert!(node.active.read().vacancy() > 0);
 
         for block in blocks {
-            node.vote_applier.force_confirm_block(&block.hash());
+            node.vote_applier.force_confirm(&block.hash());
         }
 
         assert_timely2(|| node.active.read().vacancy() <= 0);
@@ -937,7 +937,7 @@ fn dropped_cleanup() {
     assert!(node.network_filter.apply(&block_bytes).1);
 
     start_election(&node, &hash);
-    node.vote_applier.force_confirm_block(&hash);
+    node.vote_applier.force_confirm(&hash);
     assert_timely2(|| node.ledger.confirmed().block_exists(&hash));
     node.active.erase(&qual_root);
 
@@ -1129,24 +1129,24 @@ fn activate_account_chain() {
 
     start_election(&node, &send.hash());
     assert_eq!(1, node.active.len());
-    node.vote_applier.force_confirm_block(&send.hash());
+    node.vote_applier.force_confirm(&send.hash());
     assert_timely2(|| node.block_confirmed(&send.hash()));
 
     // On cementing, the next election is started
     assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
-    node.vote_applier.force_confirm_block(&send2.hash());
+    node.vote_applier.force_confirm(&send2.hash());
     assert_timely2(|| node.block_confirmed(&send2.hash()));
 
     // On cementing, the next election is started
     assert_timely2(|| node.active.is_active_root(&open.qualified_root())); // Destination account activated
     assert_timely2(|| node.active.is_active_root(&send3.qualified_root())); // Block successor activated
-    node.vote_applier.force_confirm_block(&open.hash());
+    node.vote_applier.force_confirm(&open.hash());
     assert_timely2(|| node.block_confirmed(&open.hash()));
 
     // Until send3 is also confirmed, the receive block should not activate
     sleep(Duration::from_millis(200));
     assert!(!node.active.is_active_root(&receive.qualified_root()));
-    node.vote_applier.force_confirm_block(&send3.hash());
+    node.vote_applier.force_confirm(&send3.hash());
     assert_timely2(|| node.block_confirmed(&send3.hash()));
     assert_timely2(|| node.active.is_active_root(&receive.qualified_root())); // Destination account activated
 }
@@ -1385,7 +1385,7 @@ fn active_inactive() {
     node.process_multi(&[send.clone(), send2.clone(), open]);
 
     start_election(&node, &send2.hash());
-    node.vote_applier.force_confirm_block(&send2.hash());
+    node.vote_applier.force_confirm(&send2.hash());
 
     assert_timely2(|| !node.confirming_set.contains(&send2.hash()));
     assert_timely2(|| node.block_confirmed(&send2.hash()));
