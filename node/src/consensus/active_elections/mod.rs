@@ -16,22 +16,16 @@ use super::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
     /// Maximum number of simultaneous active elections (AEC size)
-    pub size: usize,
-    /// Maximum confirmation history size
-    pub confirmation_history_size: usize,
+    pub max_elections: usize,
     /// Maximum cache size for recently_confirmed
     pub confirmation_cache: usize,
-    /// Maximum size of election winner details set
-    pub max_election_winners: usize,
 }
 
 impl Default for ActiveElectionsConfig {
     fn default() -> Self {
         Self {
-            size: 5000,
-            confirmation_history_size: 2048,
+            max_elections: 5000,
             confirmation_cache: 65536,
-            max_election_winners: 1024 * 16,
         }
     }
 }
@@ -94,7 +88,7 @@ impl ActiveElections {
     pub fn info(&self) -> ActiveElectionsInfo {
         let guard = self.container.lock().unwrap();
         ActiveElectionsInfo {
-            max_queue: self.config.size,
+            max_elections: self.config.max_elections,
             total: guard.roots.len(),
             priority: guard.priority_count,
             hinted: guard.hinted_count,
@@ -103,7 +97,7 @@ impl ActiveElections {
     }
 
     pub fn max_len(&self) -> usize {
-        self.config.size
+        self.config.max_elections
     }
 
     /// How many election slots are available
@@ -114,7 +108,7 @@ impl ActiveElections {
             return 0;
         }
         let current_size = container.roots.len() as i64;
-        self.config.size as i64 - current_size
+        self.config.max_elections as i64 - current_size
     }
 
     pub fn cool_down(&self) {
@@ -308,23 +302,23 @@ impl ActiveElections {
             .lock()
             .unwrap()
             .try_add_fork(fork, fork_tally);
+
         let added = match result {
-            AddForkResult::Added => true,
+            AddForkResult::Added => {
+                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
+                true
+            }
             AddForkResult::Replaced(removed) => {
                 self.notify(AecEvent::BlockDiscarded(removed.into()));
+                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
                 true
             }
             AddForkResult::TallyTooLow => {
                 self.notify(AecEvent::BlockDiscarded(fork.clone()));
                 false
             }
-            AddForkResult::Duplicate => false,
-            AddForkResult::ElectionEnded => false,
+            AddForkResult::Duplicate | AddForkResult::ElectionEnded => false,
         };
-
-        if added {
-            self.notify(AecEvent::BlockAddedToElection(fork.hash()));
-        }
 
         added
     }
@@ -548,7 +542,7 @@ pub struct ElectionInsertInfo {
 
 #[derive(Default)]
 pub struct ActiveElectionsInfo {
-    pub max_queue: usize,
+    pub max_elections: usize,
     pub total: usize,
     pub priority: usize,
     pub hinted: usize,

@@ -13,12 +13,12 @@ pub struct ActiveElectionsToml {
 impl From<&NodeConfig> for ActiveElectionsToml {
     fn from(config: &NodeConfig) -> Self {
         Self {
-            size: Some(config.active_elections.size),
+            size: Some(config.active_elections.max_elections),
             hinted_limit_percentage: Some(config.hinted_scheduler.hinted_limit_percentage),
             optimistic_limit_percentage: Some(
                 config.optimistic_scheduler.optimistic_limit_percentage,
             ),
-            confirmation_history_size: Some(config.active_elections.confirmation_history_size),
+            confirmation_history_size: Some(config.confirmation_history_size),
             confirmation_cache: Some(config.active_elections.confirmation_cache),
         }
     }

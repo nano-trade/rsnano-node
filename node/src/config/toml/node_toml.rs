@@ -292,7 +292,7 @@ impl NodeConfig {
         }
         if let Some(i) = &toml.active_elections {
             if let Some(size) = i.size {
-                self.active_elections.size = size
+                self.active_elections.max_elections = size
             };
             if let Some(percentage) = i.hinted_limit_percentage {
                 self.hinted_scheduler.hinted_limit_percentage = percentage;
@@ -301,7 +301,7 @@ impl NodeConfig {
                 self.optimistic_scheduler.optimistic_limit_percentage = percentage;
             };
             if let Some(size) = i.confirmation_history_size {
-                self.active_elections.confirmation_history_size = size;
+                self.confirmation_history_size = size;
             };
             if let Some(cache) = i.confirmation_cache {
                 self.active_elections.confirmation_cache = cache;

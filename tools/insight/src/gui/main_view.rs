@@ -142,7 +142,7 @@ impl AppViewModel {
                     QueueViewModel::new(
                         "Priority",
                         self.app.aec_info.priority,
-                        self.app.aec_info.max_queue,
+                        self.app.aec_info.max_elections,
                     ),
                     QueueViewModel::new("Hinted", self.app.aec_info.hinted, self.app.max_hinted),
                     QueueViewModel::new(
@@ -153,7 +153,7 @@ impl AppViewModel {
                     QueueViewModel::new(
                         "Total",
                         self.app.aec_info.total,
-                        self.app.aec_info.max_queue,
+                        self.app.aec_info.max_elections,
                     ),
                 ],
             },

@@ -555,7 +555,7 @@ impl Node {
         ));
 
         let recently_cemented = Arc::new(Mutex::new(BoundedVecDeque::new(
-            config.active_elections.confirmation_history_size,
+            config.confirmation_history_size,
         )));
 
         let confirmation_requester = ActiveElectionsDriver {

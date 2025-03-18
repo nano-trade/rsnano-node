@@ -199,7 +199,7 @@ mod election_scheduler {
             .build_node()
             .config(NodeConfig {
                 active_elections: rsnano_node::consensus::ActiveElectionsConfig {
-                    size: 1,
+                    max_elections: 1,
                     ..Default::default()
                 },
                 ..System::default_config_without_backlog_scan()

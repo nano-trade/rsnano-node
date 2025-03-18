@@ -112,6 +112,9 @@ pub struct NodeConfig {
     pub network_duplicate_filter_cutoff: u64,
     pub max_ledger_notifications: usize,
     pub network: NetworkConfig,
+
+    /// Maximum confirmation history size
+    pub confirmation_history_size: usize,
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
@@ -336,6 +339,7 @@ impl NodeConfig {
                 listening_port: peering_port.unwrap_or_default(),
                 ..NetworkConfig::default_for(network)
             },
+            confirmation_history_size: 2048,
         }
     }
 

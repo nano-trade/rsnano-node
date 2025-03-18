@@ -466,8 +466,8 @@ mod tests {
 
         // Active Elections section
         assert_ne!(
-            deserialized.node.active_elections.size,
-            default_cfg.node.active_elections.size
+            deserialized.node.active_elections.max_elections,
+            default_cfg.node.active_elections.max_elections
         );
         assert_ne!(
             deserialized.node.hinted_scheduler.hinted_limit_percentage,
@@ -484,8 +484,8 @@ mod tests {
                 .optimistic_limit_percentage
         );
         assert_ne!(
-            deserialized.node.active_elections.confirmation_history_size,
-            default_cfg.node.active_elections.confirmation_history_size
+            deserialized.node.confirmation_history_size,
+            default_cfg.node.confirmation_history_size
         );
         assert_ne!(
             deserialized.node.active_elections.confirmation_cache,
