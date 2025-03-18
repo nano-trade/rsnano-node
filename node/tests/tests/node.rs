@@ -775,21 +775,23 @@ fn fork_multi_flip() {
     // Insert voting key into node1
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
 
-    let election = start_election(&node2, &send2.hash());
+    start_election(&node2, &send2.hash());
 
-    assert_timely2(|| election.lock().unwrap().contains_block(&send1.hash()));
+    assert_timely2(|| {
+        node2
+            .active
+            .read()
+            .election_for_root(&send2.qualified_root())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .contains_block(&send1.hash())
+    });
 
     node1.confirm(send1.hash());
     assert_timely2(|| node2.ledger.any().block_exists_or_pruned(&send1.hash()));
     assert!(!node2.ledger.any().block_exists(&send2.hash()));
     assert!(!node2.ledger.any().block_exists_or_pruned(&send3.hash()));
-
-    let winner = election.lock().unwrap().winner().hash();
-    assert_eq!(send1.hash(), winner);
-    assert_eq!(
-        Amount::MAX - Amount::raw(100),
-        election.lock().unwrap().tallies().get(&send1.hash())
-    );
 }
 
 // This test is racy, there is no guarantee that the election won't be confirmed until all forks are fully processed

@@ -5,7 +5,7 @@ use rsnano_core::{
     StateBlockArgs, Vote, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    test_helpers::UnsavedBlockLatticeBuilder, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_messages::{ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer};
 use rsnano_network::{ChannelMode, TrafficType};
@@ -185,17 +185,27 @@ fn receivable_processor_confirm_sufficient_pos() {
     let send1 = lattice.genesis().send(Account::zero(), 1);
     node1.process(send1.clone());
 
-    let election = start_election(&node1, &send1.hash());
+    start_election(&node1, &send1.hash());
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     let channel = make_fake_channel(&node1);
     let con1 = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(
         vote.deref().clone(),
     ));
-    assert_eq!(0, election.lock().unwrap().vote_count());
+    assert_eq!(
+        0,
+        node1
+            .active
+            .read()
+            .election_for_block(&send1.hash())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .vote_count()
+    );
 
     node1.inbound_message_queue.put(con1, channel);
 
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
+    assert_timely2(|| node1.ledger.confirmed().block_exists(&send1.hash()));
 }
 
 #[test]
