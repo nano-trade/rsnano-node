@@ -2,7 +2,7 @@ mod root_container;
 
 use std::{
     cmp::min,
-    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard},
+    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock},
 };
 
 use root_container::{Entry, RootContainer};
@@ -58,6 +58,7 @@ pub struct ActiveElections {
     confirming_set: Arc<ConfirmingSet>,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
+    event_sender: RwLock<Option<SyncSender<AecEvent>>>,
 }
 
 impl ActiveElections {
@@ -78,18 +79,18 @@ impl ActiveElections {
                 hinted_count: 0,
                 optimistic_count: 0,
                 config: election_config,
-                event_sender: None,
                 recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             }),
             confirming_set,
             config,
             stats,
             clock,
+            event_sender: RwLock::new(None),
         }
     }
 
-    pub fn set_event_sink(&mut self, sink: SyncSender<AecEvent>) {
-        self.mutex.lock().unwrap().event_sender = Some(sink);
+    pub fn set_event_sink(&self, sink: SyncSender<AecEvent>) {
+        *self.event_sender.write().unwrap() = Some(sink);
     }
 
     pub fn len(&self) -> usize {
@@ -173,20 +174,39 @@ impl ActiveElections {
     }
 
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
-        let mut guard = self.mutex.lock().unwrap();
-        if let Some(entry) = guard.roots.erase(root) {
-            self.cleanup_election(guard, entry);
-            true
-        } else {
-            false
+        let entry;
+        {
+            let mut guard = self.mutex.lock().unwrap();
+            entry = guard.roots.erase(root);
+            if let Some(e) = &entry {
+                self.cleanup_election(guard, e);
+            }
+        };
+
+        if let Some(entry) = &entry {
+            self.notify(AecEvent::VacancyUpdated);
+            let election = entry.election.lock().unwrap();
+            let winner_hash = election.winner().hash();
+            for (hash, block) in election.candidate_blocks() {
+                // Notify observers about dropped elections & blocks lost confirmed elections
+                if !election.is_confirmed() || *hash != winner_hash {
+                    self.notify(AecEvent::ElectionDropped(*hash));
+                }
+
+                if !election.is_confirmed() {
+                    self.notify(AecEvent::BlockDiscarded(block.clone().into()));
+                }
+            }
         }
+
+        entry.is_some()
     }
 
     /// Erase all blocks from active, if not confirmed, clear digests from network filters
     fn cleanup_election<'a>(
         &'a self,
         mut guard: MutexGuard<'a, ActiveElectionsState>,
-        entry: Entry,
+        entry: &Entry,
     ) {
         // lock vote router before locking election to prevent dead lock!
         let election = entry.election.lock().unwrap();
@@ -227,22 +247,8 @@ impl ActiveElections {
         ); // 0-10 minutes range
 
         // Notify observers without holding the lock
-        if let Some(callback) = entry.erased_callback {
+        if let Some(callback) = &entry.erased_callback {
             callback(election.qualified_root());
-        }
-
-        guard = self.mutex.lock().unwrap();
-        guard.notify(AecEvent::VacancyUpdated);
-
-        for (hash, block) in election.candidate_blocks() {
-            // Notify observers about dropped elections & blocks lost confirmed elections
-            if !election.is_confirmed() || *hash != winner_hash {
-                guard.notify(AecEvent::ElectionDropped(*hash));
-            }
-
-            if !election.is_confirmed() {
-                guard.notify(AecEvent::BlockDiscarded(block.clone().into()));
-            }
         }
     }
 
@@ -252,42 +258,67 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> Option<ElectionInsertInfo> {
-        let mut guard = self.mutex.lock().unwrap();
-        if guard
-            .recently_confirmed
-            .root_exists(&block.qualified_root())
-        {
-            // This block or a fork got recently confirmed, so there is no need for a new election.
-            return None;
-        }
-
         let hash = block.hash();
 
-        let result = guard.insert(block, election_behavior, erased_callback, self.clock.now());
+        let result = {
+            let mut guard = self.mutex.lock().unwrap();
+            if guard
+                .recently_confirmed
+                .root_exists(&block.qualified_root())
+            {
+                // This block or a fork got recently confirmed, so there is no need for a new election.
+                return None;
+            }
+
+            let result = guard.insert(block, election_behavior, erased_callback, self.clock.now());
+            if let Some(info) = &result {
+                if info.inserted {
+                    guard.vote_router.connect(hash, info.election.clone());
+
+                    self.stats
+                        .inc(StatType::ActiveElections, DetailType::Started);
+                    self.stats
+                        .inc(StatType::ActiveElectionsStarted, election_behavior.into());
+
+                    debug!(behavior = ?election_behavior, block = %hash, "Started new election");
+                }
+            }
+
+            result
+        };
 
         if let Some(info) = &result {
             if info.inserted {
-                guard.vote_router.connect(hash, info.election.clone());
-
-                self.stats
-                    .inc(StatType::ActiveElections, DetailType::Started);
-                self.stats
-                    .inc(StatType::ActiveElectionsStarted, election_behavior.into());
-
-                debug!(behavior = ?election_behavior, block = %hash, "Started new election");
-
-                guard.notify(AecEvent::ElectionStarted(hash));
+                self.notify(AecEvent::ElectionStarted(hash));
             } else {
-                guard.notify(AecEvent::DuplicateElectionAttempt(hash));
+                self.notify(AecEvent::DuplicateElectionAttempt(hash));
             }
-            drop(guard);
         }
 
         result
     }
 
     pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
-        self.mutex.lock().unwrap().try_add_fork(fork, fork_tally)
+        let result = self.mutex.lock().unwrap().try_add_fork(fork, fork_tally);
+        let added = match result {
+            AddForkResult::Added => true,
+            AddForkResult::Replaced(removed) => {
+                self.notify(AecEvent::BlockDiscarded(removed.into()));
+                true
+            }
+            AddForkResult::TallyTooLow => {
+                self.notify(AecEvent::BlockDiscarded(fork.clone()));
+                false
+            }
+            AddForkResult::Duplicate => false,
+            AddForkResult::ElectionEnded => false,
+        };
+
+        if added {
+            self.notify(AecEvent::BlockAddedToElection(fork.hash()));
+        }
+
+        added
     }
 
     pub fn iter_batch_by_root<'a, 'b, T>(
@@ -327,6 +358,14 @@ impl ActiveElections {
 
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stop();
+        // destroy send queue so that the receiver thread will be stopped too
+        drop(self.event_sender.write().unwrap().take());
+    }
+
+    fn notify(&self, event: AecEvent) {
+        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
+            sender.send(event).unwrap()
+        }
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -374,7 +413,6 @@ pub struct ActiveElectionsState {
     optimistic_count: usize,
     config: ElectionConfig,
     vote_router: VoteRouter,
-    event_sender: Option<SyncSender<AecEvent>>,
     recently_confirmed: RecentlyConfirmedCache,
 }
 
@@ -462,47 +500,35 @@ impl ActiveElectionsState {
         }
     }
 
-    pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> bool {
+    pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
         let Some(entry) = self.roots.get(&fork.qualified_root()) else {
-            return false;
+            return AddForkResult::ElectionEnded;
         };
 
         let mut election = entry.election.lock().unwrap();
 
-        let added = match election.try_add_fork(fork, fork_tally) {
+        let result = election.try_add_fork(fork, fork_tally);
+        let added = match &result {
             AddForkResult::Added => true,
             AddForkResult::Replaced(removed) => {
                 self.vote_router.disconnect(&removed.hash());
-                self.notify(AecEvent::BlockDiscarded(removed.into()));
                 true
             }
             AddForkResult::Duplicate => false,
-            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => {
-                self.notify(AecEvent::BlockDiscarded(fork.clone()));
-                false
-            }
+            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => false,
         };
 
         if added {
             self.vote_router
                 .connect(fork.hash(), entry.election.clone());
-            self.notify(AecEvent::BlockAddedToElection(fork.hash()));
         }
 
-        added
-    }
-
-    fn notify(&self, event: AecEvent) {
-        if let Some(sender) = &self.event_sender {
-            sender.send(event).unwrap()
-        }
+        result
     }
 
     pub fn stop(&mut self) {
         self.stopped = true;
         self.roots.clear();
-        // destroy send queue so that the receiver thread will be stopped too
-        drop(self.event_sender.take());
     }
 }
 

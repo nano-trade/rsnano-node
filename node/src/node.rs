@@ -516,7 +516,7 @@ impl Node {
         let election_config = ElectionConfig::default_for(network_params.network.current_network);
 
         let (aec_sender, aec_receiver) = sync_channel(1024);
-        let mut active_elections = ActiveElections::new(
+        let active_elections = ActiveElections::new(
             config.active_elections.clone(),
             confirming_set.clone(),
             stats.clone(),
