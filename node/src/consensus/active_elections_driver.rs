@@ -61,13 +61,13 @@ impl ActiveElectionsDriver {
 impl Runnable for ActiveElectionsDriver {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::Active, DetailType::Loop);
-        let elections = self.active_elections.get_all();
+        let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
+        let elections: Vec<_> = self.active_elections.read().iter().cloned().collect();
 
         // TODO don't clone flooder!'
         let flooder = self.message_flooder.clone();
         let mut solicitor =
             ConfirmationSolicitor::new(&self.network_params, &self.network, flooder);
-        let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
         solicitor.prepare(&peered_prs);
 
         /*

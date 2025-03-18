@@ -790,18 +790,18 @@ fn bound_election_winners() {
 
         // Ensure that when the number of election winners reaches the limit, AEC vacancy reflects that
         // Confirming more elections should make the vacancy negative
-        assert!(node.active.vacancy() > 0);
+        assert!(node.active.read().vacancy() > 0);
 
         for block in blocks {
             let election = node.active.election_for_block(&block.hash()).unwrap();
             node.vote_applier.force_confirm(&election);
         }
 
-        assert_timely2(|| node.active.vacancy() <= 0);
+        assert_timely2(|| node.active.read().vacancy() <= 0);
         // Release the guard to allow cementing, there should be some vacancy now
     }
 
-    assert_timely2(|| node.active.vacancy() > 0);
+    assert_timely2(|| node.active.read().vacancy() > 0);
 }
 
 /// Blocks should only be broadcasted when they are active in the AEC
@@ -932,7 +932,7 @@ fn confirmation_consistency() {
             .unwrap();
 
         assert_timely2(|| node.block_confirmed(&block.hash()));
-        assert_timely2(|| node.active.was_recently_confirmed(&block.hash()));
+        assert_timely2(|| node.active.read().was_recently_confirmed(&block.hash()));
     }
 }
 
@@ -1139,7 +1139,7 @@ fn list_active() {
     start_elections(&node, &[send.hash(), send2.hash(), open.hash()], false);
     assert_timely_eq2(|| node.active.len(), 3);
 
-    assert_eq!(node.active.get_all().len(), 3);
+    assert_eq!(node.active.len(), 3);
 }
 
 #[test]

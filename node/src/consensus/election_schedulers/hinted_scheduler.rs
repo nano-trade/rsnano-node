@@ -117,9 +117,10 @@ impl HintedScheduler {
     }
 
     fn aec_vacancy(&self) -> i64 {
-        let vacancy = self.max_elections as i64
-            - self.active.count_by_behavior(ElectionBehavior::Hinted) as i64;
-        min(vacancy, self.active.vacancy())
+        let active = self.active.read();
+        let vacancy =
+            self.max_elections as i64 - active.count_by_behavior(ElectionBehavior::Hinted) as i64;
+        min(vacancy, active.vacancy())
     }
 
     pub fn container_info(&self) -> ContainerInfo {

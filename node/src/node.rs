@@ -814,7 +814,8 @@ impl Node {
             }
 
             if let Some(i) = active_w.upgrade() {
-                if i.is_active_hash(hash) || i.was_recently_confirmed(hash) {
+                let guard = i.read();
+                if guard.is_active_hash(hash) || guard.was_recently_confirmed(hash) {
                     return false;
                 }
             }
@@ -852,7 +853,8 @@ impl Node {
             }
 
             if let Some(i) = active_w.upgrade() {
-                if i.is_active_hash(hash) || i.was_recently_confirmed(hash) {
+                let guard = i.read();
+                if guard.is_active_hash(hash) || guard.was_recently_confirmed(hash) {
                     return false;
                 }
             }
@@ -1290,10 +1292,12 @@ impl Node {
         )]
         .into();
 
+        let active = self.active.read().container_info();
+
         ContainerInfo::builder()
             .node("work", self.work.container_info())
             .node("ledger", self.ledger.container_info())
-            .node("active", self.active.container_info())
+            .node("active", active)
             .node("network", network)
             .node("telemetry", self.telemetry.container_info())
             .node("wallets", self.wallets.container_info())

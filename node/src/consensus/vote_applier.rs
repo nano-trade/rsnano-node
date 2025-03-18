@@ -343,18 +343,16 @@ impl VoteApplier {
     /// Cementing blocks might implicitly confirm dependent elections
     pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, BlockHash)>) {
         let mut results = Vec::new();
-        let roots = cemented
-            .iter()
-            .map(|(block, _)| (block.qualified_root(), block));
 
         // Process all cemented blocks while holding the lock to avoid
         // races where an election for a block that is already
         // cemented is inserted
-        self.active_elections
-            .iter_batch_by_root(roots, |root, election, block| {
-                let result = self.block_cemented(root, election, block);
-                results.push(result)
-            });
+        let active = self.active_elections.read();
+        for (block, _) in cemented {
+            let election = active.election_for_root(&block.qualified_root());
+            let result = self.block_cemented(election, block);
+            results.push(result)
+        }
 
         // TODO: This could be offloaded to a separate notification worker, profiling is needed
         for (status, votes) in results {
@@ -365,7 +363,6 @@ impl VoteApplier {
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     fn block_cemented(
         &self,
-        _root: QualifiedRoot,
         dependent_election: Option<&Arc<Mutex<Election>>>,
         block: &SavedBlock,
     ) -> (EndedElection, Vec<VoteSummary>) {

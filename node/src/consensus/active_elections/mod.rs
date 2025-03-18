@@ -4,7 +4,7 @@ mod root_container;
 
 pub use active_elections_container::*;
 
-use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock};
+use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock, RwLockReadGuard};
 
 use root_container::{Entry, RootContainer};
 use rsnano_nullable_clock::SteadyClock;
@@ -45,7 +45,7 @@ pub enum AecEvent {
 }
 
 pub struct ActiveElections {
-    container: Mutex<ActiveElectionsContainer>,
+    container: RwLock<ActiveElectionsContainer>,
     max_elections: usize,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
@@ -61,7 +61,7 @@ impl ActiveElections {
     ) -> Self {
         let max_elections = config.max_elections;
         Self {
-            container: Mutex::new(ActiveElectionsContainer::new(config, election_config)),
+            container: RwLock::new(ActiveElectionsContainer::new(config, election_config)),
             max_elections,
             stats,
             clock,
@@ -73,58 +73,41 @@ impl ActiveElections {
         *self.event_sender.write().unwrap() = Some(sink);
     }
 
-    pub fn len(&self) -> usize {
-        self.container.lock().unwrap().roots.len()
+    pub fn read(&self) -> RwLockReadGuard<ActiveElectionsContainer> {
+        self.container.read().unwrap()
     }
 
-    pub fn info(&self) -> ActiveElectionsInfo {
-        self.container.lock().unwrap().info()
+    pub fn len(&self) -> usize {
+        self.container.read().unwrap().len()
     }
 
     pub fn max_len(&self) -> usize {
         self.max_elections
     }
 
-    /// How many election slots are available
-    /// This is a soft limit and can be negative!
-    pub fn vacancy(&self) -> i64 {
-        self.container.lock().unwrap().vacancy()
-    }
-
     pub fn cool_down(&self) {
-        self.container.lock().unwrap().cool_down = true;
+        self.container.write().unwrap().cool_down();
     }
 
     pub fn resume(&self) {
-        self.container.lock().unwrap().cool_down = false;
-    }
-
-    pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
-        self.container.lock().unwrap().count_by_behavior(behavior)
+        self.container.write().unwrap().resume();
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
-        self.container.lock().unwrap().is_active_root(root)
+        self.container.read().unwrap().is_active_root(root)
     }
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
-        self.container.lock().unwrap().is_active_hash(block_hash)
-    }
-
-    pub fn was_recently_confirmed(&self, block_hash: &BlockHash) -> bool {
-        self.container
-            .lock()
-            .unwrap()
-            .was_recently_confirmed(block_hash)
+        self.container.read().unwrap().is_active_hash(block_hash)
     }
 
     pub fn clear_recently_confirmed(&self) {
-        self.container.lock().unwrap().clear_recently_confirmed();
+        self.container.write().unwrap().clear_recently_confirmed();
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
         self.container
-            .lock()
+            .read()
             .unwrap()
             .election_for_root(root)
             .cloned()
@@ -132,24 +115,14 @@ impl ActiveElections {
 
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
         self.container
-            .lock()
+            .read()
             .unwrap()
             .election_for_block(block_hash)
             .cloned()
     }
 
-    pub fn get_all(&self) -> Vec<Arc<Mutex<Election>>> {
-        self.container
-            .lock()
-            .unwrap()
-            .roots
-            .iter_sequenced()
-            .map(|i| i.election.clone())
-            .collect()
-    }
-
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
-        let removed = self.container.lock().unwrap().erase(root);
+        let removed = self.container.write().unwrap().erase(root);
 
         if let Some(entry) = &removed {
             self.add_stats(entry);
@@ -209,7 +182,7 @@ impl ActiveElections {
     ) -> Option<ElectionInsertInfo> {
         let hash = block.hash();
 
-        let result = self.container.lock().unwrap().insert2(
+        let result = self.container.write().unwrap().insert(
             block,
             election_behavior,
             erased_callback,
@@ -236,7 +209,7 @@ impl ActiveElections {
     pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
         let result = self
             .container
-            .lock()
+            .write()
             .unwrap()
             .try_add_fork(fork, fork_tally);
 
@@ -260,26 +233,12 @@ impl ActiveElections {
         added
     }
 
-    pub fn iter_batch_by_root<'a, 'b, T>(
-        &'a self,
-        roots: impl IntoIterator<Item = (QualifiedRoot, &'b T)>,
-        mut handle: impl FnMut(QualifiedRoot, Option<&Arc<Mutex<Election>>>, &'b T),
-    ) where
-        T: 'b,
-    {
-        let guard = self.container.lock().unwrap();
-        for (root, context) in roots.into_iter() {
-            let election = guard.election_for_root(&root);
-            handle(root, election, context);
-        }
-    }
-
     pub fn iter_batch_by_hash<'a>(
         &self,
         blocks: impl IntoIterator<Item = &'a BlockHash>,
         mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>, bool),
     ) {
-        let guard = self.container.lock().unwrap();
+        let guard = self.container.read().unwrap();
         for hash in blocks.into_iter() {
             let election = guard.vote_router.election(hash);
             let recently_confirmed = guard.recently_confirmed.hash_exists(hash);
@@ -288,15 +247,11 @@ impl ActiveElections {
     }
 
     pub fn cementing_failed(&self, block_hash: &BlockHash) {
-        self.container
-            .lock()
-            .unwrap()
-            .recently_confirmed
-            .erase(block_hash);
+        self.container.write().unwrap().cementing_failed(block_hash);
     }
 
     pub fn stop(&self) {
-        self.container.lock().unwrap().stop();
+        self.container.write().unwrap().stop();
         // destroy send queue so that the receiver thread will be stopped too
         drop(self.event_sender.write().unwrap().take());
     }
@@ -305,35 +260,6 @@ impl ActiveElections {
         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
             sender.send(event).unwrap()
         }
-    }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.container.lock().unwrap();
-        let vote_router = guard.vote_router.container_info();
-
-        ContainerInfo::builder()
-            .leaf("roots", guard.roots.len(), RootContainer::ELEMENT_SIZE)
-            .leaf(
-                "normal",
-                guard.count_by_behavior(ElectionBehavior::Priority),
-                0,
-            )
-            .leaf(
-                "hinted".to_string(),
-                guard.count_by_behavior(ElectionBehavior::Hinted),
-                0,
-            )
-            .leaf(
-                "optimistic".to_string(),
-                guard.count_by_behavior(ElectionBehavior::Optimistic),
-                0,
-            )
-            .node(
-                "recently_confirmed",
-                guard.recently_confirmed.container_info(),
-            )
-            .node("vote_router", vote_router)
-            .finish()
     }
 }
 

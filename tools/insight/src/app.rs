@@ -96,7 +96,7 @@ impl InsightApp {
             };
             self.channels
                 .update(channels, telemetries, peered_reps, min_rep_weight);
-            self.aec_info = node.active.info();
+            self.aec_info = node.active.read().info();
             self.max_optimistic = node.election_schedulers.optimistic.max_elections;
             self.max_hinted = node.election_schedulers.hinted.max_elections;
             self.confirming_set = node.confirming_set.info();

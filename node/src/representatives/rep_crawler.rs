@@ -366,7 +366,11 @@ impl RepCrawler {
             }
 
             // Avoid blocks that could still have live votes coming in
-            if self.active_elections.was_recently_confirmed(&block.hash()) {
+            if self
+                .active_elections
+                .read()
+                .was_recently_confirmed(&block.hash())
+            {
                 continue;
             }
 

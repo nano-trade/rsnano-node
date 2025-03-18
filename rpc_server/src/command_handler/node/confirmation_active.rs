@@ -10,7 +10,7 @@ impl RpcCommandHandler {
         let mut confirmed = 0;
         let mut elections = Vec::new();
 
-        let active_elections = self.node.active.get_all();
+        let active_elections: Vec<_> = self.node.active.read().iter().cloned().collect();
         for election in active_elections {
             let el = election.lock().unwrap();
             let req_count = el.confirmation_request_count();

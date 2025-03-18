@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_nullable_clock::Timestamp;
 
 use crate::consensus::{AddForkResult, Election, ElectionBehavior, ElectionConfig};
@@ -11,16 +11,16 @@ use super::{
 };
 
 pub struct ActiveElectionsContainer {
-    pub(crate) roots: RootContainer,
-    pub(crate) stopped: bool,
-    pub(crate) manual_count: usize,
-    pub(crate) priority_count: usize,
-    pub(crate) hinted_count: usize,
-    pub(crate) optimistic_count: usize,
-    pub(crate) config: ElectionConfig,
-    pub(crate) vote_router: VoteRouter,
-    pub(crate) recently_confirmed: RecentlyConfirmedCache,
-    pub(crate) cool_down: bool,
+    roots: RootContainer,
+    stopped: bool,
+    manual_count: usize,
+    priority_count: usize,
+    hinted_count: usize,
+    optimistic_count: usize,
+    config: ElectionConfig,
+    pub(super) vote_router: VoteRouter,
+    pub(super) recently_confirmed: RecentlyConfirmedCache,
+    cool_down: bool,
     max_elections: usize,
 }
 
@@ -59,30 +59,11 @@ impl ActiveElectionsContainer {
         }
     }
 
-    pub(super) fn insert2(
-        &mut self,
-        block: SavedBlock,
-        election_behavior: ElectionBehavior,
-        erased_callback: Option<ErasedCallback>,
-        now: Timestamp,
-    ) -> Option<ElectionInsertInfo> {
-        let hash = block.hash();
-        if self.recently_confirmed.root_exists(&block.qualified_root()) {
-            // This block or a fork got recently confirmed, so there is no need for a new election.
-            return None;
-        }
-
-        let result = self.insert(block, election_behavior, erased_callback, now);
-        if let Some(info) = &result {
-            if info.inserted {
-                self.vote_router.connect(hash, info.election.clone());
-            }
-        }
-
-        result
+    pub fn iter(&self) -> impl Iterator<Item = &Arc<Mutex<Election>>> {
+        self.roots.iter_sequenced().map(|i| &i.election)
     }
 
-    fn insert(
+    pub(super) fn insert(
         &mut self,
         block: SavedBlock,
         election_behavior: ElectionBehavior,
@@ -93,40 +74,58 @@ impl ActiveElectionsContainer {
             return None;
         }
 
+        let hash = block.hash();
         let root = block.qualified_root();
-        let existing = self.roots.get(&root).map(|i| i.election.clone());
-        if let Some(existing) = existing {
-            {
-                // Try upgrading to priority election to enable immediate vote broadcasting.
-                let mut election = existing.lock().unwrap();
-                self.maybe_upgrade_to(election_behavior, &mut election);
-            }
-            Some(ElectionInsertInfo {
-                election: existing,
-                inserted: false,
-            })
-        } else {
-            let election = Arc::new(Mutex::new(Election::new(
-                block,
-                election_behavior,
-                self.config.clone(),
-                now,
-            )));
 
-            self.roots.insert(Entry {
-                root,
-                election: election.clone(),
-                erased_callback,
-            });
-
-            // Keep track of election count by election type
-            *self.count_by_behavior_mut(election_behavior) += 1;
-
-            Some(ElectionInsertInfo {
-                election,
-                inserted: true,
-            })
+        if self.recently_confirmed.root_exists(&root) {
+            // This block or a fork got recently confirmed, so there is no need for a new election.
+            return None;
         }
+
+        let existing = self.roots.get(&root).map(|i| i.election.clone());
+
+        let result = {
+            if let Some(existing) = existing {
+                {
+                    // Try upgrading to priority election to enable immediate vote broadcasting.
+                    let mut election = existing.lock().unwrap();
+                    self.maybe_upgrade_to(election_behavior, &mut election);
+                }
+                Some(ElectionInsertInfo {
+                    election: existing,
+                    inserted: false,
+                })
+            } else {
+                let election = Arc::new(Mutex::new(Election::new(
+                    block,
+                    election_behavior,
+                    self.config.clone(),
+                    now,
+                )));
+
+                self.roots.insert(Entry {
+                    root,
+                    election: election.clone(),
+                    erased_callback,
+                });
+
+                // Keep track of election count by election type
+                *self.count_by_behavior_mut(election_behavior) += 1;
+
+                Some(ElectionInsertInfo {
+                    election,
+                    inserted: true,
+                })
+            }
+        };
+
+        if let Some(info) = &result {
+            if info.inserted {
+                self.vote_router.connect(hash, info.election.clone());
+            }
+        }
+
+        result
     }
 
     fn maybe_upgrade_to(
@@ -177,6 +176,14 @@ impl ActiveElectionsContainer {
         }
         let current_size = self.roots.len() as i64;
         self.max_elections as i64 - current_size
+    }
+
+    pub(super) fn cool_down(&mut self) {
+        self.cool_down = true;
+    }
+
+    pub(super) fn resume(&mut self) {
+        self.cool_down = false;
     }
 
     pub(super) fn stop(&mut self) {
@@ -239,6 +246,40 @@ impl ActiveElectionsContainer {
             self.recently_confirmed
                 .put(election.qualified_root().clone(), winner_hash);
         }
+    }
+
+    pub(super) fn cementing_failed(&mut self, block_hash: &BlockHash) {
+        self.recently_confirmed.erase(block_hash);
+    }
+
+    pub fn len(&self) -> usize {
+        self.roots.len()
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        ContainerInfo::builder()
+            .leaf("roots", self.roots.len(), RootContainer::ELEMENT_SIZE)
+            .leaf(
+                "normal",
+                self.count_by_behavior(ElectionBehavior::Priority),
+                0,
+            )
+            .leaf(
+                "hinted".to_string(),
+                self.count_by_behavior(ElectionBehavior::Hinted),
+                0,
+            )
+            .leaf(
+                "optimistic".to_string(),
+                self.count_by_behavior(ElectionBehavior::Optimistic),
+                0,
+            )
+            .node(
+                "recently_confirmed",
+                self.recently_confirmed.container_info(),
+            )
+            .node("vote_router", self.vote_router.container_info())
+            .finish()
     }
 }
 
