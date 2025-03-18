@@ -68,17 +68,17 @@ fn fork_replacement_tally() {
     }
 
     // Check overflow of blocks
+    assert_timely2(|| node1.active.is_active_root(&send_last.qualified_root()));
     assert_timely2(|| {
         node1
             .active
+            .read()
             .election_for_root(&send_last.qualified_root())
-            .is_some()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .has_max_blocks()
     });
-    let election = node1
-        .active
-        .election_for_root(&send_last.qualified_root())
-        .unwrap();
-    assert_timely2(|| election.lock().unwrap().has_max_blocks());
 
     // Generate forks with votes to prevent new block insertion to election
     for i in 0..REPS_COUNT {
@@ -101,6 +101,10 @@ fn fork_replacement_tally() {
     // it also checks that there are 10 votes in the election
     let count_rep_votes_in_election = || {
         // Check that only max weight blocks remains (and start winner)
+        let active = node1.active.read();
+        let election = active
+            .election_for_root(&send_last.qualified_root())
+            .unwrap();
         let guard = election.lock().unwrap();
         let mut vote_count = 0;
         for i in 0..REPS_COUNT {
@@ -114,7 +118,15 @@ fn fork_replacement_tally() {
     // Check overflow of blocks
     // it is only 9, because the intital block of the election does not get replaced
     assert_timely_eq2(|| count_rep_votes_in_election(), 9);
-    assert!(election.lock().unwrap().has_max_blocks());
+
+    assert!(node1
+        .active
+        .read()
+        .election_for_root(&send_last.qualified_root())
+        .unwrap()
+        .lock()
+        .unwrap()
+        .has_max_blocks());
 
     // Process correct block
     let node2 = system
@@ -132,9 +144,26 @@ fn fork_replacement_tally() {
             > 0
     });
 
-    // Correct block without votes is ignored
-    assert_timely2(|| election.lock().unwrap().has_max_blocks());
-    let blocks1 = election.lock().unwrap().candidate_blocks().clone();
+    assert_timely2(|| {
+        node1
+            .active
+            .read()
+            .election_for_root(&send_last.qualified_root())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .has_max_blocks()
+    });
+
+    let blocks1 = node1
+        .active
+        .read()
+        .election_for_root(&send_last.qualified_root())
+        .unwrap()
+        .lock()
+        .unwrap()
+        .candidate_blocks()
+        .clone();
     assert!(!blocks1.contains_key(&send_last.hash()));
 
     // Process vote for correct block & replace existing lowest tally block
@@ -172,14 +201,31 @@ fn fork_replacement_tally() {
 
     // the send_last block should replace one of the existing block of the election because it has higher vote weight
     let find_send_last_block = || {
-        let guard = election.lock().unwrap();
-        guard.contains_block(&send_last.hash())
+        node1
+            .active
+            .read()
+            .election_for_root(&send_last.qualified_root())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .contains_block(&send_last.hash())
     };
     assert_timely2(|| find_send_last_block());
-    assert!(election.lock().unwrap().has_max_blocks());
+    assert!(node1
+        .active
+        .read()
+        .election_for_root(&send_last.qualified_root())
+        .unwrap()
+        .lock()
+        .unwrap()
+        .has_max_blocks());
 
     assert_timely2(|| {
-        election
+        node1
+            .active
+            .read()
+            .election_for_root(&send_last.qualified_root())
+            .unwrap()
             .lock()
             .unwrap()
             .votes()
@@ -749,12 +795,7 @@ fn confirm_frontier() {
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
 
     // Save election to check request count afterwards
-    assert_timely2(|| {
-        node2
-            .active
-            .election_for_root(&send.qualified_root())
-            .is_some()
-    });
+    assert_timely2(|| node2.active.is_active_root(&send.qualified_root()));
     let election2 = node2
         .active
         .election_for_root(&send.qualified_root())
