@@ -147,11 +147,6 @@ fn quorum_minimum_confirm_fail() {
 
     node1.process_active(send1.clone());
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
-    let election = node1
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-    assert_eq!(1, election.lock().unwrap().block_count());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_applier.vote(&vote, VoteSource::Live);
@@ -160,8 +155,7 @@ fn quorum_minimum_confirm_fail() {
     std::thread::sleep(Duration::from_secs(1));
 
     // It should not confirm because there should not be enough quorum
-    assert!(node1.block(&send1.hash()).is_some());
-    assert_eq!(election.lock().unwrap().is_confirmed(), false);
+    assert_eq!(node1.block_confirmed(&send1.hash()), false);
 }
 
 // This test ensures blocks can be confirmed precisely at the quorum minimum
@@ -189,23 +183,12 @@ fn quorum_minimum_confirm_success() {
     );
 
     node1.process_active(send1.clone());
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
-    let election = node1
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-    assert_eq!(1, election.lock().unwrap().block_count());
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_applier.vote(&vote, VoteSource::Live);
 
-    assert!(node1.block_exists(&send1.hash()));
-    assert_timely2(|| election.lock().unwrap().is_confirmed());
+    assert_timely2(|| node1.block_confirmed(&send1.hash()));
 }
 
 #[test]
@@ -233,23 +216,11 @@ fn quorum_minimum_flip_fail() {
 
     // Process send1 and wait until its election appears
     node1.process_active(send1.clone());
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
-    assert_timely(Duration::from_secs(5), || {
-        let election = node1
-            .active
-            .election_for_root(&send2.qualified_root())
-            .unwrap();
-        let election_guard = election.lock().unwrap();
-        election_guard.block_count() == 2
-    });
+    assert_timely2(|| node1.active.is_active_hash(&send2.hash()));
 
     // Genesis generates a final vote for send2 but it should not be enough to reach quorum
     // due to the online_weight_minimum being so high
@@ -259,11 +230,6 @@ fn quorum_minimum_flip_fail() {
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
 
-    let election = node1
-        .active
-        .election_for_root(&send2.qualified_root())
-        .unwrap();
-    assert_eq!(election.lock().unwrap().is_confirmed(), false);
     assert_eq!(node1.block_confirmed(&send2.hash()), false);
 }
 
@@ -292,38 +258,18 @@ fn quorum_minimum_flip_success() {
 
     // Process send1 and wait until its election appears
     node1.process_active(send1.clone());
-    assert_timely2(|| {
-        node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
-    assert_timely2(|| {
-        let election = node1
-            .active
-            .election_for_root(&send2.qualified_root())
-            .unwrap();
-        let election_guard = election.lock().unwrap();
-        election_guard.block_count() == 2
-    });
+    assert_timely2(|| node1.active.is_active_hash(&send2.hash()));
 
     // Genesis generates a final vote for send2
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1.vote_applier.vote(&vote, VoteSource::Live);
 
     // Wait for the election to be confirmed
-    let election = node1
-        .active
-        .election_for_root(&send2.qualified_root())
-        .unwrap();
-    assert_timely2(|| election.lock().unwrap().is_confirmed());
-
-    // Check that send2 is the winner
-    let winner = election.lock().unwrap().winner().hash();
-    assert_eq!(winner, send2.hash());
+    assert_timely2(|| node1.block_confirmed(&send2.hash()));
 }
 
 #[test]

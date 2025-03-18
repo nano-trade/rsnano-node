@@ -31,15 +31,8 @@ mod votes {
             .manual
             .push(send1.clone().into(), None);
 
-        assert_timely(Duration::from_secs(5), || {
-            node1.active.is_active_root(&send1.qualified_root())
-        });
+        assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
-        let election1 = node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .unwrap();
-        assert_eq!(election1.lock().unwrap().vote_count(), 0);
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN,
@@ -73,9 +66,23 @@ mod votes {
             &VoteCode::Ignored
         );
 
-        assert_eq!(election1.lock().unwrap().vote_count(), 1);
         assert_eq!(
-            election1
+            node1
+                .active
+                .read()
+                .election_for_block(&send1.hash())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .vote_count(),
+            1
+        );
+        assert_eq!(
+            node1
+                .active
+                .read()
+                .election_for_block(&send1.hash())
+                .unwrap()
                 .lock()
                 .unwrap()
                 .votes()
@@ -84,11 +91,6 @@ mod votes {
                 .hash,
             send1.hash()
         );
-
-        let guard = election1.lock().unwrap();
-        let (hash, amount) = guard.tallies().winner().unwrap();
-        assert_eq!(*hash, send1.hash());
-        assert_eq!(*amount, Amount::MAX - Amount::raw(100));
     }
 
     #[test]

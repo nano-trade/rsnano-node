@@ -289,15 +289,28 @@ mod election_scheduler {
         // Wait for optimistic election to start for last block
         let block = blocks.last().unwrap();
         assert_timely2(|| node.active.is_active_hash(&block.hash()));
-        let election = node
-            .active
-            .election_for_root(&block.qualified_root())
-            .unwrap();
         assert_eq!(
-            election.lock().unwrap().behavior(),
+            node.active
+                .read()
+                .election_for_block(&block.hash())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .behavior(),
             ElectionBehavior::Optimistic
         );
-        assert_timely_eq2(|| election.lock().unwrap().vote_broadcast_count(), 1);
+        assert_timely_eq2(
+            || {
+                node.active
+                    .read()
+                    .election_for_block(&block.hash())
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .vote_broadcast_count()
+            },
+            1,
+        );
 
         // Confirm first block to allow upgrading second block's election
         node.confirm(blocks[howmany_blocks - 1].hash());
@@ -308,11 +321,28 @@ mod election_scheduler {
 
         // Verify priority transition
         assert_eq!(
-            election.lock().unwrap().behavior(),
+            node.active
+                .read()
+                .election_for_block(&block.hash())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .behavior(),
             ElectionBehavior::Priority
         );
         // Verify vote broadcast after transitioning
-        assert_timely_eq2(|| election.lock().unwrap().vote_broadcast_count(), 2);
+        assert_timely_eq2(
+            || {
+                node.active
+                    .read()
+                    .election_for_block(&block.hash())
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .vote_broadcast_count()
+            },
+            2,
+        );
         assert!(node.active.is_active_root(&block.qualified_root()));
     }
 }
