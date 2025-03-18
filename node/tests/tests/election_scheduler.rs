@@ -143,11 +143,7 @@ mod election_scheduler {
             .priority
             .activate(&node.ledger.any(), &*DEV_GENESIS_ACCOUNT);
 
-        assert_timely2(|| {
-            node.active
-                .election_for_root(&send1.qualified_root())
-                .is_some()
-        });
+        assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
     }
 
     #[test]
@@ -170,11 +166,7 @@ mod election_scheduler {
             .activate(&node.ledger.any(), &*DEV_GENESIS_ACCOUNT);
 
         // Assert that the election is created within 5 seconds
-        assert_timely2(|| {
-            node.active
-                .election_for_root(&send1.qualified_root())
-                .is_some()
-        });
+        assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
     }
 
     #[test]
@@ -251,18 +243,11 @@ mod election_scheduler {
             .priority
             .activate(&node.ledger.any(), &key.account());
         assert_timely_eq2(|| node.election_schedulers.priority.len(), 1);
-        assert!(node
-            .active
-            .election_for_root(&block2.qualified_root())
-            .is_none());
+        assert_eq!(node.active.is_active_root(&block2.qualified_root()), false);
 
         // Election confirmed, next in queue should begin
         node.vote_applier.force_confirm(&election.unwrap());
-        assert_timely2(|| {
-            node.active
-                .election_for_root(&block2.qualified_root())
-                .is_some()
-        });
+        assert_timely2(|| node.active.is_active_root(&block2.qualified_root()));
         assert!(node.election_schedulers.priority.is_empty());
     }
 

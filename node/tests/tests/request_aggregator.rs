@@ -15,7 +15,8 @@ use rsnano_output_tracker::OutputTrackerMt;
 use rsnano_stats::{DetailType, Direction, StatType};
 
 use test_helpers::{
-    assert_timely2, assert_timely_eq, assert_timely_msg, make_fake_channel, System,
+    assert_timely2, assert_timely_eq, assert_timely_eq2, assert_timely_msg, make_fake_channel,
+    System,
 };
 
 #[test]
@@ -608,23 +609,11 @@ fn cannot_vote() {
 
     // With an ongoing election
     node.election_schedulers.add_manual(send2.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node.active
-                .election_for_root(&send2.qualified_root())
-                .is_some()
-        },
-        "no election",
-    );
+    assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
 
     node.request_aggregator.request(request.clone());
 
-    assert_timely_msg(
-        Duration::from_secs(3),
-        || node.request_aggregator.is_empty(),
-        "aggregator empty",
-    );
+    assert_timely2(|| node.request_aggregator.is_empty());
     assert_eq!(
         node.stats.count(
             StatType::Aggregator,
@@ -641,8 +630,7 @@ fn cannot_vote() {
         ),
         0
     );
-    assert_timely_eq(
-        Duration::from_secs(3),
+    assert_timely_eq2(
         || {
             node.stats.count(
                 StatType::Requests,

@@ -53,12 +53,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .unwrap();
     assert_timely_eq(Duration::from_secs(15), || node2.ledger.block_count(), 4);
 
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
     let election = node1
         .active
         .election_for_root(&send1.qualified_root())

@@ -32,10 +32,7 @@ mod votes {
             .push(send1.clone().into(), None);
 
         assert_timely(Duration::from_secs(5), || {
-            node1
-                .active
-                .election_for_root(&send1.qualified_root())
-                .is_some()
+            node1.active.is_active_root(&send1.qualified_root())
         });
 
         let election1 = node1
