@@ -10,7 +10,7 @@ use root_container::{Entry, RootContainer};
 use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
-use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, VoteRouter};
@@ -127,16 +127,21 @@ impl ActiveElections {
         if let Some(entry) = &removed {
             self.add_stats(entry);
             self.notify(AecEvent::VacancyUpdated);
+
             let election = entry.election.lock().unwrap();
             let winner_hash = election.winner().hash();
-            for (hash, block) in election.candidate_blocks() {
+            let is_confirmed = election.is_confirmed();
+            let blocks = election.candidate_blocks().clone();
+            drop(election);
+
+            for (hash, block) in blocks {
                 // Notify observers about dropped elections & blocks lost confirmed elections
-                if !election.is_confirmed() || *hash != winner_hash {
-                    self.notify(AecEvent::ElectionDropped(*hash));
+                if !is_confirmed || hash != winner_hash {
+                    self.notify(AecEvent::ElectionDropped(hash));
                 }
 
-                if !election.is_confirmed() {
-                    self.notify(AecEvent::BlockDiscarded(block.clone().into()));
+                if !is_confirmed {
+                    self.notify(AecEvent::BlockDiscarded(block.into()));
                 }
             }
         }
@@ -146,31 +151,37 @@ impl ActiveElections {
 
     fn add_stats(&self, entry: &Entry) {
         let election = entry.election.lock().unwrap();
+        let is_confirmed = election.is_confirmed();
+        let state = election.state();
+        let behavior = election.behavior();
+        let start = election.start();
+        let root = election.qualified_root().clone();
+        drop(election);
+
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
 
         self.stats.inc(
             StatType::ActiveElections,
-            if election.is_confirmed() {
+            if is_confirmed {
                 DetailType::Confirmed
             } else {
                 DetailType::Unconfirmed
             },
         );
         self.stats
-            .inc(StatType::ActiveElectionsStopped, election.state().into());
-        self.stats
-            .inc(election.state().into(), election.behavior().into());
+            .inc(StatType::ActiveElectionsStopped, state.into());
+        self.stats.inc(state.into(), behavior.into());
         // Track election duration
         self.stats.sample(
             Sample::ActiveElectionDuration,
-            election.start().elapsed(self.clock.now()).as_millis() as i64,
+            start.elapsed(self.clock.now()).as_millis() as i64,
             (0, 1000 * 60 * 10),
         ); // 0-10 minutes range
 
         // Notify observers without holding the lock
         if let Some(callback) = &entry.erased_callback {
-            callback(election.qualified_root());
+            callback(&root);
         }
     }
 
@@ -231,19 +242,6 @@ impl ActiveElections {
         };
 
         added
-    }
-
-    pub fn iter_batch_by_hash<'a>(
-        &self,
-        blocks: impl IntoIterator<Item = &'a BlockHash>,
-        mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>, bool),
-    ) {
-        let guard = self.container.read().unwrap();
-        for hash in blocks.into_iter() {
-            let election = guard.vote_router.election(hash);
-            let recently_confirmed = guard.recently_confirmed.hash_exists(hash);
-            handle(hash, election, recently_confirmed);
-        }
     }
 
     pub fn cementing_failed(&self, block_hash: &BlockHash) {

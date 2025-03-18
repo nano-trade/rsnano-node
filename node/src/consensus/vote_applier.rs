@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use num::iter;
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
@@ -122,25 +123,24 @@ impl VoteApplier {
                 }
             });
 
-            self.active_elections.iter_batch_by_hash(
-                hashes,
-                |hash, election, recently_confirmed| {
-                    // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-                    if results.contains_key(hash) {
-                        return;
-                    }
+            let active = self.active_elections.read();
+            for hash in hashes {
+                // Ignore duplicate hashes (should not happen with a well-behaved voting node)
+                if results.contains_key(hash) {
+                    continue;
+                }
 
-                    if let Some(election) = election {
-                        process.insert(*hash, election.clone());
+                let election = active.election_for_block(hash);
+                if let Some(election) = election {
+                    process.insert(*hash, election.clone());
+                } else {
+                    if !active.was_recently_confirmed(hash) {
+                        results.insert(*hash, VoteCode::Indeterminate);
                     } else {
-                        if !recently_confirmed {
-                            results.insert(*hash, VoteCode::Indeterminate);
-                        } else {
-                            results.insert(*hash, VoteCode::Replay);
-                        }
+                        results.insert(*hash, VoteCode::Replay);
                     }
-                },
-            );
+                }
+            }
         }
 
         for (block_hash, election) in process {
