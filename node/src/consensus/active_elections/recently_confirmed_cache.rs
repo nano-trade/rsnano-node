@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, QualifiedRoot};
 
-pub struct RecentlyConfirmedCache {
+pub(super) struct RecentlyConfirmedCache {
     by_root: HashMap<QualifiedRoot, BlockHash>,
     by_hash: HashMap<BlockHash, QualifiedRoot>,
     sequential: VecDeque<BlockHash>,
@@ -59,12 +59,6 @@ impl RecentlyConfirmedCache {
 
     pub fn len(&self) -> usize {
         self.sequential.len()
-    }
-
-    pub fn back(&self) -> Option<(&QualifiedRoot, &BlockHash)> {
-        self.sequential
-            .back()
-            .map(|hash| (self.by_hash.get(hash).unwrap(), hash))
     }
 
     pub fn container_info(&self) -> ContainerInfo {

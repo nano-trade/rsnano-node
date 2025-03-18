@@ -1,17 +1,19 @@
+mod active_elections_container;
+mod recently_confirmed_cache;
 mod root_container;
 
-use std::sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock};
+pub use active_elections_container::*;
+
+use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock};
 
 use root_container::{Entry, RootContainer};
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
-use super::{
-    AddForkResult, Election, ElectionBehavior, ElectionConfig, RecentlyConfirmedCache, VoteRouter,
-};
+use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, VoteRouter};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -44,7 +46,7 @@ pub enum AecEvent {
 
 pub struct ActiveElections {
     container: Mutex<ActiveElectionsContainer>,
-    config: ActiveElectionsConfig,
+    max_elections: usize,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
@@ -57,20 +59,10 @@ impl ActiveElections {
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
+        let max_elections = config.max_elections;
         Self {
-            container: Mutex::new(ActiveElectionsContainer {
-                roots: RootContainer::default(),
-                vote_router: VoteRouter::new(),
-                stopped: false,
-                manual_count: 0,
-                priority_count: 0,
-                hinted_count: 0,
-                optimistic_count: 0,
-                config: election_config,
-                recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
-                cool_down: false,
-            }),
-            config,
+            container: Mutex::new(ActiveElectionsContainer::new(config, election_config)),
+            max_elections,
             stats,
             clock,
             event_sender: RwLock::new(None),
@@ -86,29 +78,17 @@ impl ActiveElections {
     }
 
     pub fn info(&self) -> ActiveElectionsInfo {
-        let guard = self.container.lock().unwrap();
-        ActiveElectionsInfo {
-            max_elections: self.config.max_elections,
-            total: guard.roots.len(),
-            priority: guard.priority_count,
-            hinted: guard.hinted_count,
-            optimistic: guard.optimistic_count,
-        }
+        self.container.lock().unwrap().info()
     }
 
     pub fn max_len(&self) -> usize {
-        self.config.max_elections
+        self.max_elections
     }
 
     /// How many election slots are available
     /// This is a soft limit and can be negative!
     pub fn vacancy(&self) -> i64 {
-        let container = self.container.lock().unwrap();
-        if container.cool_down {
-            return 0;
-        }
-        let current_size = container.roots.len() as i64;
-        self.config.max_elections as i64 - current_size
+        self.container.lock().unwrap().vacancy()
     }
 
     pub fn cool_down(&self) {
@@ -124,39 +104,37 @@ impl ActiveElections {
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
-        self.container.lock().unwrap().roots.get(root).is_some()
+        self.container.lock().unwrap().is_active_root(root)
     }
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
-        self.container
-            .lock()
-            .unwrap()
-            .vote_router
-            .is_active(block_hash)
+        self.container.lock().unwrap().is_active_hash(block_hash)
     }
 
     pub fn was_recently_confirmed(&self, block_hash: &BlockHash) -> bool {
         self.container
             .lock()
             .unwrap()
-            .recently_confirmed
-            .hash_exists(block_hash)
+            .was_recently_confirmed(block_hash)
     }
 
     pub fn clear_recently_confirmed(&self) {
-        self.container.lock().unwrap().recently_confirmed.clear();
+        self.container.lock().unwrap().clear_recently_confirmed();
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
-        self.container.lock().unwrap().election(root).cloned()
+        self.container
+            .lock()
+            .unwrap()
+            .election_for_root(root)
+            .cloned()
     }
 
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
         self.container
             .lock()
             .unwrap()
-            .vote_router
-            .election(block_hash)
+            .election_for_block(block_hash)
             .cloned()
     }
 
@@ -171,16 +149,10 @@ impl ActiveElections {
     }
 
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
-        let entry;
-        {
-            let mut guard = self.container.lock().unwrap();
-            entry = guard.roots.erase(root);
-            if let Some(e) = &entry {
-                self.cleanup_election(guard, e);
-            }
-        };
+        let removed = self.container.lock().unwrap().erase(root);
 
-        if let Some(entry) = &entry {
+        if let Some(entry) = &removed {
+            self.add_stats(entry);
             self.notify(AecEvent::VacancyUpdated);
             let election = entry.election.lock().unwrap();
             let winner_hash = election.winner().hash();
@@ -196,31 +168,10 @@ impl ActiveElections {
             }
         }
 
-        entry.is_some()
+        removed.is_some()
     }
 
-    /// Erase all blocks from active, if not confirmed, clear digests from network filters
-    fn cleanup_election<'a>(
-        &'a self,
-        mut guard: MutexGuard<'a, ActiveElectionsContainer>,
-        entry: &Entry,
-    ) {
-        {
-            let election = entry.election.lock().unwrap();
-
-            // Keep track of election count by election type
-            *guard.count_by_behavior_mut(election.behavior()) -= 1;
-            guard.vote_router.disconnect_election(&election);
-            let winner_hash = election.winner().hash();
-            if election.is_confirmed() {
-                guard
-                    .recently_confirmed
-                    .put(election.qualified_root().clone(), winner_hash);
-            }
-
-            drop(guard);
-        }
-
+    fn add_stats(&self, entry: &Entry) {
         let election = entry.election.lock().unwrap();
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
@@ -258,35 +209,21 @@ impl ActiveElections {
     ) -> Option<ElectionInsertInfo> {
         let hash = block.hash();
 
-        let result = {
-            let mut guard = self.container.lock().unwrap();
-            if guard
-                .recently_confirmed
-                .root_exists(&block.qualified_root())
-            {
-                // This block or a fork got recently confirmed, so there is no need for a new election.
-                return None;
-            }
-
-            let result = guard.insert(block, election_behavior, erased_callback, self.clock.now());
-            if let Some(info) = &result {
-                if info.inserted {
-                    guard.vote_router.connect(hash, info.election.clone());
-
-                    self.stats
-                        .inc(StatType::ActiveElections, DetailType::Started);
-                    self.stats
-                        .inc(StatType::ActiveElectionsStarted, election_behavior.into());
-
-                    debug!(behavior = ?election_behavior, block = %hash, "Started new election");
-                }
-            }
-
-            result
-        };
+        let result = self.container.lock().unwrap().insert2(
+            block,
+            election_behavior,
+            erased_callback,
+            self.clock.now(),
+        );
 
         if let Some(info) = &result {
             if info.inserted {
+                self.stats
+                    .inc(StatType::ActiveElections, DetailType::Started);
+                self.stats
+                    .inc(StatType::ActiveElectionsStarted, election_behavior.into());
+
+                debug!(behavior = ?election_behavior, block = %hash, "Started new election");
                 self.notify(AecEvent::ElectionStarted(hash));
             } else {
                 self.notify(AecEvent::DuplicateElectionAttempt(hash));
@@ -332,7 +269,7 @@ impl ActiveElections {
     {
         let guard = self.container.lock().unwrap();
         for (root, context) in roots.into_iter() {
-            let election = guard.election(&root);
+            let election = guard.election_for_root(&root);
             handle(root, election, context);
         }
     }
@@ -404,149 +341,6 @@ impl Drop for ActiveElections {
     fn drop(&mut self) {
         self.stop()
     }
-}
-
-pub struct ActiveElectionsContainer {
-    roots: RootContainer,
-    stopped: bool,
-    manual_count: usize,
-    priority_count: usize,
-    hinted_count: usize,
-    optimistic_count: usize,
-    config: ElectionConfig,
-    vote_router: VoteRouter,
-    recently_confirmed: RecentlyConfirmedCache,
-    cool_down: bool,
-}
-
-impl ActiveElectionsContainer {
-    fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
-        match behavior {
-            ElectionBehavior::Manual => self.manual_count,
-            ElectionBehavior::Priority => self.priority_count,
-            ElectionBehavior::Hinted => self.hinted_count,
-            ElectionBehavior::Optimistic => self.optimistic_count,
-        }
-    }
-
-    fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
-        match behavior {
-            ElectionBehavior::Manual => &mut self.manual_count,
-            ElectionBehavior::Priority => &mut self.priority_count,
-            ElectionBehavior::Hinted => &mut self.hinted_count,
-            ElectionBehavior::Optimistic => &mut self.optimistic_count,
-        }
-    }
-
-    fn election(&self, root: &QualifiedRoot) -> Option<&Arc<Mutex<Election>>> {
-        self.roots.get(root).map(|i| &i.election)
-    }
-
-    fn maybe_upgrade_to(
-        &mut self,
-        new_behavior: ElectionBehavior,
-        election: &mut Election,
-    ) -> bool {
-        let previous_behavior = election.behavior();
-        let upgraded = election.maybe_upgrade_to(new_behavior);
-        if upgraded {
-            *self.count_by_behavior_mut(previous_behavior) -= 1;
-            *self.count_by_behavior_mut(new_behavior) += 1;
-        }
-        upgraded
-    }
-
-    fn insert(
-        &mut self,
-        block: SavedBlock,
-        election_behavior: ElectionBehavior,
-        erased_callback: Option<ErasedCallback>,
-        now: Timestamp,
-    ) -> Option<ElectionInsertInfo> {
-        if self.stopped {
-            return None;
-        }
-
-        let root = block.qualified_root();
-        let existing = self.roots.get(&root).map(|i| i.election.clone());
-        if let Some(existing) = existing {
-            {
-                // Try upgrading to priority election to enable immediate vote broadcasting.
-                let mut election = existing.lock().unwrap();
-                self.maybe_upgrade_to(election_behavior, &mut election);
-            }
-            Some(ElectionInsertInfo {
-                election: existing,
-                inserted: false,
-            })
-        } else {
-            let election = Arc::new(Mutex::new(Election::new(
-                block,
-                election_behavior,
-                self.config.clone(),
-                now,
-            )));
-
-            self.roots.insert(Entry {
-                root,
-                election: election.clone(),
-                erased_callback,
-            });
-
-            // Keep track of election count by election type
-            *self.count_by_behavior_mut(election_behavior) += 1;
-
-            Some(ElectionInsertInfo {
-                election,
-                inserted: true,
-            })
-        }
-    }
-
-    fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
-        let Some(entry) = self.roots.get(&fork.qualified_root()) else {
-            return AddForkResult::ElectionEnded;
-        };
-
-        let mut election = entry.election.lock().unwrap();
-
-        let result = election.try_add_fork(fork, fork_tally);
-        let added = match &result {
-            AddForkResult::Added => true,
-            AddForkResult::Replaced(removed) => {
-                self.vote_router.disconnect(&removed.hash());
-                true
-            }
-            AddForkResult::Duplicate => false,
-            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => false,
-        };
-
-        if added {
-            self.vote_router
-                .connect(fork.hash(), entry.election.clone());
-        }
-
-        result
-    }
-
-    fn stop(&mut self) {
-        self.stopped = true;
-        self.roots.clear();
-    }
-}
-
-pub struct ElectionInsertInfo {
-    pub election: Arc<Mutex<Election>>,
-    pub inserted: bool,
-}
-
-#[derive(Default)]
-pub struct ActiveElectionsInfo {
-    pub max_elections: usize,
-    pub total: usize,
-    pub priority: usize,
-    pub hinted: usize,
-    pub optimistic: usize,
 }
 
 pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
