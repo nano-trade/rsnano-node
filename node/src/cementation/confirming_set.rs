@@ -54,6 +54,8 @@ impl Default for ConfirmingSetConfig {
 
 pub enum CementingEvent {
     CementingFailed(BlockHash),
+    NearFull,
+    Recovered,
 }
 
 /// Set of blocks to be durably confirmed
@@ -73,6 +75,9 @@ impl ConfirmingSet {
                     current: HashSet::new(),
                     stats: stats.clone(),
                     config: config.clone(),
+                    cooldown: false,
+                    near_full_limit: config.max_blocks * 100 / 75,
+                    recovered_limit: config.max_blocks * 100 / 50,
                 }),
                 stopped: AtomicBool::new(false),
                 condition: Condvar::new(),
@@ -197,12 +202,19 @@ impl ConfirmingSetThread {
     }
 
     fn add(&self, hash: BlockHash) {
-        let added = {
+        let added;
+        let mut near_full_warning = false;
+        {
             let mut guard = self.mutex.lock().unwrap();
-            guard.set.push_back(CementingEntry {
+            added = guard.set.push_back(CementingEntry {
                 confirmation_root: hash,
                 timestamp: Instant::now(),
-            })
+            });
+
+            if !guard.cooldown && guard.set.len() + guard.current.len() >= guard.near_full_limit {
+                guard.cooldown = true;
+                near_full_warning = true;
+            }
         };
 
         if added {
@@ -211,6 +223,10 @@ impl ConfirmingSetThread {
         } else {
             self.stats
                 .inc(StatType::ConfirmingSet, DetailType::Duplicate);
+        }
+
+        if near_full_warning {
+            self.notify(CementingEvent::NearFull);
         }
     }
 
@@ -250,10 +266,16 @@ impl ConfirmingSetThread {
                 for entry in &batch {
                     guard.current.insert(entry.confirmation_root);
                 }
+                let recovered = guard.cooldown && guard.set.len() < guard.recovered_limit;
+                if recovered {
+                    guard.cooldown = false;
+                }
 
                 drop(guard);
 
                 self.run_batch(batch);
+                self.notify(CementingEvent::Recovered);
+
                 guard = self.mutex.lock().unwrap();
             } else {
                 guard = self
@@ -296,6 +318,9 @@ struct ConfirmingSetImpl {
 
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
+    cooldown: bool,
+    near_full_limit: usize,
+    recovered_limit: usize,
 }
 
 impl ConfirmingSetImpl {

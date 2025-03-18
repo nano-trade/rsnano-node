@@ -1,9 +1,6 @@
 mod root_container;
 
-use std::{
-    cmp::min,
-    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock},
-};
+use std::sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock};
 
 use root_container::{Entry, RootContainer};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
@@ -15,7 +12,6 @@ use rsnano_stats::{DetailType, Sample, StatType, Stats};
 use super::{
     AddForkResult, Election, ElectionBehavior, ElectionConfig, RecentlyConfirmedCache, VoteRouter,
 };
-use crate::cementation::ConfirmingSet;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -55,7 +51,6 @@ pub enum AecEvent {
 pub struct ActiveElections {
     container: Mutex<ActiveElectionsContainer>,
     config: ActiveElectionsConfig,
-    confirming_set: Arc<ConfirmingSet>,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
@@ -64,7 +59,6 @@ pub struct ActiveElections {
 impl ActiveElections {
     pub(crate) fn new(
         config: ActiveElectionsConfig,
-        confirming_set: Arc<ConfirmingSet>,
         stats: Arc<Stats>,
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
@@ -80,8 +74,8 @@ impl ActiveElections {
                 optimistic_count: 0,
                 config: election_config,
                 recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
+                cool_down: false,
             }),
-            confirming_set,
             config,
             stats,
             clock,
@@ -115,18 +109,24 @@ impl ActiveElections {
     /// How many election slots are available
     /// This is a soft limit and can be negative!
     pub fn vacancy(&self) -> i64 {
-        let current_size = self.container.lock().unwrap().roots.len() as i64;
-        let election_vacancy = self.config.size as i64 - current_size;
-        let winners_vacancy = self.election_winners_vacancy();
-        min(election_vacancy, winners_vacancy)
+        let container = self.container.lock().unwrap();
+        if container.cool_down {
+            return 0;
+        }
+        let current_size = container.roots.len() as i64;
+        self.config.size as i64 - current_size
+    }
+
+    pub fn cool_down(&self) {
+        self.container.lock().unwrap().cool_down = true;
+    }
+
+    pub fn resume(&self) {
+        self.container.lock().unwrap().cool_down = false;
     }
 
     pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
         self.container.lock().unwrap().count_by_behavior(behavior)
-    }
-
-    fn election_winners_vacancy(&self) -> i64 {
-        self.config.max_election_winners as i64 - self.confirming_set.len() as i64
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
@@ -422,6 +422,7 @@ pub struct ActiveElectionsContainer {
     config: ElectionConfig,
     vote_router: VoteRouter,
     recently_confirmed: RecentlyConfirmedCache,
+    cool_down: bool,
 }
 
 impl ActiveElectionsContainer {

@@ -520,7 +520,6 @@ impl Node {
         let (aec_sender, aec_receiver) = sync_channel(1024);
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
-            confirming_set.clone(),
             stats.clone(),
             election_config,
             steady_clock.clone(),
@@ -1165,6 +1164,8 @@ impl Node {
                             // Do some cleanup due to this block never being processed by confirmation height processor
                             active_l.cementing_failed(&block_hash);
                         }
+                        CementingEvent::NearFull => active_l.cool_down(),
+                        CementingEvent::Recovered => active_l.resume(),
                     }
                 }
             })

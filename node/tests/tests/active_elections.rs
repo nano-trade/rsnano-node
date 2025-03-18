@@ -773,12 +773,12 @@ fn bound_election_winners() {
     let mut system = System::new();
     let mut config = System::default_config();
     // Set election winner limit to a low value
-    config.active_elections.max_election_winners = 5;
+    config.confirming_set.max_blocks = 5;
     let node = system.build_node().config(config).finish();
 
     // Start elections for a couple of blocks, number of elections is larger than the election winner set limit
     let blocks = setup_independent_blocks(&node, 10, &DEV_GENESIS_KEY);
-    assert_timely(Duration::from_secs(5), || {
+    assert_timely2(|| {
         blocks
             .iter()
             .all(|block| node.active.is_active_root(&block.qualified_root()))
@@ -797,7 +797,7 @@ fn bound_election_winners() {
             node.vote_applier.force_confirm(&election);
         }
 
-        assert_timely2(|| node.active.vacancy() < 0);
+        assert_timely2(|| node.active.vacancy() <= 0);
         // Release the guard to allow cementing, there should be some vacancy now
     }
 
