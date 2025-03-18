@@ -52,7 +52,6 @@ pub enum AecEvent {
 
 pub struct ActiveElections {
     mutex: Mutex<ActiveElectionsState>,
-    condition: Condvar,
     config: ActiveElectionsConfig,
     rep_weights: Arc<RepWeightCache>,
     confirming_set: Arc<ConfirmingSet>,
@@ -87,7 +86,6 @@ impl ActiveElections {
                 config: election_config,
                 event_sender: None,
             }),
-            condition: Condvar::new(),
             rep_weights,
             confirming_set,
             recently_confirmed,
@@ -330,58 +328,12 @@ impl ActiveElections {
     pub fn handle_fork(&self, fork: &Block) {
         let fork_tally = self.get_cached_tally(&fork.hash());
         let mut guard = self.mutex.lock().unwrap();
-        if let Some(entry) = guard.roots.get(&fork.qualified_root()) {
-            let election_mutex = entry.election.clone();
-            let added = {
-                let mut election = election_mutex.lock().unwrap();
-                self.try_add_fork(&mut guard, &election_mutex, &mut election, fork, fork_tally)
-            };
-            if added {
-                guard.notify(AecEvent::BlockAddedToElection(fork.hash()));
-
-                self.stats
-                    .inc(StatType::Active, DetailType::ElectionBlockConflict);
-                debug!("Block was added to an existing election: {}", fork.hash());
-            }
-        }
-    }
-
-    /// Returns wether the fork was added to the election.
-    /// Result is false if:
-    /// 1) election is confirmed or expired
-    /// 2) given election contains 10 blocks & new block didn't receive enough votes to replace existing blocks
-    /// 3) given block is already in election & election contains less than 10 blocks (replacing block content with new)
-    fn try_add_fork(
-        &self,
-        state: &mut ActiveElectionsState,
-        election_mutex: &Arc<Mutex<Election>>,
-        election: &mut Election,
-        fork: &Block,
-        fork_tally: Amount,
-    ) -> bool {
-        // Try to remove a block with a lower tally, so that the fork can be added
-
-        let added = match election.add_fork(fork.clone(), fork_tally) {
-            AddForkResult::Added => true,
-            AddForkResult::Replaced(removed) => {
-                state.vote_router.disconnect(&removed.hash());
-                state.notify(AecEvent::BlockDiscarded(removed.into()));
-                true
-            }
-            AddForkResult::Duplicate => false,
-            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => {
-                state.notify(AecEvent::BlockDiscarded(fork.clone()));
-                false
-            }
-        };
-
+        let added = guard.try_add_fork(fork, fork_tally);
         if added {
-            state
-                .vote_router
-                .connect(fork.hash(), election_mutex.clone());
+            self.stats
+                .inc(StatType::Active, DetailType::ElectionBlockConflict);
+            debug!("Block was added to an existing election: {}", fork.hash());
         }
-
-        added
     }
 
     pub fn iter_batch_by_root<'a, 'b, T>(
@@ -412,7 +364,6 @@ impl ActiveElections {
 
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stop();
-        self.condition.notify_all();
         self.clear();
     }
 
@@ -546,6 +497,36 @@ impl ActiveElectionsState {
                 inserted: true,
             })
         }
+    }
+
+    pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> bool {
+        let Some(entry) = self.roots.get(&fork.qualified_root()) else {
+            return false;
+        };
+
+        let mut election = entry.election.lock().unwrap();
+
+        let added = match election.try_add_fork(fork, fork_tally) {
+            AddForkResult::Added => true,
+            AddForkResult::Replaced(removed) => {
+                self.vote_router.disconnect(&removed.hash());
+                self.notify(AecEvent::BlockDiscarded(removed.into()));
+                true
+            }
+            AddForkResult::Duplicate => false,
+            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => {
+                self.notify(AecEvent::BlockDiscarded(fork.clone()));
+                false
+            }
+        };
+
+        if added {
+            self.vote_router
+                .connect(fork.hash(), entry.election.clone());
+            self.notify(AecEvent::BlockAddedToElection(fork.hash()));
+        }
+
+        added
     }
 
     fn notify(&self, event: AecEvent) {

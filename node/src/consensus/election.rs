@@ -145,7 +145,7 @@ impl Election {
         self.block_count() >= Self::MAX_BLOCKS
     }
 
-    pub fn add_fork(&mut self, fork: Block, fork_tally: Amount) -> AddForkResult {
+    pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
         // Do not insert new blocks if already confirmed
         if self.state.has_ended() {
             return AddForkResult::ElectionEnded;
@@ -165,7 +165,7 @@ impl Election {
 
         self.tallies.insert(fork.hash(), fork_tally);
         self.candidate_blocks
-            .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork));
+            .insert(fork.hash(), MaybeSavedBlock::Unsaved(fork.clone()));
 
         match removed {
             Some(removed) => AddForkResult::Replaced(removed),
