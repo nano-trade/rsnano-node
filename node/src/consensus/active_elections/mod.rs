@@ -108,14 +108,6 @@ impl ActiveElections {
         self.container.write().unwrap().clear_recently_confirmed();
     }
 
-    pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
-        self.container
-            .read()
-            .unwrap()
-            .election_for_root(root)
-            .cloned()
-    }
-
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
         self.container
             .read()

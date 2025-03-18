@@ -2100,18 +2100,15 @@ fn rollback_vote_self() {
         // The write guard prevents the block processor from performing the rollback
         let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
-        let election = node
-            .active
-            .election_for_root(&send2.qualified_root())
-            .unwrap();
         // Vote with key to switch the winner
-        node.vote_applier.apply_vote(
-            &election,
-            &key.public_key(),
+        let vote = Arc::new(Vote::new(
+            &key,
             UnixMillisTimestamp::ZERO,
-            &fork.hash(),
-            VoteSource::Live,
-        );
+            0,
+            vec![fork.hash()],
+        ));
+        node.vote_applier.vote(&vote, VoteSource::Live);
+
         // The winner changed
         assert_eq!(
             node.active

@@ -174,7 +174,7 @@ impl VoteApplier {
         self.election_confirmed(election.clone());
     }
 
-    pub fn apply_vote(
+    fn apply_vote(
         &self,
         election_mutex: &Arc<Mutex<Election>>,
         rep: &PublicKey,
