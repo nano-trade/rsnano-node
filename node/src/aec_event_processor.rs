@@ -7,7 +7,10 @@ use rsnano_core::utils::MemoryStream;
 use rsnano_messages::NetworkFilter;
 
 use crate::{
-    consensus::{election_schedulers::ElectionSchedulers, AecEvent, VoteCacheProcessor},
+    consensus::{
+        election_schedulers::ElectionSchedulers, AecEvent, BootstrapElectionActivator,
+        VoteCacheProcessor,
+    },
     NodeEvent,
 };
 
@@ -18,19 +21,21 @@ pub(crate) struct AecEventProcessor {
     pub node_event_sender: Option<SyncSender<NodeEvent>>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub network_filter: Arc<NetworkFilter>,
+    pub bootstrap_election_activator: BootstrapElectionActivator,
 }
 
 impl AecEventProcessor {
     pub(crate) fn run(&mut self) {
         while let Ok(event) = self.receiver.recv() {
             match event {
-                AecEvent::ActiveStarted(hash) => {
+                AecEvent::ElectionStarted(hash) => {
+                    self.bootstrap_election_activator.election_started(hash);
                     self.vote_cache_processor.trigger(hash);
                     if let Some(tx) = &self.node_event_sender {
                         tx.send(NodeEvent::AecActiveStarted(hash)).unwrap();
                     }
                 }
-                AecEvent::ActiveStopped(hash) => {
+                AecEvent::ElectionDropped(hash) => {
                     if let Some(tx) = &self.node_event_sender {
                         tx.send(NodeEvent::AecActiveStopped(hash)).unwrap();
                     }

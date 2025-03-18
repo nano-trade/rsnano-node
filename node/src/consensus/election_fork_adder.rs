@@ -11,10 +11,10 @@ use super::{ActiveElections, VoteCache};
 
 /// Tries to add a fork block to its corresponding election
 pub(crate) struct ElectionForkAdder {
-    active_elections: Arc<ActiveElections>,
-    vote_cache: Arc<Mutex<VoteCache>>,
-    stats: Arc<Stats>,
-    rep_weights: Arc<RepWeightCache>,
+    pub active_elections: Arc<ActiveElections>,
+    pub vote_cache: Arc<Mutex<VoteCache>>,
+    pub stats: Arc<Stats>,
+    pub rep_weights: Arc<RepWeightCache>,
 }
 
 impl ElectionForkAdder {

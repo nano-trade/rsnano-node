@@ -47,11 +47,12 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, ElectionConfig, ElectionVoter, EndedElection,
-        LocalVoteHistory, RecentlyConfirmedCache, RepTiers, RequestAggregator,
-        RequestAggregatorCleanup, VoteApplier, VoteApplierEvent, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, VoteSummary,
+        ActiveElections, ActiveElectionsDriver, BootstrapElectionActivator, ElectionConfig,
+        ElectionForkAdder, ElectionVoter, EndedElection, LocalVoteHistory, RecentlyConfirmedCache,
+        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, VoteSummary,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -522,9 +523,7 @@ impl Node {
         let (aec_sender, aec_receiver) = sync_channel(1024);
         let mut active_elections = ActiveElections::new(
             config.active_elections.clone(),
-            ledger.rep_weights.clone(),
             confirming_set.clone(),
-            vote_cache.clone(),
             stats.clone(),
             recently_confirmed.clone(),
             election_voter,
@@ -576,12 +575,16 @@ impl Node {
             clock: steady_clock.clone(),
         };
 
-        let active_w = Arc::downgrade(&active_elections);
+        let fork_adder = ElectionForkAdder {
+            active_elections: active_elections.clone(),
+            vote_cache: vote_cache.clone(),
+            stats: stats.clone(),
+            rep_weights: rep_weights.clone(),
+        };
+
         // Notify elections about alternative (forked) blocks
         ledger_notifications.on_blocks_processed(Box::new(move |batch| {
-            if let Some(active) = active_w.upgrade() {
-                active.handle_processed_blocks(batch);
-            }
+            fork_adder.handle_processed_blocks(batch);
         }));
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(
@@ -1139,12 +1142,19 @@ impl Node {
             recently_cemented: recently_cemented.clone(),
         };
 
+        let bootstrap_election_activator = BootstrapElectionActivator {
+            active_elections: active_elections.clone(),
+            vote_cache: vote_cache.clone(),
+            stats: stats.clone(),
+        };
+
         let mut aec_event_processor = AecEventProcessor {
             receiver: aec_receiver,
             vote_cache_processor: vote_cache_processor.clone(),
             node_event_sender: node_event_sender.clone(),
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
+            bootstrap_election_activator,
         };
 
         std::thread::Builder::new()

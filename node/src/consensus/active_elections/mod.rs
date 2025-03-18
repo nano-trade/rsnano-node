@@ -10,14 +10,13 @@ use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
-use rsnano_ledger::{BlockStatus, RepWeightCache};
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{
     AddForkResult, Election, ElectionBehavior, ElectionConfig, ElectionVoter,
-    RecentlyConfirmedCache, VoteCache, VoteRouter,
+    RecentlyConfirmedCache, VoteRouter,
 };
-use crate::{block_processing::BlockContext, cementation::ConfirmingSet};
+use crate::cementation::ConfirmingSet;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -43,8 +42,9 @@ impl Default for ActiveElectionsConfig {
 }
 
 pub enum AecEvent {
-    ActiveStarted(BlockHash),
-    ActiveStopped(BlockHash),
+    ElectionStarted(BlockHash),
+    /// The election was dropped without being confirmed
+    ElectionDropped(BlockHash),
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     VacancyUpdated,
@@ -53,10 +53,8 @@ pub enum AecEvent {
 pub struct ActiveElections {
     mutex: Mutex<ActiveElectionsState>,
     config: ActiveElectionsConfig,
-    rep_weights: Arc<RepWeightCache>,
     confirming_set: Arc<ConfirmingSet>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-    vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     election_voter: ElectionVoter,
     clock: Arc<SteadyClock>,
@@ -65,9 +63,7 @@ pub struct ActiveElections {
 impl ActiveElections {
     pub(crate) fn new(
         config: ActiveElectionsConfig,
-        rep_weights: Arc<RepWeightCache>,
         confirming_set: Arc<ConfirmingSet>,
-        vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         election_voter: ElectionVoter,
@@ -86,11 +82,9 @@ impl ActiveElections {
                 config: election_config,
                 event_sender: None,
             }),
-            rep_weights,
             confirming_set,
             recently_confirmed,
             config,
-            vote_cache,
             stats,
             election_voter,
             clock,
@@ -151,16 +145,6 @@ impl ActiveElections {
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
         self.mutex.lock().unwrap().vote_router.is_active(block_hash)
-    }
-
-    fn get_cached_tally(&self, hash: &BlockHash) -> Amount {
-        let votes = self.vote_cache.lock().unwrap().find(hash);
-        let mut tally = Amount::zero();
-        let weights = self.rep_weights.read();
-        for vote in votes {
-            tally += weights.get(&vote.voter).cloned().unwrap_or_default();
-        }
-        tally
     }
 
     /// Broadcasts vote for the current winner of this election
@@ -251,7 +235,7 @@ impl ActiveElections {
         for (hash, block) in election.candidate_blocks() {
             // Notify observers about dropped elections & blocks lost confirmed elections
             if !election.is_confirmed() || *hash != winner_hash {
-                guard.notify(AecEvent::ActiveStopped(*hash));
+                guard.notify(AecEvent::ElectionDropped(*hash));
             }
 
             if !election.is_confirmed() {
@@ -285,28 +269,14 @@ impl ActiveElections {
             if info.inserted {
                 guard.vote_router.connect(hash, info.election.clone());
 
-                // Skip passive phase for blocks without cached votes to avoid bootstrap delays
-                let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
-
-                if !in_cache {
-                    self.stats
-                        .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
-                    info.election.lock().unwrap().transition_active();
-                }
-
                 self.stats
                     .inc(StatType::ActiveElections, DetailType::Started);
                 self.stats
                     .inc(StatType::ActiveElectionsStarted, election_behavior.into());
 
-                debug!(
-                    in_cache,
-                    behavior = ?election_behavior,
-                    block = %hash,
-                    "Started new election"
-                );
+                debug!(behavior = ?election_behavior, block = %hash, "Started new election");
 
-                guard.notify(AecEvent::ActiveStarted(hash));
+                guard.notify(AecEvent::ElectionStarted(hash));
             }
             drop(guard);
 
@@ -317,27 +287,8 @@ impl ActiveElections {
         result
     }
 
-    pub fn handle_processed_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
-        for (status, context) in batch {
-            if *status == BlockStatus::Fork {
-                self.handle_fork(&context.block);
-            }
-        }
-    }
-
     pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
         self.mutex.lock().unwrap().try_add_fork(fork, fork_tally)
-    }
-
-    pub fn handle_fork(&self, fork: &Block) {
-        let fork_tally = self.get_cached_tally(&fork.hash());
-        let mut guard = self.mutex.lock().unwrap();
-        let added = guard.try_add_fork(fork, fork_tally);
-        if added {
-            self.stats
-                .inc(StatType::Active, DetailType::ElectionBlockConflict);
-            debug!("Block was added to an existing election: {}", fork.hash());
-        }
     }
 
     pub fn iter_batch_by_root<'a, 'b, T>(

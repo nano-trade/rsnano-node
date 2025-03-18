@@ -119,7 +119,7 @@ mod votes {
         ));
         node1.vote_applier.vote(&vote1, VoteSource::Live);
         // Block is already processed from vote
-        node1.active.handle_fork(&send1);
+        node1.active.try_add_fork(&send1, Amount::zero());
         assert_eq!(
             election1
                 .lock()
@@ -139,7 +139,7 @@ mod votes {
             .genesis()
             .send_all_except(&key2, Amount::MAX / 2 - Amount::nano(1000));
 
-        node1.active.handle_fork(&send2);
+        node1.active.try_add_fork(&send2, Amount::zero());
         assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
         let vote2 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
