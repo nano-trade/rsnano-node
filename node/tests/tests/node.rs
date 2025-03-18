@@ -663,15 +663,19 @@ fn rep_self_vote() {
         node0.process_local(block0.clone()).unwrap()
     );
 
-    let election1 = start_election(&node0, &block0.hash());
+    start_election(&node0, &block0.hash());
 
     // Wait until representatives are activated & make vote
-    assert_timely_eq2(|| election1.lock().unwrap().vote_count(), 2);
-
-    // Election should receive votes from representatives hosted on the same node
-    let rep_votes = election1.lock().unwrap().votes().clone();
-    assert!(rep_votes.contains_key(&DEV_GENESIS_KEY.public_key()));
-    assert!(rep_votes.contains_key(&rep_big.public_key()));
+    assert_timely2(|| node0.ledger.confirmed().block_exists(&block0.hash()));
+    let info = node0
+        .recently_cemented
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|i| i.winner.hash() == block0.hash())
+        .unwrap()
+        .clone();
+    assert_eq!(info.voter_count, 2);
 }
 
 #[test]
