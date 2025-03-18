@@ -13,7 +13,8 @@ use rsnano_ledger::{
 use rsnano_node::{config::NodeFlags, wallets::WalletsExt};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
-    assert_timely, assert_timely_eq2, make_fake_channel, start_election, upgrade_epoch, System,
+    assert_timely, assert_timely2, assert_timely_eq2, make_fake_channel, start_election,
+    upgrade_epoch, System,
 };
 
 #[test]
@@ -70,15 +71,7 @@ fn add_old() {
     let send1 = lattice.genesis().send_max(&key1);
     node.process(send1.clone());
     start_election(&node, &send1.hash());
-    assert_timely(Duration::from_secs(5), || {
-        node.active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
-    let election1 = node
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
+    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
     let vote1 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN * 2,
@@ -98,14 +91,18 @@ fn add_old() {
         vec![send2.hash()],
     ));
 
-    election1.lock().unwrap().change_vote_timestamp(
+    node.active.change_vote_timestamp(
+        &send1.qualified_root(),
         &DEV_GENESIS_PUB_KEY,
         SystemTime::now() - Duration::from_secs(20),
     );
 
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
-    let election1_guard = election1.lock().unwrap();
+
+    let active = node.active.read();
+    let election = active.election_for_root(&send1.qualified_root()).unwrap();
+    let election1_guard = election.lock().unwrap();
     assert_eq!(1, election1_guard.vote_count());
     let votes = election1_guard.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
@@ -124,15 +121,7 @@ fn add_cooldown() {
     let send1 = lattice.genesis().send_max(&key1);
     node.process(send1.clone());
     start_election(&node, &send1.hash());
-    assert_timely(Duration::from_secs(5), || {
-        node.active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
-    let election1 = node
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
+    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
     let vote1 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN * 1,
@@ -154,6 +143,9 @@ fn add_cooldown() {
 
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live);
+
+    let active = node.active.read();
+    let election1 = active.election_for_root(&send1.qualified_root()).unwrap();
     let election1_guard = election1.lock().unwrap();
     assert_eq!(1, election1_guard.vote_count());
     let votes = election1_guard.votes();

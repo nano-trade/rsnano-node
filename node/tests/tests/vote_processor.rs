@@ -54,15 +54,7 @@ fn codes() {
 
     // First vote from an account for an ongoing election
     start_election(&node, &blocks[0].hash());
-    assert_timely2(|| {
-        node.active
-            .election_for_root(&blocks[0].qualified_root())
-            .is_some()
-    });
-    let _election = node
-        .active
-        .election_for_root(&blocks[0].qualified_root())
-        .unwrap();
+    assert_timely2(|| node.active.is_active_root(&blocks[0].qualified_root()));
     assert_eq!(
         VoteCode::Vote,
         node.vote_processor

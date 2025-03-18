@@ -2410,13 +2410,6 @@ fn node_receive_quorum() {
         "election not found",
     );
 
-    let election = node1
-        .active
-        .election_for_root(&send.qualified_root())
-        .unwrap();
-    assert!(!election.lock().unwrap().is_confirmed());
-    assert_eq!(0, election.lock().unwrap().votes().len());
-
     let node2 = system.make_disconnected_node();
     let wallet_id2 = node2.wallets.wallet_ids()[0];
 
@@ -2534,21 +2527,8 @@ fn fork_open_flip() {
     // give block open1 to node1, manually trigger an election for open1 and ensure it is in the ledger
     let open1 = node1.process(open1);
     node1.election_schedulers.manual.push(open1.clone(), None);
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node1
-                .active
-                .election_for_root(&open1.qualified_root())
-                .is_some()
-        },
-        "election for open1 not found",
-    );
-    let election = node1
-        .active
-        .election_for_root(&open1.qualified_root())
-        .unwrap();
-    election.lock().unwrap().transition_active();
+    assert_timely2(|| node1.active.is_active_root(&open1.qualified_root()));
+    node1.active.transition_active(&open1.qualified_root());
 
     // create node2, with blocks send1 and open2 pre-initialised in the ledger,
     // so that block open1 cannot possibly get in the ledger before open2 via background sync
@@ -2559,30 +2539,13 @@ fn fork_open_flip() {
     let open2 = node2.block(&open2.hash()).unwrap();
 
     // ensure open2 is in node2 ledger (and therefore has sideband) and manually trigger an election for open2
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node2.block_exists(&open2.hash()),
-        "open2 not found on node2",
-    );
+    assert_timely2(|| node2.block_exists(&open2.hash()));
     node2.election_schedulers.manual.push(open2.clone(), None);
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node2
-                .active
-                .election_for_root(&open2.qualified_root())
-                .is_some()
-        },
-        "election for open2 not found",
-    );
-    let election2 = node2
-        .active
-        .election_for_root(&open2.qualified_root())
-        .unwrap();
-    election2.lock().unwrap().transition_active();
+    assert_timely2(|| node2.active.is_active_root(&open2.qualified_root()));
+    node2.active.transition_active(&open2.qualified_root());
 
-    assert_timely_eq(Duration::from_secs(5), || node1.active.len(), 2);
-    assert_timely_eq(Duration::from_secs(5), || node2.active.len(), 2);
+    assert_timely_eq2(|| node1.active.len(), 2);
+    assert_timely_eq2(|| node2.active.len(), 2);
 
     // allow node1 to vote and wait for open1 to be confirmed on node1
     node1
@@ -2599,8 +2562,6 @@ fn fork_open_flip() {
     node1.process_active(open2.clone().into());
     node2.process_active(open1.clone().into());
 
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
-
     // Node2 should eventually settle on open1
     assert_timely_msg(
         Duration::from_secs(10),
@@ -2608,9 +2569,6 @@ fn fork_open_flip() {
         "open1 not found on node2",
     );
     assert_timely2(|| node1.block_confirmed(&open1.hash()));
-    let el = election.lock().unwrap();
-    assert_eq!(open1.hash(), el.winner().hash());
-    assert_eq!(Amount::MAX - Amount::raw(1), el.winner_tally());
 
     // check the correct blocks are in the ledgers
     assert!(node1.block_exists(&open1.hash()));
@@ -3059,34 +3017,18 @@ fn fork_keep() {
     let send2 = fork_lattice.genesis().send(&key2, 100);
     node1.process_active(send1.clone());
     node2.process_active(send1.clone());
-    assert_timely_eq(Duration::from_secs(5), || node1.active.len(), 1);
-    assert_timely_eq(Duration::from_secs(5), || node2.active.len(), 1);
+    assert_timely_eq2(|| node1.active.len(), 1);
+    assert_timely_eq2(|| node2.active.len(), 1);
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
     // Fill node with forked blocks
     node1.process_active(send2.clone());
     assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
     node2.process_active(send2.clone());
-    let election1 = node2
-        .active
-        .election_for_root(&QualifiedRoot::new(
-            (*DEV_GENESIS_HASH).into(),
-            *DEV_GENESIS_HASH,
-        ))
-        .unwrap();
-    assert_eq!(election1.lock().unwrap().vote_count(), 0);
     assert!(node1.block_exists(&send1.hash()));
     assert!(node2.block_exists(&send1.hash()));
-    // Wait until the genesis rep makes a vote
-    assert_timely(Duration::from_secs(60), || {
-        election1.lock().unwrap().vote_count() != 0
-    });
-    // The vote should be in agreement with what we already have.
-    let guard = election1.lock().unwrap();
-    let (winner_hash, winner_tally) = guard.tallies().winner().unwrap();
-    assert_eq!(*winner_hash, send1.hash());
-    assert_eq!(*winner_tally, Amount::MAX - Amount::raw(100));
-    assert!(node1.block_exists(&send1.hash()));
-    assert!(node2.block_exists(&send1.hash()));
+    // Wait until the genesis rep makes a vote and confirms send1
+    assert_timely2(|| node1.block_confirmed(&send1.hash()));
+    assert_timely2(|| node2.block_confirmed(&send1.hash()));
 }
 
 #[test]

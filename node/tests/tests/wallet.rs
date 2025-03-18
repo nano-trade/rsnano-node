@@ -1392,16 +1392,7 @@ fn search_receivable() {
     // Pending search should start an election
     assert_eq!(node.active.len(), 0);
     node.wallets.search_receivable_wallet(wallet_id).unwrap();
-    let mut election = None;
-    assert_timely(Duration::from_secs(5), || {
-        match node.active.election_for_root(&send.qualified_root()) {
-            Some(e) => {
-                election = Some(e);
-                true
-            }
-            None => false,
-        }
-    });
+    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 
     // Erase the key so the confirmation does not trigger an automatic receive
     node.wallets
