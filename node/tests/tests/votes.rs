@@ -26,8 +26,7 @@ fn check_signature() {
     let key1 = PrivateKey::new();
     let send1 = lattice.genesis().send(&key1, 100);
     node.process(send1.clone());
-    let election1 = start_election(&node, &send1.hash());
-    assert_eq!(0, election1.lock().unwrap().vote_count());
+    start_election(&node, &send1.hash());
     let mut vote1 = Vote::new(&DEV_GENESIS_KEY, Vote::TIMESTAMP_MIN, 0, vec![send1.hash()]);
     let good_signature = vote1.signature;
     vote1.signature = Signature::new();

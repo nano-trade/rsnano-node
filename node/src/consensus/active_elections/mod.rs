@@ -264,6 +264,18 @@ impl ActiveElections {
     }
 
     // TODO: Delete!
+    pub fn transition_active(&self, root: &QualifiedRoot) {
+        self.container
+            .write()
+            .unwrap()
+            .election_for_root(root)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .transition_active();
+    }
+
+    // TODO: Delete!
     pub fn change_vote_timestamp(
         &self,
         root: &QualifiedRoot,

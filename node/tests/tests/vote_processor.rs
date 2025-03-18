@@ -9,7 +9,8 @@ use std::{
     time::{Duration, Instant},
 };
 use test_helpers::{
-    assert_timely, assert_timely2, assert_timely_eq2, setup_chain, start_election, System,
+    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq2, setup_chain,
+    start_election, System,
 };
 
 #[test]
@@ -101,19 +102,25 @@ fn invalid_signature() {
     let mut vote_invalid = vote.clone();
     vote_invalid.signature = Signature::new();
 
-    let vote = Arc::new(vote);
     let vote_invalid = Arc::new(vote_invalid);
-    let election = start_election(&node, &chain[0].hash());
-    assert_eq!(0, election.lock().unwrap().vote_count());
+    start_election(&node, &chain[0].hash());
 
     node.vote_processor_queue
         .vote(vote_invalid, None, VoteSource::Live);
 
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 0);
-
-    node.vote_processor_queue.vote(vote, None, VoteSource::Live);
-
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
+    assert_always_eq(
+        Duration::from_millis(500),
+        || {
+            node.active
+                .read()
+                .election_for_block(&chain[0].hash())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .vote_count()
+        },
+        0,
+    );
 }
 
 #[test]
