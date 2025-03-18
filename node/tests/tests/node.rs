@@ -804,16 +804,31 @@ fn fork_publish() {
     node1.process_active(send2.clone());
     assert_timely_eq2(|| node1.active.len(), 1);
     assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
-    let election = node1
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
     // Wait until the genesis rep activated & makes vote
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
-    let votes1 = election.lock().unwrap().votes().clone();
+    assert_timely_eq2(
+        || {
+            node1
+                .active
+                .read()
+                .election_for_root(&send1.qualified_root())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .vote_count()
+        },
+        1,
+    );
+    let votes1 = node1
+        .active
+        .read()
+        .election_for_root(&send1.qualified_root())
+        .unwrap()
+        .lock()
+        .unwrap()
+        .votes()
+        .clone();
     let existing1 = votes1.get(&DEV_GENESIS_PUB_KEY).unwrap();
     assert_eq!(send1.hash(), existing1.hash);
-    assert_eq!(election.lock().unwrap().winner().hash(), send1.hash());
 }
 
 // In test case there used to be a race condition, it was worked around in:.
@@ -841,24 +856,35 @@ fn fork_publish_inactive() {
     assert_timely2(|| node.block_exists(&send1.hash()));
     assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
 
-    let election = node
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-
     assert_eq!(
         node.process_local(send2.clone()).unwrap(),
         BlockStatus::Fork
     );
 
-    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
+    assert_timely_eq2(
+        || {
+            node.active
+                .read()
+                .election_for_root(&send1.qualified_root())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .block_count()
+        },
+        2,
+    );
 
-    let find_block = |hash: BlockHash| election.lock().unwrap().contains_block(&hash);
-
-    assert!(find_block(send1.hash()));
-    assert!(find_block(send2.hash()));
-
-    assert_eq!(election.lock().unwrap().winner().hash(), send1.hash());
+    assert_eq!(
+        node.active
+            .read()
+            .election_for_root(&send1.qualified_root())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .winner()
+            .hash(),
+        send1.hash()
+    );
 }
 
 #[test]
@@ -1734,17 +1760,34 @@ fn fork_open() {
     );
     assert_timely2(|| node.active.is_active_root(&open2.qualified_root()));
 
-    let election = node
-        .active
-        .election_for_root(&open2.qualified_root())
-        .unwrap();
     // we expect to find 2 blocks in the election and we expect the first block to be the winner just because it was first
-    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
-    assert_eq!(open1.hash(), election.lock().unwrap().winner().hash());
+    assert_timely_eq2(
+        || {
+            node.active
+                .read()
+                .election_for_root(&open2.qualified_root())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .block_count()
+        },
+        2,
+    );
+    assert_eq!(
+        open1.hash(),
+        node.active
+            .read()
+            .election_for_root(&open2.qualified_root())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .winner()
+            .hash()
+    );
 
     // wait for a second and check that the election did not get confirmed
     sleep(Duration::from_millis(1000));
-    assert_eq!(election.lock().unwrap().is_confirmed(), false);
+    assert!(node.active.is_active_root(&open2.qualified_root()));
 
     // check that only the first block is saved to the ledger
     assert_timely2(|| node.block_exists(&open1.hash()));
