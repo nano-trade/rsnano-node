@@ -19,7 +19,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use test_helpers::{assert_timely, assert_timely_eq, assert_timely_eq2, System};
+use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2, System};
 
 struct TestFixture {
     test_dir: PathBuf,
@@ -1409,10 +1409,8 @@ fn search_receivable() {
         .unwrap();
 
     // Now confirm the election
-    node.vote_applier.force_confirm(&election.unwrap());
-    assert_timely(Duration::from_secs(5), || {
-        node.block_confirmed(&send.hash()) && node.active.len() == 0
-    });
+    node.vote_applier.force_confirm_block(&send.hash());
+    assert_timely2(|| node.block_confirmed(&send.hash()) && node.active.len() == 0);
 
     // Re-insert the key
     node.wallets

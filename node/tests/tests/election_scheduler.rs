@@ -224,16 +224,7 @@ mod election_scheduler {
         node.election_schedulers
             .priority
             .activate(&node.ledger.any(), &DEV_GENESIS_ACCOUNT);
-        let mut election = None;
-        assert_timely2(
-            || match node.active.election_for_root(&block1.qualified_root()) {
-                Some(el) => {
-                    election = Some(el);
-                    true
-                }
-                None => false,
-            },
-        );
+        assert_timely2(|| node.active.is_active_root(&block1.qualified_root()));
 
         let block2 = lattice.account(&key).send(&key, Amount::nano(1000));
         node.process(block2.clone());
@@ -246,7 +237,7 @@ mod election_scheduler {
         assert_eq!(node.active.is_active_root(&block2.qualified_root()), false);
 
         // Election confirmed, next in queue should begin
-        node.vote_applier.force_confirm(&election.unwrap());
+        node.vote_applier.force_confirm_block(&block1.hash());
         assert_timely2(|| node.active.is_active_root(&block2.qualified_root()));
         assert!(node.election_schedulers.priority.is_empty());
     }

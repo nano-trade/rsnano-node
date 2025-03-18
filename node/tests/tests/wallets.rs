@@ -7,7 +7,7 @@ use rsnano_node::{
     wallets::WalletsExt,
 };
 use std::time::Duration;
-use test_helpers::{assert_timely, assert_timely_eq, System};
+use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, System};
 
 #[test]
 fn open_create() {
@@ -140,16 +140,7 @@ fn search_receivable() {
         } else {
             node.wallets.search_receivable_wallet(wallet_id).unwrap();
         }
-        let mut election = None;
-        assert_timely(Duration::from_secs(5), || {
-            match node.active.election_for_root(&send.qualified_root()) {
-                Some(e) => {
-                    election = Some(e);
-                    true
-                }
-                None => false,
-            }
-        });
+        assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
 
         // Erase the key so the confirmation does not trigger an automatic receive
         node.wallets
@@ -157,7 +148,7 @@ fn search_receivable() {
             .unwrap();
 
         // Now confirm the election
-        node.vote_applier.force_confirm(&election.unwrap());
+        node.vote_applier.force_confirm_block(&send.hash());
 
         assert_timely(Duration::from_secs(5), || {
             node.block_confirmed(&send.hash()) && node.active.len() == 0

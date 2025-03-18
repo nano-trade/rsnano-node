@@ -215,7 +215,7 @@ fn deferred_dependent_elections() {
     assert!(!node1.active.is_active_root(&open.qualified_root()));
     assert!(!node1.active.is_active_root(&send2.qualified_root()));
 
-    node1.vote_applier.force_confirm(&election_send1);
+    node1.vote_applier.force_confirm_block(&send1.hash());
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
     assert_timely2(|| node1.active.is_active_root(&open.qualified_root()));
     assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
@@ -223,23 +223,14 @@ fn deferred_dependent_elections() {
     let election_open = node1.active.election_for_root(&open.qualified_root());
     assert!(election_open.is_some());
 
-    let election_send2 = node1
-        .active
-        .election_for_root(&send2.qualified_root())
-        .unwrap();
-
     node1.process_local(receive.clone().into()).unwrap();
     assert_eq!(
         node1.active.is_active_root(&receive.qualified_root()),
         false
     );
 
-    node1
-        .vote_applier
-        .force_confirm(election_open.as_ref().unwrap());
-    assert_timely(std::time::Duration::from_secs(5), || {
-        node1.block_confirmed(&open.hash())
-    });
+    node1.vote_applier.force_confirm_block(&open.hash());
+    assert_timely2(|| node1.block_confirmed(&open.hash()));
     assert!(!node1
         .ledger
         .any()
@@ -271,7 +262,7 @@ fn deferred_dependent_elections() {
         node1.active.is_active_root(&receive.qualified_root())
     });
 
-    node1.vote_applier.force_confirm(&election_send2);
+    node1.vote_applier.force_confirm_block(&send2.hash());
     assert_timely2(|| node1.block_confirmed(&send2.hash()));
     assert_timely2(|| node1.active.is_active_root(&receive.qualified_root()));
 }
@@ -655,11 +646,7 @@ fn rep_self_vote() {
     start_election(&node0, &open_big.hash());
 
     assert_timely2(|| node0.active.is_active_root(&open_big.qualified_root()));
-    let election = node0
-        .active
-        .election_for_root(&open_big.qualified_root())
-        .unwrap();
-    node0.vote_applier.force_confirm(&election);
+    node0.vote_applier.force_confirm_block(&open_big.hash());
 
     // Insert representatives into the node to allow voting
     node0.insert_into_wallet(&rep_big);
@@ -1721,12 +1708,8 @@ fn fork_open() {
     );
 
     assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
-    let election = node
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-    node.vote_applier.force_confirm(&election);
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
+    node.vote_applier.force_confirm_block(&send1.hash());
+    assert_timely_eq2(|| node.active.len(), 0);
 
     // register key for genesis account, not sure why we do this, it seems needless,
     // since the genesis account at this stage has zero voting weight

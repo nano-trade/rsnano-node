@@ -58,13 +58,13 @@ fn confirmed_history() {
 
     node.process_multi(&[send.clone(), send1.clone()]);
 
-    let election = start_election(&node, &send1.hash());
+    start_election(&node, &send1.hash());
     {
         // The write guard prevents the confirmation height processor doing any writes
         let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
         // Confirm send1
-        node.vote_applier.force_confirm(&election);
+        node.vote_applier.force_confirm_block(&send1.hash());
         assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
         assert_eq!(node.recently_cemented.lock().unwrap().len(), 0);
         assert_eq!(node.active.len(), 0);
@@ -173,8 +173,8 @@ fn dependent_election() {
     // This election should be confirmed as active_conf_height
     start_election(&node, &send1.hash());
     // Start an election and confirm it
-    let election = start_election(&node, &send2.hash());
-    node.vote_applier.force_confirm(&election);
+    start_election(&node, &send2.hash());
+    node.vote_applier.force_confirm_block(&send2.hash());
 
     // Wait for blocks to be confirmed in ledger, callbacks will happen after
     assert_timely_eq(

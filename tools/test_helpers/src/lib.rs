@@ -427,9 +427,9 @@ pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Mutex<Election>> {
 
 pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {
     for hash in hashes {
-        let election = start_election(node, hash);
+        start_election(node, hash);
         if forced {
-            node.vote_applier.force_confirm(&election);
+            node.vote_applier.force_confirm_block(hash);
         }
     }
 }
