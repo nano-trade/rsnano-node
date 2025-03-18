@@ -11,9 +11,8 @@ impl RpcCommandHandler {
     ) -> anyhow::Result<ConfirmationInfoDto> {
         let include_representatives = args.representatives.unwrap_or(false.into()).inner();
         let contents = args.contents.unwrap_or(true.into()).inner();
-        let election_mutex = self
-            .node
-            .active
+        let active = self.node.active.read();
+        let election_mutex = active
             .election_for_root(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 

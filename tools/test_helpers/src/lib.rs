@@ -407,24 +407,16 @@ pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
 }
 
 pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Mutex<Election>> {
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.block_exists(hash),
-        "block not in ledger",
-    );
+    assert_timely2(|| node.block_exists(hash));
 
     let block = node.block(hash).unwrap();
     node.election_schedulers.add_manual(block.clone());
     // wait for the election to appear
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node.active
-                .election_for_root(&block.qualified_root())
-                .is_some()
-        },
-        "election not active",
-    );
+    assert_timely2(|| {
+        node.active
+            .election_for_root(&block.qualified_root())
+            .is_some()
+    });
     let election = node
         .active
         .election_for_root(&block.qualified_root())

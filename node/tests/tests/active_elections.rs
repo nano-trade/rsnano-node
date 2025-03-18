@@ -15,9 +15,9 @@ use rsnano_node::{
 };
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
-    assert_always_eq, assert_never, assert_timely, assert_timely2, assert_timely_eq,
-    assert_timely_eq2, get_available_port, process_open_block, process_send_block,
-    setup_independent_blocks, start_election, start_elections, System,
+    assert_always_eq, assert_never, assert_timely2, assert_timely_eq, assert_timely_eq2,
+    get_available_port, process_open_block, process_send_block, setup_independent_blocks,
+    start_election, start_elections, System,
 };
 
 /// What this test is doing:
@@ -818,8 +818,7 @@ fn bound_election_winners() {
         assert!(node.active.read().vacancy() > 0);
 
         for block in blocks {
-            let election = node.active.election_for_block(&block.hash()).unwrap();
-            node.vote_applier.force_confirm(&election);
+            node.vote_applier.force_confirm_block(&block.hash());
         }
 
         assert_timely2(|| node.active.read().vacancy() <= 0);
@@ -910,9 +909,9 @@ fn dropped_cleanup() {
     // Repeat test for a confirmed election
     assert!(node.network_filter.apply(&block_bytes).1);
 
-    let election = start_election(&node, &hash);
-    node.vote_applier.force_confirm(&election);
-    assert_timely2(|| election.lock().unwrap().is_confirmed());
+    start_election(&node, &hash);
+    node.vote_applier.force_confirm_block(&hash);
+    assert_timely2(|| node.ledger.confirmed().block_exists(&hash));
     node.active.erase(&qual_root);
 
     // The filter should not have been cleared
