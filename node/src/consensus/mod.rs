@@ -7,6 +7,7 @@ mod bucketing;
 mod cementing_elections_cache;
 mod confirmation_solicitor;
 mod election;
+mod election_fork_adder;
 mod election_result;
 pub mod election_schedulers;
 mod election_state;

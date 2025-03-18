@@ -2,7 +2,7 @@ mod root_container;
 
 use std::{
     cmp::min,
-    sync::{mpsc::SyncSender, Arc, Condvar, Mutex, MutexGuard, RwLock},
+    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock},
 };
 
 use root_container::{Entry, RootContainer};
@@ -323,6 +323,10 @@ impl ActiveElections {
                 self.handle_fork(&context.block);
             }
         }
+    }
+
+    pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
+        self.mutex.lock().unwrap().try_add_fork(fork, fork_tally)
     }
 
     pub fn handle_fork(&self, fork: &Block) {
