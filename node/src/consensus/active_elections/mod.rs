@@ -13,8 +13,7 @@ use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot,
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{
-    AddForkResult, Election, ElectionBehavior, ElectionConfig, ElectionVoter,
-    RecentlyConfirmedCache, VoteRouter,
+    AddForkResult, Election, ElectionBehavior, ElectionConfig, RecentlyConfirmedCache, VoteRouter,
 };
 use crate::cementation::ConfirmingSet;
 
@@ -43,6 +42,9 @@ impl Default for ActiveElectionsConfig {
 
 pub enum AecEvent {
     ElectionStarted(BlockHash),
+    /// An attempt was made to start an election, but an election for this block
+    /// did already exist
+    DuplicateElectionAttempt(BlockHash),
     /// The election was dropped without being confirmed
     ElectionDropped(BlockHash),
     BlockAddedToElection(BlockHash),
@@ -56,7 +58,6 @@ pub struct ActiveElections {
     confirming_set: Arc<ConfirmingSet>,
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     stats: Arc<Stats>,
-    election_voter: ElectionVoter,
     clock: Arc<SteadyClock>,
 }
 
@@ -66,7 +67,6 @@ impl ActiveElections {
         confirming_set: Arc<ConfirmingSet>,
         stats: Arc<Stats>,
         recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
-        election_voter: ElectionVoter,
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -86,7 +86,6 @@ impl ActiveElections {
             recently_confirmed,
             config,
             stats,
-            election_voter,
             clock,
         }
     }
@@ -145,12 +144,6 @@ impl ActiveElections {
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
         self.mutex.lock().unwrap().vote_router.is_active(block_hash)
-    }
-
-    /// Broadcasts vote for the current winner of this election
-    /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    pub fn try_generate_vote(&self, election: &mut Election) {
-        self.election_voter.try_vote(election);
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
@@ -277,11 +270,10 @@ impl ActiveElections {
                 debug!(behavior = ?election_behavior, block = %hash, "Started new election");
 
                 guard.notify(AecEvent::ElectionStarted(hash));
+            } else {
+                guard.notify(AecEvent::DuplicateElectionAttempt(hash));
             }
             drop(guard);
-
-            // Votes are also generated for ongoing elections
-            self.try_generate_vote(&mut info.election.lock().unwrap());
         }
 
         result

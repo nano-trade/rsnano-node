@@ -513,10 +513,10 @@ impl Node {
             steady_clock.clone(),
         ));
 
-        let election_voter = ElectionVoter {
+        let election_voter = Arc::new(ElectionVoter {
             stats: stats.clone(),
             vote_generators: vote_generators.clone(),
-        };
+        });
 
         let election_config = ElectionConfig::default_for(network_params.network.current_network);
 
@@ -526,7 +526,6 @@ impl Node {
             confirming_set.clone(),
             stats.clone(),
             recently_confirmed.clone(),
-            election_voter,
             election_config,
             steady_clock.clone(),
         );
@@ -573,6 +572,7 @@ impl Node {
             online_reps: online_reps.clone(),
             network: network.clone(),
             clock: steady_clock.clone(),
+            election_voter: election_voter.clone(),
         };
 
         let fork_adder = ElectionForkAdder {
@@ -1155,6 +1155,8 @@ impl Node {
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
+            election_voter: election_voter.clone(),
+            active_elections: active_elections.clone(),
         };
 
         std::thread::Builder::new()
