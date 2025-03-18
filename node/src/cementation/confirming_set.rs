@@ -2,7 +2,8 @@ use std::{
     collections::{HashSet, VecDeque},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Condvar, Mutex,
+        mpsc::SyncSender,
+        Arc, Condvar, Mutex, RwLock,
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -43,12 +44,16 @@ impl Default for ConfirmingSetConfig {
     fn default() -> Self {
         Self {
             batch_size: 256,
-            max_blocks: 128 * 128,
+            max_blocks: 16 * 1024,
             max_queued_notifications: 8,
             max_deferred: 16 * 1024,
             deferred_age_cutoff: Duration::from_secs(15 * 60),
         }
     }
+}
+
+pub enum CementingEvent {
+    CementingFailed(BlockHash),
 }
 
 /// Set of blocks to be durably confirmed
@@ -74,19 +79,14 @@ impl ConfirmingSet {
                 ledger,
                 stats,
                 config,
-                observers: Arc::new(Mutex::new(Observers::default())),
                 workers: ThreadPoolImpl::create(1, "Conf notif"),
+                event_sender: RwLock::new(None),
             }),
         }
     }
 
-    pub fn on_cementing_failed(&self, callback: impl FnMut(&BlockHash) + Send + 'static) {
-        self.thread
-            .observers
-            .lock()
-            .unwrap()
-            .cementing_failed
-            .push(Box::new(callback));
+    pub fn set_event_sink(&self, sink: SyncSender<CementingEvent>) {
+        *self.thread.event_sender.write().unwrap() = Some(sink);
     }
 
     /// Adds a block to the set of blocks to be confirmed
@@ -183,7 +183,7 @@ struct ConfirmingSetThread {
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
     workers: ThreadPoolImpl,
-    observers: Arc<Mutex<Observers>>,
+    event_sender: RwLock<Option<SyncSender<CementingEvent>>>,
 }
 
 impl ConfirmingSetThread {
@@ -192,6 +192,7 @@ impl ConfirmingSetThread {
             let _guard = self.mutex.lock().unwrap();
             self.stopped.store(true, Ordering::SeqCst);
         }
+        drop(self.event_sender.write().unwrap().take());
         self.condition.notify_all();
     }
 
@@ -234,9 +235,8 @@ impl ConfirmingSetThread {
             if !evicted.is_empty() {
                 drop(guard);
                 {
-                    let mut observers = self.observers.lock().unwrap();
                     for entry in evicted {
-                        observers.notify_cementing_failed(&entry.confirmation_root);
+                        self.notify(CementingEvent::CementingFailed(entry.confirmation_root));
                     }
                 }
                 guard = self.mutex.lock().unwrap();
@@ -277,6 +277,12 @@ impl ConfirmingSetThread {
 
         // Clear current set only after the transaction is committed
         self.mutex.lock().unwrap().current.clear();
+    }
+
+    fn notify(&self, event: CementingEvent) {
+        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
+            sender.send(event).unwrap();
+        }
     }
 }
 
@@ -327,19 +333,6 @@ impl ConfirmingSetImpl {
             }
         }
         evicted
-    }
-}
-
-#[derive(Default)]
-struct Observers {
-    cementing_failed: Vec<Box<dyn FnMut(&BlockHash) + Send>>,
-}
-
-impl Observers {
-    fn notify_cementing_failed(&mut self, hash: &BlockHash) {
-        for observer in &mut self.cementing_failed {
-            observer(hash);
-        }
     }
 }
 

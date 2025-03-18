@@ -53,7 +53,7 @@ pub enum AecEvent {
 }
 
 pub struct ActiveElections {
-    mutex: Mutex<ActiveElectionsState>,
+    container: Mutex<ActiveElectionsContainer>,
     config: ActiveElectionsConfig,
     confirming_set: Arc<ConfirmingSet>,
     stats: Arc<Stats>,
@@ -70,7 +70,7 @@ impl ActiveElections {
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
-            mutex: Mutex::new(ActiveElectionsState {
+            container: Mutex::new(ActiveElectionsContainer {
                 roots: RootContainer::default(),
                 vote_router: VoteRouter::new(),
                 stopped: false,
@@ -94,11 +94,11 @@ impl ActiveElections {
     }
 
     pub fn len(&self) -> usize {
-        self.mutex.lock().unwrap().roots.len()
+        self.container.lock().unwrap().roots.len()
     }
 
     pub fn info(&self) -> ActiveElectionsInfo {
-        let guard = self.mutex.lock().unwrap();
+        let guard = self.container.lock().unwrap();
         ActiveElectionsInfo {
             max_queue: self.config.size,
             total: guard.roots.len(),
@@ -115,14 +115,14 @@ impl ActiveElections {
     /// How many election slots are available
     /// This is a soft limit and can be negative!
     pub fn vacancy(&self) -> i64 {
-        let current_size = self.mutex.lock().unwrap().roots.len() as i64;
+        let current_size = self.container.lock().unwrap().roots.len() as i64;
         let election_vacancy = self.config.size as i64 - current_size;
         let winners_vacancy = self.election_winners_vacancy();
         min(election_vacancy, winners_vacancy)
     }
 
     pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
-        self.mutex.lock().unwrap().count_by_behavior(behavior)
+        self.container.lock().unwrap().count_by_behavior(behavior)
     }
 
     fn election_winners_vacancy(&self) -> i64 {
@@ -130,16 +130,19 @@ impl ActiveElections {
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
-        let guard = self.mutex.lock().unwrap();
-        guard.roots.get(root).is_some()
+        self.container.lock().unwrap().roots.get(root).is_some()
     }
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
-        self.mutex.lock().unwrap().vote_router.is_active(block_hash)
+        self.container
+            .lock()
+            .unwrap()
+            .vote_router
+            .is_active(block_hash)
     }
 
     pub fn was_recently_confirmed(&self, block_hash: &BlockHash) -> bool {
-        self.mutex
+        self.container
             .lock()
             .unwrap()
             .recently_confirmed
@@ -147,15 +150,15 @@ impl ActiveElections {
     }
 
     pub fn clear_recently_confirmed(&self) {
-        self.mutex.lock().unwrap().recently_confirmed.clear();
+        self.container.lock().unwrap().recently_confirmed.clear();
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
-        self.mutex.lock().unwrap().election(root).cloned()
+        self.container.lock().unwrap().election(root).cloned()
     }
 
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
-        self.mutex
+        self.container
             .lock()
             .unwrap()
             .vote_router
@@ -164,7 +167,7 @@ impl ActiveElections {
     }
 
     pub fn get_all(&self) -> Vec<Arc<Mutex<Election>>> {
-        self.mutex
+        self.container
             .lock()
             .unwrap()
             .roots
@@ -176,7 +179,7 @@ impl ActiveElections {
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
         let entry;
         {
-            let mut guard = self.mutex.lock().unwrap();
+            let mut guard = self.container.lock().unwrap();
             entry = guard.roots.erase(root);
             if let Some(e) = &entry {
                 self.cleanup_election(guard, e);
@@ -205,17 +208,26 @@ impl ActiveElections {
     /// Erase all blocks from active, if not confirmed, clear digests from network filters
     fn cleanup_election<'a>(
         &'a self,
-        mut guard: MutexGuard<'a, ActiveElectionsState>,
+        mut guard: MutexGuard<'a, ActiveElectionsContainer>,
         entry: &Entry,
     ) {
-        // lock vote router before locking election to prevent dead lock!
+        {
+            let election = entry.election.lock().unwrap();
+
+            // Keep track of election count by election type
+            *guard.count_by_behavior_mut(election.behavior()) -= 1;
+            guard.vote_router.disconnect_election(&election);
+            let winner_hash = election.winner().hash();
+            if election.is_confirmed() {
+                guard
+                    .recently_confirmed
+                    .put(election.qualified_root().clone(), winner_hash);
+            }
+
+            drop(guard);
+        }
+
         let election = entry.election.lock().unwrap();
-
-        // Keep track of election count by election type
-        *guard.count_by_behavior_mut(election.behavior()) -= 1;
-        guard.vote_router.disconnect_election(&election);
-        let winner_hash = election.winner().hash();
-
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
 
@@ -231,14 +243,6 @@ impl ActiveElections {
             .inc(StatType::ActiveElectionsStopped, election.state().into());
         self.stats
             .inc(election.state().into(), election.behavior().into());
-
-        if election.is_confirmed() {
-            guard
-                .recently_confirmed
-                .put(election.qualified_root().clone(), winner_hash);
-        }
-        drop(guard);
-
         // Track election duration
         self.stats.sample(
             Sample::ActiveElectionDuration,
@@ -261,7 +265,7 @@ impl ActiveElections {
         let hash = block.hash();
 
         let result = {
-            let mut guard = self.mutex.lock().unwrap();
+            let mut guard = self.container.lock().unwrap();
             if guard
                 .recently_confirmed
                 .root_exists(&block.qualified_root())
@@ -299,7 +303,11 @@ impl ActiveElections {
     }
 
     pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
-        let result = self.mutex.lock().unwrap().try_add_fork(fork, fork_tally);
+        let result = self
+            .container
+            .lock()
+            .unwrap()
+            .try_add_fork(fork, fork_tally);
         let added = match result {
             AddForkResult::Added => true,
             AddForkResult::Replaced(removed) => {
@@ -328,7 +336,7 @@ impl ActiveElections {
     ) where
         T: 'b,
     {
-        let guard = self.mutex.lock().unwrap();
+        let guard = self.container.lock().unwrap();
         for (root, context) in roots.into_iter() {
             let election = guard.election(&root);
             handle(root, election, context);
@@ -340,7 +348,7 @@ impl ActiveElections {
         blocks: impl IntoIterator<Item = &'a BlockHash>,
         mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>, bool),
     ) {
-        let guard = self.mutex.lock().unwrap();
+        let guard = self.container.lock().unwrap();
         for hash in blocks.into_iter() {
             let election = guard.vote_router.election(hash);
             let recently_confirmed = guard.recently_confirmed.hash_exists(hash);
@@ -349,7 +357,7 @@ impl ActiveElections {
     }
 
     pub fn cementing_failed(&self, block_hash: &BlockHash) {
-        self.mutex
+        self.container
             .lock()
             .unwrap()
             .recently_confirmed
@@ -357,7 +365,7 @@ impl ActiveElections {
     }
 
     pub fn stop(&self) {
-        self.mutex.lock().unwrap().stop();
+        self.container.lock().unwrap().stop();
         // destroy send queue so that the receiver thread will be stopped too
         drop(self.event_sender.write().unwrap().take());
     }
@@ -369,7 +377,7 @@ impl ActiveElections {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.mutex.lock().unwrap();
+        let guard = self.container.lock().unwrap();
         let vote_router = guard.vote_router.container_info();
 
         ContainerInfo::builder()
@@ -404,7 +412,7 @@ impl Drop for ActiveElections {
     }
 }
 
-pub struct ActiveElectionsState {
+pub struct ActiveElectionsContainer {
     roots: RootContainer,
     stopped: bool,
     manual_count: usize,
@@ -416,7 +424,7 @@ pub struct ActiveElectionsState {
     recently_confirmed: RecentlyConfirmedCache,
 }
 
-impl ActiveElectionsState {
+impl ActiveElectionsContainer {
     fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
         match behavior {
             ElectionBehavior::Manual => self.manual_count,
@@ -500,7 +508,7 @@ impl ActiveElectionsState {
         }
     }
 
-    pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
+    fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
         let Some(entry) = self.roots.get(&fork.qualified_root()) else {
             return AddForkResult::ElectionEnded;
         };
@@ -526,7 +534,7 @@ impl ActiveElectionsState {
         result
     }
 
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         self.stopped = true;
         self.roots.clear();
     }

@@ -43,7 +43,7 @@ use crate::{
         BootstrapExt, BootstrapResponder, BootstrapResponderCleanup, Bootstrapper,
         BootstrapperCleanup,
     },
-    cementation::ConfirmingSet,
+    cementation::{CementingEvent, ConfirmingSet},
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
@@ -423,6 +423,8 @@ impl Node {
             ledger.clone(),
             stats.clone(),
         ));
+        let (tx_confirming, rx_confirming) = sync_channel(32);
+        confirming_set.set_event_sink(tx_confirming);
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
             config.vote_cache.clone(),
@@ -952,14 +954,6 @@ impl Node {
             }
         });
 
-        // Do some cleanup due to this block never being processed by confirmation height processor
-        let active_w = Arc::downgrade(&active_elections);
-        confirming_set.on_cementing_failed(move |hash| {
-            if let Some(active) = active_w.upgrade() {
-                active.cementing_failed(hash);
-            }
-        });
-
         // Requeue blocks that could not be immediately processed
         let block_processor_w = Arc::downgrade(&block_processor);
         unchecked.set_satisfied_observer(Box::new(move |info| {
@@ -1158,6 +1152,21 @@ impl Node {
             .name("Ledger ev proc".to_owned())
             .spawn(move || {
                 ledger_event_processor.run();
+            })
+            .unwrap();
+
+        let active_l = active_elections.clone();
+        std::thread::Builder::new()
+            .name("Confset ev proc".to_owned())
+            .spawn(move || {
+                while let Ok(e) = rx_confirming.recv() {
+                    match e {
+                        CementingEvent::CementingFailed(block_hash) => {
+                            // Do some cleanup due to this block never being processed by confirmation height processor
+                            active_l.cementing_failed(&block_hash);
+                        }
+                    }
+                }
             })
             .unwrap();
 
