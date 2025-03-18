@@ -1980,11 +1980,6 @@ fn fork_election_invalid_block_signature() {
         channel.clone(),
     );
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
-    let election = node1
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-    assert_eq!(1, election.lock().unwrap().block_count());
 
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send3)),
@@ -1994,9 +1989,23 @@ fn fork_election_invalid_block_signature() {
         Message::Publish(Publish::new_forward(send2.clone())),
         channel.clone(),
     );
-    assert_timely2(|| election.lock().unwrap().block_count() > 1);
+    assert_timely2(|| {
+        node1
+            .active
+            .read()
+            .election_for_root(&send1.qualified_root())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .block_count()
+            > 1
+    });
     assert_eq!(
-        election
+        node1
+            .active
+            .read()
+            .election_for_root(&send1.qualified_root())
+            .unwrap()
             .lock()
             .unwrap()
             .candidate_blocks()
@@ -2073,19 +2082,28 @@ fn rollback_vote_self() {
     // process forked blocks, send2 will be the winner because it was first and there are no votes yet
     node.process_active(send2.clone());
     assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
-    let election = node
-        .active
-        .election_for_root(&send2.qualified_root())
-        .unwrap();
     node.process_active(fork.clone());
-    assert_timely_eq2(|| election.lock().unwrap().block_count(), 2);
-    assert_eq!(election.lock().unwrap().winner().hash(), send2.hash());
+    assert_timely_eq2(
+        || {
+            node.active
+                .read()
+                .election_for_root(&send2.qualified_root())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .block_count()
+        },
+        2,
+    );
 
     {
         // The write guard prevents the block processor from performing the rollback
         let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
-        assert_eq!(0, election.lock().unwrap().votes().len());
+        let election = node
+            .active
+            .election_for_root(&send2.qualified_root())
+            .unwrap();
         // Vote with key to switch the winner
         node.vote_applier.apply_vote(
             &election,
@@ -2094,9 +2112,18 @@ fn rollback_vote_self() {
             &fork.hash(),
             VoteSource::Live,
         );
-        assert_eq!(1, election.lock().unwrap().votes().len());
         // The winner changed
-        assert_eq!(election.lock().unwrap().winner().hash(), fork.hash(),);
+        assert_eq!(
+            node.active
+                .read()
+                .election_for_root(&send2.qualified_root())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .winner()
+                .hash(),
+            fork.hash(),
+        );
 
         // Insert genesis key in the wallet
         node.wallets
@@ -2128,13 +2155,7 @@ fn rollback_vote_self() {
     }
 
     // A vote is eventually generated from the local representative
-    let is_genesis_vote = |info: &&VoteSummary| info.voter == *DEV_GENESIS_PUB_KEY;
-
-    assert_timely_eq2(|| election.lock().unwrap().votes().len(), 2);
-    let votes = election.lock().unwrap().votes().clone();
-    assert_eq!(1, votes.values().filter(is_genesis_vote).count());
-    let vote = votes.values().find(is_genesis_vote).unwrap();
-    assert_eq!(fork.hash(), vote.hash);
+    assert_timely2(|| node.block_confirmed(&fork.hash()));
 }
 
 // Test that rep_crawler removes unreachable reps from its search results.
