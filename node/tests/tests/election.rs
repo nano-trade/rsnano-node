@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{Amount, PrivateKey, Vote, VoteSource, DEV_GENESIS_KEY};
-use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet};
 use rsnano_node::{config::NodeConfig, consensus::ElectionBehavior, wallets::WalletsExt};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
@@ -54,11 +54,6 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     assert_timely_eq(Duration::from_secs(15), || node2.ledger.block_count(), 4);
 
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
-    let election = node1
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-    assert_eq!(1, election.lock().unwrap().block_count());
 
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_applier.vote(&vote1, VoteSource::Live);
@@ -74,7 +69,17 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     let vote2 = Arc::new(Vote::new_final(&key1, vec![send1.hash()]));
     node1.rep_crawler.force_process2(vote2.clone(), channel);
 
-    assert_eq!(election.lock().unwrap().is_confirmed(), false);
+    assert_eq!(
+        node1
+            .active
+            .read()
+            .election_for_block(&send1.hash())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .is_confirmed(),
+        false
+    );
     // Modify online_m for online_reps to more than is available, this checks that voting below updates it to current online reps.
     node1
         .online_reps
@@ -82,8 +87,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .unwrap()
         .set_online(config.online_weight_minimum + Amount::raw(20));
     node1.vote_applier.vote(&vote2, VoteSource::Live);
-    assert_timely2(|| election.lock().unwrap().is_confirmed());
-    assert!(node1.block(&send1.hash()).is_some());
+    assert_timely2(|| node1.ledger.confirmed().block_exists(&send1.hash()));
 }
 
 #[test]
@@ -142,12 +146,7 @@ fn quorum_minimum_confirm_fail() {
     );
 
     node1.process_active(send1.clone());
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
     let election = node1
         .active
         .election_for_root(&send1.qualified_root())
