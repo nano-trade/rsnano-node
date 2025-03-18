@@ -1,6 +1,6 @@
 use rsnano_core::{
-    Account, Amount, Block, BlockHash, Epoch, PrivateKey, Signature, StateBlockArgs, Vote,
-    VoteCode, VoteSource, DEV_GENESIS_KEY,
+    Account, Amount, Block, BlockHash, Epoch, PrivateKey, QualifiedRoot, Signature, StateBlockArgs,
+    Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, DEV_GENESIS_PUB_KEY,
@@ -293,28 +293,24 @@ fn block_hash_account_conflict() {
         ],
         false,
     );
-    let election1 = node1
-        .active
-        .election_for_root(&send1.qualified_root())
-        .unwrap();
-    let election2 = node1
-        .active
-        .election_for_root(&receive1.qualified_root())
-        .unwrap();
-    let election3 = node1
-        .active
-        .election_for_root(&send2.qualified_root())
-        .unwrap();
-    let election4 = node1
-        .active
-        .election_for_root(&open_epoch1.qualified_root())
-        .unwrap();
 
-    assert_eq!(election1.lock().unwrap().winner().hash(), send1.hash());
-    assert_eq!(election2.lock().unwrap().winner().hash(), receive1.hash());
-    assert_eq!(election3.lock().unwrap().winner().hash(), send2.hash());
+    let winner_for = |root: &QualifiedRoot| {
+        node1
+            .active
+            .read()
+            .election_for_root(root)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .winner()
+            .hash()
+    };
+
+    assert_eq!(winner_for(&send1.qualified_root()), send1.hash());
+    assert_eq!(winner_for(&receive1.qualified_root()), receive1.hash());
+    assert_eq!(winner_for(&send2.qualified_root()), send2.hash());
     assert_eq!(
-        election4.lock().unwrap().winner().hash(),
+        winner_for(&open_epoch1.qualified_root()),
         open_epoch1.hash()
     );
 }

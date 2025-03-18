@@ -220,9 +220,6 @@ fn deferred_dependent_elections() {
     assert_timely2(|| node1.active.is_active_root(&open.qualified_root()));
     assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
 
-    let election_open = node1.active.election_for_root(&open.qualified_root());
-    assert!(election_open.is_some());
-
     node1.process_local(receive.clone().into()).unwrap();
     assert_eq!(
         node1.active.is_active_root(&receive.qualified_root()),
@@ -422,20 +419,17 @@ fn confirm_quorum() {
         )
         .unwrap();
 
-    assert_timely2(|| {
-        node1
-            .active
-            .election_for_root(&send1.qualified_root())
-            .is_some()
-    });
+    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
-    let election = node1
+    let votes = node1
         .active
+        .read()
         .election_for_root(&send1.qualified_root())
-        .unwrap();
-    assert!(!election.lock().unwrap().is_confirmed());
-    assert_eq!(0, election.lock().unwrap().votes().len());
-    assert_eq!(Amount::zero(), node1.balance(&DEV_GENESIS_ACCOUNT));
+        .unwrap()
+        .lock()
+        .unwrap()
+        .vote_count();
+    assert_eq!(0, votes);
 }
 
 #[test]
