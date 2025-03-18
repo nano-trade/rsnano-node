@@ -1100,42 +1100,26 @@ fn activate_account_chain() {
         BlockStatus::Progress
     );
 
-    let election1 = start_election(&node, &send.hash());
+    start_election(&node, &send.hash());
     assert_eq!(1, node.active.len());
-    assert!(election1.lock().unwrap().contains_block(&send.hash()));
-    node.vote_applier.force_confirm(&election1);
+    node.vote_applier.force_confirm_block(&send.hash());
     assert_timely2(|| node.block_confirmed(&send.hash()));
 
     // On cementing, the next election is started
     assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
-    let election3 = node
-        .active
-        .election_for_root(&send2.qualified_root())
-        .unwrap();
-    assert!(election3.lock().unwrap().contains_block(&send2.hash()));
-    node.vote_applier.force_confirm(&election3);
+    node.vote_applier.force_confirm_block(&send2.hash());
     assert_timely2(|| node.block_confirmed(&send2.hash()));
 
     // On cementing, the next election is started
     assert_timely2(|| node.active.is_active_root(&open.qualified_root())); // Destination account activated
     assert_timely2(|| node.active.is_active_root(&send3.qualified_root())); // Block successor activated
-    let election4 = node
-        .active
-        .election_for_root(&send3.qualified_root())
-        .unwrap();
-    assert!(election4.lock().unwrap().contains_block(&send3.hash()));
-    let election5 = node
-        .active
-        .election_for_root(&open.qualified_root())
-        .unwrap();
-    assert!(election5.lock().unwrap().contains_block(&open.hash()));
-    node.vote_applier.force_confirm(&election5);
+    node.vote_applier.force_confirm_block(&open.hash());
     assert_timely2(|| node.block_confirmed(&open.hash()));
 
     // Until send3 is also confirmed, the receive block should not activate
     sleep(Duration::from_millis(200));
     assert!(!node.active.is_active_root(&receive.qualified_root()));
-    node.vote_applier.force_confirm(&election4);
+    node.vote_applier.force_confirm_block(&send3.hash());
     assert_timely2(|| node.block_confirmed(&send3.hash()));
     assert_timely2(|| node.active.is_active_root(&receive.qualified_root())); // Destination account activated
 }
@@ -1373,8 +1357,8 @@ fn active_inactive() {
     let open = lattice.account(&key).receive(&send);
     node.process_multi(&[send.clone(), send2.clone(), open]);
 
-    let election = start_election(&node, &send2.hash());
-    node.vote_applier.force_confirm(&election);
+    start_election(&node, &send2.hash());
+    node.vote_applier.force_confirm_block(&send2.hash());
 
     assert_timely2(|| !node.confirming_set.contains(&send2.hash()));
     assert_timely2(|| node.block_confirmed(&send2.hash()));
