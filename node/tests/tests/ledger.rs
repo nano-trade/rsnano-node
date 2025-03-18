@@ -107,7 +107,7 @@ mod votes {
             .genesis()
             .send_all_except(&key1, Amount::MAX / 2 - Amount::nano(1000));
         node1.process(send1.clone());
-        let election1 = start_election(&node1, &send1.hash());
+        start_election(&node1, &send1.hash());
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN,
@@ -118,7 +118,11 @@ mod votes {
         // Block is already processed from vote
         node1.active.try_add_fork(&send1, Amount::zero());
         assert_eq!(
-            election1
+            node1
+                .active
+                .read()
+                .election_for_block(&send1.hash())
+                .unwrap()
                 .lock()
                 .unwrap()
                 .votes()
@@ -146,7 +150,8 @@ mod votes {
         ));
 
         // Pretend we've waited the timeout
-        election1.lock().unwrap().change_vote_timestamp(
+        node1.active.change_vote_timestamp(
+            &send1.qualified_root(),
             &DEV_GENESIS_PUB_KEY,
             SystemTime::now() - Duration::from_secs(20),
         );
@@ -160,7 +165,11 @@ mod votes {
             &VoteCode::Vote
         );
         assert_eq!(
-            election1
+            node1
+                .active
+                .read()
+                .election_for_block(&send1.hash())
+                .unwrap()
                 .lock()
                 .unwrap()
                 .votes()
@@ -170,7 +179,8 @@ mod votes {
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
         // Also resend the old vote, and see if we respect the timestamp
-        election1.lock().unwrap().change_vote_timestamp(
+        node1.active.change_vote_timestamp(
+            &send1.qualified_root(),
             &DEV_GENESIS_PUB_KEY,
             SystemTime::now() - Duration::from_secs(20),
         );
@@ -183,8 +193,11 @@ mod votes {
                 .unwrap(),
             &VoteCode::Replay
         );
+
+        let active = node1.active.read();
+        let election = active.election_for_block(&send1.hash()).unwrap();
         assert_eq!(
-            election1
+            election
                 .lock()
                 .unwrap()
                 .votes()
@@ -193,7 +206,7 @@ mod votes {
                 .timestamp,
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
-        let votes = election1.lock().unwrap().votes().clone();
+        let votes = election.lock().unwrap().votes().clone();
         assert_eq!(votes.len(), 1);
         assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
         assert_eq!(votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash, send2.hash());

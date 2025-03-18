@@ -4,13 +4,16 @@ mod root_container;
 
 pub use active_elections_container::*;
 
-use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock, RwLockReadGuard};
+use std::{
+    sync::{mpsc::SyncSender, Arc, Mutex, RwLock, RwLockReadGuard},
+    time::SystemTime,
+};
 
 use root_container::{Entry, RootContainer};
 use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
-use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock};
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, VoteRouter};
@@ -258,6 +261,23 @@ impl ActiveElections {
         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
             sender.send(event).unwrap()
         }
+    }
+
+    // TODO: Delete!
+    pub fn change_vote_timestamp(
+        &self,
+        root: &QualifiedRoot,
+        voter: &PublicKey,
+        new_timestamp: SystemTime,
+    ) {
+        self.container
+            .write()
+            .unwrap()
+            .election_for_root(root)
+            .expect("No election found for given root")
+            .lock()
+            .unwrap()
+            .change_vote_timestamp(voter, new_timestamp);
     }
 }
 

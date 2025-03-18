@@ -170,7 +170,7 @@ fn deferred_dependent_elections() {
         .receive_and_change(&send2, &*DEV_GENESIS_KEY);
 
     node1.process_local(send1.clone().into()).unwrap();
-    let election_send1 = start_election(&node1, &send1.hash());
+    start_election(&node1, &send1.hash());
 
     node1.process_local(open.clone().into()).unwrap();
     node1.process_local(send2.clone().into()).unwrap();
