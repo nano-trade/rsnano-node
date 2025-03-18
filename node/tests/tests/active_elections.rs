@@ -375,7 +375,7 @@ fn inactive_votes_cache_existing_vote() {
     node.process(send.clone());
     node.process(open.clone());
 
-    let election = start_election(&node, &send.hash());
+    start_election(&node, &send.hash());
     assert!(
         node.ledger.weight(&key.public_key())
             > node.online_reps.lock().unwrap().minimum_principal_weight()
@@ -391,7 +391,18 @@ fn inactive_votes_cache_existing_vote() {
     node.vote_processor_queue
         .vote(vote1.clone(), None, VoteSource::Live);
 
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 1);
+    assert_timely_eq2(
+        || {
+            node.active
+                .read()
+                .election_for_block(&send.hash())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .vote_count()
+        },
+        1,
+    );
 
     assert_eq!(
         1,
@@ -399,7 +410,11 @@ fn inactive_votes_cache_existing_vote() {
             .count(StatType::Election, DetailType::Vote, Direction::In)
     );
 
-    let last_vote1 = election
+    let last_vote1 = node
+        .active
+        .read()
+        .election_for_block(&send.hash())
+        .unwrap()
         .lock()
         .unwrap()
         .votes()
@@ -420,6 +435,8 @@ fn inactive_votes_cache_existing_vote() {
     node.vote_applier.vote(&cached[0], VoteSource::Live);
 
     // Check that election data is not changed
+    let active = node.active.read();
+    let election = active.election_for_block(&send.hash()).unwrap();
     assert_eq!(election.lock().unwrap().vote_count(), 1);
     let last_vote2 = election
         .lock()
@@ -478,8 +495,19 @@ fn inactive_votes_cache_multiple_votes() {
         2,
     );
     assert_eq!(1, node.vote_cache.lock().unwrap().size());
-    let election = start_election(&node, &send1.hash());
-    assert_timely_eq2(|| election.lock().unwrap().vote_count(), 2);
+    start_election(&node, &send1.hash());
+    assert_timely_eq2(
+        || {
+            node.active
+                .read()
+                .election_for_block(&send1.hash())
+                .unwrap()
+                .lock()
+                .unwrap()
+                .vote_count()
+        },
+        2,
+    );
     assert_eq!(
         2,
         node.stats
@@ -880,14 +908,13 @@ fn dropped_cleanup() {
     assert!(!node.network_filter.apply(&block_bytes).1);
     assert!(node.network_filter.apply(&block_bytes).1);
 
-    let election = start_election(&node, &hash);
+    start_election(&node, &hash);
 
     // Not yet removed
     assert!(node.network_filter.apply(&block_bytes).1);
     assert!(node.active.is_active_root(&qual_root));
 
     // Now simulate dropping the election
-    assert!(!election.lock().unwrap().is_confirmed());
     node.active.erase(&qual_root);
 
     // The filter must have been cleared

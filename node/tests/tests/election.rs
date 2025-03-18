@@ -333,9 +333,14 @@ fn election_behavior() {
     let node = system.build_node().finish();
     let chain = setup_chain(&node, 1, &DEV_GENESIS_KEY, false);
 
-    let election = start_election(&node, &chain[0].hash());
+    start_election(&node, &chain[0].hash());
     assert_eq!(
-        election.lock().unwrap().behavior(),
+        node.active
+            .election_for_block(&chain[0].hash())
+            .unwrap()
+            .lock()
+            .unwrap()
+            .behavior(),
         ElectionBehavior::Manual
     );
 }

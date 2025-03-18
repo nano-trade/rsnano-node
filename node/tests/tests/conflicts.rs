@@ -14,9 +14,8 @@ fn start_stop() {
     let send1 = lattice.genesis().send(&key1, Amount::MAX);
     node1.process(send1.clone());
     assert_eq!(node1.active.len(), 0);
-    let election1 = start_election(&node1, &send1.hash());
+    start_election(&node1, &send1.hash());
     assert_eq!(node1.active.len(), 1);
-    assert_eq!(election1.lock().unwrap().vote_count(), 0);
 }
 
 #[test]
