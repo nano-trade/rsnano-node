@@ -2,7 +2,7 @@ mod root_container;
 
 use std::{
     cmp::min,
-    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock},
+    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard},
 };
 
 use root_container::{Entry, RootContainer};
@@ -56,7 +56,6 @@ pub struct ActiveElections {
     mutex: Mutex<ActiveElectionsState>,
     config: ActiveElectionsConfig,
     confirming_set: Arc<ConfirmingSet>,
-    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
 }
@@ -66,7 +65,6 @@ impl ActiveElections {
         config: ActiveElectionsConfig,
         confirming_set: Arc<ConfirmingSet>,
         stats: Arc<Stats>,
-        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -81,9 +79,9 @@ impl ActiveElections {
                 optimistic_count: 0,
                 config: election_config,
                 event_sender: None,
+                recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             }),
             confirming_set,
-            recently_confirmed,
             config,
             stats,
             clock,
@@ -137,6 +135,18 @@ impl ActiveElections {
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
         self.mutex.lock().unwrap().vote_router.is_active(block_hash)
+    }
+
+    pub fn was_recently_confirmed(&self, block_hash: &BlockHash) -> bool {
+        self.mutex
+            .lock()
+            .unwrap()
+            .recently_confirmed
+            .hash_exists(block_hash)
+    }
+
+    pub fn clear_recently_confirmed(&self) {
+        self.mutex.lock().unwrap().recently_confirmed.clear();
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<Arc<Mutex<Election>>> {
@@ -201,6 +211,12 @@ impl ActiveElections {
             .inc(StatType::ActiveElectionsStopped, election.state().into());
         self.stats
             .inc(election.state().into(), election.behavior().into());
+
+        if election.is_confirmed() {
+            guard
+                .recently_confirmed
+                .put(election.qualified_root().clone(), winner_hash);
+        }
         drop(guard);
 
         // Track election duration
@@ -236,10 +252,9 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> Option<ElectionInsertInfo> {
-        if self
+        let mut guard = self.mutex.lock().unwrap();
+        if guard
             .recently_confirmed
-            .read()
-            .unwrap()
             .root_exists(&block.qualified_root())
         {
             // This block or a fork got recently confirmed, so there is no need for a new election.
@@ -248,7 +263,6 @@ impl ActiveElections {
 
         let hash = block.hash();
 
-        let mut guard = self.mutex.lock().unwrap();
         let result = guard.insert(block, election_behavior, erased_callback, self.clock.now());
 
         if let Some(info) = &result {
@@ -293,13 +307,22 @@ impl ActiveElections {
     pub fn iter_batch_by_hash<'a>(
         &self,
         blocks: impl IntoIterator<Item = &'a BlockHash>,
-        mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>),
+        mut handle: impl FnMut(&BlockHash, Option<&Arc<Mutex<Election>>>, bool),
     ) {
         let guard = self.mutex.lock().unwrap();
         for hash in blocks.into_iter() {
             let election = guard.vote_router.election(hash);
-            handle(hash, election);
+            let recently_confirmed = guard.recently_confirmed.hash_exists(hash);
+            handle(hash, election, recently_confirmed);
         }
+    }
+
+    pub fn cementing_failed(&self, block_hash: &BlockHash) {
+        self.mutex
+            .lock()
+            .unwrap()
+            .recently_confirmed
+            .erase(block_hash);
     }
 
     pub fn stop(&self) {
@@ -329,7 +352,7 @@ impl ActiveElections {
             )
             .node(
                 "recently_confirmed",
-                self.recently_confirmed.read().unwrap().container_info(),
+                guard.recently_confirmed.container_info(),
             )
             .node("vote_router", vote_router)
             .finish()
@@ -352,6 +375,7 @@ pub struct ActiveElectionsState {
     config: ElectionConfig,
     vote_router: VoteRouter,
     event_sender: Option<SyncSender<AecEvent>>,
+    recently_confirmed: RecentlyConfirmedCache,
 }
 
 impl ActiveElectionsState {

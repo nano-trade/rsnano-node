@@ -48,8 +48,8 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, BootstrapElectionActivator, ElectionConfig,
-        ElectionForkAdder, ElectionVoter, EndedElection, LocalVoteHistory, RecentlyConfirmedCache,
-        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
+        ElectionForkAdder, ElectionVoter, EndedElection, LocalVoteHistory, RepTiers,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
         VoteRebroadcaster, VoteSummary,
@@ -147,7 +147,6 @@ pub struct Node {
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
     active_elections_driver: TimerThread<ActiveElectionsDriver>,
-    pub recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<EndedElection>>>,
 }
 
@@ -430,10 +429,6 @@ impl Node {
             stats.clone(),
         )));
 
-        let recently_confirmed = Arc::new(RwLock::new(RecentlyConfirmedCache::new(
-            config.active_elections.confirmation_cache,
-        )));
-
         let (ledger_notification_thread, ledger_notification_queue, ledger_notifications) =
             LedgerNotificationThread::new(config.max_ledger_notifications);
 
@@ -525,7 +520,6 @@ impl Node {
             config.active_elections.clone(),
             confirming_set.clone(),
             stats.clone(),
-            recently_confirmed.clone(),
             election_config,
             steady_clock.clone(),
         );
@@ -542,7 +536,6 @@ impl Node {
             block_processor.clone(),
             history.clone(),
             wallets.clone(),
-            recently_confirmed.clone(),
             confirming_set.clone(),
             steady_clock.clone(),
         ));
@@ -685,10 +678,10 @@ impl Node {
             network_params.clone(),
             network.clone(),
             ledger.clone(),
-            recently_confirmed.clone(),
             steady_clock.clone(),
             message_sender.clone(),
             keepalive_publisher.clone(),
+            active_elections.clone(),
             runtime.clone(),
         ));
 
@@ -807,7 +800,6 @@ impl Node {
 
         let vote_cache_w = Arc::downgrade(&vote_cache);
         let active_w = Arc::downgrade(&active_elections);
-        let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
         let scheduler_w = Arc::downgrade(&election_schedulers);
         let confirming_set_w = Arc::downgrade(&confirming_set);
         let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
@@ -821,13 +813,7 @@ impl Node {
             }
 
             if let Some(i) = active_w.upgrade() {
-                if i.is_active_hash(hash) {
-                    return false;
-                }
-            }
-
-            if let Some(i) = recently_confirmed_w.upgrade() {
-                if i.read().unwrap().hash_exists(hash) {
+                if i.is_active_hash(hash) || i.was_recently_confirmed(hash) {
                     return false;
                 }
             }
@@ -854,7 +840,6 @@ impl Node {
 
         let vote_cache_w = Arc::downgrade(&vote_cache);
         let active_w = Arc::downgrade(&active_elections);
-        let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
         let scheduler_w = Arc::downgrade(&election_schedulers);
         let confirming_set_w = Arc::downgrade(&confirming_set);
         let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
@@ -866,17 +851,10 @@ impl Node {
             }
 
             if let Some(i) = active_w.upgrade() {
-                if i.is_active_hash(hash) {
+                if i.is_active_hash(hash) || i.was_recently_confirmed(hash) {
                     return false;
                 }
             }
-
-            if let Some(i) = recently_confirmed_w.upgrade() {
-                if i.read().unwrap().hash_exists(hash) {
-                    return false;
-                }
-            }
-
             if let Some(i) = scheduler_w.upgrade() {
                 if i.contains(hash) {
                     return false;
@@ -975,10 +953,10 @@ impl Node {
         });
 
         // Do some cleanup due to this block never being processed by confirmation height processor
-        let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
+        let active_w = Arc::downgrade(&active_elections);
         confirming_set.on_cementing_failed(move |hash| {
-            if let Some(recent) = recently_confirmed_w.upgrade() {
-                recent.write().unwrap().erase(hash);
+            if let Some(active) = active_w.upgrade() {
+                active.cementing_failed(hash);
             }
         });
 
@@ -1280,7 +1258,6 @@ impl Node {
             ledger_notifications,
             vote_rebroadcaster,
             tokio_runner,
-            recently_confirmed,
             active_elections_driver: TimerThread::new("Request loop", confirmation_requester),
             recently_cemented,
         }

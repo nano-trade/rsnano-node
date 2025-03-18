@@ -917,7 +917,7 @@ fn confirmation_consistency() {
         .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
         .unwrap();
 
-    for i in 0..10 {
+    for _ in 0..10 {
         let block = node
             .wallets
             .send_action2(
@@ -932,15 +932,7 @@ fn confirmation_consistency() {
             .unwrap();
 
         assert_timely2(|| node.block_confirmed(&block.hash()));
-
-        assert_timely2(|| {
-            let recently_confirmed = node.recently_confirmed.read().unwrap();
-            let recently_cemented = node.recently_cemented.lock().unwrap();
-
-            recently_confirmed.len() == i + 1
-                && recently_confirmed.back() == Some((&block.qualified_root(), &block.hash()))
-                && recently_cemented.len() == i + 1
-        });
+        assert_timely2(|| node.active.was_recently_confirmed(&block.hash()));
     }
 }
 
@@ -1289,7 +1281,7 @@ fn vote_replays() {
     );
 
     // Removing blocks as recently confirmed makes every vote indeterminate
-    node.recently_confirmed.write().unwrap().clear();
+    node.active.clear_recently_confirmed();
     assert_eq!(
         node.vote_applier
             .vote(&vote_send1, VoteSource::Live)

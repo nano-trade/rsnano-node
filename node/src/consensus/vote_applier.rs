@@ -17,7 +17,7 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
     ActiveElections, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
-    RecentlyConfirmedCache, VoteGenerators, VoteSummary,
+    VoteGenerators, VoteSummary,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -37,7 +37,6 @@ pub enum VoteApplierEvent {
 /// Applies a vote to an election
 pub struct VoteApplier {
     active_elections: Arc<ActiveElections>,
-    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     event_senders: RwLock<Vec<SyncSender<VoteApplierEvent>>>,
     ledger: Arc<Ledger>,
     network_params: NetworkParams,
@@ -63,13 +62,11 @@ impl VoteApplier {
         block_processor: Arc<BlockProcessor>,
         history: Arc<LocalVoteHistory>,
         wallets: Arc<Wallets>,
-        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             active_elections,
-            recently_confirmed,
             event_senders: RwLock::new(Vec::new()),
             ledger,
             network_params,
@@ -116,8 +113,6 @@ impl VoteApplier {
         let mut results = HashMap::new();
         let mut process = HashMap::new();
         {
-            let recently_confirmed = self.recently_confirmed.read().unwrap();
-
             let hashes = vote.hashes.iter().filter(|h| {
                 // Ignore votes for other hashes if a filter is set
                 if !filter.is_zero() && *h != filter {
@@ -127,8 +122,9 @@ impl VoteApplier {
                 }
             });
 
-            self.active_elections
-                .iter_batch_by_hash(hashes, |hash, election| {
+            self.active_elections.iter_batch_by_hash(
+                hashes,
+                |hash, election, recently_confirmed| {
                     // Ignore duplicate hashes (should not happen with a well-behaved voting node)
                     if results.contains_key(hash) {
                         return;
@@ -137,13 +133,14 @@ impl VoteApplier {
                     if let Some(election) = election {
                         process.insert(*hash, election.clone());
                     } else {
-                        if !recently_confirmed.hash_exists(hash) {
+                        if !recently_confirmed {
                             results.insert(*hash, VoteCode::Indeterminate);
                         } else {
                             results.insert(*hash, VoteCode::Replay);
                         }
                     }
-                });
+                },
+            );
         }
 
         for (block_hash, election) in process {
@@ -332,11 +329,6 @@ impl VoteApplier {
             (e.winner().hash(), e.qualified_root().clone())
         };
 
-        self.recently_confirmed
-            .write()
-            .unwrap()
-            .put(root.clone(), winner_hash);
-
         self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
         trace!( qualified_root = ?root, "election confirmed");
 
@@ -445,11 +437,6 @@ impl VoteApplier {
         let winner_hash = election.winner().hash();
         if winner_hash == *cemented_hash {
             if election.force_confirm() {
-                self.recently_confirmed
-                    .write()
-                    .unwrap()
-                    .put(election.qualified_root().clone(), winner_hash);
-
                 self.stats.inc(StatType::Election, DetailType::ConfirmOnce);
                 trace!(
                     qualified_root = ?election.qualified_root(),

@@ -20,7 +20,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use super::{InsertResult, OnlineReps};
 use crate::{
     config::{NetworkParams, NodeConfig},
-    consensus::RecentlyConfirmedCache,
+    consensus::ActiveElections,
     transport::{
         keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
         MessageSender,
@@ -38,11 +38,11 @@ pub struct RepCrawler {
     network: Arc<RwLock<Network>>,
     condition: Condvar,
     ledger: Arc<Ledger>,
-    recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
     message_sender: Mutex<MessageSender>,
     preconfigured_peers: Arc<PreconfiguredPeersKeepalive>,
+    active_elections: Arc<ActiveElections>,
     tokio: tokio::runtime::Handle,
 }
 
@@ -57,10 +57,10 @@ impl RepCrawler {
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
-        recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
         steady_clock: Arc<SteadyClock>,
         message_sender: MessageSender,
         keepalive_publisher: Arc<KeepalivePublisher>,
+        active_elections: Arc<ActiveElections>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();
@@ -72,7 +72,6 @@ impl RepCrawler {
             network,
             condition: Condvar::new(),
             ledger,
-            recently_confirmed,
             thread: Mutex::new(None),
             steady_clock,
             message_sender: Mutex::new(message_sender),
@@ -91,6 +90,7 @@ impl RepCrawler {
                 responses: BoundedVecDeque::new(Self::MAX_RESPONSES),
                 prioritized: Default::default(),
             }),
+            active_elections,
             tokio,
         }
     }
@@ -359,15 +359,14 @@ impl RepCrawler {
         let any = self.ledger.any();
         let random_blocks = any.random_blocks(MAX_ATTEMPTS);
 
-        let recently_confirmed = self.recently_confirmed.read().unwrap();
         for block in &random_blocks {
-            // Avoid blocks that could still have live votes coming in
-            if recently_confirmed.hash_exists(&block.hash()) {
+            // Nodes will not respond to queries for blocks that are not confirmed
+            if !any.confirmed().block_exists(&block.hash()) {
                 continue;
             }
 
-            // Nodes will not respond to queries for blocks that are not confirmed
-            if !any.confirmed().block_exists(&block.hash()) {
+            // Avoid blocks that could still have live votes coming in
+            if self.active_elections.was_recently_confirmed(&block.hash()) {
                 continue;
             }
 
