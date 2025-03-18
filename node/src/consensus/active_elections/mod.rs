@@ -130,13 +130,6 @@ impl ActiveElections {
         self.config.max_election_winners as i64 - self.confirming_set.len() as i64
     }
 
-    pub fn clear(&self) {
-        // TODO: Call erased_callback for each election
-        let mut guard = self.mutex.lock().unwrap();
-        guard.roots.clear();
-        guard.notify(AecEvent::VacancyUpdated);
-    }
-
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
         let guard = self.mutex.lock().unwrap();
         guard.roots.get(root).is_some()
@@ -311,7 +304,6 @@ impl ActiveElections {
 
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stop();
-        self.clear();
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -484,6 +476,7 @@ impl ActiveElectionsState {
 
     pub fn stop(&mut self) {
         self.stopped = true;
+        self.roots.clear();
         // destroy send queue so that the receiver thread will be stopped too
         drop(self.event_sender.take());
     }
