@@ -59,7 +59,6 @@ pub struct ActiveElections {
     recently_confirmed: Arc<RwLock<RecentlyConfirmedCache>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
-    event_sender: RwLock<Option<SyncSender<AecEvent>>>,
     election_voter: ElectionVoter,
     clock: Arc<SteadyClock>,
 }
@@ -86,6 +85,7 @@ impl ActiveElections {
                 hinted_count: 0,
                 optimistic_count: 0,
                 config: election_config,
+                event_sender: None,
             }),
             condition: Condvar::new(),
             rep_weights,
@@ -94,14 +94,13 @@ impl ActiveElections {
             config,
             vote_cache,
             stats,
-            event_sender: RwLock::new(None),
             election_voter,
             clock,
         }
     }
 
     pub fn set_event_sink(&mut self, sink: SyncSender<AecEvent>) {
-        *self.event_sender.write().unwrap() = Some(sink);
+        self.mutex.lock().unwrap().event_sender = Some(sink);
     }
 
     pub fn len(&self) -> usize {
@@ -142,12 +141,9 @@ impl ActiveElections {
 
     pub fn clear(&self) {
         // TODO: Call erased_callback for each election
-        {
-            let mut guard = self.mutex.lock().unwrap();
-            guard.roots.clear();
-        }
-
-        self.notify(AecEvent::VacancyUpdated);
+        let mut guard = self.mutex.lock().unwrap();
+        guard.roots.clear();
+        guard.notify(AecEvent::VacancyUpdated);
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
@@ -209,7 +205,11 @@ impl ActiveElections {
     }
 
     /// Erase all blocks from active, if not confirmed, clear digests from network filters
-    fn cleanup_election<'a>(&self, mut guard: MutexGuard<'a, ActiveElectionsState>, entry: Entry) {
+    fn cleanup_election<'a>(
+        &'a self,
+        mut guard: MutexGuard<'a, ActiveElectionsState>,
+        entry: Entry,
+    ) {
         // lock vote router before locking election to prevent dead lock!
         let election = entry.election.lock().unwrap();
 
@@ -246,16 +246,18 @@ impl ActiveElections {
         if let Some(callback) = entry.erased_callback {
             callback(election.qualified_root());
         }
-        self.notify(AecEvent::VacancyUpdated);
+
+        guard = self.mutex.lock().unwrap();
+        guard.notify(AecEvent::VacancyUpdated);
 
         for (hash, block) in election.candidate_blocks() {
             // Notify observers about dropped elections & blocks lost confirmed elections
             if !election.is_confirmed() || *hash != winner_hash {
-                self.notify(AecEvent::ActiveStopped(*hash));
+                guard.notify(AecEvent::ActiveStopped(*hash));
             }
 
             if !election.is_confirmed() {
-                self.notify(AecEvent::BlockDiscarded(block.clone().into()));
+                guard.notify(AecEvent::BlockDiscarded(block.clone().into()));
             }
         }
     }
@@ -306,7 +308,7 @@ impl ActiveElections {
                     "Started new election"
                 );
 
-                self.notify(AecEvent::ActiveStarted(hash));
+                guard.notify(AecEvent::ActiveStarted(hash));
             }
             drop(guard);
 
@@ -326,17 +328,16 @@ impl ActiveElections {
     }
 
     pub fn handle_fork(&self, fork: &Block) {
+        let fork_tally = self.get_cached_tally(&fork.hash());
         let mut guard = self.mutex.lock().unwrap();
         if let Some(entry) = guard.roots.get(&fork.qualified_root()) {
             let election_mutex = entry.election.clone();
             let added = {
                 let mut election = election_mutex.lock().unwrap();
-                self.try_add_fork(&mut guard, &mut election, fork)
+                self.try_add_fork(&mut guard, &election_mutex, &mut election, fork, fork_tally)
             };
             if added {
-                guard.vote_router.connect(fork.hash(), election_mutex);
-
-                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
+                guard.notify(AecEvent::BlockAddedToElection(fork.hash()));
 
                 self.stats
                     .inc(StatType::Active, DetailType::ElectionBlockConflict);
@@ -353,25 +354,32 @@ impl ActiveElections {
     fn try_add_fork(
         &self,
         state: &mut ActiveElectionsState,
+        election_mutex: &Arc<Mutex<Election>>,
         election: &mut Election,
         fork: &Block,
+        fork_tally: Amount,
     ) -> bool {
         // Try to remove a block with a lower tally, so that the fork can be added
-        let fork_tally = self.get_cached_tally(&fork.hash());
 
         let added = match election.add_fork(fork.clone(), fork_tally) {
             AddForkResult::Added => true,
             AddForkResult::Replaced(removed) => {
                 state.vote_router.disconnect(&removed.hash());
-                self.notify(AecEvent::BlockDiscarded(removed.into()));
+                state.notify(AecEvent::BlockDiscarded(removed.into()));
                 true
             }
             AddForkResult::Duplicate => false,
             AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => {
-                self.notify(AecEvent::BlockDiscarded(fork.clone()));
+                state.notify(AecEvent::BlockDiscarded(fork.clone()));
                 false
             }
         };
+
+        if added {
+            state
+                .vote_router
+                .connect(fork.hash(), election_mutex.clone());
+        }
 
         added
     }
@@ -403,11 +411,9 @@ impl ActiveElections {
     }
 
     pub fn stop(&self) {
-        self.mutex.lock().unwrap().stopped = true;
+        self.mutex.lock().unwrap().stop();
         self.condition.notify_all();
         self.clear();
-        // destroy send queue so that the receiver thread will be stopped too
-        drop(self.event_sender.write().unwrap().take())
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -438,12 +444,6 @@ impl ActiveElections {
             .node("vote_router", vote_router)
             .finish()
     }
-
-    fn notify(&self, event: AecEvent) {
-        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-            sender.send(event).unwrap()
-        }
-    }
 }
 
 impl Drop for ActiveElections {
@@ -461,6 +461,7 @@ pub struct ActiveElectionsState {
     optimistic_count: usize,
     config: ElectionConfig,
     vote_router: VoteRouter,
+    event_sender: Option<SyncSender<AecEvent>>,
 }
 
 impl ActiveElectionsState {
@@ -545,6 +546,18 @@ impl ActiveElectionsState {
                 inserted: true,
             })
         }
+    }
+
+    fn notify(&self, event: AecEvent) {
+        if let Some(sender) = &self.event_sender {
+            sender.send(event).unwrap()
+        }
+    }
+
+    pub fn stop(&mut self) {
+        self.stopped = true;
+        // destroy send queue so that the receiver thread will be stopped too
+        drop(self.event_sender.take());
     }
 }
 
