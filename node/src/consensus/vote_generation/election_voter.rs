@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use rsnano_core::BlockHash;
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
 
-use crate::consensus::Election;
+use crate::consensus::{ActiveElections, Election};
 
 use super::VoteGenerators;
 
@@ -11,12 +12,19 @@ use super::VoteGenerators;
 pub(crate) struct ElectionVoter {
     pub stats: Arc<Stats>,
     pub vote_generators: Arc<VoteGenerators>,
+    pub active_elections: Arc<ActiveElections>,
 }
 
 impl ElectionVoter {
+    pub fn try_vote(&self, block_hash: &BlockHash) {
+        if let Some(election) = self.active_elections.election_for_block(block_hash) {
+            self.try_vote_for_election(&mut election.lock().unwrap());
+        }
+    }
+
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    pub fn try_vote(&self, election: &mut Election) {
+    pub fn try_vote_for_election(&self, election: &mut Election) {
         if !self.vote_generators.voting_enabled() {
             return;
         }

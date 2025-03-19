@@ -91,7 +91,7 @@ impl Runnable for ActiveElectionsDriver {
 
                 match new_state {
                     ElectionState::Active => {
-                        self.election_voter.try_vote(&mut election);
+                        self.election_voter.try_vote_for_election(&mut election);
                         self.try_broadcast_winner_block(&mut solicitor, &mut election);
                         self.send_confirm_req(&mut solicitor, &mut election);
                     }

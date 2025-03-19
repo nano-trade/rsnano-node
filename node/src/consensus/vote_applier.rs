@@ -4,13 +4,12 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use num::iter;
 use rsnano_nullable_clock::SteadyClock;
 use tracing::trace;
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot,
-    SavedBlock, Vote, VoteCode, VoteSource,
+    utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, PublicKey, SavedBlock, Vote,
+    VoteCode, VoteSource,
 };
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
@@ -328,7 +327,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
+    fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
         let (winner_hash, root) = {
             let e = election.lock().unwrap();
             (e.winner().hash(), e.qualified_root().clone())
