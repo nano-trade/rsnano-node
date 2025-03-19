@@ -11,7 +11,7 @@ use rsnano_core::{
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
 
-use super::{block_tallies::BlockTallies, ElectionState};
+use super::{block_tallies::BlockTallies, ElectionResult, ElectionState, EndedElection};
 
 #[derive(Clone)]
 pub struct ElectionConfig {
@@ -494,6 +494,28 @@ impl Election {
     /// TODO: Remove as soon as possible
     pub fn change_vote_timestamp(&mut self, voter: &PublicKey, new_timestamp: SystemTime) {
         self.votes.get_mut(voter).unwrap().time = new_timestamp;
+    }
+
+    pub fn into_ended_election(&self, now: Timestamp, result: ElectionResult) -> EndedElection {
+        assert!(self.is_confirmed());
+
+        let mut votes: Vec<_> = self.votes().values().cloned().collect();
+        // sort descending
+        votes.sort_by(|a, b| b.weight.cmp(&a.weight));
+
+        EndedElection {
+            winner: self.winner().clone(),
+            tally: self.winner_tally(),
+            final_tally: self.winner_final_tally(),
+            confirmation_request_count: self.confirmation_request_count() as u32,
+            block_count: self.block_count() as u32,
+            voter_count: self.votes().len() as u32,
+            election_duration: self.start().elapsed(now),
+            election_end: SystemTime::now(),
+            vote_broadcast_count: self.vote_broadcast_count() as u32,
+            result,
+            votes,
+        }
     }
 }
 

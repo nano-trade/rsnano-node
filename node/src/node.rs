@@ -1195,12 +1195,12 @@ impl Node {
 
                             vote_rebroadcast_queue.handle_processed_vote(&vote, &results);
                         }
-                        VoteApplierEvent::BlockCemented(block, status, votes) => {
+                        VoteApplierEvent::BlockCemented(block, election) => {
                             if let Some(tx) = &node_event_sender {
-                                tx.send(NodeEvent::BlockCemented(block, status.clone(), votes))
+                                tx.send(NodeEvent::BlockCemented(block, election.clone()))
                                     .unwrap();
                             }
-                            recently_cemented_inserter.insert(status);
+                            recently_cemented_inserter.insert(election);
                         }
                     }
                 }
@@ -1669,7 +1669,7 @@ fn make_store(
 pub enum NodeEvent {
     ElectionStarted(BlockHash),
     ElectionStopped(BlockHash),
-    BlockCemented(SavedBlock, EndedElection, Vec<VoteSummary>),
+    BlockCemented(SavedBlock, EndedElection),
 }
 
 pub trait NodeEventHandler {

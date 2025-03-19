@@ -3,6 +3,8 @@ use std::time::{Duration, SystemTime};
 use rsnano_core::{Amount, MaybeSavedBlock, SavedBlock};
 use rsnano_stats::DetailType;
 
+use super::VoteSummary;
+
 /**
  * Tag for the type of the election status
  */
@@ -46,6 +48,7 @@ pub struct EndedElection {
     pub election_duration: Duration,
     pub result: ElectionResult,
     pub vote_broadcast_count: u32,
+    pub votes: Vec<VoteSummary>,
 }
 
 impl EndedElection {
@@ -61,6 +64,7 @@ impl EndedElection {
             confirmation_request_count: 0,
             election_duration: Duration::ZERO,
             vote_broadcast_count: 0,
+            votes: Vec::new(),
         }
     }
 }

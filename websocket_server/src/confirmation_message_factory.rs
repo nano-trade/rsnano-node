@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
-use rsnano_node::consensus::{EndedElection, VoteSummary};
+use rsnano_node::consensus::EndedElection;
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
@@ -10,8 +10,7 @@ pub(super) struct ConfirmationMessageFactory<'a> {
     pub options: &'a ConfirmationOptions,
     pub block: &'a SavedBlock,
     pub amount: &'a Amount,
-    pub election_status: &'a EndedElection,
-    pub election_votes: &'a Vec<VoteSummary>,
+    pub election: &'a EndedElection,
 }
 
 impl<'a> ConfirmationMessageFactory<'a> {
@@ -32,7 +31,7 @@ impl<'a> ConfirmationMessageFactory<'a> {
     }
 
     fn confirmation_type(&self) -> String {
-        self.election_status.result.as_str().to_string()
+        self.election.result.as_str().to_string()
     }
 
     fn subtype(&self) -> String {
@@ -45,9 +44,9 @@ impl<'a> ConfirmationMessageFactory<'a> {
 
     fn election_info(&self) -> Option<ElectionInfo> {
         if self.options.include_election_info || self.options.include_election_info_with_votes {
-            let mut info = ElectionInfo::from(self.election_status);
+            let mut info = ElectionInfo::from(self.election);
             if self.options.include_election_info_with_votes {
-                info.votes = Some(self.election_votes.iter().map(|v| v.into()).collect());
+                info.votes = Some(self.election.votes.iter().map(|v| v.into()).collect());
             }
             Some(info)
         } else {
@@ -112,8 +111,7 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election_status: &election,
-            election_votes: &Vec::new(),
+            election: &election,
         };
 
         let message = factory.create_message();
@@ -144,8 +142,7 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election_status: &EndedElection::new(block.clone()),
-            election_votes: &Vec::new(),
+            election: &EndedElection::new(block.clone()),
         };
 
         let message = factory.create_message();

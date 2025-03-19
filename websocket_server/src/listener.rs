@@ -130,8 +130,7 @@ impl WebsocketListener {
         &self,
         block: &SavedBlock,
         amount: &Amount,
-        election_status: &EndedElection,
-        election_votes: &Vec<VoteSummary>,
+        election: &EndedElection,
     ) {
         if !self.any_subscriber(Topic::Confirmation) {
             return;
@@ -154,8 +153,7 @@ impl WebsocketListener {
                         options: conf_opts,
                         block,
                         amount,
-                        election_status,
-                        election_votes,
+                        election,
                     }
                     .create_message();
 
