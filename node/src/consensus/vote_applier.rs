@@ -4,8 +4,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use rand::seq::IndexedRandom;
 use rsnano_nullable_clock::SteadyClock;
-use tracing::trace;
 
 use rsnano_core::{
     utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, PublicKey, SavedBlock, Vote,
@@ -17,7 +17,7 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
     ActiveElections, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
-    VoteGenerators, VoteSummary,
+    VoteGenerators,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -326,74 +326,35 @@ impl VoteApplier {
     }
 
     fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
-        let (winner_hash, root) = {
-            let e = election.lock().unwrap();
-            (e.winner().hash(), e.qualified_root().clone())
-        };
+        let ended_election = election
+            .lock()
+            .unwrap()
+            .into_ended_election(self.clock.now(), ElectionResult::ActiveConfirmedQuorum);
+
+        let winner_hash = ended_election.winner.hash();
 
         self.cementing_elections_cache
             .lock()
             .unwrap()
-            .insert(election);
+            .insert(ended_election);
 
         self.confirming_set.add(winner_hash);
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
     pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, BlockHash)>) {
-        let mut results = Vec::new();
-
-        // Process all cemented blocks while holding the lock to avoid
-        // races where an election for a block that is already
-        // cemented is inserted
-        let active = self.active_elections.read();
-        for (cemented_block, _) in cemented {
-            let dependent_election_opt = active.election_for_root(&cemented_block.qualified_root());
-
-            // Distinguishes replay votes, cannot be determined if the block is not in any election
-            // Dependent elections are implicitly confirmed when their block is cemented
-            if let Some(dependent_election_mutex) = &dependent_election_opt {
-                // TRY CONFIRM
-                // TODO: This should either confirm or cancel the election
-                let mut dependent_election = dependent_election_mutex.lock().unwrap();
-                let winner_hash = dependent_election.winner().hash();
-                if winner_hash == cemented_block.hash() {
-                    dependent_election.force_confirm();
-                }
+        let mut cemented_blocks_with_election = Vec::with_capacity(cemented.len());
+        {
+            let cementing_cache = self.cementing_elections_cache.lock().unwrap();
+            for (cemented_block, _) in cemented {
+                let source_election = cementing_cache.get(&cemented_block.hash()).cloned();
+                cemented_blocks_with_election.push((cemented_block.clone(), source_election));
             }
-
-            let source_election = self
-                .cementing_elections_cache
-                .lock()
-                .unwrap()
-                .get(&cemented_block.hash())
-                .cloned();
-
-            let mut ended_election = EndedElection::new(cemented_block.clone());
-            let mut handled = false;
-            // Check if the currently cemented block was part of an election that triggered the confirmation
-            if let Some(source_election) = source_election {
-                let election = source_election.lock().unwrap();
-                // TODO compare winner hash instead!
-                if *election.qualified_root() == cemented_block.qualified_root() {
-                    ended_election = election.into_ended_election(
-                        self.clock.now(),
-                        ElectionResult::ActiveConfirmedQuorum,
-                    );
-                    handled = true;
-                }
-            }
-
-            if handled {
-                // already handled
-            } else if dependent_election_opt.is_some() {
-                ended_election.result = ElectionResult::ActiveConfirmationHeight;
-            } else {
-                ended_election.result = ElectionResult::InactiveConfirmationHeight;
-            }
-
-            results.push(ended_election);
         }
+
+        let results = self
+            .active_elections
+            .batch_cemented(cemented_blocks_with_election);
 
         // TODO: This could be offloaded to a separate notification worker, profiling is needed
         for ended_election in results {

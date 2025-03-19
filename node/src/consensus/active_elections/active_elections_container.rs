@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_nullable_clock::Timestamp;
 
-use crate::consensus::{AddForkResult, Election, ElectionBehavior, ElectionConfig};
+use crate::consensus::{
+    AddForkResult, Election, ElectionBehavior, ElectionConfig, ElectionResult, EndedElection,
+};
 
 use super::{
     recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, Entry, ErasedCallback,
@@ -246,6 +248,60 @@ impl ActiveElectionsContainer {
             self.recently_confirmed
                 .put(election.qualified_root().clone(), winner_hash);
         }
+    }
+
+    pub fn batch_cemented(
+        &self,
+        batch: Vec<(SavedBlock, Option<EndedElection>)>,
+        now: Timestamp,
+    ) -> Vec<EndedElection> {
+        let mut results = Vec::new();
+
+        // Process all cemented blocks while holding the lock to avoid
+        // races where an election for a block that is already
+        // cemented is inserted
+        for (cemented_block, source_election) in batch {
+            let dependent_election_opt = self.election_for_root(&cemented_block.qualified_root());
+
+            // Distinguishes replay votes, cannot be determined if the block is not in any election
+            // Dependent elections are implicitly confirmed when their block is cemented
+            if let Some(dependent_election_mutex) = &dependent_election_opt {
+                // TRY CONFIRM
+                // TODO: This should either confirm or cancel the election
+                let mut dependent_election = dependent_election_mutex.lock().unwrap();
+                let winner_hash = dependent_election.winner().hash();
+                if winner_hash == cemented_block.hash() {
+                    dependent_election.force_confirm();
+                }
+            }
+
+            let mut ended_election = EndedElection::new(cemented_block.clone());
+            let mut handled = false;
+            // Check if the currently cemented block was part of an election that triggered the confirmation
+            if let Some(source_election) = source_election {
+                // TODO compare winner hash instead!
+                if source_election.winner.qualified_root() == cemented_block.qualified_root() {
+                    ended_election = source_election;
+                    handled = true;
+                }
+            }
+
+            if handled {
+                // already handled
+            } else {
+                if let Some(dep_el) = dependent_election_opt {
+                    ended_election = dep_el
+                        .lock()
+                        .unwrap()
+                        .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
+                } else {
+                    ended_election.result = ElectionResult::InactiveConfirmationHeight;
+                }
+            }
+
+            results.push(ended_election);
+        }
+        results
     }
 
     pub(super) fn cementing_failed(&mut self, block_hash: &BlockHash) {

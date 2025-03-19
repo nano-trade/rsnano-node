@@ -16,7 +16,7 @@ use tracing::debug;
 use rsnano_core::{Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock};
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
-use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, VoteRouter};
+use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -290,6 +290,14 @@ impl ActiveElections {
             .lock()
             .unwrap()
             .change_vote_timestamp(voter, new_timestamp);
+    }
+
+    pub fn batch_cemented(
+        &self,
+        batch: Vec<(SavedBlock, Option<EndedElection>)>,
+    ) -> Vec<EndedElection> {
+        let now = self.clock.now();
+        self.container.read().unwrap().batch_cemented(batch, now)
     }
 }
 

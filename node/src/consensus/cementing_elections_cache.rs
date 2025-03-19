@@ -1,15 +1,12 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
-};
+use std::collections::{HashMap, VecDeque};
 
 use rsnano_core::BlockHash;
 
-use super::Election;
+use super::EndedElection;
 
 pub(crate) struct CementingElectionsCache {
     max_len: usize,
-    elections: HashMap<BlockHash, Arc<Mutex<Election>>>,
+    elections: HashMap<BlockHash, EndedElection>,
     sequential: VecDeque<BlockHash>,
 }
 
@@ -34,12 +31,12 @@ impl CementingElectionsCache {
         self.sequential.len()
     }
 
-    pub fn get(&self, winner_hash: &BlockHash) -> Option<&Arc<Mutex<Election>>> {
+    pub fn get(&self, winner_hash: &BlockHash) -> Option<&EndedElection> {
         self.elections.get(winner_hash)
     }
 
-    pub fn insert(&mut self, election: Arc<Mutex<Election>>) {
-        let winner_hash = election.lock().unwrap().winner().hash();
+    pub fn insert(&mut self, election: EndedElection) {
+        let winner_hash = election.winner.hash();
         let old = self.elections.insert(winner_hash, election);
         if old.is_some() {
             return;
@@ -81,7 +78,7 @@ mod tests {
 
         assert_eq!(cache.len(), 1);
         let result = cache.get(&winner).unwrap();
-        assert_eq!(result.lock().unwrap().winner().hash(), winner);
+        assert_eq!(result.winner.hash(), winner);
     }
 
     #[test]
@@ -96,9 +93,9 @@ mod tests {
         assert_eq!(cache.len(), 2);
 
         let result1 = cache.get(&winner1).unwrap();
-        assert_eq!(result1.lock().unwrap().winner().hash(), winner1);
+        assert_eq!(result1.winner.hash(), winner1);
         let result2 = cache.get(&winner2).unwrap();
-        assert_eq!(result2.lock().unwrap().winner().hash(), winner2);
+        assert_eq!(result2.winner.hash(), winner2);
     }
 
     #[test]
@@ -133,10 +130,9 @@ mod tests {
         assert_eq!(cache.len(), 1);
     }
 
-    fn create_election(key: impl Into<PrivateKey>) -> (BlockHash, Arc<Mutex<Election>>) {
+    fn create_election(key: impl Into<PrivateKey>) -> (BlockHash, EndedElection) {
         let block = SavedBlock::new_test_instance_with_key(key);
-        let hash = block.hash();
-        let election = Arc::new(Mutex::new(Election::new_test_instance_with(block)));
-        (hash, election)
+        let winner_hash = block.hash();
+        (winner_hash, EndedElection::new(block))
     }
 }
