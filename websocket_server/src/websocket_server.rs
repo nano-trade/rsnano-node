@@ -202,12 +202,12 @@ pub struct NodeEventProcessor {
 impl NodeEventHandler for NodeEventProcessor {
     fn handle(&mut self, event: &NodeEvent) {
         match event {
-            NodeEvent::AecActiveStarted(hash) => {
+            NodeEvent::ElectionStarted(hash) => {
                 if self.server.any_subscriber(Topic::StartedElection) {
                     self.server.broadcast(&started_election(&hash));
                 }
             }
-            NodeEvent::AecActiveStopped(hash) => {
+            NodeEvent::ElectionStopped(hash) => {
                 if self.server.any_subscriber(Topic::StoppedElection) {
                     self.server.broadcast(&stopped_election(&hash));
                 }

@@ -40,8 +40,7 @@ pub enum AecEvent {
     /// An attempt was made to start an election, but an election for this block
     /// did already exist
     DuplicateElectionAttempt(BlockHash),
-    /// The election was dropped without being confirmed
-    ElectionDropped(BlockHash),
+    ElectionStopped(BlockHash),
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     VacancyUpdated,
@@ -132,7 +131,7 @@ impl ActiveElections {
             for (hash, block) in blocks {
                 // Notify observers about dropped elections & blocks lost confirmed elections
                 if !is_confirmed || hash != winner_hash {
-                    self.notify(AecEvent::ElectionDropped(hash));
+                    self.notify(AecEvent::ElectionStopped(hash));
                 }
 
                 if !is_confirmed {

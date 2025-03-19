@@ -1667,8 +1667,8 @@ fn make_store(
 }
 
 pub enum NodeEvent {
-    AecActiveStarted(BlockHash),
-    AecActiveStopped(BlockHash),
+    ElectionStarted(BlockHash),
+    ElectionStopped(BlockHash),
     BlockCemented(SavedBlock, EndedElection, Vec<VoteSummary>),
 }
 

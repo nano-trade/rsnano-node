@@ -34,15 +34,15 @@ impl AecEventProcessor {
                     self.election_voter.try_vote(&hash);
                     self.vote_cache_processor.trigger(hash);
                     if let Some(tx) = &self.node_event_sender {
-                        tx.send(NodeEvent::AecActiveStarted(hash)).unwrap();
+                        tx.send(NodeEvent::ElectionStarted(hash)).unwrap();
                     }
                 }
                 AecEvent::DuplicateElectionAttempt(hash) => {
                     self.election_voter.try_vote(&hash);
                 }
-                AecEvent::ElectionDropped(hash) => {
+                AecEvent::ElectionStopped(hash) => {
                     if let Some(tx) = &self.node_event_sender {
-                        tx.send(NodeEvent::AecActiveStopped(hash)).unwrap();
+                        tx.send(NodeEvent::ElectionStopped(hash)).unwrap();
                     }
                 }
 
