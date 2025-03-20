@@ -71,9 +71,7 @@ pub struct Election {
     last_confirm_req_sent: Option<Instant>,
     last_broadcasted_block: BlockHash,
     last_block_broadcast: Instant,
-    last_vote_generated: Option<Instant>,
     confirmation_request_count: usize,
-    vote_broadcast_count: usize,
 
     config: ElectionConfig,
 }
@@ -100,13 +98,11 @@ impl Election {
             final_tallies: BlockTallies::new(),
             winner_tally: Amount::zero(),
             winner_final_tally: Amount::zero(),
-            last_vote_generated: None,
             last_broadcasted_block: BlockHash::zero(),
             behavior,
             has_quorum: false,
             last_confirm_req_sent: None,
             confirmation_request_count: 0,
-            vote_broadcast_count: 0,
             last_block_broadcast: Instant::now(),
             start: now,
             config,
@@ -293,9 +289,6 @@ impl Election {
         }
 
         self.behavior = ElectionBehavior::Priority;
-
-        // allow new outgoing votes immediately
-        self.last_vote_generated = None;
         true
     }
 
@@ -309,10 +302,6 @@ impl Election {
         self.last_block_broadcast = Instant::now();
         self.last_broadcasted_block = self.winner.hash();
         is_initial_broadcast
-    }
-
-    pub fn vote_broadcast_count(&self) -> usize {
-        self.vote_broadcast_count
     }
 
     pub fn winner(&self) -> &MaybeSavedBlock {
@@ -349,22 +338,6 @@ impl Election {
             ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
             ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
         }
-    }
-
-    pub fn voted(&mut self) {
-        self.last_vote_generated = Some(Instant::now());
-        self.vote_broadcast_count += 1;
-    }
-
-    fn last_vote_elapsed(&self) -> Duration {
-        match &self.last_vote_generated {
-            Some(i) => i.elapsed(),
-            None => Duration::from_secs(60 * 60 * 24 * 365), // Duration::MAX caused problems with C++
-        }
-    }
-
-    pub fn can_vote(&self) -> bool {
-        self.last_vote_elapsed() >= self.config.vote_broadcast_interval
     }
 
     pub fn start(&self) -> Timestamp {

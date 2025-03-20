@@ -250,7 +250,6 @@ mod election_scheduler {
      * 2. Confirms the first block in the chain
      * 3. Attempts to start a priority election for the second block
      * 4. Verifies that the existing optimistic election is transitioned to priority
-     * 5. Verifies a new vote is broadcast after the transition
      */
     #[test]
     fn transition_optimistic_to_priority() {
@@ -299,18 +298,6 @@ mod election_scheduler {
                 .behavior(),
             ElectionBehavior::Optimistic
         );
-        assert_timely_eq2(
-            || {
-                node.active
-                    .read()
-                    .election_for_block(&block.hash())
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .vote_broadcast_count()
-            },
-            1,
-        );
 
         // Confirm first block to allow upgrading second block's election
         node.confirm(blocks[howmany_blocks - 1].hash());
@@ -329,19 +316,6 @@ mod election_scheduler {
                 .unwrap()
                 .behavior(),
             ElectionBehavior::Priority
-        );
-        // Verify vote broadcast after transitioning
-        assert_timely_eq2(
-            || {
-                node.active
-                    .read()
-                    .election_for_block(&block.hash())
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .vote_broadcast_count()
-            },
-            2,
         );
         assert!(node.active.is_active_root(&block.qualified_root()));
     }

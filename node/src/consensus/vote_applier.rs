@@ -233,7 +233,7 @@ impl VoteApplier {
 
                         if election.is_final() {
                             if !old_final {
-                                self.election_voter.try_vote_for_election(&mut election);
+                                self.election_voter.try_vote_for_election(&election);
                             }
                             if election.is_confirmed() {
                                 ended_election = Some(election.into_ended_election(

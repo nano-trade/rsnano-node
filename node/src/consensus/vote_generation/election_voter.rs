@@ -45,13 +45,13 @@ impl ElectionVoter {
 
     pub fn try_vote(&self, block_hash: &BlockHash) {
         if let Some(election) = self.active_elections.election_for_block(block_hash) {
-            self.try_vote_for_election(&mut election.lock().unwrap());
+            self.try_vote_for_election(&election.lock().unwrap());
         }
     }
 
     /// Broadcasts vote for the current winner of this election
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    pub fn try_vote_for_election(&self, election: &mut Election) {
+    pub fn try_vote_for_election(&self, election: &Election) {
         if !self.vote_generators.voting_enabled() {
             return;
         }
@@ -88,7 +88,6 @@ impl ElectionVoter {
             // Broadcasts vote to the network
         }
 
-        election.voted();
         self.last_votes
             .lock()
             .unwrap()
