@@ -117,6 +117,7 @@ impl VoteApplier {
                 online_reps.trended_or_minimum_weight(),
             )
         };
+        let now = self.clock.now();
         //--------------------------------------------------------------------------------
         let mut results = HashMap::new();
         let mut process = HashMap::new();
@@ -197,7 +198,7 @@ impl VoteApplier {
                         self.online_reps
                             .lock()
                             .unwrap()
-                            .vote_observed(vote.voter, self.clock.now());
+                            .vote_observed(vote.voter, now);
                     }
 
                     self.stats.inc(StatType::Election, DetailType::Vote);
@@ -244,22 +245,10 @@ impl VoteApplier {
                                     BlockSource::Election,
                                     ChannelId::LOOPBACK,
                                 );
-                                drop(election);
-                                {
-                                    let election = election_mutex.clone();
-                                    ended_election =
-                                        Some(election.lock().unwrap().into_ended_election(
-                                            self.clock.now(),
-                                            ElectionResult::ActiveConfirmedQuorum,
-                                        ));
-
-                                    //self.cementing_elections_cache
-                                    //    .lock()
-                                    //    .unwrap()
-                                    //    .insert(ended_election);
-
-                                    //self.confirming_set.add(winner_hash);
-                                };
+                                ended_election = Some(election.into_ended_election(
+                                    now,
+                                    ElectionResult::ActiveConfirmedQuorum,
+                                ));
                             }
                         }
                     }
