@@ -137,9 +137,9 @@ impl VoteApplier {
                     process.insert(*hash, election.clone());
                 } else {
                     if !active.was_recently_confirmed(hash) {
-                        results.insert(*hash, (VoteCode::Indeterminate, None, None));
+                        results.insert(*hash, (VoteCode::Indeterminate, None, None, None));
                     } else {
-                        results.insert(*hash, (VoteCode::Replay, None, None));
+                        results.insert(*hash, (VoteCode::Replay, None, None, None));
                     }
                 }
             }
@@ -150,6 +150,7 @@ impl VoteApplier {
             let mut result = VoteCode::Invalid;
             let mut ended_election = None;
             let mut final_vote = None;
+            let mut change_winner = None;
             let rep_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
             if !self.network_params.network.is_dev_network()
                 && rep_weight <= minimum_principal_weight
@@ -211,17 +212,18 @@ impl VoteApplier {
 
                         let winner_changed = election.winner().hash() != old_winner;
                         if winner_changed {
-                            // Remove votes from election
-                            let root = election.qualified_root().root;
-                            let list_generated_votes =
-                                self.history.votes(&root, &old_winner, false);
-                            for vote in list_generated_votes {
-                                election.remove_vote(&vote.voter);
-                            }
-                            // Clear votes cache
-                            self.history.erase(&root);
-                            // Roll back the previous winner and add the new winner to the ledger
-                            self.block_processor.force(election.winner().clone().into());
+                            change_winner = Some((old_winner, election.winner().clone()));
+                            //// Remove votes from election
+                            //let root = election.qualified_root().root;
+                            //let list_generated_votes =
+                            //    self.history.votes(&root, &old_winner, false);
+                            //for vote in list_generated_votes {
+                            //    election.remove_vote(&vote.voter);
+                            //}
+                            //// Clear votes cache
+                            //self.history.erase(&root);
+                            //// Roll back the previous winner and add the new winner to the ledger
+                            //self.block_processor.force(election.winner().clone().into());
                         }
 
                         if election.is_final() {
@@ -240,12 +242,35 @@ impl VoteApplier {
                 }
             }
 
-            results.insert(block_hash, (result, ended_election, final_vote));
+            results.insert(
+                block_hash,
+                (result, ended_election, final_vote, change_winner),
+            );
         }
 
         //--------------------------------------------------------------------------------
 
-        for (_hash, (result, ended_election, final_vote)) in &results {
+        for (_hash, (result, ended_election, final_vote, change_winner)) in &results {
+            if let Some((old_winner, new_winner)) = change_winner {
+                // Remove votes from election
+                let root = new_winner.root();
+                let list_generated_votes = self.history.votes(&root, &old_winner, false);
+                {
+                    if let Some(election_mutex) =
+                        self.active_elections.election_for_block(&new_winner.hash())
+                    {
+                        let mut election = election_mutex.lock().unwrap();
+                        for vote in list_generated_votes {
+                            election.remove_vote(&vote.voter);
+                        }
+                    }
+                }
+                // Clear votes cache
+                self.history.erase(&root);
+                // Roll back the previous winner and add the new winner to the ledger
+                self.block_processor.force(new_winner.clone().into());
+            }
+
             if *result == VoteCode::Vote {
                 if let Some(winner) = final_vote {
                     self.election_voter.try_vote_for_block(
@@ -276,7 +301,7 @@ impl VoteApplier {
 
         let results = results
             .drain()
-            .map(|(k, (result, _, _))| (k, result))
+            .map(|(k, (result, _, _, _))| (k, result))
             .collect();
         self.notify_vote_processed(vote, source, &results);
         results
