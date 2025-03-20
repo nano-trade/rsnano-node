@@ -3,12 +3,15 @@ use std::{
     time::Duration,
 };
 
-use rsnano_core::{BlockHash, Networks};
+use rsnano_core::{BlockHash, Networks, Root};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
 
-use crate::consensus::{ActiveElections, Election};
+use crate::consensus::{
+    ActiveElections, Election,
+    VoteType::{self, Final, NonFinal},
+};
 
 use super::{last_sent_votes::LastSentVotes, VoteGenerators};
 
@@ -44,22 +47,30 @@ impl ElectionVoter {
     }
 
     pub fn try_vote(&self, block_hash: &BlockHash) {
-        if let Some(election) = self.active_elections.election_for_block(block_hash) {
-            self.try_vote_for_election(&election.lock().unwrap());
-        }
+        let (block_hash, root, vote_type) = {
+            let active = self.active_elections.read();
+            let Some(election_mutex) = active.election_for_block(block_hash) else {
+                return;
+            };
+            let election = election_mutex.lock().unwrap();
+            (
+                election.winner().hash(),
+                election.qualified_root().root,
+                election.vote_type(),
+            )
+        };
+
+        self.try_vote_for_block(block_hash, root, vote_type);
     }
 
-    /// Broadcasts vote for the current winner of this election
+    /// Broadcasts vote for the given block hash
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    pub fn try_vote_for_election(&self, election: &Election) {
+    pub fn try_vote_for_block(&self, block_hash: BlockHash, root: Root, vote_type: VoteType) {
         if !self.vote_generators.voting_enabled() {
             return;
         }
 
-        let vote_type = election.vote_type();
-        let winner_hash = election.winner().hash();
-
-        let last_vote = self.last_votes.lock().unwrap().get(winner_hash, vote_type);
+        let last_vote = self.last_votes.lock().unwrap().get(block_hash, vote_type);
 
         if let Some(last_vote) = last_vote {
             if last_vote.elapsed(self.clock.now()) < self.vote_broadcast_interval {
@@ -70,27 +81,23 @@ impl ElectionVoter {
         self.stats
             .inc(StatType::Election, DetailType::BroadcastVote);
 
-        let winner = election.winner().hash();
-
-        if election.is_final() {
-            self.stats
-                .inc(StatType::Election, DetailType::GenerateVoteFinal);
-            trace!(qualified_root = ?election.qualified_root(), %winner, "type" = "final", "broadcast vote");
-            self.vote_generators
-                .generate_final_vote(&election.qualified_root().root, &winner);
-        // Broadcasts vote to the network
-        } else {
-            self.stats
-                .inc(StatType::Election, DetailType::GenerateVoteNormal);
-            trace!(qualified_root = ?election.qualified_root(), %winner, "type" = "normal", "broadcast vote");
-            self.vote_generators
-                .generate_non_final_vote(&election.qualified_root().root, &winner);
-            // Broadcasts vote to the network
+        match vote_type {
+            NonFinal => {
+                self.stats
+                    .inc(StatType::Election, DetailType::GenerateVoteNormal);
+                self.vote_generators
+                    .generate_non_final_vote(&root, &block_hash);
+            }
+            Final => {
+                self.stats
+                    .inc(StatType::Election, DetailType::GenerateVoteFinal);
+                self.vote_generators.generate_final_vote(&root, &block_hash);
+            }
         }
 
         self.last_votes
             .lock()
             .unwrap()
-            .insert(winner_hash, vote_type, self.clock.now());
+            .insert(block_hash, vote_type, self.clock.now());
     }
 }

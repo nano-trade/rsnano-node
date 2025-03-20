@@ -233,7 +233,11 @@ impl VoteApplier {
 
                         if election.is_final() {
                             if !old_final {
-                                self.election_voter.try_vote_for_election(&election);
+                                self.election_voter.try_vote_for_block(
+                                    election.winner().hash(),
+                                    election.winner().root(),
+                                    election.vote_type(),
+                                );
                             }
                             if election.is_confirmed() {
                                 ended_election = Some(election.into_ended_election(
