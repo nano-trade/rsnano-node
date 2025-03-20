@@ -260,23 +260,14 @@ impl VoteApplier {
     }
 
     pub fn force_confirm(&self, block_hash: &BlockHash) {
-        let election = self
+        let ended_election = self
             .active_elections
-            .election_for_block(block_hash)
+            .force_confirm(block_hash)
             .expect("no election found for given block");
-        election.lock().unwrap().force_confirm();
-
-        self.election_confirmed(election.clone());
-    }
-
-    fn election_confirmed(&self, election: Arc<Mutex<Election>>) {
-        let ended_election = election
-            .lock()
-            .unwrap()
-            .into_ended_election(self.clock.now(), ElectionResult::ActiveConfirmedQuorum);
 
         let winner_hash = ended_election.winner.hash();
 
+        // These lines are duplicated! TODO remove duplication
         self.cementing_elections_cache
             .lock()
             .unwrap()

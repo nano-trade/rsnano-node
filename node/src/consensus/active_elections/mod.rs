@@ -114,14 +114,6 @@ impl ActiveElections {
         self.container.write().unwrap().clear_recently_confirmed();
     }
 
-    pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<Arc<Mutex<Election>>> {
-        self.container
-            .read()
-            .unwrap()
-            .election_for_block(block_hash)
-            .cloned()
-    }
-
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
         let removed = self.container.write().unwrap().erase(root);
 
@@ -338,6 +330,13 @@ impl ActiveElections {
             quorum_delta,
             self.clock.now(),
         )
+    }
+
+    pub fn force_confirm(&self, block_hash: &BlockHash) -> Option<EndedElection> {
+        self.container
+            .write()
+            .unwrap()
+            .force_confirm(block_hash, self.clock.now())
     }
 }
 

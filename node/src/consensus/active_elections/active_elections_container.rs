@@ -482,6 +482,17 @@ impl ActiveElectionsContainer {
 
         results
     }
+
+    pub fn force_confirm(&self, block_hash: &BlockHash, now: Timestamp) -> Option<EndedElection> {
+        let election = self.election_for_block(block_hash)?;
+        election.lock().unwrap().force_confirm();
+
+        let ended_election = election
+            .lock()
+            .unwrap()
+            .into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
+        Some(ended_election)
+    }
 }
 
 pub struct ElectionInsertInfo {
