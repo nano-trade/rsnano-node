@@ -16,7 +16,6 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::ordered_entries::OrderedEntries;
 use crate::{
     block_processing::BlockContext,
-    consensus::Election,
     utils::{ThreadPool, ThreadPoolImpl},
 };
 

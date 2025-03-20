@@ -175,22 +175,17 @@ impl BucketExt for Arc<Bucket> {
         });
 
         let root = block.qualified_root();
-        let result = self
+        let inserted = self
             .active
             .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
-        let inserted = if result.is_some() {
+        if inserted {
             self.data
                 .lock()
                 .unwrap()
                 .elections
                 .insert(ElectionEntry { root, priority });
-            true
-        } else {
-            false
-        };
 
-        if inserted {
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::ActivateSuccess);
         } else {

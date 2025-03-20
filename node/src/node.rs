@@ -146,7 +146,7 @@ pub struct Node {
     pub ledger_notifications: LedgerNotifications,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
-    active_elections_driver: TimerThread<ActiveElectionsDriver>,
+    pub active_elections_driver: TimerThread<ActiveElectionsDriver>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<EndedElection>>>,
 }
 

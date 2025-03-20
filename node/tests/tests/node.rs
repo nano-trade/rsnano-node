@@ -2150,6 +2150,8 @@ fn rollback_vote_self() {
         // Going out of the scope allows the rollback to complete
     }
 
+    node.active_elections_driver
+        .start(Duration::from_millis(25));
     // A vote is eventually generated from the local representative
     assert_timely2(|| node.block_confirmed(&fork.hash()));
 }

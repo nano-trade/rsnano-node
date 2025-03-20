@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    mem::size_of,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, mem::size_of};
 
 use rsnano_core::{utils::ContainerInfo, BlockHash, QualifiedRoot};
 
@@ -35,7 +31,7 @@ impl VoteRouter {
         }
     }
 
-    /// Remove all routes to this election
+    /// Remove route to this block
     pub fn disconnect(&mut self, hash: &BlockHash) {
         self.elections.remove(hash);
     }
@@ -52,7 +48,7 @@ impl VoteRouter {
         [(
             "elections",
             self.elections.len(),
-            size_of::<BlockHash>() + size_of::<Arc<Mutex<Election>>>(),
+            size_of::<BlockHash>() + size_of::<QualifiedRoot>(),
         )]
         .into()
     }

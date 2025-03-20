@@ -14,15 +14,15 @@ use crate::{
 use super::{ActiveElections, BlockVoter, ConfirmationSolicitor, Election, ElectionState};
 
 /// Periodically tries to transitions election state and send votes + blocks
-pub(crate) struct ActiveElectionsDriver {
-    pub active_elections: Arc<ActiveElections>,
-    pub stats: Arc<Stats>,
-    pub message_flooder: MessageFlooder,
-    pub network_params: NetworkParams,
-    pub online_reps: Arc<Mutex<OnlineReps>>,
-    pub network: Arc<RwLock<Network>>,
-    pub clock: Arc<SteadyClock>,
-    pub block_voter: Arc<BlockVoter>,
+pub struct ActiveElectionsDriver {
+    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) stats: Arc<Stats>,
+    pub(crate) message_flooder: MessageFlooder,
+    pub(crate) network_params: NetworkParams,
+    pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
+    pub(crate) network: Arc<RwLock<Network>>,
+    pub(crate) clock: Arc<SteadyClock>,
+    pub(crate) block_voter: Arc<BlockVoter>,
 }
 
 impl ActiveElectionsDriver {
@@ -90,6 +90,13 @@ impl Runnable for ActiveElectionsDriver {
                 new_state = election.state();
 
                 match new_state {
+                    ElectionState::Passive => {
+                        self.block_voter.try_vote_for_block(
+                            election.winner().hash(),
+                            election.winner().root(),
+                            election.vote_type(),
+                        );
+                    }
                     ElectionState::Active => {
                         self.block_voter.try_vote_for_block(
                             election.winner().hash(),

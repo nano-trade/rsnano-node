@@ -37,9 +37,6 @@ impl AecEventProcessor {
                         tx.send(NodeEvent::ElectionStarted(hash)).unwrap();
                     }
                 }
-                AecEvent::DuplicateElectionAttempt(hash) => {
-                    self.block_voter.try_vote(&hash);
-                }
                 AecEvent::ElectionStopped(hash) => {
                     if let Some(tx) = &self.node_event_sender {
                         tx.send(NodeEvent::ElectionStopped(hash)).unwrap();

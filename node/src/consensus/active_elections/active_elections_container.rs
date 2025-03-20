@@ -79,9 +79,9 @@ impl ActiveElectionsContainer {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
         now: Timestamp,
-    ) -> Option<ElectionInsertInfo> {
+    ) -> bool {
         if self.stopped {
-            return None;
+            return false;
         }
 
         let hash = block.hash();
@@ -89,53 +89,35 @@ impl ActiveElectionsContainer {
 
         if self.recently_confirmed.root_exists(&root) {
             // This block or a fork got recently confirmed, so there is no need for a new election.
-            return None;
+            return false;
         }
 
         let existing = self.roots.get(&root).map(|i| i.election.clone());
 
-        let result = {
-            if let Some(existing) = existing {
-                {
-                    // Try upgrading to priority election to enable immediate vote broadcasting.
-                    let mut election = existing.lock().unwrap();
-                    self.maybe_upgrade_to(election_behavior, &mut election);
-                }
-                Some(ElectionInsertInfo {
-                    election: existing,
-                    inserted: false,
-                })
-            } else {
-                let election = Arc::new(Mutex::new(Election::new(
-                    block,
-                    election_behavior,
-                    self.config.clone(),
-                    now,
-                )));
-
-                self.roots.insert(Entry {
-                    root: root.clone(),
-                    election: election.clone(),
-                    erased_callback,
-                });
-
-                // Keep track of election count by election type
-                *self.count_by_behavior_mut(election_behavior) += 1;
-
-                Some(ElectionInsertInfo {
-                    election,
-                    inserted: true,
-                })
-            }
-        };
-
-        if let Some(info) = &result {
-            if info.inserted {
-                self.vote_router.connect(hash, root);
-            }
+        if let Some(existing) = existing {
+            // Try upgrading to priority election to enable immediate vote broadcasting.
+            let mut election = existing.lock().unwrap();
+            self.maybe_upgrade_to(election_behavior, &mut election);
+            return false;
         }
 
-        result
+        let election = Arc::new(Mutex::new(Election::new(
+            block,
+            election_behavior,
+            self.config.clone(),
+            now,
+        )));
+
+        self.roots.insert(Entry {
+            root: root.clone(),
+            election: election.clone(),
+            erased_callback,
+        });
+
+        // Keep track of election count by election type
+        *self.count_by_behavior_mut(election_behavior) += 1;
+        self.vote_router.connect(hash, root);
+        true
     }
 
     fn maybe_upgrade_to(
@@ -499,11 +481,6 @@ impl ActiveElectionsContainer {
             election.lock().unwrap().cancel();
         }
     }
-}
-
-pub struct ElectionInsertInfo {
-    pub election: Arc<Mutex<Election>>,
-    pub inserted: bool,
 }
 
 #[derive(Default)]

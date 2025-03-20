@@ -43,9 +43,6 @@ impl Default for ActiveElectionsConfig {
 
 pub enum AecEvent {
     ElectionStarted(BlockHash),
-    /// An attempt was made to start an election, but an election for this block
-    /// did already exist
-    DuplicateElectionAttempt(BlockHash),
     ElectionStopped(BlockHash),
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
@@ -182,31 +179,27 @@ impl ActiveElections {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-    ) -> Option<ElectionInsertInfo> {
+    ) -> bool {
         let hash = block.hash();
 
-        let result = self.container.write().unwrap().insert(
+        let inserted = self.container.write().unwrap().insert(
             block,
             election_behavior,
             erased_callback,
             self.clock.now(),
         );
 
-        if let Some(info) = &result {
-            if info.inserted {
-                self.stats
-                    .inc(StatType::ActiveElections, DetailType::Started);
-                self.stats
-                    .inc(StatType::ActiveElectionsStarted, election_behavior.into());
+        if inserted {
+            self.stats
+                .inc(StatType::ActiveElections, DetailType::Started);
+            self.stats
+                .inc(StatType::ActiveElectionsStarted, election_behavior.into());
 
-                debug!(behavior = ?election_behavior, block = %hash, "Started new election");
-                self.notify(AecEvent::ElectionStarted(hash));
-            } else {
-                self.notify(AecEvent::DuplicateElectionAttempt(hash));
-            }
+            debug!(behavior = ?election_behavior, block = %hash, "Started new election");
+            self.notify(AecEvent::ElectionStarted(hash));
         }
 
-        result
+        inserted
     }
 
     pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
