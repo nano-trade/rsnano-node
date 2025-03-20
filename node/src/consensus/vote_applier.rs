@@ -1,14 +1,14 @@
 use std::{
     collections::HashMap,
-    sync::{mpsc::SyncSender, Arc, Mutex, MutexGuard, RwLock},
-    time::{Duration, SystemTime},
+    sync::{mpsc::SyncSender, Arc, Mutex, RwLock},
+    time::SystemTime,
 };
 
 use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, BlockHash, MaybeSavedBlock, PublicKey, SavedBlock, Vote,
-    VoteCode, VoteSource,
+    utils::UnixMillisTimestamp, BlockHash, MaybeSavedBlock, PublicKey, SavedBlock, Vote, VoteCode,
+    VoteSource,
 };
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
@@ -22,7 +22,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::NetworkParams,
-    consensus::ElectionResult,
+    consensus::{ActiveElectionsContainer, ElectionResult},
     representatives::OnlineReps,
     wallets::Wallets,
 };
@@ -110,7 +110,13 @@ impl VoteApplier {
         debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
 
         let rep_weights = self.ledger.rep_weights.read();
-        let minimum_principal_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
+        let (minimum_principal_weight, online_weight) = {
+            let online_reps = self.online_reps.lock().unwrap();
+            (
+                online_reps.minimum_principal_weight(),
+                online_reps.trended_or_minimum_weight(),
+            )
+        };
         //--------------------------------------------------------------------------------
         let mut results = HashMap::new();
         let mut process = HashMap::new();
@@ -149,9 +155,9 @@ impl VoteApplier {
                 let rep: &PublicKey = &vote.voter;
                 let timestamp = vote.timestamp();
                 let mut result = VoteCode::Invalid;
-                let weight = rep_weights.get(rep).cloned().unwrap_or_default();
+                let rep_weight = rep_weights.get(rep).cloned().unwrap_or_default();
                 if !self.network_params.network.is_dev_network()
-                    && weight <= minimum_principal_weight
+                    && rep_weight <= minimum_principal_weight
                 {
                     result = VoteCode::Indeterminate;
                 }
@@ -174,7 +180,10 @@ impl VoteApplier {
                             let mut past_cooldown = true;
                             // Only cooldown live votes
                             if source != VoteSource::Cache {
-                                let cooldown = self.cooldown_time(weight);
+                                let cooldown = ActiveElectionsContainer::cooldown_time(
+                                    rep_weight,
+                                    online_weight,
+                                );
                                 past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
                             }
 
@@ -202,7 +211,7 @@ impl VoteApplier {
                     hash = %block_hash,
                     %timestamp,
                     ?source,
-                    ?weight,
+                    ?rep_weight,
                     "vote processed");
 
                         // CONFIRM IF QUORUM:
@@ -263,21 +272,6 @@ impl VoteApplier {
         //--------------------------------------------------------------------------------
         self.notify_vote_processed(vote, source, &results);
         results
-    }
-
-    /// Calculates minimum time delay between subsequent votes when processing non-final votes
-    fn cooldown_time(&self, weight: Amount) -> Duration {
-        let online_stake = { self.online_reps.lock().unwrap().trended_or_minimum_weight() };
-        if weight > online_stake / 20 {
-            // Reps with more than 5% weight
-            Duration::from_secs(1)
-        } else if weight > online_stake / 100 {
-            // Reps with more than 1% weight
-            Duration::from_secs(5)
-        } else {
-            // The rest of smaller reps
-            Duration::from_secs(15)
-        }
     }
 
     fn notify_vote_processed(

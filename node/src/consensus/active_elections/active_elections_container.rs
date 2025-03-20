@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_nullable_clock::Timestamp;
@@ -336,6 +339,20 @@ impl ActiveElectionsContainer {
             )
             .node("vote_router", self.vote_router.container_info())
             .finish()
+    }
+
+    /// Calculates minimum time delay between subsequent votes when processing non-final votes
+    pub fn cooldown_time(rep_weight: Amount, online_weight: Amount) -> Duration {
+        if rep_weight > online_weight / 20 {
+            // Reps with more than 5% weight
+            Duration::from_secs(1)
+        } else if rep_weight > online_weight / 100 {
+            // Reps with more than 1% weight
+            Duration::from_secs(5)
+        } else {
+            // The rest of smaller reps
+            Duration::from_secs(15)
+        }
     }
 }
 
