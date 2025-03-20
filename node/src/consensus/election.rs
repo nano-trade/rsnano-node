@@ -45,6 +45,12 @@ impl ElectionConfig {
     }
 }
 
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
+pub enum VoteType {
+    NonFinal,
+    Final,
+}
+
 pub struct Election {
     qualified_root: QualifiedRoot,
     winner: MaybeSavedBlock,
