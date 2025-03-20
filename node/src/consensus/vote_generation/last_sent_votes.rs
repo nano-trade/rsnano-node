@@ -12,6 +12,7 @@ pub(crate) struct LastSentVotes {
     sequential: VecDeque<(BlockHash, VoteType, Timestamp)>,
 }
 
+#[allow(dead_code)]
 impl LastSentVotes {
     pub(crate) fn new() -> Self {
         Self::with_max_len(1024 * 32)

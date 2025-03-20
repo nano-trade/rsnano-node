@@ -6,7 +6,7 @@ pub use active_elections_container::*;
 
 use std::{
     collections::HashMap,
-    sync::{mpsc::SyncSender, Arc, Mutex, RwLock, RwLockReadGuard},
+    sync::{mpsc::SyncSender, Arc, RwLock, RwLockReadGuard},
     time::SystemTime,
 };
 
@@ -21,8 +21,7 @@ use rsnano_core::{
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{
-    AddForkResult, Election, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter,
-    VoteSummary,
+    AddForkResult, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter, VoteSummary,
 };
 
 #[derive(Clone, Debug, PartialEq)]

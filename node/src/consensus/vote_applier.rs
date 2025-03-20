@@ -12,7 +12,7 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    ActiveElections, BlockVoter, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
+    ActiveElections, BlockVoter, CementingElectionsCache, EndedElection, LocalVoteHistory,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},

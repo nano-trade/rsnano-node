@@ -3,7 +3,7 @@ use std::{
     sync::{
         atomic::{AtomicU16, Ordering},
         mpsc::SyncSender,
-        Arc, Mutex, OnceLock,
+        Arc, OnceLock,
     },
     thread::sleep,
     time::{Duration, Instant},
@@ -23,7 +23,6 @@ use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NetworkParams, NodeConfig, NodeFlags},
-    consensus::Election,
     unique_path,
     wallets::WalletsExt,
     Node, NodeBuilder, NodeEvent,

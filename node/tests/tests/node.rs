@@ -8,8 +8,7 @@ use std::{
 
 use rsnano_core::{
     utils::UnixMillisTimestamp, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
-    PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource,
-    DEV_GENESIS_KEY,
+    PublicKey, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, ConfirmedSet, LedgerSet, Writer,
@@ -20,7 +19,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{AggregatorRequest, VoteApplierEvent, VoteSummary},
+    consensus::{AggregatorRequest, VoteApplierEvent},
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
