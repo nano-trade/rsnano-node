@@ -493,6 +493,12 @@ impl ActiveElectionsContainer {
             .into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
         Some(ended_election)
     }
+
+    pub fn cancel(&self, root: &QualifiedRoot) {
+        if let Some(election) = self.election_for_root(root) {
+            election.lock().unwrap().cancel();
+        }
+    }
 }
 
 pub struct ElectionInsertInfo {

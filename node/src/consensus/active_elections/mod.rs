@@ -337,6 +337,10 @@ impl ActiveElections {
             .unwrap()
             .force_confirm(block_hash, self.clock.now())
     }
+
+    pub fn cancel(&self, root: &QualifiedRoot) {
+        self.container.write().unwrap().cancel(root);
+    }
 }
 
 impl Drop for ActiveElections {

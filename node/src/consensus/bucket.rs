@@ -8,7 +8,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections, Election, ElectionBehavior,
+    ActiveElections, ElectionBehavior,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,7 +109,7 @@ impl Bucket {
     pub fn update(&self) {
         let guard = self.data.lock().unwrap();
         if self.election_overfill(&guard) {
-            guard.cancel_lowest_election();
+            guard.cancel_lowest_election(&self.active);
             drop(guard);
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::CancelLowest);
@@ -174,17 +174,17 @@ impl BucketExt for Arc<Bucket> {
             guard.elections.erase(root);
         });
 
+        let root = block.qualified_root();
         let result = self
             .active
             .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
-        let inserted = if let Some(info) = result {
-            let root = info.election.lock().unwrap().qualified_root().clone();
-            self.data.lock().unwrap().elections.insert(ElectionEntry {
-                root,
-                election: info.election,
-                priority,
-            });
+        let inserted = if result.is_some() {
+            self.data
+                .lock()
+                .unwrap()
+                .elections
+                .insert(ElectionEntry { root, priority });
             true
         } else {
             false
@@ -208,15 +208,14 @@ struct BucketData {
 }
 
 impl BucketData {
-    fn cancel_lowest_election(&self) {
+    fn cancel_lowest_election(&self, active_elections: &ActiveElections) {
         if let Some(entry) = self.elections.entry_with_lowest_priority() {
-            entry.election.lock().unwrap().cancel();
+            active_elections.cancel(&entry.root);
         }
     }
 }
 
 struct ElectionEntry {
-    election: Arc<Mutex<Election>>,
     root: QualifiedRoot,
     priority: UnixTimestamp,
 }
