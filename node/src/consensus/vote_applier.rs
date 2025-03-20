@@ -97,7 +97,24 @@ impl VoteApplier {
         // If present, filter should be set to one of the hashes in the vote
         debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
 
+        if source != VoteSource::Cache {
+            let is_active = {
+                let active = self.active_elections.read();
+                vote.hashes.iter().any(|hash| active.is_active_hash(hash))
+            };
+
+            if is_active {
+                // Representative is defined as online if replying to live votes or rep_crawler queries.
+                // The rep weights have to be updated before the votes are processed!
+                self.online_reps
+                    .lock()
+                    .unwrap()
+                    .vote_observed(vote.voter, self.clock.now());
+            }
+        }
+
         let rep_weights = self.ledger.rep_weights.read();
+        let voter_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
         let (minimum_principal_weight, online_weight, quorum_delta) = {
             let online_reps = self.online_reps.lock().unwrap();
             (
@@ -125,7 +142,7 @@ impl VoteApplier {
                 time: sys_now,
                 timestamp: vote.timestamp(),
                 hash: *hash,
-                weight: rep_weights.get(&vote.voter).cloned().unwrap_or_default(),
+                weight: voter_weight,
             });
 
         let mut results = self.active_elections.apply_votes(

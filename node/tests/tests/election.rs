@@ -11,7 +11,6 @@ use test_helpers::{
 
 // FIXME: this test fails on rare occasions. It needs a review.
 #[test]
-#[ignore = "This rule isn't currently implemented"]
 fn quorum_minimum_update_weight_before_quorum_checks() {
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
