@@ -222,6 +222,18 @@ impl ActiveElectionsContainer {
         }
     }
 
+    pub(crate) fn erase_ended_elections(&mut self) -> Vec<Entry> {
+        let removed = self
+            .roots
+            .drain_filter(|i| i.election.lock().unwrap().state().has_ended());
+
+        for entry in &removed {
+            self.cleanup_election(entry);
+        }
+
+        removed
+    }
+
     pub(super) fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
         let entry = self.roots.erase(root);
         if let Some(e) = entry {
@@ -485,11 +497,6 @@ impl ActiveElectionsContainer {
         if let Some(election) = self.election_for_root(root) {
             election.lock().unwrap().cancel();
         }
-    }
-
-    pub(crate) fn erase_ended_elections(&mut self) -> Vec<Entry> {
-        self.roots
-            .drain_filter(|i| i.election.lock().unwrap().state().has_ended())
     }
 }
 
