@@ -238,13 +238,6 @@ impl VoteApplier {
                                 election.voted();
                             }
                             if election.is_confirmed() {
-                                // In some edge cases block might get rolled back while the election
-                                // is confirming, reprocess it to ensure it's present in the ledger
-                                self.block_processor.add(
-                                    election.winner().clone().into(),
-                                    BlockSource::Election,
-                                    ChannelId::LOOPBACK,
-                                );
                                 ended_election = Some(election.into_ended_election(
                                     now,
                                     ElectionResult::ActiveConfirmedQuorum,
@@ -263,6 +256,14 @@ impl VoteApplier {
 
         for (_hash, (_result, ended_election)) in &results {
             if let Some(election) = &ended_election {
+                // In some edge cases block might get rolled back while the election
+                // is confirming, reprocess it to ensure it's present in the ledger
+                self.block_processor.add(
+                    election.winner.clone().into(),
+                    BlockSource::Election,
+                    ChannelId::LOOPBACK,
+                );
+
                 self.cementing_elections_cache
                     .lock()
                     .unwrap()
