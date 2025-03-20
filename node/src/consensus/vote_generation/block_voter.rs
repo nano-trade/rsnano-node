@@ -4,7 +4,7 @@ use std::{
 };
 
 use rsnano_core::{BlockHash, Networks, Root};
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::consensus::{
@@ -12,7 +12,7 @@ use crate::consensus::{
     VoteType::{self, Final, NonFinal},
 };
 
-use super::{last_sent_votes::LastSentVotes, VoteGenerators};
+use super::{bounded_hash_map::BoundedHashMap, VoteGenerators};
 
 /// Tries to enqueue a vote for a given block
 pub(crate) struct BlockVoter {
@@ -20,7 +20,7 @@ pub(crate) struct BlockVoter {
     vote_generators: Arc<VoteGenerators>,
     active_elections: Arc<ActiveElections>,
     clock: Arc<SteadyClock>,
-    last_votes: Mutex<LastSentVotes>,
+    last_votes: Mutex<BoundedHashMap<(BlockHash, VoteType), Timestamp>>,
     vote_broadcast_interval: Duration,
 }
 
@@ -37,7 +37,7 @@ impl BlockVoter {
             vote_generators,
             active_elections,
             clock,
-            last_votes: Mutex::new(LastSentVotes::default()),
+            last_votes: Mutex::new(BoundedHashMap::default()),
             vote_broadcast_interval: match network {
                 Networks::NanoDevNetwork => Duration::from_millis(500),
                 _ => Duration::from_secs(15),
@@ -69,7 +69,12 @@ impl BlockVoter {
             return;
         }
 
-        let last_vote = self.last_votes.lock().unwrap().get(block_hash, vote_type);
+        let last_vote = self
+            .last_votes
+            .lock()
+            .unwrap()
+            .get(&(block_hash, vote_type))
+            .cloned();
 
         if let Some(last_vote) = last_vote {
             if last_vote.elapsed(self.clock.now()) < self.vote_broadcast_interval {
@@ -97,6 +102,6 @@ impl BlockVoter {
         self.last_votes
             .lock()
             .unwrap()
-            .insert(block_hash, vote_type, self.clock.now());
+            .insert((block_hash, vote_type), self.clock.now());
     }
 }

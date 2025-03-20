@@ -231,6 +231,14 @@ impl Election {
         }
     }
 
+    /// Returns true, if it was the initial broadcast
+    pub fn winner_block_broadcasted(&mut self) -> bool {
+        let is_initial_broadcast = self.last_broadcasted_block.is_zero();
+        self.last_block_broadcast = Instant::now();
+        self.last_broadcasted_block = self.winner.hash();
+        is_initial_broadcast
+    }
+
     /// Calculates time delay between broadcasting confirmation requests
     fn confirm_req_interval(&self) -> Duration {
         match self.behavior {
@@ -294,14 +302,6 @@ impl Election {
 
     pub fn is_confirmed(&self) -> bool {
         self.state.is_confirmed()
-    }
-
-    /// Returns true, if it was the initial broadcast
-    pub fn winner_block_broadcasted(&mut self) -> bool {
-        let is_initial_broadcast = self.last_broadcasted_block.is_zero();
-        self.last_block_broadcast = Instant::now();
-        self.last_broadcasted_block = self.winner.hash();
-        is_initial_broadcast
     }
 
     pub fn winner(&self) -> &MaybeSavedBlock {

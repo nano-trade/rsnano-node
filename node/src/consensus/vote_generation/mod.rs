@@ -1,5 +1,5 @@
 mod block_voter;
-mod last_sent_votes;
+mod bounded_hash_map;
 mod local_vote_history;
 mod request_aggregator;
 mod request_aggregator_impl;

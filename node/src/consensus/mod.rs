@@ -23,6 +23,7 @@ mod vote_generation;
 mod vote_processor;
 mod vote_processor_queue;
 mod vote_router;
+mod winner_block_broadcaster;
 
 pub use active_elections::*;
 pub(crate) use active_elections_driver::ActiveElectionsDriver;
