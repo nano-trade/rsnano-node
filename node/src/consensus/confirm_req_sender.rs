@@ -21,16 +21,11 @@ impl ConfirmReqSender {
         }
     }
 
-    pub fn send_confirm_req(
-        &mut self,
-        solicitor: &mut ConfirmationSolicitor,
-        election: &mut Election,
-    ) {
+    pub fn send_confirm_req(&mut self, solicitor: &mut ConfirmationSolicitor, election: &Election) {
         if self.should_send_confirm_req(election) {
             if solicitor.add(election) {
                 self.last_requests
                     .insert(election.qualified_root().clone(), self.clock.now());
-                election.confirm_request_sent();
                 self.stats
                     .inc(StatType::Election, DetailType::ConfirmationRequest);
             }

@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 use rsnano_core::{
@@ -68,9 +68,6 @@ pub struct Election {
     has_quorum: bool,
 
     start: Timestamp,
-    last_confirm_req_sent: Option<Instant>,
-    confirmation_request_count: usize,
-
     config: ElectionConfig,
 }
 
@@ -98,8 +95,6 @@ impl Election {
             winner_final_tally: Amount::zero(),
             behavior,
             has_quorum: false,
-            last_confirm_req_sent: None,
-            confirmation_request_count: 0,
             start: now,
             config,
             winner: MaybeSavedBlock::Saved(block),
@@ -194,10 +189,6 @@ impl Election {
         &self.tallies
     }
 
-    pub fn confirmation_request_count(&self) -> usize {
-        self.confirmation_request_count
-    }
-
     pub fn transition_time(&mut self, now: Timestamp) {
         let duration = self.start.elapsed(now);
         match self.state {
@@ -219,16 +210,6 @@ impl Election {
 
     pub fn base_latency(&self) -> Duration {
         self.config.base_latency
-    }
-
-    /// Calculates time delay between broadcasting confirmation requests
-    fn confirm_req_interval(&self) -> Duration {
-        match self.behavior {
-            ElectionBehavior::Priority | ElectionBehavior::Manual | ElectionBehavior::Hinted => {
-                self.config.base_latency * 5
-            }
-            ElectionBehavior::Optimistic => self.config.base_latency * 2,
-        }
     }
 
     pub fn has_quorum(&self) -> bool {
@@ -288,18 +269,6 @@ impl Election {
 
     pub fn winner(&self) -> &MaybeSavedBlock {
         &self.winner
-    }
-
-    pub fn confirm_request_sent(&mut self) {
-        self.last_confirm_req_sent = Some(Instant::now());
-        self.confirmation_request_count += 1;
-    }
-
-    fn last_confirm_request_elapsed(&self) -> Duration {
-        match self.last_confirm_req_sent {
-            Some(i) => i.elapsed(),
-            None => Duration::MAX,
-        }
     }
 
     pub fn force_confirm(&mut self) -> bool {
@@ -472,7 +441,6 @@ impl Election {
             winner: self.winner().clone(),
             tally: self.winner_tally(),
             final_tally: self.winner_final_tally(),
-            confirmation_request_count: self.confirmation_request_count() as u32,
             block_count: self.block_count() as u32,
             voter_count: self.votes().len() as u32,
             election_duration: self.start().elapsed(now),

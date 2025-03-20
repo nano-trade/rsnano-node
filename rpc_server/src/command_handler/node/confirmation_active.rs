@@ -13,7 +13,7 @@ impl RpcCommandHandler {
         let active_elections: Vec<_> = self.node.active.read().iter().cloned().collect();
         for election in active_elections {
             let el = election.lock().unwrap();
-            let req_count = el.confirmation_request_count();
+            let req_count = 0; // not supported in RsNano
             if req_count as u64 >= announcements {
                 if !el.is_confirmed() {
                     elections.push(el.qualified_root().clone());

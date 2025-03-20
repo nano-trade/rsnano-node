@@ -27,7 +27,7 @@ impl RpcCommandHandler {
                     final_tally: election.final_tally,
                     blocks: election.block_count.into(),
                     voters: election.voter_count.into(),
-                    request_count: election.confirmation_request_count.into(),
+                    request_count: 0.into(), // currently not supported in RsNano
                 });
             }
             running_total += election.election_duration;

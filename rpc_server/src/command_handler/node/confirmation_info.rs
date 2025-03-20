@@ -21,7 +21,7 @@ impl RpcCommandHandler {
         }
 
         let election = election_mutex.lock().unwrap();
-        let announcements = election.confirmation_request_count();
+        let announcements = 0; // not supported in RsNano
         let voters = election.votes().len();
         let last_winner = election.winner().hash();
         let final_tally = election.winner_final_tally();

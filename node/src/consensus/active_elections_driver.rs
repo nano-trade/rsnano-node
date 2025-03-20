@@ -78,14 +78,14 @@ impl Runnable for ActiveElectionsDriver {
                         self.winner_block_broadcaster
                             .try_broadcast_winner(&mut solicitor, &election);
                         self.confirm_req_sender
-                            .send_confirm_req(&mut solicitor, &mut election);
+                            .send_confirm_req(&mut solicitor, &election);
                     }
                     _ => {}
                 }
 
                 if old_state == ElectionState::Confirmed {
                     self.winner_block_broadcaster
-                        .try_broadcast_winner(&mut solicitor, &mut election);
+                        .try_broadcast_winner(&mut solicitor, &election);
                     // Ensure election winner is broadcasted
                 }
             };

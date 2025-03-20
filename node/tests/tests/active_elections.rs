@@ -718,19 +718,6 @@ fn confirm_election_by_request() {
         false
     );
 
-    // Expect that node2 has nobody to send a confirmation_request to (no reps)
-    assert_eq!(
-        node2
-            .active
-            .read()
-            .election_for_root(&send1.qualified_root())
-            .unwrap()
-            .lock()
-            .unwrap()
-            .confirmation_request_count(),
-        0
-    );
-
     // Get random peer list from node2 -- so basically just node2
     let peers = node2.network.read().unwrap().sorted_channels();
     assert_eq!(peers.is_empty(), false);

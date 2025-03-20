@@ -41,7 +41,6 @@ pub struct EndedElection {
     pub winner: MaybeSavedBlock,
     pub tally: Amount,
     pub final_tally: Amount,
-    pub confirmation_request_count: u32,
     pub block_count: u32,
     pub voter_count: u32,
     pub election_end: SystemTime,
@@ -60,7 +59,6 @@ impl EndedElection {
             tally: Amount::zero(),
             final_tally: Amount::zero(),
             voter_count: 0,
-            confirmation_request_count: 0,
             election_duration: Duration::ZERO,
             votes: Vec::new(),
         }

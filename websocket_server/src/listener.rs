@@ -311,7 +311,7 @@ impl From<&EndedElection> for ElectionInfo {
             final_tally: value.final_tally.to_string_dec(),
             blocks: value.block_count.to_string(),
             voters: value.voter_count.to_string(),
-            request_count: value.confirmation_request_count.to_string(),
+            request_count: 0.to_string(), // currently not supported in RsNano
             votes: None,
         }
     }
