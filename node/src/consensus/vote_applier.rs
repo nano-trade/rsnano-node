@@ -213,17 +213,6 @@ impl VoteApplier {
                         let winner_changed = election.winner().hash() != old_winner;
                         if winner_changed {
                             change_winner = Some((old_winner, election.winner().clone()));
-                            //// Remove votes from election
-                            //let root = election.qualified_root().root;
-                            //let list_generated_votes =
-                            //    self.history.votes(&root, &old_winner, false);
-                            //for vote in list_generated_votes {
-                            //    election.remove_vote(&vote.voter);
-                            //}
-                            //// Clear votes cache
-                            //self.history.erase(&root);
-                            //// Roll back the previous winner and add the new winner to the ledger
-                            //self.block_processor.force(election.winner().clone().into());
                         }
 
                         if election.is_final() {
@@ -255,16 +244,10 @@ impl VoteApplier {
                 // Remove votes from election
                 let root = new_winner.root();
                 let list_generated_votes = self.history.votes(&root, &old_winner, false);
-                {
-                    if let Some(election_mutex) =
-                        self.active_elections.election_for_block(&new_winner.hash())
-                    {
-                        let mut election = election_mutex.lock().unwrap();
-                        for vote in list_generated_votes {
-                            election.remove_vote(&vote.voter);
-                        }
-                    }
-                }
+                self.active_elections.remove_votes(
+                    &new_winner.qualified_root(),
+                    list_generated_votes.iter().map(|i| &i.voter),
+                );
                 // Clear votes cache
                 self.history.erase(&root);
                 // Roll back the previous winner and add the new winner to the ledger

@@ -299,6 +299,21 @@ impl ActiveElections {
         let now = self.clock.now();
         self.container.read().unwrap().batch_cemented(batch, now)
     }
+
+    pub fn remove_votes<'a>(
+        &self,
+        root: &QualifiedRoot,
+        voters: impl IntoIterator<Item = &'a PublicKey>,
+    ) {
+        let container = self.container.write().unwrap();
+        let Some(election_mutex) = container.election_for_root(root) else {
+            return;
+        };
+        let mut election = election_mutex.lock().unwrap();
+        for voter in voters {
+            election.remove_vote(voter);
+        }
+    }
 }
 
 impl Drop for ActiveElections {
