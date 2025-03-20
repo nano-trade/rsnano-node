@@ -522,11 +522,12 @@ impl Node {
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
 
-        let election_voter = Arc::new(ElectionVoter {
-            stats: stats.clone(),
-            vote_generators: vote_generators.clone(),
-            active_elections: active_elections.clone(),
-        });
+        let election_voter = Arc::new(ElectionVoter::new(
+            stats.clone(),
+            vote_generators.clone(),
+            active_elections.clone(),
+            steady_clock.clone(),
+        ));
 
         let vote_applier = Arc::new(VoteApplier::new(
             active_elections.clone(),
@@ -540,6 +541,7 @@ impl Node {
             wallets.clone(),
             confirming_set.clone(),
             steady_clock.clone(),
+            election_voter.clone(),
         ));
 
         let vote_processor = Arc::new(VoteProcessor::new(

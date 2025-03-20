@@ -33,7 +33,7 @@ impl LastSentVotes {
         self.entries.len()
     }
 
-    fn insert(&mut self, hash: BlockHash, vote_type: VoteType, now: Timestamp) {
+    pub fn insert(&mut self, hash: BlockHash, vote_type: VoteType, now: Timestamp) {
         self.entries.insert((hash, vote_type), now);
         self.sequential.push_back((hash, vote_type, now));
         while self.entries.len() > self.max_len() {
@@ -45,7 +45,7 @@ impl LastSentVotes {
         }
     }
 
-    fn get(&self, hash: BlockHash, vote_type: VoteType) -> Option<Timestamp> {
+    pub fn get(&self, hash: BlockHash, vote_type: VoteType) -> Option<Timestamp> {
         self.entries.get(&(hash, vote_type)).cloned()
     }
 }

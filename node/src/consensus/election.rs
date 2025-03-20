@@ -254,6 +254,14 @@ impl Election {
         self.is_confirmed() || self.has_quorum()
     }
 
+    pub fn vote_type(&self) -> VoteType {
+        if self.is_final() {
+            VoteType::Final
+        } else {
+            VoteType::NonFinal
+        }
+    }
+
     pub fn cancel(&mut self) {
         if !self.state.has_ended() {
             self.state = ElectionState::Cancelled;

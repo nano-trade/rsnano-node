@@ -7,16 +7,15 @@ use std::{
 use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, BlockHash, MaybeSavedBlock, PublicKey, SavedBlock, Vote, VoteCode,
-    VoteSource,
+    utils::UnixMillisTimestamp, BlockHash, MaybeSavedBlock, SavedBlock, Vote, VoteCode, VoteSource,
 };
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    ActiveElections, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
-    VoteGenerators,
+    ActiveElections, CementingElectionsCache, Election, ElectionVoter, EndedElection,
+    LocalVoteHistory, VoteGenerators,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -47,6 +46,7 @@ pub struct VoteApplier {
     wallets: Arc<Wallets>,
     confirming_set: Arc<ConfirmingSet>,
     clock: Arc<SteadyClock>,
+    election_voter: Arc<ElectionVoter>,
     cementing_elections_cache: Mutex<CementingElectionsCache>,
 }
 
@@ -63,6 +63,7 @@ impl VoteApplier {
         wallets: Arc<Wallets>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
+        election_voter: Arc<ElectionVoter>,
     ) -> Self {
         Self {
             active_elections,
@@ -77,6 +78,7 @@ impl VoteApplier {
             wallets,
             confirming_set,
             clock,
+            election_voter,
             cementing_elections_cache: Mutex::new(CementingElectionsCache::default()),
         }
     }
@@ -230,12 +232,15 @@ impl VoteApplier {
                         }
 
                         if election.is_final() {
-                            if !old_final && self.wallets.voting_enabled() {
-                                self.vote_generators.generate_final_vote(
-                                    &election.qualified_root().root,
-                                    &election.winner().hash(),
-                                );
-                                election.voted();
+                            if !old_final {
+                                self.election_voter.try_vote_for_election(&mut election);
+                                //if self.wallets.voting_enabled() {
+                                //    self.vote_generators.generate_final_vote(
+                                //        &election.qualified_root().root,
+                                //        &election.winner().hash(),
+                                //    );
+                                //    election.voted();
+                                //}
                             }
                             if election.is_confirmed() {
                                 ended_election = Some(election.into_ended_election(
