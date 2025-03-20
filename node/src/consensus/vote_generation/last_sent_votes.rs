@@ -5,14 +5,14 @@ use rsnano_nullable_clock::Timestamp;
 
 use crate::consensus::VoteType;
 
-/// Keeps track of the sent votes;
-pub(crate) struct LastVotes {
+/// Keeps track of when votes were sent;
+pub(crate) struct LastSentVotes {
     max_len: usize,
     entries: HashMap<(BlockHash, VoteType), Timestamp>,
     sequential: VecDeque<(BlockHash, VoteType, Timestamp)>,
 }
 
-impl LastVotes {
+impl LastSentVotes {
     pub(crate) fn new() -> Self {
         Self::with_max_len(1024 * 32)
     }
@@ -50,7 +50,7 @@ impl LastVotes {
     }
 }
 
-impl Default for LastVotes {
+impl Default for LastSentVotes {
     fn default() -> Self {
         Self::new()
     }
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        let last_votes = LastVotes::default();
+        let last_votes = LastSentVotes::default();
         assert_eq!(last_votes.len(), 0);
         assert_eq!(last_votes.get(BlockHash::from(1), VoteType::NonFinal), None);
         assert_eq!(last_votes.max_len(), 32768);
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn insert() {
-        let mut last_votes = LastVotes::default();
+        let mut last_votes = LastSentVotes::default();
         let hash = BlockHash::from(1);
         let now = Timestamp::new_test_instance();
 
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn insert_replaces_previous_value() {
-        let mut last_votes = LastVotes::default();
+        let mut last_votes = LastSentVotes::default();
         let hash = BlockHash::from(1);
         let past = Timestamp::new_test_instance();
         let now = Timestamp::new_test_instance() + Duration::from_secs(60);
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn insert_differentiates_vote_type() {
-        let mut last_votes = LastVotes::default();
+        let mut last_votes = LastSentVotes::default();
         let hash = BlockHash::from(1);
         let now = Timestamp::new_test_instance();
         let later = Timestamp::new_test_instance() + Duration::from_secs(60);
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn insert_differentiates_hash() {
-        let mut last_votes = LastVotes::default();
+        let mut last_votes = LastSentVotes::default();
         let hash1 = BlockHash::from(1);
         let hash2 = BlockHash::from(2);
         let now = Timestamp::new_test_instance();
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn overfill() {
-        let mut last_votes = LastVotes::with_max_len(2);
+        let mut last_votes = LastSentVotes::with_max_len(2);
         let hash1 = BlockHash::from(1);
         let hash2 = BlockHash::from(2);
         let hash3 = BlockHash::from(3);
