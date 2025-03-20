@@ -47,7 +47,6 @@ pub struct EndedElection {
     pub election_end: SystemTime,
     pub election_duration: Duration,
     pub result: ElectionResult,
-    pub vote_broadcast_count: u32,
     pub votes: Vec<VoteSummary>,
 }
 
@@ -63,7 +62,6 @@ impl EndedElection {
             voter_count: 0,
             confirmation_request_count: 0,
             election_duration: Duration::ZERO,
-            vote_broadcast_count: 0,
             votes: Vec::new(),
         }
     }

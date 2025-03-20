@@ -512,7 +512,6 @@ impl Election {
             voter_count: self.votes().len() as u32,
             election_duration: self.start().elapsed(now),
             election_end: SystemTime::now(),
-            vote_broadcast_count: self.vote_broadcast_count() as u32,
             result,
             votes,
         }

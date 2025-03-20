@@ -12,25 +12,25 @@ impl RpcCommandHandler {
         let mut elections = Vec::new();
         let mut running_total = Duration::ZERO;
         let hash = args.hash.unwrap_or_default();
-        for status in self.node.recently_cemented.lock().unwrap().iter() {
-            if hash.is_zero() || status.winner.hash() == hash {
+        for election in self.node.recently_cemented.lock().unwrap().iter() {
+            if hash.is_zero() || election.winner.hash() == hash {
                 elections.push(ConfirmationEntry {
-                    hash: status.winner.hash(),
-                    duration: status.election_duration.as_secs().into(),
-                    time: (status
+                    hash: election.winner.hash(),
+                    duration: election.election_duration.as_secs().into(),
+                    time: (election
                         .election_end
                         .duration_since(UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_millis() as u64)
                         .into(),
-                    tally: status.tally,
-                    final_tally: status.final_tally,
-                    blocks: status.block_count.into(),
-                    voters: status.voter_count.into(),
-                    request_count: status.confirmation_request_count.into(),
+                    tally: election.tally,
+                    final_tally: election.final_tally,
+                    blocks: election.block_count.into(),
+                    voters: election.voter_count.into(),
+                    request_count: election.confirmation_request_count.into(),
                 });
             }
-            running_total += status.election_duration;
+            running_total += election.election_duration;
         }
 
         ConfirmationHistoryResponse {
