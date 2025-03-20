@@ -142,127 +142,151 @@ impl VoteApplier {
                     process.insert(*hash, election.clone());
                 } else {
                     if !active.was_recently_confirmed(hash) {
-                        results.insert(*hash, VoteCode::Indeterminate);
+                        results.insert(*hash, (VoteCode::Indeterminate, None));
                     } else {
-                        results.insert(*hash, VoteCode::Replay);
+                        results.insert(*hash, (VoteCode::Replay, None));
                     }
                 }
             }
         }
 
         for (block_hash, election_mutex) in process {
-            let vote_result = {
-                let timestamp = vote.timestamp();
-                let mut result = VoteCode::Invalid;
-                let rep_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
-                if !self.network_params.network.is_dev_network()
-                    && rep_weight <= minimum_principal_weight
-                {
-                    result = VoteCode::Indeterminate;
-                }
+            let timestamp = vote.timestamp();
+            let mut result = VoteCode::Invalid;
+            let mut ended_election = None;
+            let rep_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
+            if !self.network_params.network.is_dev_network()
+                && rep_weight <= minimum_principal_weight
+            {
+                result = VoteCode::Indeterminate;
+            }
 
-                if result == VoteCode::Invalid {
-                    let mut election = election_mutex.lock().unwrap();
+            if result == VoteCode::Invalid {
+                let mut election = election_mutex.lock().unwrap();
 
-                    if let Some(last_vote) = election.votes().get(&vote.voter) {
-                        if last_vote.timestamp > timestamp {
-                            result = VoteCode::Replay;
-                        } else if last_vote.timestamp == timestamp && !(last_vote.hash < block_hash)
-                        {
-                            result = VoteCode::Replay;
-                        }
-
-                        if result == VoteCode::Invalid {
-                            let max_vote = timestamp == UnixMillisTimestamp::MAX
-                                && last_vote.timestamp < timestamp;
-
-                            let mut past_cooldown = true;
-                            // Only cooldown live votes
-                            if source != VoteSource::Cache {
-                                let cooldown = ActiveElectionsContainer::cooldown_time(
-                                    rep_weight,
-                                    online_weight,
-                                );
-                                past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
-                            }
-
-                            if !max_vote && !past_cooldown {
-                                result = VoteCode::Ignored;
-                            }
-                        }
+                if let Some(last_vote) = election.votes().get(&vote.voter) {
+                    if last_vote.timestamp > timestamp {
+                        result = VoteCode::Replay;
+                    } else if last_vote.timestamp == timestamp && !(last_vote.hash < block_hash) {
+                        result = VoteCode::Replay;
                     }
 
                     if result == VoteCode::Invalid {
-                        election.add_vote(vote.voter, timestamp, block_hash);
+                        let max_vote = timestamp == UnixMillisTimestamp::MAX
+                            && last_vote.timestamp < timestamp;
 
+                        let mut past_cooldown = true;
+                        // Only cooldown live votes
                         if source != VoteSource::Cache {
-                            // Representative is defined as online if replying to live votes or rep_crawler queries
-                            self.online_reps
-                                .lock()
-                                .unwrap()
-                                .vote_observed(vote.voter, self.clock.now());
+                            let cooldown =
+                                ActiveElectionsContainer::cooldown_time(rep_weight, online_weight);
+                            past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
                         }
 
-                        self.stats.inc(StatType::Election, DetailType::Vote);
-                        self.stats.inc(StatType::ElectionVote, source.into());
-                        tracing::trace!(account = %vote.voter, hash = %block_hash, %timestamp, ?source, ?rep_weight, "vote processed");
-
-                        // CONFIRM IF QUORUM:
-                        if !election.is_confirmed() {
-                            let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
-
-                            let old_winner = election.winner().hash();
-                            let old_final = election.is_final();
-
-                            election.update_tallies(&rep_weights, quorum_delta);
-
-                            let winner_changed = election.winner().hash() != old_winner;
-                            if winner_changed {
-                                // Remove votes from election
-                                let root = election.qualified_root().root;
-                                let list_generated_votes =
-                                    self.history.votes(&root, &old_winner, false);
-                                for vote in list_generated_votes {
-                                    election.remove_vote(&vote.voter);
-                                }
-                                // Clear votes cache
-                                self.history.erase(&root);
-                                // Roll back the previous winner and add the new winner to the ledger
-                                self.block_processor.force(election.winner().clone().into());
-                            }
-
-                            if election.is_final() {
-                                if !old_final && self.wallets.voting_enabled() {
-                                    self.vote_generators.generate_final_vote(
-                                        &election.qualified_root().root,
-                                        &election.winner().hash(),
-                                    );
-                                    election.voted();
-                                }
-                                if election.is_confirmed() {
-                                    // In some edge cases block might get rolled back while the election
-                                    // is confirming, reprocess it to ensure it's present in the ledger
-                                    self.block_processor.add(
-                                        election.winner().clone().into(),
-                                        BlockSource::Election,
-                                        ChannelId::LOOPBACK,
-                                    );
-                                    drop(election);
-                                    self.election_confirmed(election_mutex.clone());
-                                }
-                            }
+                        if !max_vote && !past_cooldown {
+                            result = VoteCode::Ignored;
                         }
-                        result = VoteCode::Vote;
                     }
                 }
 
-                result
-            };
+                if result == VoteCode::Invalid {
+                    election.add_vote(vote.voter, timestamp, block_hash);
 
-            results.insert(block_hash, vote_result);
+                    if source != VoteSource::Cache {
+                        // Representative is defined as online if replying to live votes or rep_crawler queries
+                        self.online_reps
+                            .lock()
+                            .unwrap()
+                            .vote_observed(vote.voter, self.clock.now());
+                    }
+
+                    self.stats.inc(StatType::Election, DetailType::Vote);
+                    self.stats.inc(StatType::ElectionVote, source.into());
+                    tracing::trace!(account = %vote.voter, hash = %block_hash, %timestamp, ?source, ?rep_weight, "vote processed");
+
+                    // CONFIRM IF QUORUM:
+                    if !election.is_confirmed() {
+                        let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
+
+                        let old_winner = election.winner().hash();
+                        let old_final = election.is_final();
+
+                        election.update_tallies(&rep_weights, quorum_delta);
+
+                        let winner_changed = election.winner().hash() != old_winner;
+                        if winner_changed {
+                            // Remove votes from election
+                            let root = election.qualified_root().root;
+                            let list_generated_votes =
+                                self.history.votes(&root, &old_winner, false);
+                            for vote in list_generated_votes {
+                                election.remove_vote(&vote.voter);
+                            }
+                            // Clear votes cache
+                            self.history.erase(&root);
+                            // Roll back the previous winner and add the new winner to the ledger
+                            self.block_processor.force(election.winner().clone().into());
+                        }
+
+                        if election.is_final() {
+                            if !old_final && self.wallets.voting_enabled() {
+                                self.vote_generators.generate_final_vote(
+                                    &election.qualified_root().root,
+                                    &election.winner().hash(),
+                                );
+                                election.voted();
+                            }
+                            if election.is_confirmed() {
+                                // In some edge cases block might get rolled back while the election
+                                // is confirming, reprocess it to ensure it's present in the ledger
+                                self.block_processor.add(
+                                    election.winner().clone().into(),
+                                    BlockSource::Election,
+                                    ChannelId::LOOPBACK,
+                                );
+                                drop(election);
+                                {
+                                    let election = election_mutex.clone();
+                                    ended_election =
+                                        Some(election.lock().unwrap().into_ended_election(
+                                            self.clock.now(),
+                                            ElectionResult::ActiveConfirmedQuorum,
+                                        ));
+
+                                    //self.cementing_elections_cache
+                                    //    .lock()
+                                    //    .unwrap()
+                                    //    .insert(ended_election);
+
+                                    //self.confirming_set.add(winner_hash);
+                                };
+                            }
+                        }
+                    }
+                    result = VoteCode::Vote;
+                }
+            }
+
+            results.insert(block_hash, (result, ended_election));
         }
 
         //--------------------------------------------------------------------------------
+
+        for (_hash, (_result, ended_election)) in &results {
+            if let Some(election) = &ended_election {
+                self.cementing_elections_cache
+                    .lock()
+                    .unwrap()
+                    .insert(election.clone());
+
+                self.confirming_set.add(election.winner.hash());
+            }
+        }
+
+        let results = results
+            .drain()
+            .map(|(k, (result, _))| (k, result))
+            .collect();
         self.notify_vote_processed(vote, source, &results);
         results
     }
