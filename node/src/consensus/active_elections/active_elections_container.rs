@@ -32,15 +32,10 @@ pub struct ActiveElectionsContainer {
     pub(super) recently_confirmed: RecentlyConfirmedCache,
     cool_down: bool,
     max_elections: usize,
-    is_dev_network: bool,
 }
 
 impl ActiveElectionsContainer {
-    pub fn new(
-        config: ActiveElectionsConfig,
-        election_config: ElectionConfig,
-        is_dev_network: bool,
-    ) -> Self {
+    pub fn new(config: ActiveElectionsConfig, election_config: ElectionConfig) -> Self {
         Self {
             roots: RootContainer::default(),
             vote_router: VoteRouter::new(),
@@ -53,7 +48,6 @@ impl ActiveElectionsContainer {
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             cool_down: false,
             max_elections: config.max_elections,
-            is_dev_network,
         }
     }
 
@@ -371,7 +365,6 @@ impl ActiveElectionsContainer {
         votes: impl IntoIterator<Item = VoteSummary>,
         source: VoteSource,
         rep_weights: &HashMap<PublicKey, Amount>,
-        minimum_principal_weight: Amount,
         online_weight: Amount,
         quorum_delta: Amount,
         now: Timestamp,
@@ -412,9 +405,6 @@ impl ActiveElectionsContainer {
                 .get(&vote_summary.voter)
                 .cloned()
                 .unwrap_or_default();
-            if !self.is_dev_network && rep_weight <= minimum_principal_weight {
-                result = VoteCode::Indeterminate;
-            }
 
             if result == VoteCode::Invalid {
                 let mut election = election_mutex.lock().unwrap();

@@ -52,7 +52,7 @@ use crate::{
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, VoteSummary,
+        VoteRebroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -518,7 +518,6 @@ impl Node {
             stats.clone(),
             election_config,
             steady_clock.clone(),
-            current_network == Networks::NanoDevNetwork,
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
@@ -541,6 +540,7 @@ impl Node {
             confirming_set.clone(),
             steady_clock.clone(),
             block_voter.clone(),
+            current_network == Networks::NanoDevNetwork,
         ));
 
         let vote_processor = Arc::new(VoteProcessor::new(

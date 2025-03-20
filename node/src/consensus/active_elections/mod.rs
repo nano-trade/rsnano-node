@@ -67,15 +67,10 @@ impl ActiveElections {
         stats: Arc<Stats>,
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
-        is_dev_network: bool,
     ) -> Self {
         let max_elections = config.max_elections;
         Self {
-            container: RwLock::new(ActiveElectionsContainer::new(
-                config,
-                election_config,
-                is_dev_network,
-            )),
+            container: RwLock::new(ActiveElectionsContainer::new(config, election_config)),
             max_elections,
             stats,
             clock,
@@ -332,7 +327,6 @@ impl ActiveElections {
         votes: impl IntoIterator<Item = VoteSummary>,
         source: VoteSource,
         rep_weights: &HashMap<PublicKey, Amount>,
-        minimum_principal_weight: Amount,
         online_weight: Amount,
         quorum_delta: Amount,
     ) -> Vec<ApplyVoteResult> {
@@ -340,7 +334,6 @@ impl ActiveElections {
             votes,
             source,
             rep_weights,
-            minimum_principal_weight,
             online_weight,
             quorum_delta,
             self.clock.now(),

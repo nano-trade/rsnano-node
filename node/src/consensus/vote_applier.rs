@@ -40,6 +40,7 @@ pub struct VoteApplier {
     clock: Arc<SteadyClock>,
     election_voter: Arc<BlockVoter>,
     cementing_elections_cache: Mutex<CementingElectionsCache>,
+    is_dev_network: bool,
 }
 
 impl VoteApplier {
@@ -53,6 +54,7 @@ impl VoteApplier {
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
         election_voter: Arc<BlockVoter>,
+        is_dev_network: bool,
     ) -> Self {
         Self {
             active_elections,
@@ -66,6 +68,7 @@ impl VoteApplier {
             clock,
             election_voter,
             cementing_elections_cache: Mutex::new(CementingElectionsCache::default()),
+            is_dev_network,
         }
     }
 
@@ -97,6 +100,26 @@ impl VoteApplier {
         // If present, filter should be set to one of the hashes in the vote
         debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
 
+        let relevant_hashes = vote.hashes.iter().filter(|h| {
+            // Ignore votes for other hashes if a filter is set
+            if !filter.is_zero() && *h != filter {
+                false
+            } else {
+                true
+            }
+        });
+
+        let minimum_pr_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
+        let rep_weights = self.ledger.rep_weights.read();
+        let voter_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
+
+        if !self.is_dev_network && voter_weight <= minimum_pr_weight {
+            // Ignore votes from reps below min PR weight!
+            return relevant_hashes
+                .map(|h| (*h, VoteCode::Indeterminate))
+                .collect();
+        }
+
         if source != VoteSource::Cache {
             let is_active = {
                 let active = self.active_elections.read();
@@ -113,12 +136,9 @@ impl VoteApplier {
             }
         }
 
-        let rep_weights = self.ledger.rep_weights.read();
-        let voter_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
-        let (minimum_principal_weight, online_weight, quorum_delta) = {
+        let (online_weight, quorum_delta) = {
             let online_reps = self.online_reps.lock().unwrap();
             (
-                online_reps.minimum_principal_weight(),
                 online_reps.trended_or_minimum_weight(),
                 online_reps.quorum_delta(),
             )
@@ -149,7 +169,6 @@ impl VoteApplier {
             vote_summaries,
             source,
             &rep_weights,
-            minimum_principal_weight,
             online_weight,
             quorum_delta,
         );
