@@ -37,6 +37,29 @@ impl RootContainer {
         self.by_root.get(root)
     }
 
+    pub fn drain_filter(&mut self, mut predicate: impl FnMut(&Entry) -> bool) -> Vec<Entry> {
+        let to_remove: Vec<_> = self
+            .by_root
+            .values()
+            .filter_map(|i| {
+                if predicate(i) {
+                    Some(i.root.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut removed = Vec::new();
+        for root in to_remove {
+            if let Some(entry) = self.erase(&root) {
+                removed.push(entry);
+            }
+        }
+
+        removed
+    }
+
     pub fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
         let erased = self.by_root.remove(root);
         if erased.is_some() {

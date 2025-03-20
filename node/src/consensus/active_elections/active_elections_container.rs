@@ -486,6 +486,11 @@ impl ActiveElectionsContainer {
             election.lock().unwrap().cancel();
         }
     }
+
+    pub(crate) fn erase_ended_elections(&mut self) -> Vec<Entry> {
+        self.roots
+            .drain_filter(|i| i.election.lock().unwrap().state().has_ended())
+    }
 }
 
 #[derive(Default)]

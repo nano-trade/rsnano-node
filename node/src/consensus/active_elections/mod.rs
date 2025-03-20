@@ -114,52 +114,47 @@ impl ActiveElections {
     }
 
     pub fn erase_ended_elections(&self) {
-        let roots = self
-            .container
-            .read()
-            .unwrap()
-            .iter()
-            .filter_map(|e| {
-                let election = e.lock().unwrap();
-                if election.state().has_ended() {
-                    Some(election.qualified_root().clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        for root in roots {
-            self.erase(&root);
+        let erased = self.container.write().unwrap().erase_ended_elections();
+        let something_erased = erased.len() > 0;
+        for entry in erased {
+            self.handle_removed_election(entry);
+        }
+        if something_erased {
+            self.notify(AecEvent::VacancyUpdated);
         }
     }
 
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
         let removed = self.container.write().unwrap().erase(root);
+        let was_removed = removed.is_some();
 
-        if let Some(entry) = &removed {
-            self.add_stats(entry);
+        if let Some(entry) = removed {
+            self.handle_removed_election(entry);
             self.notify(AecEvent::VacancyUpdated);
-
-            let election = entry.election.lock().unwrap();
-            let winner_hash = election.winner().hash();
-            let is_confirmed = election.is_confirmed();
-            let blocks = election.candidate_blocks().clone();
-            drop(election);
-
-            for (hash, block) in blocks {
-                // Notify observers about dropped elections & blocks lost confirmed elections
-                if !is_confirmed || hash != winner_hash {
-                    self.notify(AecEvent::ElectionStopped(hash));
-                }
-
-                if !is_confirmed {
-                    self.notify(AecEvent::BlockDiscarded(block.into()));
-                }
-            }
         }
 
-        removed.is_some()
+        was_removed
+    }
+
+    fn handle_removed_election(&self, entry: Entry) {
+        self.add_stats(&entry);
+
+        let election = entry.election.lock().unwrap();
+        let winner_hash = election.winner().hash();
+        let is_confirmed = election.is_confirmed();
+        let blocks = election.candidate_blocks().clone();
+        drop(election);
+
+        for (hash, block) in blocks {
+            // Notify observers about dropped elections & blocks lost confirmed elections
+            if !is_confirmed || hash != winner_hash {
+                self.notify(AecEvent::ElectionStopped(hash));
+            }
+
+            if !is_confirmed {
+                self.notify(AecEvent::BlockDiscarded(block.into()));
+            }
+        }
     }
 
     fn add_stats(&self, entry: &Entry) {
