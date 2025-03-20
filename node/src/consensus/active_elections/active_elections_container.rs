@@ -197,6 +197,12 @@ impl ActiveElectionsContainer {
         self.recently_confirmed.clear();
     }
 
+    pub fn transition_time(&mut self, now: Timestamp) {
+        for election in self.iter() {
+            election.lock().unwrap().transition_time(now);
+        }
+    }
+
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<&Arc<Mutex<Election>>> {
         self.roots.get(root).map(|i| &i.election)
     }

@@ -575,7 +575,6 @@ impl Node {
             network_params: network_params.clone(),
             online_reps: online_reps.clone(),
             network: network.clone(),
-            clock: steady_clock.clone(),
             block_voter: block_voter.clone(),
             winner_block_broadcaster,
             confirm_req_sender,

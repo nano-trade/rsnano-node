@@ -108,6 +108,32 @@ impl ActiveElections {
         self.container.write().unwrap().clear_recently_confirmed();
     }
 
+    pub fn transition_time(&self) {
+        let now = self.clock.now();
+        self.container.write().unwrap().transition_time(now);
+    }
+
+    pub fn erase_ended_elections(&self) {
+        let roots = self
+            .container
+            .read()
+            .unwrap()
+            .iter()
+            .filter_map(|e| {
+                let election = e.lock().unwrap();
+                if election.state().has_ended() {
+                    Some(election.qualified_root().clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        for root in roots {
+            self.erase(&root);
+        }
+    }
+
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
         let removed = self.container.write().unwrap().erase(root);
 
