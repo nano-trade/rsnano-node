@@ -518,6 +518,7 @@ impl Node {
             stats.clone(),
             election_config,
             steady_clock.clone(),
+            current_network == Networks::NanoDevNetwork,
         );
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
@@ -533,7 +534,6 @@ impl Node {
         let vote_applier = Arc::new(VoteApplier::new(
             active_elections.clone(),
             ledger.clone(),
-            network_params.clone(),
             online_reps.clone(),
             stats.clone(),
             block_processor.clone(),

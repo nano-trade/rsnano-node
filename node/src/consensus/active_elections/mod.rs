@@ -5,6 +5,7 @@ mod root_container;
 pub use active_elections_container::*;
 
 use std::{
+    collections::HashMap,
     sync::{mpsc::SyncSender, Arc, Mutex, RwLock, RwLockReadGuard},
     time::SystemTime,
 };
@@ -15,10 +16,14 @@ use tracing::debug;
 
 use rsnano_core::{
     Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
+    VoteSource,
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
-use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter};
+use super::{
+    AddForkResult, Election, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter,
+    VoteSummary,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -62,10 +67,15 @@ impl ActiveElections {
         stats: Arc<Stats>,
         election_config: ElectionConfig,
         clock: Arc<SteadyClock>,
+        is_dev_network: bool,
     ) -> Self {
         let max_elections = config.max_elections;
         Self {
-            container: RwLock::new(ActiveElectionsContainer::new(config, election_config)),
+            container: RwLock::new(ActiveElectionsContainer::new(
+                config,
+                election_config,
+                is_dev_network,
+            )),
             max_elections,
             stats,
             clock,
@@ -317,8 +327,24 @@ impl ActiveElections {
         }
     }
 
-    pub fn apply_votes(&self) -> Vec<ApplyVoteResult> {
-        todo!()
+    pub fn apply_votes(
+        &self,
+        votes: impl IntoIterator<Item = VoteSummary>,
+        source: VoteSource,
+        rep_weights: &HashMap<PublicKey, Amount>,
+        minimum_principal_weight: Amount,
+        online_weight: Amount,
+        quorum_delta: Amount,
+    ) -> Vec<ApplyVoteResult> {
+        self.container.write().unwrap().apply_votes(
+            votes,
+            source,
+            rep_weights,
+            minimum_principal_weight,
+            online_weight,
+            quorum_delta,
+            self.clock.now(),
+        )
     }
 }
 

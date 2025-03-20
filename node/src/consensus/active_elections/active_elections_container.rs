@@ -1,18 +1,23 @@
 use std::{
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
-use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{
+    utils::{ContainerInfo, UnixMillisTimestamp},
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
+};
 use rsnano_nullable_clock::Timestamp;
 
 use crate::consensus::{
     AddForkResult, Election, ElectionBehavior, ElectionConfig, ElectionResult, EndedElection,
+    VoteSummary,
 };
 
 use super::{
-    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, Entry, ErasedCallback,
-    RootContainer, VoteRouter,
+    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, ApplyVoteResult,
+    Entry, ErasedCallback, RootContainer, VoteRouter,
 };
 
 pub struct ActiveElectionsContainer {
@@ -27,10 +32,15 @@ pub struct ActiveElectionsContainer {
     pub(super) recently_confirmed: RecentlyConfirmedCache,
     cool_down: bool,
     max_elections: usize,
+    is_dev_network: bool,
 }
 
 impl ActiveElectionsContainer {
-    pub fn new(config: ActiveElectionsConfig, election_config: ElectionConfig) -> Self {
+    pub fn new(
+        config: ActiveElectionsConfig,
+        election_config: ElectionConfig,
+        is_dev_network: bool,
+    ) -> Self {
         Self {
             roots: RootContainer::default(),
             vote_router: VoteRouter::new(),
@@ -43,6 +53,7 @@ impl ActiveElectionsContainer {
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             cool_down: false,
             max_elections: config.max_elections,
+            is_dev_network,
         }
     }
 
@@ -353,6 +364,133 @@ impl ActiveElectionsContainer {
             // The rest of smaller reps
             Duration::from_secs(15)
         }
+    }
+
+    pub fn apply_votes(
+        &mut self,
+        votes: impl IntoIterator<Item = VoteSummary>,
+        source: VoteSource,
+        rep_weights: &HashMap<PublicKey, Amount>,
+        minimum_principal_weight: Amount,
+        online_weight: Amount,
+        quorum_delta: Amount,
+        now: Timestamp,
+    ) -> Vec<ApplyVoteResult> {
+        let mut results = Vec::new();
+        let mut process = Vec::new();
+        {
+            let mut processed_hashes = HashSet::new();
+
+            for vote_summary in votes {
+                // Ignore duplicate hashes (should not happen with a well-behaved voting node)
+                if !processed_hashes.insert(vote_summary.hash) {
+                    continue;
+                }
+
+                let election = self.election_for_block(&vote_summary.hash);
+                if let Some(election) = election {
+                    process.push((vote_summary, election.clone()));
+                } else {
+                    if !self.was_recently_confirmed(&vote_summary.hash) {
+                        results.push(ApplyVoteResult::new(
+                            vote_summary.hash,
+                            VoteCode::Indeterminate,
+                        ));
+                    } else {
+                        results.push(ApplyVoteResult::new(vote_summary.hash, VoteCode::Replay));
+                    }
+                }
+            }
+        }
+
+        for (vote_summary, election_mutex) in process {
+            let mut result = VoteCode::Invalid;
+            let mut ended_election = None;
+            let mut final_vote = None;
+            let mut change_winner = None;
+            let rep_weight = rep_weights
+                .get(&vote_summary.voter)
+                .cloned()
+                .unwrap_or_default();
+            if !self.is_dev_network && rep_weight <= minimum_principal_weight {
+                result = VoteCode::Indeterminate;
+            }
+
+            if result == VoteCode::Invalid {
+                let mut election = election_mutex.lock().unwrap();
+
+                if let Some(last_vote) = election.votes().get(&vote_summary.voter) {
+                    if last_vote.timestamp > vote_summary.timestamp {
+                        result = VoteCode::Replay;
+                    } else if last_vote.timestamp == vote_summary.timestamp
+                        && !(last_vote.hash < vote_summary.hash)
+                    {
+                        result = VoteCode::Replay;
+                    }
+
+                    if result == VoteCode::Invalid {
+                        let max_vote = vote_summary.timestamp == UnixMillisTimestamp::MAX
+                            && last_vote.timestamp < vote_summary.timestamp;
+
+                        let mut past_cooldown = true;
+                        // Only cooldown live votes
+                        if source != VoteSource::Cache {
+                            let cooldown =
+                                ActiveElectionsContainer::cooldown_time(rep_weight, online_weight);
+                            past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
+                        }
+
+                        if !max_vote && !past_cooldown {
+                            result = VoteCode::Ignored;
+                        }
+                    }
+                }
+
+                if result == VoteCode::Invalid {
+                    election.add_vote(
+                        vote_summary.voter,
+                        vote_summary.timestamp,
+                        vote_summary.hash,
+                    );
+
+                    // CONFIRM IF QUORUM:
+                    if !election.is_confirmed() {
+                        let old_winner = election.winner().hash();
+                        let old_final = election.is_final();
+
+                        election.update_tallies(&rep_weights, quorum_delta);
+
+                        let winner_changed = election.winner().hash() != old_winner;
+                        if winner_changed {
+                            change_winner = Some((old_winner, election.winner().clone()));
+                        }
+
+                        if election.is_final() {
+                            if !old_final {
+                                final_vote = Some(election.winner().clone());
+                            }
+                            if election.is_confirmed() {
+                                ended_election = Some(election.into_ended_election(
+                                    now,
+                                    ElectionResult::ActiveConfirmedQuorum,
+                                ));
+                            }
+                        }
+                    }
+                    result = VoteCode::Vote;
+                }
+            }
+
+            results.push(ApplyVoteResult {
+                voted_block: vote_summary.hash,
+                vote_result: result,
+                got_confirmed: ended_election,
+                final_phase_started: final_vote,
+                winner_changed: change_winner,
+            });
+        }
+
+        results
     }
 }
 
