@@ -152,10 +152,9 @@ impl VoteApplier {
 
         for (block_hash, election_mutex) in process {
             let vote_result = {
-                let rep: &PublicKey = &vote.voter;
                 let timestamp = vote.timestamp();
                 let mut result = VoteCode::Invalid;
-                let rep_weight = rep_weights.get(rep).cloned().unwrap_or_default();
+                let rep_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
                 if !self.network_params.network.is_dev_network()
                     && rep_weight <= minimum_principal_weight
                 {
@@ -165,7 +164,7 @@ impl VoteApplier {
                 if result == VoteCode::Invalid {
                     let mut election = election_mutex.lock().unwrap();
 
-                    if let Some(last_vote) = election.votes().get(rep) {
+                    if let Some(last_vote) = election.votes().get(&vote.voter) {
                         if last_vote.timestamp > timestamp {
                             result = VoteCode::Replay;
                         } else if last_vote.timestamp == timestamp && !(last_vote.hash < block_hash)
@@ -194,25 +193,19 @@ impl VoteApplier {
                     }
 
                     if result == VoteCode::Invalid {
-                        election.add_vote(*rep, timestamp, block_hash);
+                        election.add_vote(vote.voter, timestamp, block_hash);
 
                         if source != VoteSource::Cache {
                             // Representative is defined as online if replying to live votes or rep_crawler queries
                             self.online_reps
                                 .lock()
                                 .unwrap()
-                                .vote_observed(*rep, self.clock.now());
+                                .vote_observed(vote.voter, self.clock.now());
                         }
 
                         self.stats.inc(StatType::Election, DetailType::Vote);
                         self.stats.inc(StatType::ElectionVote, source.into());
-                        tracing::trace!(
-                    account = %rep,
-                    hash = %block_hash,
-                    %timestamp,
-                    ?source,
-                    ?rep_weight,
-                    "vote processed");
+                        tracing::trace!(account = %vote.voter, hash = %block_hash, %timestamp, ?source, ?rep_weight, "vote processed");
 
                         // CONFIRM IF QUORUM:
                         if !election.is_confirmed() {
@@ -221,7 +214,7 @@ impl VoteApplier {
                             let old_winner = election.winner().hash();
                             let old_final = election.is_final();
 
-                            election.update_tallies(&self.ledger.rep_weights.read(), quorum_delta);
+                            election.update_tallies(&rep_weights, quorum_delta);
 
                             let winner_changed = election.winner().hash() != old_winner;
                             if winner_changed {
