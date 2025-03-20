@@ -49,7 +49,7 @@ impl ManualScheduler {
             .unwrap()
             .queue
             .iter()
-            .any(|(block, _, _)| block.hash() == *hash)
+            .any(|(block, _)| block.hash() == *hash)
     }
 
     pub fn notify(&self) {
@@ -59,9 +59,7 @@ impl ManualScheduler {
     pub fn push(&self, block: SavedBlock, previous_balance: Option<Amount>) {
         {
             let mut guard = self.mutex.lock().unwrap();
-            guard
-                .queue
-                .push_back((block, previous_balance, ElectionBehavior::Manual));
+            guard.queue.push_back((block, previous_balance));
         }
         self.notify();
     }
@@ -79,16 +77,20 @@ impl ManualScheduler {
                     .inc(StatType::ElectionScheduler, DetailType::Loop);
 
                 if guard.predicate() {
-                    let (block, _previous_balance, election_behavior) =
-                        guard.queue.pop_front().unwrap();
-
+                    let (block, _previous_balance) = guard.queue.pop_front().unwrap();
                     drop(guard);
+
+                    let hash = block.hash();
 
                     self.stats
                         .inc(StatType::ElectionScheduler, DetailType::InsertManual);
 
-                    if let Some(info) = self.active.insert(block, election_behavior, None) {
-                        info.election.lock().unwrap().transition_active()
+                    if self
+                        .active
+                        .insert(block, ElectionBehavior::Manual, None)
+                        .is_some()
+                    {
+                        self.active.transition_active_hash(&hash);
                     }
                 } else {
                     drop(guard);
@@ -137,7 +139,7 @@ impl ManualSchedulerExt for Arc<ManualScheduler> {
 }
 
 struct ManualSchedulerImpl {
-    queue: VecDeque<(SavedBlock, Option<Amount>, ElectionBehavior)>,
+    queue: VecDeque<(SavedBlock, Option<Amount>)>,
     stopped: bool,
 }
 
