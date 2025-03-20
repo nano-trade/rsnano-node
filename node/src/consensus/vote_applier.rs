@@ -21,7 +21,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::NetworkParams,
-    consensus::{ActiveElectionsContainer, ElectionResult},
+    consensus::{ActiveElectionsContainer, ElectionResult, VoteType},
     representatives::OnlineReps,
     wallets::Wallets,
 };
@@ -145,9 +145,9 @@ impl VoteApplier {
                     process.insert(*hash, election.clone());
                 } else {
                     if !active.was_recently_confirmed(hash) {
-                        results.insert(*hash, (VoteCode::Indeterminate, None));
+                        results.insert(*hash, (VoteCode::Indeterminate, None, None));
                     } else {
-                        results.insert(*hash, (VoteCode::Replay, None));
+                        results.insert(*hash, (VoteCode::Replay, None, None));
                     }
                 }
             }
@@ -157,6 +157,7 @@ impl VoteApplier {
             let timestamp = vote.timestamp();
             let mut result = VoteCode::Invalid;
             let mut ended_election = None;
+            let mut final_vote = None;
             let rep_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
             if !self.network_params.network.is_dev_network()
                 && rep_weight <= minimum_principal_weight
@@ -233,11 +234,7 @@ impl VoteApplier {
 
                         if election.is_final() {
                             if !old_final {
-                                self.election_voter.try_vote_for_block(
-                                    election.winner().hash(),
-                                    election.winner().root(),
-                                    election.vote_type(),
-                                );
+                                final_vote = Some(election.winner().clone());
                             }
                             if election.is_confirmed() {
                                 ended_election = Some(election.into_ended_election(
@@ -251,12 +248,22 @@ impl VoteApplier {
                 }
             }
 
-            results.insert(block_hash, (result, ended_election));
+            results.insert(block_hash, (result, ended_election, final_vote));
         }
 
         //--------------------------------------------------------------------------------
 
-        for (_hash, (_result, ended_election)) in &results {
+        for (_hash, (result, ended_election, final_vote)) in &results {
+            if *result == VoteCode::Vote {
+                if let Some(winner) = final_vote {
+                    self.election_voter.try_vote_for_block(
+                        winner.hash(),
+                        winner.root(),
+                        VoteType::Final,
+                    );
+                }
+            }
+
             if let Some(election) = &ended_election {
                 // In some edge cases block might get rolled back while the election
                 // is confirming, reprocess it to ensure it's present in the ledger
@@ -277,7 +284,7 @@ impl VoteApplier {
 
         let results = results
             .drain()
-            .map(|(k, (result, _))| (k, result))
+            .map(|(k, (result, _, _))| (k, result))
             .collect();
         self.notify_vote_processed(vote, source, &results);
         results
