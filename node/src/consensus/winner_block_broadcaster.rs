@@ -30,7 +30,7 @@ impl WinnerBlockBroadcaster {
     pub fn try_broadcast_winner(
         &mut self,
         solicitor: &mut ConfirmationSolicitor,
-        election: &mut Election,
+        election: &Election,
     ) {
         let winner_hash = election.winner().hash();
         if self.should_broadcast(&winner_hash) {
@@ -39,8 +39,6 @@ impl WinnerBlockBroadcaster {
                     .last_broadcasts
                     .insert(election.winner().hash(), self.clock.now())
                     .is_none();
-
-                election.winner_block_broadcasted();
 
                 self.stats.inc(
                     StatType::Election,

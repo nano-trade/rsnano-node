@@ -48,8 +48,8 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
-        ElectionConfig, ElectionForkAdder, EndedElection, LocalVoteHistory, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
+        ConfirmReqSender, ElectionConfig, ElectionForkAdder, EndedElection, LocalVoteHistory,
+        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
         VoteRebroadcaster, WinnerBlockBroadcaster,
@@ -563,7 +563,9 @@ impl Node {
         let winner_block_broadcaster =
             WinnerBlockBroadcaster::new(stats.clone(), steady_clock.clone(), current_network);
 
-        let confirmation_requester = ActiveElectionsDriver {
+        let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
+
+        let aec_driver = ActiveElectionsDriver {
             active_elections: active_elections.clone(),
             stats: stats.clone(),
             message_flooder: message_flooder.clone(),
@@ -573,6 +575,7 @@ impl Node {
             clock: steady_clock.clone(),
             block_voter: block_voter.clone(),
             winner_block_broadcaster,
+            confirm_req_sender,
         };
 
         let fork_adder = ElectionForkAdder {
@@ -1275,7 +1278,7 @@ impl Node {
             ledger_notifications,
             vote_rebroadcaster,
             tokio_runner,
-            active_elections_driver: TimerThread::new("Request loop", confirmation_requester),
+            active_elections_driver: TimerThread::new("Request loop", aec_driver),
             recently_cemented,
         }
     }

@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElections, BlockVoter,
-    ConfirmationSolicitor, Election, ElectionState,
+    confirm_req_sender::ConfirmReqSender, winner_block_broadcaster::WinnerBlockBroadcaster,
+    ActiveElections, BlockVoter, ConfirmationSolicitor, ElectionState,
 };
 
 /// Periodically tries to transitions election state and send votes + blocks
@@ -27,18 +27,7 @@ pub struct ActiveElectionsDriver {
     pub(crate) clock: Arc<SteadyClock>,
     pub(crate) block_voter: Arc<BlockVoter>,
     pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
-}
-
-impl ActiveElectionsDriver {
-    fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
-        if election.should_send_confirm_req() {
-            if solicitor.add(election) {
-                election.confirm_request_sent();
-                self.stats
-                    .inc(StatType::Election, DetailType::ConfirmationRequest);
-            }
-        }
-    }
+    pub(crate) confirm_req_sender: ConfirmReqSender,
 }
 
 impl Runnable for ActiveElectionsDriver {
@@ -87,8 +76,9 @@ impl Runnable for ActiveElectionsDriver {
                             election.vote_type(),
                         );
                         self.winner_block_broadcaster
-                            .try_broadcast_winner(&mut solicitor, &mut election);
-                        self.send_confirm_req(&mut solicitor, &mut election);
+                            .try_broadcast_winner(&mut solicitor, &election);
+                        self.confirm_req_sender
+                            .send_confirm_req(&mut solicitor, &mut election);
                     }
                     _ => {}
                 }

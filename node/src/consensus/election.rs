@@ -69,8 +69,6 @@ pub struct Election {
 
     start: Timestamp,
     last_confirm_req_sent: Option<Instant>,
-    last_broadcasted_block: BlockHash,
-    last_block_broadcast: Instant,
     confirmation_request_count: usize,
 
     config: ElectionConfig,
@@ -98,12 +96,10 @@ impl Election {
             final_tallies: BlockTallies::new(),
             winner_tally: Amount::zero(),
             winner_final_tally: Amount::zero(),
-            last_broadcasted_block: BlockHash::zero(),
             behavior,
             has_quorum: false,
             last_confirm_req_sent: None,
             confirmation_request_count: 0,
-            last_block_broadcast: Instant::now(),
             start: now,
             config,
             winner: MaybeSavedBlock::Saved(block),
@@ -221,10 +217,8 @@ impl Election {
         }
     }
 
-    /// Returns true, if it was the initial broadcast
-    pub fn winner_block_broadcasted(&mut self) {
-        self.last_block_broadcast = Instant::now();
-        self.last_broadcasted_block = self.winner.hash();
+    pub fn base_latency(&self) -> Duration {
+        self.config.base_latency
     }
 
     /// Calculates time delay between broadcasting confirmation requests
@@ -294,10 +288,6 @@ impl Election {
 
     pub fn winner(&self) -> &MaybeSavedBlock {
         &self.winner
-    }
-
-    pub fn should_send_confirm_req(&self) -> bool {
-        self.confirm_req_interval() < self.last_confirm_request_elapsed()
     }
 
     pub fn confirm_request_sent(&mut self) {
