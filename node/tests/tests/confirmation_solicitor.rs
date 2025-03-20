@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{utils::UnixMillisTimestamp, Account, Amount, Block, PublicKey};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_PUB_KEY};
@@ -52,7 +52,7 @@ fn batches() {
             let election = Election::new(
                 send.clone(),
                 ElectionBehavior::Priority,
-                Default::default(),
+                Duration::from_secs(1),
                 node2.steady_clock.now(),
             );
             assert_eq!(solicitor.add(&election), true);
@@ -61,7 +61,7 @@ fn batches() {
         let election = Election::new(
             send.clone(),
             ElectionBehavior::Priority,
-            Default::default(),
+            Duration::from_secs(1),
             node2.steady_clock.now(),
         );
         // Broadcasting should be immediate
@@ -126,7 +126,7 @@ fn different_hashes() {
     let mut election = Election::new(
         send.clone(),
         ElectionBehavior::Priority,
-        Default::default(),
+        Duration::from_secs(1),
         node2.steady_clock.now(),
     );
     // Add a vote for something else, not the winner
@@ -193,7 +193,7 @@ fn bypass_max_requests_cap() {
     let mut election = Election::new(
         send.clone(),
         ElectionBehavior::Priority,
-        Default::default(),
+        Duration::from_secs(1),
         node2.steady_clock.now(),
     );
     // Add a vote for something else, not the winner

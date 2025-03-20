@@ -7,7 +7,7 @@ pub use active_elections_container::*;
 use std::{
     collections::HashMap,
     sync::{mpsc::SyncSender, Arc, RwLock, RwLockReadGuard},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use root_container::{Entry, RootContainer};
@@ -20,9 +20,7 @@ use rsnano_core::{
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
-use super::{
-    AddForkResult, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter, VoteSummary,
-};
+use super::{AddForkResult, ElectionBehavior, EndedElection, VoteRouter, VoteSummary};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -61,12 +59,12 @@ impl ActiveElections {
     pub(crate) fn new(
         config: ActiveElectionsConfig,
         stats: Arc<Stats>,
-        election_config: ElectionConfig,
+        base_latency: Duration,
         clock: Arc<SteadyClock>,
     ) -> Self {
         let max_elections = config.max_elections;
         Self {
-            container: RwLock::new(ActiveElectionsContainer::new(config, election_config)),
+            container: RwLock::new(ActiveElectionsContainer::new(config, base_latency)),
             max_elections,
             stats,
             clock,

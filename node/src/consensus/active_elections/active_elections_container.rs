@@ -11,8 +11,7 @@ use rsnano_core::{
 use rsnano_nullable_clock::Timestamp;
 
 use crate::consensus::{
-    AddForkResult, Election, ElectionBehavior, ElectionConfig, ElectionResult, EndedElection,
-    VoteSummary,
+    AddForkResult, Election, ElectionBehavior, ElectionResult, EndedElection, VoteSummary,
 };
 
 use super::{
@@ -27,7 +26,7 @@ pub struct ActiveElectionsContainer {
     priority_count: usize,
     hinted_count: usize,
     optimistic_count: usize,
-    config: ElectionConfig,
+    base_latency: Duration,
     pub(super) vote_router: VoteRouter,
     pub(super) recently_confirmed: RecentlyConfirmedCache,
     cool_down: bool,
@@ -35,7 +34,7 @@ pub struct ActiveElectionsContainer {
 }
 
 impl ActiveElectionsContainer {
-    pub fn new(config: ActiveElectionsConfig, election_config: ElectionConfig) -> Self {
+    pub fn new(config: ActiveElectionsConfig, base_latency: Duration) -> Self {
         Self {
             roots: RootContainer::default(),
             vote_router: VoteRouter::new(),
@@ -44,7 +43,7 @@ impl ActiveElectionsContainer {
             priority_count: 0,
             hinted_count: 0,
             optimistic_count: 0,
-            config: election_config,
+            base_latency,
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             cool_down: false,
             max_elections: config.max_elections,
@@ -104,7 +103,7 @@ impl ActiveElectionsContainer {
         let election = Arc::new(Mutex::new(Election::new(
             block,
             election_behavior,
-            self.config.clone(),
+            self.base_latency,
             now,
         )));
 

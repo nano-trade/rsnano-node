@@ -5,45 +5,13 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, Networks, PublicKey,
+    utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
     QualifiedRoot, SavedBlock,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
 
 use super::{block_tallies::BlockTallies, ElectionResult, ElectionState, EndedElection};
-
-#[derive(Clone)]
-pub struct ElectionConfig {
-    /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
-    pub base_latency: Duration,
-    pub block_broadcast_interval: Duration,
-    pub vote_broadcast_interval: Duration,
-}
-
-impl Default for ElectionConfig {
-    fn default() -> Self {
-        Self {
-            base_latency: Duration::from_millis(1000),
-            block_broadcast_interval: Duration::from_secs(150),
-            vote_broadcast_interval: Duration::from_secs(15),
-        }
-    }
-}
-
-impl ElectionConfig {
-    pub fn default_for(network: Networks) -> Self {
-        if network == Networks::NanoDevNetwork {
-            Self {
-                base_latency: Duration::from_millis(25),
-                block_broadcast_interval: Duration::from_millis(500),
-                vote_broadcast_interval: Duration::from_millis(500),
-            }
-        } else {
-            Default::default()
-        }
-    }
-}
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
 pub enum VoteType {
@@ -68,7 +36,8 @@ pub struct Election {
     has_quorum: bool,
 
     start: Timestamp,
-    config: ElectionConfig,
+    /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
+    base_latency: Duration,
 }
 
 impl Election {
@@ -78,7 +47,7 @@ impl Election {
     pub fn new(
         block: SavedBlock,
         behavior: ElectionBehavior,
-        config: ElectionConfig,
+        base_latency: Duration,
         now: Timestamp,
     ) -> Self {
         Self {
@@ -96,7 +65,7 @@ impl Election {
             behavior,
             has_quorum: false,
             start: now,
-            config,
+            base_latency,
             winner: MaybeSavedBlock::Saved(block),
         }
     }
@@ -105,7 +74,7 @@ impl Election {
         Self::new(
             block,
             ElectionBehavior::Priority,
-            ElectionConfig::default(),
+            Duration::from_millis(1000),
             Timestamp::new_test_instance(),
         )
     }
@@ -193,7 +162,7 @@ impl Election {
         let duration = self.start.elapsed(now);
         match self.state {
             ElectionState::Passive => {
-                if self.config.base_latency * Self::PASSIVE_DURATION_FACTOR < duration {
+                if self.base_latency * Self::PASSIVE_DURATION_FACTOR < duration {
                     self.state = ElectionState::Active;
                 }
             }
@@ -209,7 +178,7 @@ impl Election {
     }
 
     pub fn base_latency(&self) -> Duration {
-        self.config.base_latency
+        self.base_latency
     }
 
     pub fn has_quorum(&self) -> bool {

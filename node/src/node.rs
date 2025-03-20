@@ -48,8 +48,8 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
-        ConfirmReqSender, ElectionConfig, ElectionForkAdder, EndedElection, LocalVoteHistory,
-        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
+        ConfirmReqSender, ElectionForkAdder, EndedElection, LocalVoteHistory, RepTiers,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
         VoteRebroadcaster, WinnerBlockBroadcaster,
@@ -510,13 +510,16 @@ impl Node {
             steady_clock.clone(),
         ));
 
-        let election_config = ElectionConfig::default_for(network_params.network.current_network);
+        let base_latency = match current_network {
+            Networks::NanoDevNetwork => Duration::from_millis(25),
+            _ => Duration::from_millis(1000),
+        };
 
         let (aec_sender, aec_receiver) = sync_channel(1024);
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
             stats.clone(),
-            election_config,
+            base_latency,
             steady_clock.clone(),
         );
         active_elections.set_event_sink(aec_sender);
