@@ -22,7 +22,7 @@ pub(crate) struct ActiveElectionsDriver {
     pub online_reps: Arc<Mutex<OnlineReps>>,
     pub network: Arc<RwLock<Network>>,
     pub clock: Arc<SteadyClock>,
-    pub election_voter: Arc<BlockVoter>,
+    pub block_voter: Arc<BlockVoter>,
 }
 
 impl ActiveElectionsDriver {
@@ -91,7 +91,7 @@ impl Runnable for ActiveElectionsDriver {
 
                 match new_state {
                     ElectionState::Active => {
-                        self.election_voter.try_vote_for_block(
+                        self.block_voter.try_vote_for_block(
                             election.winner().hash(),
                             election.winner().root(),
                             election.vote_type(),

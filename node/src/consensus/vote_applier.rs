@@ -14,8 +14,7 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    ActiveElections, BlockVoter, CementingElectionsCache, Election, EndedElection,
-    LocalVoteHistory, VoteGenerators,
+    ActiveElections, BlockVoter, CementingElectionsCache, Election, EndedElection, LocalVoteHistory,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -23,7 +22,6 @@ use crate::{
     config::NetworkParams,
     consensus::{ActiveElectionsContainer, ElectionResult, VoteType},
     representatives::OnlineReps,
-    wallets::Wallets,
 };
 
 #[derive(Clone)]
@@ -40,10 +38,8 @@ pub struct VoteApplier {
     network_params: NetworkParams,
     online_reps: Arc<Mutex<OnlineReps>>,
     stats: Arc<Stats>,
-    vote_generators: Arc<VoteGenerators>,
     block_processor: Arc<BlockProcessor>,
     history: Arc<LocalVoteHistory>,
-    wallets: Arc<Wallets>,
     confirming_set: Arc<ConfirmingSet>,
     clock: Arc<SteadyClock>,
     election_voter: Arc<BlockVoter>,
@@ -57,10 +53,8 @@ impl VoteApplier {
         network_params: NetworkParams,
         online_reps: Arc<Mutex<OnlineReps>>,
         stats: Arc<Stats>,
-        vote_generators: Arc<VoteGenerators>,
         block_processor: Arc<BlockProcessor>,
         history: Arc<LocalVoteHistory>,
-        wallets: Arc<Wallets>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
         election_voter: Arc<BlockVoter>,
@@ -72,10 +66,8 @@ impl VoteApplier {
             network_params,
             online_reps,
             stats,
-            vote_generators,
             block_processor,
             history,
-            wallets,
             confirming_set,
             clock,
             election_voter,

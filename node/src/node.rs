@@ -522,7 +522,7 @@ impl Node {
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
 
-        let election_voter = Arc::new(BlockVoter::new(
+        let block_voter = Arc::new(BlockVoter::new(
             stats.clone(),
             vote_generators.clone(),
             active_elections.clone(),
@@ -536,13 +536,11 @@ impl Node {
             network_params.clone(),
             online_reps.clone(),
             stats.clone(),
-            vote_generators.clone(),
             block_processor.clone(),
             history.clone(),
-            wallets.clone(),
             confirming_set.clone(),
             steady_clock.clone(),
-            election_voter.clone(),
+            block_voter.clone(),
         ));
 
         let vote_processor = Arc::new(VoteProcessor::new(
@@ -570,7 +568,7 @@ impl Node {
             online_reps: online_reps.clone(),
             network: network.clone(),
             clock: steady_clock.clone(),
-            election_voter: election_voter.clone(),
+            block_voter: block_voter.clone(),
         };
 
         let fork_adder = ElectionForkAdder {
@@ -1132,7 +1130,7 @@ impl Node {
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
-            election_voter: election_voter.clone(),
+            block_voter: block_voter.clone(),
         };
 
         std::thread::Builder::new()

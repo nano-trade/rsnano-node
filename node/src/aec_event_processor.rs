@@ -22,7 +22,7 @@ pub(crate) struct AecEventProcessor {
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub network_filter: Arc<NetworkFilter>,
     pub bootstrap_election_activator: BootstrapElectionActivator,
-    pub election_voter: Arc<BlockVoter>,
+    pub block_voter: Arc<BlockVoter>,
 }
 
 impl AecEventProcessor {
@@ -31,14 +31,14 @@ impl AecEventProcessor {
             match event {
                 AecEvent::ElectionStarted(hash) => {
                     self.bootstrap_election_activator.election_started(hash);
-                    self.election_voter.try_vote(&hash);
+                    self.block_voter.try_vote(&hash);
                     self.vote_cache_processor.trigger(hash);
                     if let Some(tx) = &self.node_event_sender {
                         tx.send(NodeEvent::ElectionStarted(hash)).unwrap();
                     }
                 }
                 AecEvent::DuplicateElectionAttempt(hash) => {
-                    self.election_voter.try_vote(&hash);
+                    self.block_voter.try_vote(&hash);
                 }
                 AecEvent::ElectionStopped(hash) => {
                     if let Some(tx) = &self.node_event_sender {
