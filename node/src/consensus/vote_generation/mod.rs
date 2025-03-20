@@ -1,4 +1,4 @@
-mod election_voter;
+mod block_voter;
 mod last_sent_votes;
 mod local_vote_history;
 mod request_aggregator;
@@ -7,7 +7,7 @@ mod vote_generator;
 mod vote_generators;
 mod vote_spacing;
 
-pub(crate) use election_voter::BlockVoter;
+pub(crate) use block_voter::BlockVoter;
 pub use local_vote_history::*;
 pub use request_aggregator::*;
 pub use vote_generators::*;
