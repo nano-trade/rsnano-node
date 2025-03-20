@@ -114,7 +114,7 @@ impl ActiveElectionsContainer {
                 )));
 
                 self.roots.insert(Entry {
-                    root,
+                    root: root.clone(),
                     election: election.clone(),
                     erased_callback,
                 });
@@ -131,7 +131,7 @@ impl ActiveElectionsContainer {
 
         if let Some(info) = &result {
             if info.inserted {
-                self.vote_router.connect(hash, info.election.clone());
+                self.vote_router.connect(hash, root);
             }
         }
 
@@ -171,8 +171,7 @@ impl ActiveElectionsContainer {
         };
 
         if added {
-            self.vote_router
-                .connect(fork.hash(), entry.election.clone());
+            self.vote_router.connect(fork.hash(), fork.qualified_root());
         }
 
         result
@@ -222,7 +221,8 @@ impl ActiveElectionsContainer {
     }
 
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<&Arc<Mutex<Election>>> {
-        self.vote_router.election(block_hash)
+        let root = self.vote_router.qualified_root(block_hash)?;
+        self.election_for_root(&root)
     }
 
     pub fn info(&self) -> ActiveElectionsInfo {

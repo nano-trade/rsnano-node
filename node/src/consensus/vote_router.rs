@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash};
+use rsnano_core::{utils::ContainerInfo, BlockHash, QualifiedRoot};
 
 use super::Election;
 
@@ -12,7 +12,7 @@ use super::Election;
 pub(crate) struct VoteRouter {
     // Mapping of block hashes to elections.
     // Election already contains the associated block
-    elections: HashMap<BlockHash, Arc<Mutex<Election>>>,
+    elections: HashMap<BlockHash, QualifiedRoot>,
 }
 
 impl VoteRouter {
@@ -22,11 +22,10 @@ impl VoteRouter {
         }
     }
 
-    /// Add a route for 'hash' to 'election'
+    /// Add a route for 'hash' to an election by its qualified root
     /// Existing routes will be replaced
-    /// Election must hold the block for the hash being passed in
-    pub fn connect(&mut self, hash: BlockHash, election: Arc<Mutex<Election>>) {
-        self.elections.insert(hash, election);
+    pub fn connect(&mut self, hash: BlockHash, root: QualifiedRoot) {
+        self.elections.insert(hash, root);
     }
 
     /// Remove all routes to this election
@@ -41,7 +40,7 @@ impl VoteRouter {
         self.elections.remove(hash);
     }
 
-    pub fn election(&self, hash: &BlockHash) -> Option<&Arc<Mutex<Election>>> {
+    pub fn qualified_root(&self, hash: &BlockHash) -> Option<&QualifiedRoot> {
         self.elections.get(hash)
     }
 
