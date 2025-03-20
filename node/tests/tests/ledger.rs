@@ -72,8 +72,6 @@ mod votes {
                 .read()
                 .election_for_block(&send1.hash())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .vote_count(),
             1
         );
@@ -82,8 +80,6 @@ mod votes {
                 .active
                 .read()
                 .election_for_block(&send1.hash())
-                .unwrap()
-                .lock()
                 .unwrap()
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
@@ -124,8 +120,6 @@ mod votes {
                 .active
                 .read()
                 .election_for_block(&send1.hash())
-                .unwrap()
-                .lock()
                 .unwrap()
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
@@ -172,8 +166,6 @@ mod votes {
                 .read()
                 .election_for_block(&send1.hash())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
@@ -200,15 +192,13 @@ mod votes {
         let election = active.election_for_block(&send1.hash()).unwrap();
         assert_eq!(
             election
-                .lock()
-                .unwrap()
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
                 .timestamp,
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
-        let votes = election.lock().unwrap().votes().clone();
+        let votes = election.votes().clone();
         assert_eq!(votes.len(), 1);
         assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
         assert_eq!(votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash, send2.hash());
@@ -299,8 +289,6 @@ fn block_hash_account_conflict() {
             .active
             .read()
             .election_for_root(root)
-            .unwrap()
-            .lock()
             .unwrap()
             .winner()
             .hash()

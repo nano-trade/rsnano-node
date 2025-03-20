@@ -102,12 +102,11 @@ fn add_old() {
 
     let active = node.active.read();
     let election = active.election_for_root(&send1.qualified_root()).unwrap();
-    let election1_guard = election.lock().unwrap();
-    assert_eq!(1, election1_guard.vote_count());
-    let votes = election1_guard.votes();
+    assert_eq!(1, election.vote_count());
+    let votes = election.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
     assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
-    assert_eq!(send1.hash(), election1_guard.winner().hash());
+    assert_eq!(send1.hash(), election.winner().hash());
 }
 
 // The voting cooldown is respected
@@ -146,12 +145,11 @@ fn add_cooldown() {
 
     let active = node.active.read();
     let election1 = active.election_for_root(&send1.qualified_root()).unwrap();
-    let election1_guard = election1.lock().unwrap();
-    assert_eq!(1, election1_guard.vote_count());
-    let votes = election1_guard.votes();
+    assert_eq!(1, election1.vote_count());
+    let votes = election1.votes();
     assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
     assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
-    assert_eq!(send1.hash(), election1_guard.winner().hash());
+    assert_eq!(send1.hash(), election1.winner().hash());
 }
 
 // Assuming necessary imports and module declarations are present

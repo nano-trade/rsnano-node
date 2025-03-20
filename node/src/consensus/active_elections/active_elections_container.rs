@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
 
@@ -68,7 +67,7 @@ impl ActiveElectionsContainer {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Arc<Mutex<Election>>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Election> {
         self.roots.iter_sequenced().map(|i| &i.election)
     }
 
@@ -91,25 +90,24 @@ impl ActiveElectionsContainer {
             return false;
         }
 
-        let existing = self.roots.get(&root).map(|i| i.election.clone());
+        let existing = self.roots.get_mut(&root).map(|i| &mut i.election);
 
         if let Some(existing) = existing {
             // Try upgrading to priority election to enable immediate vote broadcasting.
-            let mut election = existing.lock().unwrap();
-            self.maybe_upgrade_to(election_behavior, &mut election);
+            let previous_behavior = existing.behavior();
+            let upgraded = existing.maybe_upgrade_to(election_behavior);
+            if upgraded {
+                *self.count_by_behavior_mut(previous_behavior) -= 1;
+                *self.count_by_behavior_mut(election_behavior) += 1;
+            }
             return false;
         }
 
-        let election = Arc::new(Mutex::new(Election::new(
-            block,
-            election_behavior,
-            self.base_latency,
-            now,
-        )));
+        let election = Election::new(block, election_behavior, self.base_latency, now);
 
         self.roots.insert(Entry {
             root: root.clone(),
-            election: election.clone(),
+            election,
             erased_callback,
         });
 
@@ -119,28 +117,12 @@ impl ActiveElectionsContainer {
         true
     }
 
-    fn maybe_upgrade_to(
-        &mut self,
-        new_behavior: ElectionBehavior,
-        election: &mut Election,
-    ) -> bool {
-        let previous_behavior = election.behavior();
-        let upgraded = election.maybe_upgrade_to(new_behavior);
-        if upgraded {
-            *self.count_by_behavior_mut(previous_behavior) -= 1;
-            *self.count_by_behavior_mut(new_behavior) += 1;
-        }
-        upgraded
-    }
-
     pub(super) fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
-        let Some(entry) = self.roots.get(&fork.qualified_root()) else {
+        let Some(entry) = self.roots.get_mut(&fork.qualified_root()) else {
             return AddForkResult::ElectionEnded;
         };
 
-        let mut election = entry.election.lock().unwrap();
-
-        let result = election.try_add_fork(fork, fork_tally);
+        let result = entry.election.try_add_fork(fork, fork_tally);
         let added = match &result {
             AddForkResult::Added => true,
             AddForkResult::Replaced(removed) => {
@@ -198,18 +180,30 @@ impl ActiveElectionsContainer {
     }
 
     pub fn transition_time(&mut self, now: Timestamp) {
-        for election in self.iter() {
-            election.lock().unwrap().transition_time(now);
+        for entry in self.roots.iter_mut() {
+            entry.election.transition_time(now);
         }
     }
 
-    pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<&Arc<Mutex<Election>>> {
+    pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<&Election> {
         self.roots.get(root).map(|i| &i.election)
     }
 
-    pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<&Arc<Mutex<Election>>> {
+    pub fn election_for_root_mut(&mut self, root: &QualifiedRoot) -> Option<&mut Election> {
+        self.roots.get_mut(root).map(|i| &mut i.election)
+    }
+
+    pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<&Election> {
         let root = self.vote_router.qualified_root(block_hash)?;
         self.election_for_root(&root)
+    }
+
+    pub(super) fn election_for_block_mut(
+        &mut self,
+        block_hash: &BlockHash,
+    ) -> Option<&mut Election> {
+        let root = self.vote_router.qualified_root(block_hash)?;
+        self.roots.get_mut(&root).map(|i| &mut i.election)
     }
 
     pub fn info(&self) -> ActiveElectionsInfo {
@@ -223,9 +217,7 @@ impl ActiveElectionsContainer {
     }
 
     pub(crate) fn erase_ended_elections(&mut self) -> Vec<Entry> {
-        let removed = self
-            .roots
-            .drain_filter(|i| i.election.lock().unwrap().state().has_ended());
+        let removed = self.roots.drain_filter(|i| i.election.state().has_ended());
 
         for entry in &removed {
             self.cleanup_election(entry);
@@ -245,7 +237,7 @@ impl ActiveElectionsContainer {
     }
 
     fn cleanup_election(&mut self, entry: &Entry) {
-        let election = entry.election.lock().unwrap();
+        let election = &entry.election;
 
         // Keep track of election count by election type
         *self.count_by_behavior_mut(election.behavior()) -= 1;
@@ -258,7 +250,7 @@ impl ActiveElectionsContainer {
     }
 
     pub fn batch_cemented(
-        &self,
+        &mut self,
         batch: Vec<(SavedBlock, Option<EndedElection>)>,
         now: Timestamp,
     ) -> Vec<EndedElection> {
@@ -268,17 +260,16 @@ impl ActiveElectionsContainer {
         // races where an election for a block that is already
         // cemented is inserted
         for (cemented_block, source_election) in batch {
-            let dependent_election_opt = self.election_for_root(&cemented_block.qualified_root());
+            let mut dependent_entry = self.roots.get_mut(&cemented_block.qualified_root());
 
             // Distinguishes replay votes, cannot be determined if the block is not in any election
             // Dependent elections are implicitly confirmed when their block is cemented
-            if let Some(dependent_election_mutex) = &dependent_election_opt {
+            if let Some(dependent_entry) = &mut dependent_entry {
                 // TRY CONFIRM
                 // TODO: This should either confirm or cancel the election
-                let mut dependent_election = dependent_election_mutex.lock().unwrap();
-                let winner_hash = dependent_election.winner().hash();
+                let winner_hash = dependent_entry.election.winner().hash();
                 if winner_hash == cemented_block.hash() {
-                    dependent_election.force_confirm();
+                    dependent_entry.election.force_confirm();
                 }
             }
 
@@ -296,10 +287,9 @@ impl ActiveElectionsContainer {
             if handled {
                 // already handled
             } else {
-                if let Some(dep_el) = dependent_election_opt {
+                if let Some(dep_el) = dependent_entry {
                     ended_election = dep_el
-                        .lock()
-                        .unwrap()
+                        .election
                         .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
                 } else {
                     ended_election.result = ElectionResult::InactiveConfirmationHeight;
@@ -369,133 +359,133 @@ impl ActiveElectionsContainer {
         now: Timestamp,
     ) -> Vec<ApplyVoteResult> {
         let mut results = Vec::new();
-        let mut process = Vec::new();
-        {
-            let mut processed_hashes = HashSet::new();
+        let mut processed_hashes = HashSet::new();
 
-            for vote_summary in votes {
-                // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-                if !processed_hashes.insert(vote_summary.hash) {
-                    continue;
-                }
-
-                let election = self.election_for_block(&vote_summary.hash);
-                if let Some(election) = election {
-                    process.push((vote_summary, election.clone()));
-                } else {
-                    if !self.was_recently_confirmed(&vote_summary.hash) {
-                        results.push(ApplyVoteResult::new(
-                            vote_summary.hash,
-                            VoteCode::Indeterminate,
-                        ));
-                    } else {
-                        results.push(ApplyVoteResult::new(vote_summary.hash, VoteCode::Replay));
-                    }
-                }
+        for vote_summary in votes {
+            // Ignore duplicate hashes (should not happen with a well-behaved voting node)
+            if !processed_hashes.insert(vote_summary.hash) {
+                continue;
             }
-        }
 
-        for (vote_summary, election_mutex) in process {
-            let mut result = VoteCode::Invalid;
-            let mut ended_election = None;
-            let mut final_vote = None;
-            let mut change_winner = None;
-            let rep_weight = rep_weights
-                .get(&vote_summary.voter)
-                .cloned()
-                .unwrap_or_default();
+            let root = self.vote_router.qualified_root(&vote_summary.hash);
+            if let Some(root) = root {
+                let entry = self.roots.get_mut(&root).unwrap();
+                let election = &mut entry.election;
 
-            if result == VoteCode::Invalid {
-                let mut election = election_mutex.lock().unwrap();
+                let mut result = VoteCode::Invalid;
+                let mut ended_election = None;
+                let mut final_vote = None;
+                let mut change_winner = None;
+                let rep_weight = rep_weights
+                    .get(&vote_summary.voter)
+                    .cloned()
+                    .unwrap_or_default();
 
-                if let Some(last_vote) = election.votes().get(&vote_summary.voter) {
-                    if last_vote.timestamp > vote_summary.timestamp {
-                        result = VoteCode::Replay;
-                    } else if last_vote.timestamp == vote_summary.timestamp
-                        && !(last_vote.hash < vote_summary.hash)
-                    {
-                        result = VoteCode::Replay;
+                if result == VoteCode::Invalid {
+                    if let Some(last_vote) = election.votes().get(&vote_summary.voter) {
+                        if last_vote.timestamp > vote_summary.timestamp {
+                            result = VoteCode::Replay;
+                        } else if last_vote.timestamp == vote_summary.timestamp
+                            && !(last_vote.hash < vote_summary.hash)
+                        {
+                            result = VoteCode::Replay;
+                        }
+
+                        if result == VoteCode::Invalid {
+                            let max_vote = vote_summary.timestamp == UnixMillisTimestamp::MAX
+                                && last_vote.timestamp < vote_summary.timestamp;
+
+                            let mut past_cooldown = true;
+                            // Only cooldown live votes
+                            if source != VoteSource::Cache {
+                                let cooldown = ActiveElectionsContainer::cooldown_time(
+                                    rep_weight,
+                                    online_weight,
+                                );
+                                past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
+                            }
+
+                            if !max_vote && !past_cooldown {
+                                result = VoteCode::Ignored;
+                            }
+                        }
                     }
 
                     if result == VoteCode::Invalid {
-                        let max_vote = vote_summary.timestamp == UnixMillisTimestamp::MAX
-                            && last_vote.timestamp < vote_summary.timestamp;
+                        election.add_vote(
+                            vote_summary.voter,
+                            vote_summary.timestamp,
+                            vote_summary.hash,
+                        );
 
-                        let mut past_cooldown = true;
-                        // Only cooldown live votes
-                        if source != VoteSource::Cache {
-                            let cooldown =
-                                ActiveElectionsContainer::cooldown_time(rep_weight, online_weight);
-                            past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
-                        }
+                        // CONFIRM IF QUORUM:
+                        if !election.is_confirmed() {
+                            let old_winner = election.winner().hash();
+                            let old_final = election.is_final();
 
-                        if !max_vote && !past_cooldown {
-                            result = VoteCode::Ignored;
+                            election.update_tallies(&rep_weights, quorum_delta);
+
+                            let winner_changed = election.winner().hash() != old_winner;
+                            if winner_changed {
+                                change_winner = Some((old_winner, election.winner().clone()));
+                            }
+
+                            if election.is_final() {
+                                if !old_final {
+                                    final_vote = Some(election.winner().clone());
+                                }
+                                if election.is_confirmed() {
+                                    ended_election = Some(election.into_ended_election(
+                                        now,
+                                        ElectionResult::ActiveConfirmedQuorum,
+                                    ));
+                                }
+                            }
                         }
+                        result = VoteCode::Vote;
                     }
                 }
 
-                if result == VoteCode::Invalid {
-                    election.add_vote(
-                        vote_summary.voter,
-                        vote_summary.timestamp,
+                results.push(ApplyVoteResult {
+                    voted_block: vote_summary.hash,
+                    vote_result: result,
+                    got_confirmed: ended_election,
+                    final_phase_started: final_vote,
+                    winner_changed: change_winner,
+                });
+            } else {
+                if !self.was_recently_confirmed(&vote_summary.hash) {
+                    results.push(ApplyVoteResult::new(
                         vote_summary.hash,
-                    );
-
-                    // CONFIRM IF QUORUM:
-                    if !election.is_confirmed() {
-                        let old_winner = election.winner().hash();
-                        let old_final = election.is_final();
-
-                        election.update_tallies(&rep_weights, quorum_delta);
-
-                        let winner_changed = election.winner().hash() != old_winner;
-                        if winner_changed {
-                            change_winner = Some((old_winner, election.winner().clone()));
-                        }
-
-                        if election.is_final() {
-                            if !old_final {
-                                final_vote = Some(election.winner().clone());
-                            }
-                            if election.is_confirmed() {
-                                ended_election = Some(election.into_ended_election(
-                                    now,
-                                    ElectionResult::ActiveConfirmedQuorum,
-                                ));
-                            }
-                        }
-                    }
-                    result = VoteCode::Vote;
+                        VoteCode::Indeterminate,
+                    ));
+                } else {
+                    results.push(ApplyVoteResult::new(vote_summary.hash, VoteCode::Replay));
                 }
             }
-
-            results.push(ApplyVoteResult {
-                voted_block: vote_summary.hash,
-                vote_result: result,
-                got_confirmed: ended_election,
-                final_phase_started: final_vote,
-                winner_changed: change_winner,
-            });
         }
 
         results
     }
 
-    pub fn force_confirm(&self, block_hash: &BlockHash, now: Timestamp) -> Option<EndedElection> {
-        let election = self.election_for_block(block_hash)?;
-        election.lock().unwrap().force_confirm();
+    pub fn force_confirm(
+        &mut self,
+        block_hash: &BlockHash,
+        now: Timestamp,
+    ) -> Option<EndedElection> {
+        let root = self.vote_router.qualified_root(block_hash)?;
+        let entry = self.roots.get_mut(&root)?;
+        let election = &mut entry.election;
+        election.force_confirm();
 
-        let ended_election = election
-            .lock()
-            .unwrap()
-            .into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
+        let ended_election =
+            election.into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
         Some(ended_election)
     }
 
-    pub fn cancel(&self, root: &QualifiedRoot) {
-        if let Some(election) = self.election_for_root(root) {
-            election.lock().unwrap().cancel();
+    pub fn cancel(&mut self, root: &QualifiedRoot) {
+        if let Some(entry) = self.roots.get_mut(root) {
+            entry.election.cancel();
         }
     }
 }

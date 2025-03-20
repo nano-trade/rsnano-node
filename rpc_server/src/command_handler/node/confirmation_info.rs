@@ -1,5 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use indexmap::IndexMap;
 use rsnano_core::{Account, Amount};
 use rsnano_rpc_messages::{ConfirmationBlockInfoDto, ConfirmationInfoArgs, ConfirmationInfoDto};
@@ -12,15 +12,10 @@ impl RpcCommandHandler {
         let include_representatives = args.representatives.unwrap_or(false.into()).inner();
         let contents = args.contents.unwrap_or(true.into()).inner();
         let active = self.node.active.read();
-        let election_mutex = active
+        let election = active
             .election_for_root(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 
-        if election_mutex.lock().unwrap().is_confirmed() {
-            bail!("Active confirmation not found");
-        }
-
-        let election = election_mutex.lock().unwrap();
         let announcements = 0; // not supported in RsNano
         let voters = election.votes().len();
         let last_winner = election.winner().hash();

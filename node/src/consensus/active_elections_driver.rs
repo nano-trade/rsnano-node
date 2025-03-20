@@ -49,9 +49,7 @@ impl Runnable for ActiveElectionsDriver {
          * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
          * Flushed elections are later re-activated via frontier confirmation
          */
-        for election_mutex in self.active_elections.read().iter() {
-            let election = election_mutex.lock().unwrap();
-
+        for election in self.active_elections.read().iter() {
             match election.state() {
                 ElectionState::Passive => {
                     self.block_voter.try_vote_for_block(

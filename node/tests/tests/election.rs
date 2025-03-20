@@ -75,8 +75,6 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
             .read()
             .election_for_block(&send1.hash())
             .unwrap()
-            .lock()
-            .unwrap()
             .is_confirmed(),
         false
     );
@@ -283,8 +281,6 @@ fn election_behavior() {
         node.active
             .read()
             .election_for_block(&chain[0].hash())
-            .unwrap()
-            .lock()
             .unwrap()
             .behavior(),
         ElectionBehavior::Manual

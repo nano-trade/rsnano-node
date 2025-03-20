@@ -37,8 +37,6 @@ pub fn activate_one() {
             .read()
             .election_for_root(&block.qualified_root())
             .unwrap()
-            .lock()
-            .unwrap()
             .behavior(),
         ElectionBehavior::Optimistic
     );
@@ -75,8 +73,6 @@ pub fn activate_one_zero_conf() {
             .read()
             .election_for_root(&block.qualified_root())
             .unwrap()
-            .lock()
-            .unwrap()
             .behavior(),
         ElectionBehavior::Optimistic
     );
@@ -111,7 +107,7 @@ pub fn activate_many() {
                 return false;
             };
 
-            let behavior = election.lock().unwrap().behavior();
+            let behavior = election.behavior();
             behavior == ElectionBehavior::Optimistic
         })
     });

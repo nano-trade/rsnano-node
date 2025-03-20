@@ -49,10 +49,9 @@ impl BlockVoter {
     pub fn try_vote(&self, block_hash: &BlockHash) {
         let (block_hash, root, vote_type) = {
             let active = self.active_elections.read();
-            let Some(election_mutex) = active.election_for_block(block_hash) else {
+            let Some(election) = active.election_for_block(block_hash) else {
                 return;
             };
-            let election = election_mutex.lock().unwrap();
             (
                 election.winner().hash(),
                 election.qualified_root().root,

@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
 
 use rsnano_core::QualifiedRoot;
 
@@ -11,7 +8,7 @@ use super::ErasedCallback;
 
 pub(crate) struct Entry {
     pub root: QualifiedRoot,
-    pub election: Arc<Mutex<Election>>,
+    pub election: Election,
     pub erased_callback: Option<ErasedCallback>,
 }
 
@@ -23,8 +20,7 @@ pub(crate) struct RootContainer {
 }
 
 impl RootContainer {
-    pub const ELEMENT_SIZE: usize =
-        size_of::<QualifiedRoot>() * 2 + size_of::<Arc<Mutex<Election>>>();
+    pub const ELEMENT_SIZE: usize = size_of::<QualifiedRoot>() * 2 + size_of::<Election>();
 
     pub fn insert(&mut self, entry: Entry) {
         let root = entry.root.clone();
@@ -35,6 +31,10 @@ impl RootContainer {
 
     pub fn get(&self, root: &QualifiedRoot) -> Option<&Entry> {
         self.by_root.get(root)
+    }
+
+    pub fn get_mut(&mut self, root: &QualifiedRoot) -> Option<&mut Entry> {
+        self.by_root.get_mut(root)
     }
 
     pub fn drain_filter(&mut self, mut predicate: impl FnMut(&Entry) -> bool) -> Vec<Entry> {
@@ -79,5 +79,9 @@ impl RootContainer {
 
     pub fn iter_sequenced(&self) -> impl Iterator<Item = &Entry> {
         self.sequenced.iter().map(|r| self.by_root.get(r).unwrap())
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Entry> {
+        self.by_root.values_mut()
     }
 }

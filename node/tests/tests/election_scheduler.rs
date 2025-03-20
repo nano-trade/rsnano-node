@@ -293,8 +293,6 @@ mod election_scheduler {
                 .read()
                 .election_for_block(&block.hash())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .behavior(),
             ElectionBehavior::Optimistic
         );
@@ -311,8 +309,6 @@ mod election_scheduler {
             node.active
                 .read()
                 .election_for_block(&block.hash())
-                .unwrap()
-                .lock()
                 .unwrap()
                 .behavior(),
             ElectionBehavior::Priority

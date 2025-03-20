@@ -139,11 +139,10 @@ impl ActiveElections {
     fn handle_removed_election(&self, entry: Entry) {
         self.add_stats(&entry);
 
-        let election = entry.election.lock().unwrap();
+        let election = &entry.election;
         let winner_hash = election.winner().hash();
         let is_confirmed = election.is_confirmed();
         let blocks = election.candidate_blocks().clone();
-        drop(election);
 
         for (hash, block) in blocks {
             // Notify observers about dropped elections & blocks lost confirmed elections
@@ -158,13 +157,12 @@ impl ActiveElections {
     }
 
     fn add_stats(&self, entry: &Entry) {
-        let election = entry.election.lock().unwrap();
+        let election = &entry.election;
         let is_confirmed = election.is_confirmed();
         let state = election.state();
         let behavior = election.behavior();
         let start = election.start();
         let root = election.qualified_root().clone();
-        drop(election);
 
         self.stats
             .inc(StatType::ActiveElections, DetailType::Stopped);
@@ -265,11 +263,11 @@ impl ActiveElections {
     }
 
     pub fn transition_active_hash(&self, block_hash: &BlockHash) -> bool {
-        let container = self.container.write().unwrap();
-        let Some(election) = container.election_for_block(block_hash) else {
+        let mut container = self.container.write().unwrap();
+        let Some(election) = container.election_for_block_mut(block_hash) else {
             return false;
         };
-        election.lock().unwrap().transition_active();
+        election.transition_active();
         true
     }
 
@@ -278,9 +276,7 @@ impl ActiveElections {
         self.container
             .write()
             .unwrap()
-            .election_for_root(root)
-            .unwrap()
-            .lock()
+            .election_for_root_mut(root)
             .unwrap()
             .transition_active();
     }
@@ -295,10 +291,8 @@ impl ActiveElections {
         self.container
             .write()
             .unwrap()
-            .election_for_root(root)
+            .election_for_root_mut(root)
             .expect("No election found for given root")
-            .lock()
-            .unwrap()
             .change_vote_timestamp(voter, new_timestamp);
     }
 
@@ -307,7 +301,7 @@ impl ActiveElections {
         batch: Vec<(SavedBlock, Option<EndedElection>)>,
     ) -> Vec<EndedElection> {
         let now = self.clock.now();
-        self.container.read().unwrap().batch_cemented(batch, now)
+        self.container.write().unwrap().batch_cemented(batch, now)
     }
 
     pub fn remove_votes<'a>(
@@ -315,11 +309,10 @@ impl ActiveElections {
         root: &QualifiedRoot,
         voters: impl IntoIterator<Item = &'a PublicKey>,
     ) {
-        let container = self.container.write().unwrap();
-        let Some(election_mutex) = container.election_for_root(root) else {
+        let mut container = self.container.write().unwrap();
+        let Some(election) = container.election_for_root_mut(root) else {
             return;
         };
-        let mut election = election_mutex.lock().unwrap();
         for voter in voters {
             election.remove_vote(voter);
         }

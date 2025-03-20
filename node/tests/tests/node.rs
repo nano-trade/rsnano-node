@@ -425,8 +425,6 @@ fn confirm_quorum() {
         .read()
         .election_for_root(&send1.qualified_root())
         .unwrap()
-        .lock()
-        .unwrap()
         .vote_count();
     assert_eq!(0, votes);
 }
@@ -776,8 +774,6 @@ fn fork_multi_flip() {
             .read()
             .election_for_root(&send2.qualified_root())
             .unwrap()
-            .lock()
-            .unwrap()
             .contains_block(&send1.hash())
     });
 
@@ -811,8 +807,6 @@ fn fork_publish() {
                 .read()
                 .election_for_root(&send1.qualified_root())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .vote_count()
         },
         1,
@@ -821,8 +815,6 @@ fn fork_publish() {
         .active
         .read()
         .election_for_root(&send1.qualified_root())
-        .unwrap()
-        .lock()
         .unwrap()
         .votes()
         .clone();
@@ -866,8 +858,6 @@ fn fork_publish_inactive() {
                 .read()
                 .election_for_root(&send1.qualified_root())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .block_count()
         },
         2,
@@ -877,8 +867,6 @@ fn fork_publish_inactive() {
         node.active
             .read()
             .election_for_root(&send1.qualified_root())
-            .unwrap()
-            .lock()
             .unwrap()
             .winner()
             .hash(),
@@ -1766,8 +1754,6 @@ fn fork_open() {
                 .read()
                 .election_for_root(&open2.qualified_root())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .block_count()
         },
         2,
@@ -1777,8 +1763,6 @@ fn fork_open() {
         node.active
             .read()
             .election_for_root(&open2.qualified_root())
-            .unwrap()
-            .lock()
             .unwrap()
             .winner()
             .hash()
@@ -1994,8 +1978,6 @@ fn fork_election_invalid_block_signature() {
             .read()
             .election_for_root(&send1.qualified_root())
             .unwrap()
-            .lock()
-            .unwrap()
             .block_count()
             > 1
     });
@@ -2004,8 +1986,6 @@ fn fork_election_invalid_block_signature() {
             .active
             .read()
             .election_for_root(&send1.qualified_root())
-            .unwrap()
-            .lock()
             .unwrap()
             .candidate_blocks()
             .get(&send2.hash())
@@ -2088,8 +2068,6 @@ fn rollback_vote_self() {
                 .read()
                 .election_for_root(&send2.qualified_root())
                 .unwrap()
-                .lock()
-                .unwrap()
                 .block_count()
         },
         2,
@@ -2113,8 +2091,6 @@ fn rollback_vote_self() {
             node.active
                 .read()
                 .election_for_root(&send2.qualified_root())
-                .unwrap()
-                .lock()
                 .unwrap()
                 .winner()
                 .hash(),

@@ -10,13 +10,12 @@ impl RpcCommandHandler {
         let mut confirmed = 0;
         let mut elections = Vec::new();
 
-        let active_elections: Vec<_> = self.node.active.read().iter().cloned().collect();
-        for election in active_elections {
-            let el = election.lock().unwrap();
+        let active = self.node.active.read();
+        for election in active.iter() {
             let req_count = 0; // not supported in RsNano
             if req_count as u64 >= announcements {
-                if !el.is_confirmed() {
-                    elections.push(el.qualified_root().clone());
+                if !election.is_confirmed() {
+                    elections.push(election.qualified_root().clone());
                 } else {
                     confirmed += 1;
                 }
