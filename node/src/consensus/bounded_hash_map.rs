@@ -39,8 +39,8 @@ where
         self.entries.len()
     }
 
-    pub fn insert(&mut self, key: K, value: V) {
-        self.entries.insert(key.clone(), value.clone());
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+        let result = self.entries.insert(key.clone(), value.clone());
         self.sequential.push_back((key, value));
         while self.entries.len() > self.max_len() {
             let (k, v) = self.sequential.pop_front().unwrap();
@@ -48,6 +48,7 @@ where
                 self.entries.remove(&k);
             }
         }
+        result
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {

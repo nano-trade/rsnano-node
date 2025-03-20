@@ -8,11 +8,12 @@ use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::consensus::{
+    bounded_hash_map::BoundedHashMap,
     ActiveElections,
     VoteType::{self, Final, NonFinal},
 };
 
-use super::{bounded_hash_map::BoundedHashMap, VoteGenerators};
+use super::VoteGenerators;
 
 /// Tries to enqueue a vote for a given block
 pub(crate) struct BlockVoter {

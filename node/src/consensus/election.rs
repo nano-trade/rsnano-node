@@ -221,22 +221,10 @@ impl Election {
         }
     }
 
-    pub fn should_broadcast_winner_block(&self) -> bool {
-        // Broadcast the block if enough time has passed since the last broadcast (or it's the first broadcast)
-        if self.last_block_broadcast.elapsed() < self.config.block_broadcast_interval {
-            true
-        } else {
-            // Or the current election winner has changed
-            self.winner().hash() != self.last_broadcasted_block
-        }
-    }
-
     /// Returns true, if it was the initial broadcast
-    pub fn winner_block_broadcasted(&mut self) -> bool {
-        let is_initial_broadcast = self.last_broadcasted_block.is_zero();
+    pub fn winner_block_broadcasted(&mut self) {
         self.last_block_broadcast = Instant::now();
         self.last_broadcasted_block = self.winner.hash();
-        is_initial_broadcast
     }
 
     /// Calculates time delay between broadcasting confirmation requests

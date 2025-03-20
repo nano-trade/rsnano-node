@@ -11,7 +11,10 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 
-use super::{ActiveElections, BlockVoter, ConfirmationSolicitor, Election, ElectionState};
+use super::{
+    winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElections, BlockVoter,
+    ConfirmationSolicitor, Election, ElectionState,
+};
 
 /// Periodically tries to transitions election state and send votes + blocks
 pub struct ActiveElectionsDriver {
@@ -23,30 +26,10 @@ pub struct ActiveElectionsDriver {
     pub(crate) network: Arc<RwLock<Network>>,
     pub(crate) clock: Arc<SteadyClock>,
     pub(crate) block_voter: Arc<BlockVoter>,
+    pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
 }
 
 impl ActiveElectionsDriver {
-    fn try_broadcast_winner_block(
-        &self,
-        solicitor: &mut ConfirmationSolicitor,
-        election: &mut Election,
-    ) {
-        if election.should_broadcast_winner_block() {
-            if solicitor.broadcast_winner_block(election).is_ok() {
-                let is_initial = election.winner_block_broadcasted();
-
-                self.stats.inc(
-                    StatType::Election,
-                    if is_initial {
-                        DetailType::BroadcastBlockInitial
-                    } else {
-                        DetailType::BroadcastBlockRepeat
-                    },
-                );
-            }
-        }
-    }
-
     fn send_confirm_req(&self, solicitor: &mut ConfirmationSolicitor, election: &mut Election) {
         if election.should_send_confirm_req() {
             if solicitor.add(election) {
@@ -103,14 +86,16 @@ impl Runnable for ActiveElectionsDriver {
                             election.winner().root(),
                             election.vote_type(),
                         );
-                        self.try_broadcast_winner_block(&mut solicitor, &mut election);
+                        self.winner_block_broadcaster
+                            .try_broadcast_winner(&mut solicitor, &mut election);
                         self.send_confirm_req(&mut solicitor, &mut election);
                     }
                     _ => {}
                 }
 
                 if old_state == ElectionState::Confirmed {
-                    self.try_broadcast_winner_block(&mut solicitor, &mut election);
+                    self.winner_block_broadcaster
+                        .try_broadcast_winner(&mut solicitor, &mut election);
                     // Ensure election winner is broadcasted
                 }
             };

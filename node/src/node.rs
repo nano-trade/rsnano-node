@@ -52,7 +52,7 @@ use crate::{
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster,
+        VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -560,6 +560,9 @@ impl Node {
             config.confirmation_history_size,
         )));
 
+        let winner_block_broadcaster =
+            WinnerBlockBroadcaster::new(stats.clone(), steady_clock.clone(), current_network);
+
         let confirmation_requester = ActiveElectionsDriver {
             active_elections: active_elections.clone(),
             stats: stats.clone(),
@@ -569,6 +572,7 @@ impl Node {
             network: network.clone(),
             clock: steady_clock.clone(),
             block_voter: block_voter.clone(),
+            winner_block_broadcaster,
         };
 
         let fork_adder = ElectionForkAdder {
