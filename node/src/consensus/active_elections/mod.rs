@@ -13,7 +13,9 @@ use root_container::{Entry, RootContainer};
 use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
-use rsnano_core::{Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock};
+use rsnano_core::{
+    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
+};
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
 use super::{AddForkResult, Election, ElectionBehavior, ElectionConfig, EndedElection, VoteRouter};
@@ -314,6 +316,10 @@ impl ActiveElections {
             election.remove_vote(voter);
         }
     }
+
+    pub fn apply_votes(&self) -> Vec<ApplyVoteResult> {
+        todo!()
+    }
 }
 
 impl Drop for ActiveElections {
@@ -323,3 +329,23 @@ impl Drop for ActiveElections {
 }
 
 pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
+
+pub struct ApplyVoteResult {
+    pub voted_block: BlockHash,
+    pub vote_result: VoteCode,
+    pub got_confirmed: Option<EndedElection>,
+    pub final_phase_started: Option<MaybeSavedBlock>,
+    pub winner_changed: Option<(BlockHash, MaybeSavedBlock)>,
+}
+
+impl ApplyVoteResult {
+    pub fn new(voted_block: BlockHash, vote_result: VoteCode) -> Self {
+        Self {
+            voted_block,
+            vote_result,
+            got_confirmed: None,
+            final_phase_started: None,
+            winner_changed: None,
+        }
+    }
+}

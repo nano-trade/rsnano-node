@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{mpsc::SyncSender, Arc, Mutex, RwLock},
     time::SystemTime,
 };
@@ -20,7 +20,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::NetworkParams,
-    consensus::{ActiveElectionsContainer, ElectionResult, VoteType},
+    consensus::{ActiveElectionsContainer, ApplyVoteResult, ElectionResult, VoteSummary, VoteType},
     representatives::OnlineReps,
 };
 
@@ -104,49 +104,66 @@ impl VoteApplier {
         debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
 
         let rep_weights = self.ledger.rep_weights.read();
-        let (minimum_principal_weight, online_weight) = {
+        let (minimum_principal_weight, online_weight, quorum_delta) = {
             let online_reps = self.online_reps.lock().unwrap();
             (
                 online_reps.minimum_principal_weight(),
                 online_reps.trended_or_minimum_weight(),
+                online_reps.quorum_delta(),
             )
         };
         let now = self.clock.now();
-        //--------------------------------------------------------------------------------
-        let mut results = HashMap::new();
-        let mut process = HashMap::new();
-        {
-            let hashes = vote.hashes.iter().filter(|h| {
+        let sys_now = SystemTime::now();
+
+        let vote_summaries = vote
+            .hashes
+            .iter()
+            .filter(|h| {
                 // Ignore votes for other hashes if a filter is set
                 if !filter.is_zero() && *h != filter {
                     false
                 } else {
                     true
                 }
+            })
+            .map(|hash| VoteSummary {
+                voter: vote.voter,
+                time: sys_now,
+                timestamp: vote.timestamp(),
+                hash: *hash,
+                weight: rep_weights.get(&vote.voter).cloned().unwrap_or_default(),
             });
 
+        //--------------------------------------------------------------------------------
+        let mut results = Vec::new();
+        let mut process = Vec::new();
+        {
+            let mut processed_hashes = HashSet::new();
+
             let active = self.active_elections.read();
-            for hash in hashes {
+            for vote_summary in vote_summaries {
                 // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-                if results.contains_key(hash) {
+                if !processed_hashes.insert(vote_summary.hash) {
                     continue;
                 }
 
-                let election = active.election_for_block(hash);
+                let election = active.election_for_block(&vote_summary.hash);
                 if let Some(election) = election {
-                    process.insert(*hash, election.clone());
+                    process.push((vote_summary, election.clone()));
                 } else {
-                    if !active.was_recently_confirmed(hash) {
-                        results.insert(*hash, (VoteCode::Indeterminate, None, None, None));
+                    if !active.was_recently_confirmed(&vote_summary.hash) {
+                        results.push(ApplyVoteResult::new(
+                            vote_summary.hash,
+                            VoteCode::Indeterminate,
+                        ));
                     } else {
-                        results.insert(*hash, (VoteCode::Replay, None, None, None));
+                        results.push(ApplyVoteResult::new(vote_summary.hash, VoteCode::Replay));
                     }
                 }
             }
         }
 
-        for (block_hash, election_mutex) in process {
-            let timestamp = vote.timestamp();
+        for (vote_summary, election_mutex) in process {
             let mut result = VoteCode::Invalid;
             let mut ended_election = None;
             let mut final_vote = None;
@@ -162,15 +179,17 @@ impl VoteApplier {
                 let mut election = election_mutex.lock().unwrap();
 
                 if let Some(last_vote) = election.votes().get(&vote.voter) {
-                    if last_vote.timestamp > timestamp {
+                    if last_vote.timestamp > vote_summary.timestamp {
                         result = VoteCode::Replay;
-                    } else if last_vote.timestamp == timestamp && !(last_vote.hash < block_hash) {
+                    } else if last_vote.timestamp == vote_summary.timestamp
+                        && !(last_vote.hash < vote_summary.hash)
+                    {
                         result = VoteCode::Replay;
                     }
 
                     if result == VoteCode::Invalid {
-                        let max_vote = timestamp == UnixMillisTimestamp::MAX
-                            && last_vote.timestamp < timestamp;
+                        let max_vote = vote_summary.timestamp == UnixMillisTimestamp::MAX
+                            && last_vote.timestamp < vote_summary.timestamp;
 
                         let mut past_cooldown = true;
                         // Only cooldown live votes
@@ -187,24 +206,10 @@ impl VoteApplier {
                 }
 
                 if result == VoteCode::Invalid {
-                    election.add_vote(vote.voter, timestamp, block_hash);
-
-                    if source != VoteSource::Cache {
-                        // Representative is defined as online if replying to live votes or rep_crawler queries
-                        self.online_reps
-                            .lock()
-                            .unwrap()
-                            .vote_observed(vote.voter, now);
-                    }
-
-                    self.stats.inc(StatType::Election, DetailType::Vote);
-                    self.stats.inc(StatType::ElectionVote, source.into());
-                    tracing::trace!(account = %vote.voter, hash = %block_hash, %timestamp, ?source, ?rep_weight, "vote processed");
+                    election.add_vote(vote.voter, vote_summary.timestamp, vote_summary.hash);
 
                     // CONFIRM IF QUORUM:
                     if !election.is_confirmed() {
-                        let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
-
                         let old_winner = election.winner().hash();
                         let old_final = election.is_final();
 
@@ -231,16 +236,19 @@ impl VoteApplier {
                 }
             }
 
-            results.insert(
-                block_hash,
-                (result, ended_election, final_vote, change_winner),
-            );
+            results.push(ApplyVoteResult {
+                voted_block: vote_summary.hash,
+                vote_result: result,
+                got_confirmed: ended_election,
+                final_phase_started: final_vote,
+                winner_changed: change_winner,
+            });
         }
 
         //--------------------------------------------------------------------------------
 
-        for (_hash, (result, ended_election, final_vote, change_winner)) in &results {
-            if let Some((old_winner, new_winner)) = change_winner {
+        for result in &results {
+            if let Some((old_winner, new_winner)) = &result.winner_changed {
                 // Remove votes from election
                 let root = new_winner.root();
                 let list_generated_votes = self.history.votes(&root, &old_winner, false);
@@ -254,8 +262,20 @@ impl VoteApplier {
                 self.block_processor.force(new_winner.clone().into());
             }
 
-            if *result == VoteCode::Vote {
-                if let Some(winner) = final_vote {
+            if result.vote_result == VoteCode::Vote {
+                if source != VoteSource::Cache {
+                    // Representative is defined as online if replying to live votes or rep_crawler queries
+                    self.online_reps
+                        .lock()
+                        .unwrap()
+                        .vote_observed(vote.voter, now);
+                }
+
+                self.stats.inc(StatType::Election, DetailType::Vote);
+                self.stats.inc(StatType::ElectionVote, source.into());
+                tracing::trace!(account = %vote.voter, hash=%result.voted_block, ?source, "vote processed");
+
+                if let Some(winner) = &result.final_phase_started {
                     self.election_voter.try_vote_for_block(
                         winner.hash(),
                         winner.root(),
@@ -264,7 +284,7 @@ impl VoteApplier {
                 }
             }
 
-            if let Some(election) = &ended_election {
+            if let Some(election) = &result.got_confirmed {
                 // In some edge cases block might get rolled back while the election
                 // is confirming, reprocess it to ensure it's present in the ledger
                 self.block_processor.add(
@@ -283,8 +303,8 @@ impl VoteApplier {
         }
 
         let results = results
-            .drain()
-            .map(|(k, (result, _, _, _))| (k, result))
+            .drain(..)
+            .map(|i| (i.voted_block, i.vote_result))
             .collect();
         self.notify_vote_processed(vote, source, &results);
         results
