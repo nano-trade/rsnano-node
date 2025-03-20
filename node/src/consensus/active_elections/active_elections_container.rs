@@ -260,16 +260,16 @@ impl ActiveElectionsContainer {
         // races where an election for a block that is already
         // cemented is inserted
         for (cemented_block, source_election) in batch {
-            let mut dependent_entry = self.roots.get_mut(&cemented_block.qualified_root());
+            let mut dependent_election = self.roots.get_mut(&cemented_block.qualified_root());
 
             // Distinguishes replay votes, cannot be determined if the block is not in any election
             // Dependent elections are implicitly confirmed when their block is cemented
-            if let Some(dependent_entry) = &mut dependent_entry {
+            if let Some(election) = &mut dependent_election {
                 // TRY CONFIRM
                 // TODO: This should either confirm or cancel the election
-                let winner_hash = dependent_entry.election.winner().hash();
+                let winner_hash = election.election.winner().hash();
                 if winner_hash == cemented_block.hash() {
-                    dependent_entry.election.force_confirm();
+                    election.election.force_confirm();
                 }
             }
 
@@ -287,11 +287,16 @@ impl ActiveElectionsContainer {
             if handled {
                 // already handled
             } else {
-                if let Some(dep_el) = dependent_entry {
-                    ended_election = dep_el
-                        .election
-                        .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
-                } else {
+                if let Some(dep_el) = dependent_election {
+                    if dep_el.election.is_confirmed() {
+                        ended_election = dep_el
+                            .election
+                            .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
+                        handled = true;
+                    }
+                }
+
+                if !handled {
                     ended_election.result = ElectionResult::InactiveConfirmationHeight;
                 }
             }
@@ -476,11 +481,13 @@ impl ActiveElectionsContainer {
         let root = self.vote_router.qualified_root(block_hash)?;
         let entry = self.roots.get_mut(&root)?;
         let election = &mut entry.election;
-        election.force_confirm();
-
-        let ended_election =
-            election.into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
-        Some(ended_election)
+        if election.force_confirm() {
+            let ended_election =
+                election.into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
+            Some(ended_election)
+        } else {
+            None
+        }
     }
 
     pub fn cancel(&mut self, root: &QualifiedRoot) {
