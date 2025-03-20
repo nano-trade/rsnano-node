@@ -8,8 +8,8 @@ use rsnano_messages::NetworkFilter;
 
 use crate::{
     consensus::{
-        election_schedulers::ElectionSchedulers, AecEvent, BootstrapElectionActivator,
-        ElectionVoter, VoteCacheProcessor,
+        election_schedulers::ElectionSchedulers, AecEvent, BlockVoter, BootstrapElectionActivator,
+        VoteCacheProcessor,
     },
     NodeEvent,
 };
@@ -22,7 +22,7 @@ pub(crate) struct AecEventProcessor {
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub network_filter: Arc<NetworkFilter>,
     pub bootstrap_election_activator: BootstrapElectionActivator,
-    pub election_voter: Arc<ElectionVoter>,
+    pub election_voter: Arc<BlockVoter>,
 }
 
 impl AecEventProcessor {

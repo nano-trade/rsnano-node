@@ -6,17 +6,16 @@ use std::{
 use rsnano_core::{BlockHash, Networks, Root};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
-use tracing::trace;
 
 use crate::consensus::{
-    ActiveElections, Election,
+    ActiveElections,
     VoteType::{self, Final, NonFinal},
 };
 
 use super::{last_sent_votes::LastSentVotes, VoteGenerators};
 
-/// Tries to generate a vote for a given election
-pub(crate) struct ElectionVoter {
+/// Tries to enqueue a vote for a given block
+pub(crate) struct BlockVoter {
     stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
     active_elections: Arc<ActiveElections>,
@@ -25,7 +24,7 @@ pub(crate) struct ElectionVoter {
     vote_broadcast_interval: Duration,
 }
 
-impl ElectionVoter {
+impl BlockVoter {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,

@@ -11,7 +11,7 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 
-use super::{ActiveElections, ConfirmationSolicitor, Election, ElectionState, ElectionVoter};
+use super::{ActiveElections, BlockVoter, ConfirmationSolicitor, Election, ElectionState};
 
 /// Periodically tries to transitions election state and send votes + blocks
 pub(crate) struct ActiveElectionsDriver {
@@ -22,7 +22,7 @@ pub(crate) struct ActiveElectionsDriver {
     pub online_reps: Arc<Mutex<OnlineReps>>,
     pub network: Arc<RwLock<Network>>,
     pub clock: Arc<SteadyClock>,
-    pub election_voter: Arc<ElectionVoter>,
+    pub election_voter: Arc<BlockVoter>,
 }
 
 impl ActiveElectionsDriver {

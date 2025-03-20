@@ -47,8 +47,8 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, BootstrapElectionActivator, ElectionConfig,
-        ElectionForkAdder, ElectionVoter, EndedElection, LocalVoteHistory, RepTiers,
+        ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
+        ElectionConfig, ElectionForkAdder, EndedElection, LocalVoteHistory, RepTiers,
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
@@ -522,7 +522,7 @@ impl Node {
         active_elections.set_event_sink(aec_sender);
         let active_elections = Arc::new(active_elections);
 
-        let election_voter = Arc::new(ElectionVoter::new(
+        let election_voter = Arc::new(BlockVoter::new(
             stats.clone(),
             vote_generators.clone(),
             active_elections.clone(),

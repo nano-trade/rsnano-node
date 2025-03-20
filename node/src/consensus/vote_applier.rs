@@ -14,7 +14,7 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    ActiveElections, CementingElectionsCache, Election, ElectionVoter, EndedElection,
+    ActiveElections, BlockVoter, CementingElectionsCache, Election, EndedElection,
     LocalVoteHistory, VoteGenerators,
 };
 use crate::{
@@ -46,7 +46,7 @@ pub struct VoteApplier {
     wallets: Arc<Wallets>,
     confirming_set: Arc<ConfirmingSet>,
     clock: Arc<SteadyClock>,
-    election_voter: Arc<ElectionVoter>,
+    election_voter: Arc<BlockVoter>,
     cementing_elections_cache: Mutex<CementingElectionsCache>,
 }
 
@@ -63,7 +63,7 @@ impl VoteApplier {
         wallets: Arc<Wallets>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
-        election_voter: Arc<ElectionVoter>,
+        election_voter: Arc<BlockVoter>,
     ) -> Self {
         Self {
             active_elections,
