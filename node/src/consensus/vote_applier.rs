@@ -234,13 +234,6 @@ impl VoteApplier {
                         if election.is_final() {
                             if !old_final {
                                 self.election_voter.try_vote_for_election(&mut election);
-                                //if self.wallets.voting_enabled() {
-                                //    self.vote_generators.generate_final_vote(
-                                //        &election.qualified_root().root,
-                                //        &election.winner().hash(),
-                                //    );
-                                //    election.voted();
-                                //}
                             }
                             if election.is_confirmed() {
                                 ended_election = Some(election.into_ended_election(

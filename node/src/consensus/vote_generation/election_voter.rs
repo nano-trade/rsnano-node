@@ -1,6 +1,9 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use rsnano_core::BlockHash;
+use rsnano_core::{BlockHash, Networks};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::trace;
@@ -16,6 +19,7 @@ pub(crate) struct ElectionVoter {
     active_elections: Arc<ActiveElections>,
     clock: Arc<SteadyClock>,
     last_votes: Mutex<LastSentVotes>,
+    vote_broadcast_interval: Duration,
 }
 
 impl ElectionVoter {
@@ -24,6 +28,7 @@ impl ElectionVoter {
         vote_generators: Arc<VoteGenerators>,
         active_elections: Arc<ActiveElections>,
         clock: Arc<SteadyClock>,
+        network: Networks,
     ) -> Self {
         Self {
             stats,
@@ -31,6 +36,10 @@ impl ElectionVoter {
             active_elections,
             clock,
             last_votes: Mutex::new(LastSentVotes::default()),
+            vote_broadcast_interval: match network {
+                Networks::NanoDevNetwork => Duration::from_millis(500),
+                _ => Duration::from_secs(15),
+            },
         }
     }
 
@@ -52,8 +61,10 @@ impl ElectionVoter {
 
         let last_vote = self.last_votes.lock().unwrap().get(winner_hash, vote_type);
 
-        if !election.can_vote() {
-            return;
+        if let Some(last_vote) = last_vote {
+            if last_vote.elapsed(self.clock.now()) < self.vote_broadcast_interval {
+                return;
+            }
         }
 
         self.stats

@@ -527,6 +527,7 @@ impl Node {
             vote_generators.clone(),
             active_elections.clone(),
             steady_clock.clone(),
+            current_network,
         ));
 
         let vote_applier = Arc::new(VoteApplier::new(
