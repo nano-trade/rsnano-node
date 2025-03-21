@@ -337,8 +337,8 @@ impl ActiveElections {
         rep_weights: &HashMap<PublicKey, Amount>,
         online_weight: Amount,
         quorum_delta: Amount,
-    ) -> Vec<ApplyVoteResult> {
-        let mut results = self.container.write().unwrap().apply_votes(
+    ) -> HashMap<BlockHash, VoteCode> {
+        let (results, events) = self.container.write().unwrap().apply_votes(
             votes,
             source,
             rep_weights,
@@ -347,10 +347,8 @@ impl ActiveElections {
             self.clock.now(),
         );
 
-        for i in &mut results {
-            for event in i.events.drain(..) {
-                self.notify(event);
-            }
+        for e in events {
+            self.notify(e);
         }
 
         results

@@ -132,18 +132,13 @@ impl VoteApplier {
                 weight: voter_weight,
             });
 
-        let mut results = self.active_elections.apply_votes(
+        let results = self.active_elections.apply_votes(
             vote_summaries,
             source,
             &rep_weights,
             online_weight,
             quorum_delta,
         );
-
-        let results = results
-            .drain(..)
-            .map(|i| (i.voted_block, i.vote_result))
-            .collect();
 
         self.notify_vote_processed(vote, voter_weight, source, &results);
         results

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     ops::Deref,
     time::{Duration, SystemTime},
 };
@@ -15,8 +15,8 @@ use crate::consensus::{
 };
 
 use super::{
-    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, AecEvent,
-    ApplyVoteResult, Entry, ErasedCallback, RootContainer, VoteRouter,
+    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, AecEvent, Entry,
+    ErasedCallback, RootContainer, VoteRouter,
 };
 
 pub struct ActiveElectionsContainer {
@@ -356,13 +356,13 @@ impl ActiveElectionsContainer {
         online_weight: Amount,
         quorum_delta: Amount,
         now: Timestamp,
-    ) -> Vec<ApplyVoteResult> {
-        let mut results = Vec::new();
-        let mut processed_hashes = HashSet::new();
+    ) -> (HashMap<BlockHash, VoteCode>, Vec<AecEvent>) {
+        let mut results = HashMap::new();
+        let mut events = Vec::new();
 
         for vote_summary in votes {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-            if !processed_hashes.insert(vote_summary.hash) {
+            if results.contains_key(&vote_summary.hash) {
                 continue;
             }
 
@@ -371,24 +371,23 @@ impl ActiveElectionsContainer {
                 let entry = self.roots.get_mut(&root).unwrap();
                 let election = &mut entry.election;
 
-                let mut result = VoteCode::Invalid;
-                let mut events = Vec::new();
+                let mut vote_code = VoteCode::Invalid;
                 let rep_weight = rep_weights
                     .get(&vote_summary.voter)
                     .cloned()
                     .unwrap_or_default();
 
-                if result == VoteCode::Invalid {
+                if vote_code == VoteCode::Invalid {
                     if let Some(last_vote) = election.votes().get(&vote_summary.voter) {
                         if last_vote.timestamp > vote_summary.timestamp {
-                            result = VoteCode::Replay;
+                            vote_code = VoteCode::Replay;
                         } else if last_vote.timestamp == vote_summary.timestamp
                             && !(last_vote.hash < vote_summary.hash)
                         {
-                            result = VoteCode::Replay;
+                            vote_code = VoteCode::Replay;
                         }
 
-                        if result == VoteCode::Invalid {
+                        if vote_code == VoteCode::Invalid {
                             let max_vote = vote_summary.timestamp == UnixMillisTimestamp::MAX
                                 && last_vote.timestamp < vote_summary.timestamp;
 
@@ -403,12 +402,12 @@ impl ActiveElectionsContainer {
                             }
 
                             if !max_vote && !past_cooldown {
-                                result = VoteCode::Ignored;
+                                vote_code = VoteCode::Ignored;
                             }
                         }
                     }
 
-                    if result == VoteCode::Invalid {
+                    if vote_code == VoteCode::Invalid {
                         election.add_vote(
                             vote_summary.voter,
                             vote_summary.timestamp,
@@ -454,28 +453,21 @@ impl ActiveElectionsContainer {
                             }
                         }
 
-                        result = VoteCode::Vote;
+                        vote_code = VoteCode::Vote;
                     }
                 }
 
-                results.push(ApplyVoteResult {
-                    voted_block: vote_summary.hash,
-                    vote_result: result,
-                    events,
-                });
+                results.insert(vote_summary.hash, vote_code);
             } else {
                 if !self.was_recently_confirmed(&vote_summary.hash) {
-                    results.push(ApplyVoteResult::new(
-                        vote_summary.hash,
-                        VoteCode::Indeterminate,
-                    ));
+                    results.insert(vote_summary.hash, VoteCode::Indeterminate);
                 } else {
-                    results.push(ApplyVoteResult::new(vote_summary.hash, VoteCode::Replay));
+                    results.insert(vote_summary.hash, VoteCode::Replay);
                 }
             }
         }
 
-        results
+        (results, events)
     }
 
     pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) -> Option<AecEvent> {
