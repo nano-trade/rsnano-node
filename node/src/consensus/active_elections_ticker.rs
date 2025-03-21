@@ -15,8 +15,8 @@ use super::{
     ActiveElections, BlockVoter, ConfirmationSolicitor, ElectionState,
 };
 
-/// Periodically tries to transitions election state and send votes + blocks
-pub struct ActiveElectionsDriver {
+/// Every 300ms tries to transitions election state and send votes + blocks
+pub struct ActiveElectionsTicker {
     pub(crate) active_elections: Arc<ActiveElections>,
     pub(crate) stats: Arc<Stats>,
     pub(crate) message_flooder: MessageFlooder,
@@ -28,7 +28,7 @@ pub struct ActiveElectionsDriver {
     pub(crate) confirm_req_sender: ConfirmReqSender,
 }
 
-impl Runnable for ActiveElectionsDriver {
+impl Runnable for ActiveElectionsTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::Active, DetailType::Loop);
 

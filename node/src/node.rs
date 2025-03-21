@@ -47,7 +47,7 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
+        ActiveElections, ActiveElectionsTicker, BlockVoter, BootstrapElectionActivator,
         ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder,
         LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
@@ -145,7 +145,7 @@ pub struct Node {
     pub ledger_notifications: LedgerNotifications,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
-    pub active_elections_driver: TimerThread<ActiveElectionsDriver>,
+    pub active_elections_driver: TimerThread<ActiveElectionsTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
 }
 
@@ -562,7 +562,7 @@ impl Node {
 
         let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
 
-        let aec_driver = ActiveElectionsDriver {
+        let aec_driver = ActiveElectionsTicker {
             active_elections: active_elections.clone(),
             stats: stats.clone(),
             message_flooder: message_flooder.clone(),

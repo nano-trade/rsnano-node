@@ -69,6 +69,7 @@ impl DependentElectionsConfirmer {
         }
 
         self.event_sender
-            .send(AecEvent::BlockConfirmed(block, election));
+            .send(AecEvent::BlockConfirmed(block, election))
+            .unwrap();
     }
 }
