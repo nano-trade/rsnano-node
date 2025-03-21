@@ -4,6 +4,7 @@ use std::sync::{
 };
 
 use rsnano_core::{utils::MemoryStream, VoteCode, VoteSource};
+use rsnano_ledger::{Ledger, LedgerSet};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::ChannelId;
 use rsnano_nullable_clock::SteadyClock;
@@ -22,7 +23,7 @@ use crate::{
     NodeEvent,
 };
 
-/// Processes events from the active election container
+/// Processes events from the active election container (AEC)
 pub(crate) struct AecEventProcessor {
     pub(crate) receiver: Receiver<AecEvent>,
     pub(crate) vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -42,6 +43,7 @@ pub(crate) struct AecEventProcessor {
     pub(crate) active_elections: Arc<ActiveElections>,
     pub(crate) rep_crawler: Arc<RepCrawler>,
     pub(crate) clock: Arc<SteadyClock>,
+    pub(crate) ledger: Arc<Ledger>,
 }
 
 impl AecEventProcessor {
@@ -64,11 +66,13 @@ impl AecEventProcessor {
                 AecEvent::ElectionConfirmed(election) => {
                     // In some edge cases block might get rolled back while the election
                     // is confirming, reprocess it to ensure it's present in the ledger
-                    self.block_processor.add(
-                        election.winner.clone().into(),
-                        BlockSource::Election,
-                        ChannelId::LOOPBACK,
-                    );
+                    if !self.ledger.any().block_exists(&election.winner.hash()) {
+                        self.block_processor.add(
+                            election.winner.clone().into(),
+                            BlockSource::Election,
+                            ChannelId::LOOPBACK,
+                        );
+                    }
 
                     self.confirming_set.add(election.clone());
                 }
@@ -117,14 +121,13 @@ impl AecEventProcessor {
                         .handle_processed_vote(&vote, &results);
 
                     // Aggregate results for individual hashes
-                    let mut result = VoteCode::Invalid;
                     let mut replay = false;
                     let mut processed = false;
                     for (_, vote_code) in results {
                         replay |= vote_code == VoteCode::Replay;
                         processed |= vote_code == VoteCode::Vote;
                     }
-                    result = if replay {
+                    let result = if replay {
                         VoteCode::Replay
                     } else if processed {
                         VoteCode::Vote

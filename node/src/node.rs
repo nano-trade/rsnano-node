@@ -1122,6 +1122,7 @@ impl Node {
             active_elections: active_elections.clone(),
             rep_crawler: rep_crawler.clone(),
             clock: steady_clock.clone(),
+            ledger: ledger.clone(),
         };
 
         std::thread::Builder::new()
