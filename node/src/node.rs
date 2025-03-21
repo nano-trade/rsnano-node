@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
-    VoteCode, VoteSource, WorkNonce,
+    VoteCode, WorkNonce,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;

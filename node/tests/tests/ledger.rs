@@ -41,12 +41,9 @@ mod votes {
         ));
         assert_eq!(
             node1
-                .vote_applier
-                .vote(&vote1, VoteSource::Live, None)
-                .values()
-                .next()
-                .unwrap(),
-            &VoteCode::Vote
+                .vote_processor
+                .vote_blocking(&vote1, None, VoteSource::Live),
+            VoteCode::Vote
         );
         let vote2 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
@@ -58,12 +55,9 @@ mod votes {
         // Ignored due to vote cooldown
         assert_eq!(
             node1
-                .vote_applier
-                .vote(&vote2, VoteSource::Live, None)
-                .values()
-                .next()
-                .unwrap(),
-            &VoteCode::Ignored
+                .vote_processor
+                .vote_blocking(&vote2, None, VoteSource::Live),
+            VoteCode::Ignored
         );
 
         assert_eq!(
@@ -112,7 +106,9 @@ mod votes {
             0,
             vec![send1.hash()],
         ));
-        node1.vote_applier.vote(&vote1, VoteSource::Live, None);
+        node1
+            .vote_processor
+            .vote_blocking(&vote1, None, VoteSource::Live);
         // Block is already processed from vote
         node1.active.try_add_fork(&send1, Amount::zero());
         assert_eq!(
@@ -154,11 +150,9 @@ mod votes {
 
         assert_eq!(
             node1
-                .vote_applier
-                .vote(&vote2, VoteSource::Live, None)
-                .get(&send2.hash())
-                .unwrap(),
-            &VoteCode::Vote
+                .vote_processor
+                .vote_blocking(&vote2, None, VoteSource::Live),
+            VoteCode::Vote
         );
         assert_eq!(
             node1
@@ -181,11 +175,9 @@ mod votes {
 
         assert_eq!(
             node1
-                .vote_applier
-                .vote(&vote1, VoteSource::Live, None)
-                .get(&send1.hash())
-                .unwrap(),
-            &VoteCode::Replay
+                .vote_processor
+                .vote_blocking(&vote1, None, VoteSource::Live),
+            VoteCode::Replay
         );
 
         let active = node1.active.read();

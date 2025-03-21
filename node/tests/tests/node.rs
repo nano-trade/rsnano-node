@@ -2084,7 +2084,8 @@ fn rollback_vote_self() {
             0,
             vec![fork.hash()],
         ));
-        node.vote_applier.vote(&vote, VoteSource::Live, None);
+        node.vote_processor
+            .vote_blocking(&vote, None, VoteSource::Live);
 
         // The winner changed
         assert_eq!(

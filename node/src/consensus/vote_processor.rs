@@ -121,13 +121,17 @@ impl VoteProcessor {
             let vote_results = self.vote_applier.vote(vote, source, channel.clone());
 
             // Aggregate results for individual hashes
+            let mut ignored = false;
             let mut replay = false;
             let mut processed = false;
             for (_, vote_code) in vote_results {
+                ignored |= vote_code == VoteCode::Ignored;
                 replay |= vote_code == VoteCode::Replay;
                 processed |= vote_code == VoteCode::Vote;
             }
-            result = if replay {
+            result = if ignored {
+                VoteCode::Ignored
+            } else if replay {
                 VoteCode::Replay
             } else if processed {
                 VoteCode::Vote
