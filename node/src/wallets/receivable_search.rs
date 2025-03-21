@@ -26,7 +26,7 @@ impl ReceivableSearch {
     fn interval_for(network: Networks) -> Duration {
         match network {
             Networks::NanoDevNetwork => Duration::from_secs(1),
-            _ => Duration::from_secs(60 * 5),
+            _ => Duration::from_secs(5),
         }
     }
 

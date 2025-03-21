@@ -1914,7 +1914,6 @@ impl WalletsExt for Arc<Wallets> {
     }
 
     fn receive_confirmed(&self, hash: BlockHash, destination: Account) {
-        //std::unordered_map<nano::wallet_id, std::shared_ptr<nano::wallet>> wallets_l;
         let (wallet_tx, wallets) = {
             let guard = self.mutex.lock().unwrap();
             (self.env.tx_begin_read(), guard.clone())

@@ -414,12 +414,7 @@ impl ActiveElectionsContainer {
                             vote_summary.hash,
                         );
 
-                        events.push(AecEvent::VoteCounted(
-                            vote_summary.hash,
-                            vote_summary.voter,
-                            source,
-                            now,
-                        ));
+                        events.push(AecEvent::VoteCounted(vote_summary.voter, source));
 
                         // CONFIRM IF QUORUM:
                         if !election.is_confirmed() {

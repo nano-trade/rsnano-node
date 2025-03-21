@@ -85,9 +85,10 @@ impl FrontierAckProcessor {
     }
 
     fn update_state(&self, query: &RunningQuery, frontiers: &[Frontier]) {
+        let queued_tasks = self.workers.num_queued_tasks();
         let mut guard = self.state.lock().unwrap();
         guard.frontier_scan.process(query.start.into(), &frontiers);
-        guard.frontier_ack_processor_busy = self.workers.num_queued_tasks() >= self.max_pending;
+        guard.frontier_ack_processor_busy = queued_tasks >= self.max_pending;
     }
 }
 
