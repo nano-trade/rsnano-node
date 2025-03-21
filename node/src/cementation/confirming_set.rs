@@ -164,7 +164,7 @@ impl ConfirmingSet {
         }
     }
 
-    pub(crate) fn with_election_cache(&self, mut action: impl FnMut(&ConfirmedElectionsCache)) {
+    pub(crate) fn do_election_cache(&self, mut action: impl FnMut(&ConfirmedElectionsCache)) {
         let guard = self.thread.mutex.lock().unwrap();
         action(&guard.election_cache);
     }

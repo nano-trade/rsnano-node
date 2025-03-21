@@ -169,6 +169,9 @@ impl VoteApplier {
             quorum_delta,
         );
 
+        // Handle vote application results
+        //--------------------------------------------------------------------------------
+
         for result in &results {
             if let Some((old_winner, new_winner)) = &result.winner_changed {
                 // Remove votes from election
@@ -259,29 +262,27 @@ impl VoteApplier {
         self.confirming_set.add(confirmed);
     }
 
-    /// Cementing blocks might implicitly confirm dependent elections
-    pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, BlockHash)>) {
-        let mut cemented_blocks_with_election = Vec::with_capacity(cemented.len());
-        self.confirming_set.with_election_cache(|cache| {
-            for (cemented_block, _) in cemented {
+    /// Confirmed blocks might implicitly confirm dependent elections
+    pub fn confirm_dependent_elections(&self, confirmed_blocks: &Vec<(SavedBlock, BlockHash)>) {
+        let mut cemented_blocks_with_election = Vec::with_capacity(confirmed_blocks.len());
+        self.confirming_set.do_election_cache(|cache| {
+            for (cemented_block, _) in confirmed_blocks {
                 let source_election = cache.get(&cemented_block.hash()).cloned();
                 cemented_blocks_with_election.push((cemented_block.clone(), source_election));
             }
         });
 
-        let results = self
+        let confirmed = self
             .active_elections
-            .batch_cemented(cemented_blocks_with_election);
+            .confirm_dependent_elections(cemented_blocks_with_election);
 
         // TODO: This could be offloaded to a separate notification worker, profiling is needed
-        for ended_election in results {
+        for election in confirmed {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::Cemented);
-            self.stats.inc(
-                StatType::ActiveElectionsCemented,
-                ended_election.result.into(),
-            );
-            self.notify_block_cemented(ended_election);
+            self.stats
+                .inc(StatType::ActiveElectionsCemented, election.result.into());
+            self.notify_block_cemented(election);
         }
     }
 

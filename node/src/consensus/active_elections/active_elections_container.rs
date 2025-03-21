@@ -249,9 +249,9 @@ impl ActiveElectionsContainer {
         }
     }
 
-    pub fn batch_cemented(
+    pub fn confirm_dependent_elections(
         &mut self,
-        batch: Vec<(SavedBlock, Option<ConfirmedElection>)>,
+        confirmed_blocks: Vec<(SavedBlock, Option<ConfirmedElection>)>,
         now: Timestamp,
     ) -> Vec<ConfirmedElection> {
         let mut results = Vec::new();
@@ -259,8 +259,8 @@ impl ActiveElectionsContainer {
         // Process all cemented blocks while holding the lock to avoid
         // races where an election for a block that is already
         // cemented is inserted
-        for (cemented_block, source_election) in batch {
-            let mut dependent_election = self.roots.get_mut(&cemented_block.qualified_root());
+        for (block, source_election) in confirmed_blocks {
+            let mut dependent_election = self.roots.get_mut(&block.qualified_root());
 
             // Distinguishes replay votes, cannot be determined if the block is not in any election
             // Dependent elections are implicitly confirmed when their block is cemented
@@ -268,37 +268,33 @@ impl ActiveElectionsContainer {
                 // TRY CONFIRM
                 // TODO: This should either confirm or cancel the election
                 let winner_hash = election.election.winner().hash();
-                if winner_hash == cemented_block.hash() {
+                if winner_hash == block.hash() {
                     election.election.force_confirm();
                 }
             }
 
-            let mut confirmed_election = ConfirmedElection::new(cemented_block.clone());
-            let mut handled = false;
             // Check if the currently cemented block was part of an election that triggered the confirmation
-            if let Some(source_election) = source_election {
-                // TODO compare winner hash instead!
-                if source_election.winner.qualified_root() == cemented_block.qualified_root() {
-                    confirmed_election = source_election;
+            if let Some(source) = source_election {
+                if source.winner.hash() == block.hash() {
+                    // This is the block that was directly confirmed by the source election.
+                    // The election is already confirmed, so there is nothing to do.
+                    continue;
+                }
+            }
+
+            let mut confirmed_election = ConfirmedElection::new(block.clone());
+            let mut handled = false;
+            if let Some(dep_el) = dependent_election {
+                if dep_el.election.is_confirmed() {
+                    confirmed_election = dep_el
+                        .election
+                        .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
                     handled = true;
                 }
             }
 
-            if handled {
-                // already handled
-            } else {
-                if let Some(dep_el) = dependent_election {
-                    if dep_el.election.is_confirmed() {
-                        confirmed_election = dep_el
-                            .election
-                            .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
-                        handled = true;
-                    }
-                }
-
-                if !handled {
-                    confirmed_election.result = ElectionResult::InactiveConfirmationHeight;
-                }
+            if !handled {
+                confirmed_election.result = ElectionResult::InactiveConfirmationHeight;
             }
 
             results.push(confirmed_election);

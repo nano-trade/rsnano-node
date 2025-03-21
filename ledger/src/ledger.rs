@@ -104,8 +104,8 @@ impl From<BlockStatus> for DetailType {
 }
 
 pub enum LedgerEvent {
-    /// The cemented block + it's confirmation root
-    BatchCemented(Vec<(SavedBlock, BlockHash)>),
+    /// The confirmed block + it's confirmation root
+    BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
 }
 
 pub struct Ledger {
@@ -742,7 +742,7 @@ impl Ledger {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
                         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                            sender.send(LedgerEvent::BatchCemented(cemented)).unwrap();
+                            sender.send(LedgerEvent::BlocksConfirmed(cemented)).unwrap();
                         }
                         cemented = Vec::new();
                         tx.renew();
@@ -812,7 +812,7 @@ impl Ledger {
 
         if !cemented.is_empty() {
             if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                sender.send(LedgerEvent::BatchCemented(cemented)).unwrap();
+                sender.send(LedgerEvent::BlocksConfirmed(cemented)).unwrap();
             }
         }
     }

@@ -9,6 +9,7 @@ mod bucketing;
 mod confirm_req_sender;
 mod confirmation_solicitor;
 mod confirmed_election_cache;
+mod dependent_elections_confirmer;
 mod election;
 mod election_fork_adder;
 mod election_result;

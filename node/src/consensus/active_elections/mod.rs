@@ -296,12 +296,15 @@ impl ActiveElections {
             .change_vote_timestamp(voter, new_timestamp);
     }
 
-    pub fn batch_cemented(
+    pub fn confirm_dependent_elections(
         &self,
-        batch: Vec<(SavedBlock, Option<ConfirmedElection>)>,
+        confirmed_blocks: Vec<(SavedBlock, Option<ConfirmedElection>)>,
     ) -> Vec<ConfirmedElection> {
         let now = self.clock.now();
-        self.container.write().unwrap().batch_cemented(batch, now)
+        self.container
+            .write()
+            .unwrap()
+            .confirm_dependent_elections(confirmed_blocks, now)
     }
 
     pub fn remove_votes<'a>(
