@@ -1143,6 +1143,8 @@ impl Node {
             recently_cemented_inserter,
             vote_cache: vote_cache.clone(),
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
+            block_processor: block_processor.clone(),
+            confirming_set: confirming_set.clone(),
         };
 
         std::thread::Builder::new()

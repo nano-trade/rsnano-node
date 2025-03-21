@@ -14,8 +14,8 @@ use crate::consensus::{
 };
 
 use super::{
-    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, ApplyVoteResult,
-    Entry, ErasedCallback, RootContainer, VoteRouter,
+    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, AecEvent,
+    ApplyVoteResult, Entry, ErasedCallback, RootContainer, VoteRouter,
 };
 
 pub struct ActiveElectionsContainer {
@@ -285,7 +285,7 @@ impl ActiveElectionsContainer {
                 if dep_el.election.is_confirmed() {
                     confirmed_election = dep_el
                         .election
-                        .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
+                        .into_confirmed_election(now, ElectionResult::ActiveConfirmationHeight);
                     handled = true;
                 }
             }
@@ -371,9 +371,9 @@ impl ActiveElectionsContainer {
                 let election = &mut entry.election;
 
                 let mut result = VoteCode::Invalid;
-                let mut ended_election = None;
                 let mut final_vote = None;
                 let mut change_winner = None;
+                let mut events = Vec::new();
                 let rep_weight = rep_weights
                     .get(&vote_summary.voter)
                     .cloned()
@@ -433,10 +433,11 @@ impl ActiveElectionsContainer {
                                     final_vote = Some(election.winner().clone());
                                 }
                                 if election.is_confirmed() {
-                                    ended_election = Some(election.into_ended_election(
+                                    let confirmed_election = election.into_confirmed_election(
                                         now,
                                         ElectionResult::ActiveConfirmedQuorum,
-                                    ));
+                                    );
+                                    events.push(AecEvent::ElectionConfirmed(confirmed_election));
                                 }
                             }
                         }
@@ -447,9 +448,9 @@ impl ActiveElectionsContainer {
                 results.push(ApplyVoteResult {
                     voted_block: vote_summary.hash,
                     vote_result: result,
-                    got_confirmed: ended_election,
                     final_phase_started: final_vote,
                     winner_changed: change_winner,
+                    events,
                 });
             } else {
                 if !self.was_recently_confirmed(&vote_summary.hash) {
@@ -476,7 +477,7 @@ impl ActiveElectionsContainer {
         let election = &mut entry.election;
         if election.force_confirm() {
             let confirmed_election =
-                election.into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
+                election.into_confirmed_election(now, ElectionResult::ActiveConfirmedQuorum);
             Some(confirmed_election)
         } else {
             None

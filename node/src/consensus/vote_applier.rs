@@ -8,12 +8,11 @@ use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
-use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{ActiveElections, AecEvent, BlockVoter, LocalVoteHistory};
 use crate::{
-    block_processing::{BlockProcessor, BlockSource},
+    block_processing::BlockProcessor,
     cementation::ConfirmingSet,
     consensus::{VoteSummary, VoteType},
     representatives::OnlineReps,
@@ -201,18 +200,6 @@ impl VoteApplier {
                         VoteType::Final,
                     );
                 }
-            }
-
-            if let Some(election) = &result.got_confirmed {
-                // In some edge cases block might get rolled back while the election
-                // is confirming, reprocess it to ensure it's present in the ledger
-                self.block_processor.add(
-                    election.winner.clone().into(),
-                    BlockSource::Election,
-                    ChannelId::LOOPBACK,
-                );
-
-                self.confirming_set.add(election.clone());
             }
         }
 

@@ -399,7 +399,11 @@ impl Election {
         self.votes.get_mut(voter).unwrap().time = new_timestamp;
     }
 
-    pub fn into_ended_election(&self, now: Timestamp, result: ElectionResult) -> ConfirmedElection {
+    pub fn into_confirmed_election(
+        &self,
+        now: Timestamp,
+        result: ElectionResult,
+    ) -> ConfirmedElection {
         assert!(self.is_confirmed());
 
         let mut votes: Vec<_> = self.votes().values().cloned().collect();

@@ -46,6 +46,7 @@ pub enum AecEvent {
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     BlockConfirmed(SavedBlock, ConfirmedElection),
+    ElectionConfirmed(ConfirmedElection),
     VoteProcessed(Arc<Vote>, Amount, VoteSource, HashMap<BlockHash, VoteCode>),
     VacancyUpdated,
 }
@@ -332,14 +333,22 @@ impl ActiveElections {
         online_weight: Amount,
         quorum_delta: Amount,
     ) -> Vec<ApplyVoteResult> {
-        self.container.write().unwrap().apply_votes(
+        let mut results = self.container.write().unwrap().apply_votes(
             votes,
             source,
             rep_weights,
             online_weight,
             quorum_delta,
             self.clock.now(),
-        )
+        );
+
+        for i in &mut results {
+            for event in i.events.drain(..) {
+                self.notify(event);
+            }
+        }
+
+        results
     }
 
     pub fn force_confirm(&self, block_hash: &BlockHash) -> Option<ConfirmedElection> {
@@ -365,9 +374,9 @@ pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
 pub struct ApplyVoteResult {
     pub voted_block: BlockHash,
     pub vote_result: VoteCode,
-    pub got_confirmed: Option<ConfirmedElection>,
     pub final_phase_started: Option<MaybeSavedBlock>,
     pub winner_changed: Option<(BlockHash, MaybeSavedBlock)>,
+    pub events: Vec<AecEvent>,
 }
 
 impl ApplyVoteResult {
@@ -375,9 +384,9 @@ impl ApplyVoteResult {
         Self {
             voted_block,
             vote_result,
-            got_confirmed: None,
             final_phase_started: None,
             winner_changed: None,
+            events: Vec::new(),
         }
     }
 }
