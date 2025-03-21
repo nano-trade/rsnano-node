@@ -35,9 +35,9 @@ impl From<ElectionResult> for DetailType {
     }
 }
 
-/// Information about an ended election
+/// Information about confirmed election
 #[derive(Clone)]
-pub struct EndedElection {
+pub struct ConfirmedElection {
     pub winner: MaybeSavedBlock,
     pub tally: Amount,
     pub final_tally: Amount,
@@ -49,7 +49,7 @@ pub struct EndedElection {
     pub votes: Vec<VoteSummary>,
 }
 
-impl EndedElection {
+impl ConfirmedElection {
     pub fn new(block: SavedBlock) -> Self {
         Self {
             winner: MaybeSavedBlock::Saved(block),

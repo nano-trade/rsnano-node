@@ -48,7 +48,7 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
-        ConfirmReqSender, ElectionForkAdder, EndedElection, LocalVoteHistory, RepTiers,
+        ConfirmReqSender, ConfirmedElection, ElectionForkAdder, LocalVoteHistory, RepTiers,
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
@@ -147,7 +147,7 @@ pub struct Node {
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
     pub active_elections_driver: TimerThread<ActiveElectionsDriver>,
-    pub recently_cemented: Arc<Mutex<BoundedVecDeque<EndedElection>>>,
+    pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1298,7 +1298,7 @@ impl Node {
         let recently_cemented: ContainerInfo = [(
             "cemented",
             self.recently_cemented.lock().unwrap().len(),
-            size_of::<EndedElection>(),
+            size_of::<ConfirmedElection>(),
         )]
         .into();
 
@@ -1679,7 +1679,7 @@ fn make_store(
 pub enum NodeEvent {
     ElectionStarted(BlockHash),
     ElectionStopped(BlockHash),
-    BlockCemented(SavedBlock, EndedElection),
+    BlockCemented(SavedBlock, ConfirmedElection),
 }
 
 pub trait NodeEventHandler {

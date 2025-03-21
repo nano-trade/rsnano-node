@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
-use rsnano_node::consensus::EndedElection;
+use rsnano_node::consensus::ConfirmedElection;
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
@@ -10,7 +10,7 @@ pub(super) struct ConfirmationMessageFactory<'a> {
     pub options: &'a ConfirmationOptions,
     pub block: &'a SavedBlock,
     pub amount: &'a Amount,
-    pub election: &'a EndedElection,
+    pub election: &'a ConfirmedElection,
 }
 
 impl<'a> ConfirmationMessageFactory<'a> {
@@ -104,7 +104,7 @@ mod tests {
         let options = ConfirmationOptions::new(ConfirmationJsonOptions::default());
         let block = SavedBlock::new_test_instance();
         let amount = Amount::nano(123);
-        let mut election = EndedElection::new(block.clone());
+        let mut election = ConfirmedElection::new(block.clone());
         election.result = ElectionResult::InactiveConfirmationHeight;
         let factory = ConfirmationMessageFactory {
             ledger: &ledger,
@@ -142,7 +142,7 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election: &EndedElection::new(block.clone()),
+            election: &ConfirmedElection::new(block.clone()),
         };
 
         let message = factory.create_message();

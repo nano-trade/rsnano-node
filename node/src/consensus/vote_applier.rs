@@ -12,7 +12,7 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use super::{
-    ActiveElections, BlockVoter, CementingElectionsCache, EndedElection, LocalVoteHistory,
+    ActiveElections, BlockVoter, CementingElectionsCache, ConfirmedElection, LocalVoteHistory,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -24,7 +24,7 @@ use crate::{
 #[derive(Clone)]
 pub enum VoteApplierEvent {
     VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
-    BlockCemented(SavedBlock, EndedElection),
+    BlockCemented(SavedBlock, ConfirmedElection),
 }
 
 /// Applies a vote to an election
@@ -303,7 +303,7 @@ impl VoteApplier {
         }
     }
 
-    fn notify_block_cemented(&self, ended_election: EndedElection) {
+    fn notify_block_cemented(&self, ended_election: ConfirmedElection) {
         let MaybeSavedBlock::Saved(block) = &ended_election.winner else {
             return;
         };

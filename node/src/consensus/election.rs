@@ -11,7 +11,7 @@ use rsnano_core::{
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
 
-use super::{block_tallies::BlockTallies, ElectionResult, ElectionState, EndedElection};
+use super::{block_tallies::BlockTallies, ConfirmedElection, ElectionResult, ElectionState};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
 pub enum VoteType {
@@ -399,14 +399,14 @@ impl Election {
         self.votes.get_mut(voter).unwrap().time = new_timestamp;
     }
 
-    pub fn into_ended_election(&self, now: Timestamp, result: ElectionResult) -> EndedElection {
+    pub fn into_ended_election(&self, now: Timestamp, result: ElectionResult) -> ConfirmedElection {
         assert!(self.is_confirmed());
 
         let mut votes: Vec<_> = self.votes().values().cloned().collect();
         // sort descending
         votes.sort_by(|a, b| b.weight.cmp(&a.weight));
 
-        EndedElection {
+        ConfirmedElection {
             winner: self.winner().clone(),
             tally: self.winner_tally(),
             final_tally: self.winner_final_tally(),

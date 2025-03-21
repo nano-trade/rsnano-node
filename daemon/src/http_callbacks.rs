@@ -6,7 +6,7 @@ use tracing::error;
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
 use rsnano_node::{
-    consensus::{ElectionResult, EndedElection},
+    consensus::{ConfirmedElection, ElectionResult},
     NodeEvent, NodeEventHandler,
 };
 use rsnano_nullable_http_client::{HttpClient, Url};
@@ -22,10 +22,10 @@ pub(crate) struct HttpCallbacks {
 }
 
 impl HttpCallbacks {
-    pub fn execute(&self, status: &EndedElection, block: &SavedBlock, amount: Amount) {
+    pub fn execute(&self, election: &ConfirmedElection, block: &SavedBlock, amount: Amount) {
         let block = block.clone();
-        if status.result == ElectionResult::ActiveConfirmedQuorum
-            || status.result == ElectionResult::ActiveConfirmationHeight
+        if election.result == ElectionResult::ActiveConfirmedQuorum
+            || election.result == ElectionResult::ActiveConfirmationHeight
         {
             let url = self.callback_url.clone();
             let stats = self.stats.clone();

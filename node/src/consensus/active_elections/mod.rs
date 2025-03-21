@@ -20,7 +20,7 @@ use rsnano_core::{
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
-use super::{AddForkResult, ElectionBehavior, EndedElection, VoteRouter, VoteSummary};
+use super::{AddForkResult, ConfirmedElection, ElectionBehavior, VoteRouter, VoteSummary};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -298,8 +298,8 @@ impl ActiveElections {
 
     pub fn batch_cemented(
         &self,
-        batch: Vec<(SavedBlock, Option<EndedElection>)>,
-    ) -> Vec<EndedElection> {
+        batch: Vec<(SavedBlock, Option<ConfirmedElection>)>,
+    ) -> Vec<ConfirmedElection> {
         let now = self.clock.now();
         self.container.write().unwrap().batch_cemented(batch, now)
     }
@@ -336,7 +336,7 @@ impl ActiveElections {
         )
     }
 
-    pub fn force_confirm(&self, block_hash: &BlockHash) -> Option<EndedElection> {
+    pub fn force_confirm(&self, block_hash: &BlockHash) -> Option<ConfirmedElection> {
         self.container
             .write()
             .unwrap()
@@ -359,7 +359,7 @@ pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
 pub struct ApplyVoteResult {
     pub voted_block: BlockHash,
     pub vote_result: VoteCode,
-    pub got_confirmed: Option<EndedElection>,
+    pub got_confirmed: Option<ConfirmedElection>,
     pub final_phase_started: Option<MaybeSavedBlock>,
     pub winner_changed: Option<(BlockHash, MaybeSavedBlock)>,
 }

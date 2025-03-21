@@ -10,7 +10,7 @@ use rsnano_core::{
 use rsnano_nullable_clock::Timestamp;
 
 use crate::consensus::{
-    AddForkResult, Election, ElectionBehavior, ElectionResult, EndedElection, VoteSummary,
+    AddForkResult, ConfirmedElection, Election, ElectionBehavior, ElectionResult, VoteSummary,
 };
 
 use super::{
@@ -251,9 +251,9 @@ impl ActiveElectionsContainer {
 
     pub fn batch_cemented(
         &mut self,
-        batch: Vec<(SavedBlock, Option<EndedElection>)>,
+        batch: Vec<(SavedBlock, Option<ConfirmedElection>)>,
         now: Timestamp,
-    ) -> Vec<EndedElection> {
+    ) -> Vec<ConfirmedElection> {
         let mut results = Vec::new();
 
         // Process all cemented blocks while holding the lock to avoid
@@ -273,13 +273,13 @@ impl ActiveElectionsContainer {
                 }
             }
 
-            let mut ended_election = EndedElection::new(cemented_block.clone());
+            let mut confirmed_election = ConfirmedElection::new(cemented_block.clone());
             let mut handled = false;
             // Check if the currently cemented block was part of an election that triggered the confirmation
             if let Some(source_election) = source_election {
                 // TODO compare winner hash instead!
                 if source_election.winner.qualified_root() == cemented_block.qualified_root() {
-                    ended_election = source_election;
+                    confirmed_election = source_election;
                     handled = true;
                 }
             }
@@ -289,7 +289,7 @@ impl ActiveElectionsContainer {
             } else {
                 if let Some(dep_el) = dependent_election {
                     if dep_el.election.is_confirmed() {
-                        ended_election = dep_el
+                        confirmed_election = dep_el
                             .election
                             .into_ended_election(now, ElectionResult::ActiveConfirmationHeight);
                         handled = true;
@@ -297,11 +297,11 @@ impl ActiveElectionsContainer {
                 }
 
                 if !handled {
-                    ended_election.result = ElectionResult::InactiveConfirmationHeight;
+                    confirmed_election.result = ElectionResult::InactiveConfirmationHeight;
                 }
             }
 
-            results.push(ended_election);
+            results.push(confirmed_election);
         }
         results
     }
@@ -477,14 +477,14 @@ impl ActiveElectionsContainer {
         &mut self,
         block_hash: &BlockHash,
         now: Timestamp,
-    ) -> Option<EndedElection> {
+    ) -> Option<ConfirmedElection> {
         let root = self.vote_router.qualified_root(block_hash)?;
         let entry = self.roots.get_mut(&root)?;
         let election = &mut entry.election;
         if election.force_confirm() {
-            let ended_election =
+            let confirmed_election =
                 election.into_ended_election(now, ElectionResult::ActiveConfirmedQuorum);
-            Some(ended_election)
+            Some(confirmed_election)
         } else {
             None
         }

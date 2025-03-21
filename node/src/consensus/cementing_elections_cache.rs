@@ -2,11 +2,11 @@ use std::collections::{HashMap, VecDeque};
 
 use rsnano_core::BlockHash;
 
-use super::EndedElection;
+use super::ConfirmedElection;
 
 pub(crate) struct CementingElectionsCache {
     max_len: usize,
-    elections: HashMap<BlockHash, EndedElection>,
+    elections: HashMap<BlockHash, ConfirmedElection>,
     sequential: VecDeque<BlockHash>,
 }
 
@@ -31,11 +31,11 @@ impl CementingElectionsCache {
         self.sequential.len()
     }
 
-    pub fn get(&self, winner_hash: &BlockHash) -> Option<&EndedElection> {
+    pub fn get(&self, winner_hash: &BlockHash) -> Option<&ConfirmedElection> {
         self.elections.get(winner_hash)
     }
 
-    pub fn insert(&mut self, election: EndedElection) {
+    pub fn insert(&mut self, election: ConfirmedElection) {
         let winner_hash = election.winner.hash();
         let old = self.elections.insert(winner_hash, election);
         if old.is_some() {
@@ -130,9 +130,9 @@ mod tests {
         assert_eq!(cache.len(), 1);
     }
 
-    fn create_election(key: impl Into<PrivateKey>) -> (BlockHash, EndedElection) {
+    fn create_election(key: impl Into<PrivateKey>) -> (BlockHash, ConfirmedElection) {
         let block = SavedBlock::new_test_instance_with_key(key);
         let winner_hash = block.hash();
-        (winner_hash, EndedElection::new(block))
+        (winner_hash, ConfirmedElection::new(block))
     }
 }

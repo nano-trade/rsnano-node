@@ -19,7 +19,7 @@ use tracing::{info, warn};
 use rsnano_core::{Account, Amount, BlockSideband, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_node::{
-    consensus::{EndedElection, VoteSummary},
+    consensus::{ConfirmedElection, VoteSummary},
     wallets::Wallets,
 };
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
@@ -130,7 +130,7 @@ impl WebsocketListener {
         &self,
         block: &SavedBlock,
         amount: &Amount,
-        election: &EndedElection,
+        election: &ConfirmedElection,
     ) {
         if !self.any_subscriber(Topic::Confirmation) {
             return;
@@ -297,8 +297,8 @@ pub struct ElectionInfo {
     pub votes: Option<Vec<JsonVoteSummary>>,
 }
 
-impl From<&EndedElection> for ElectionInfo {
-    fn from(value: &EndedElection) -> Self {
+impl From<&ConfirmedElection> for ElectionInfo {
+    fn from(value: &ConfirmedElection) -> Self {
         Self {
             duration: value.election_duration.as_millis().to_string(),
             time: value
