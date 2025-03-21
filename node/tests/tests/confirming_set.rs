@@ -64,7 +64,7 @@ fn confirmed_history() {
         let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
 
         // Confirm send1
-        node.vote_applier.force_confirm(&send1.hash());
+        node.active.force_confirm(&send1.hash());
         assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
         assert_eq!(node.recently_cemented.lock().unwrap().len(), 0);
         assert_eq!(node.active.len(), 0);
@@ -174,7 +174,7 @@ fn dependent_election() {
     start_election(&node, &send1.hash());
     // Start an election and confirm it
     start_election(&node, &send2.hash());
-    node.vote_applier.force_confirm(&send2.hash());
+    node.active.force_confirm(&send2.hash());
 
     // Wait for blocks to be confirmed in ledger, callbacks will happen after
     assert_timely_eq(

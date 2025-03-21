@@ -1400,7 +1400,7 @@ fn search_receivable() {
         .unwrap();
 
     // Now confirm the election
-    node.vote_applier.force_confirm(&send.hash());
+    node.active.force_confirm(&send.hash());
     assert_timely2(|| node.block_confirmed(&send.hash()) && node.active.len() == 0);
 
     // Re-insert the key

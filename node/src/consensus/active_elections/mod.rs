@@ -365,6 +365,8 @@ impl ActiveElections {
 
         if let Some(e) = event {
             self.notify(e);
+        } else {
+            panic!("Force confirm failed, because no active election was found");
         }
     }
 

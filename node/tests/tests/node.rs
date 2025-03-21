@@ -214,7 +214,7 @@ fn deferred_dependent_elections() {
     assert!(!node1.active.is_active_root(&open.qualified_root()));
     assert!(!node1.active.is_active_root(&send2.qualified_root()));
 
-    node1.vote_applier.force_confirm(&send1.hash());
+    node1.active.force_confirm(&send1.hash());
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
     assert_timely2(|| node1.active.is_active_root(&open.qualified_root()));
     assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
@@ -225,7 +225,7 @@ fn deferred_dependent_elections() {
         false
     );
 
-    node1.vote_applier.force_confirm(&open.hash());
+    node1.active.force_confirm(&open.hash());
     assert_timely2(|| node1.block_confirmed(&open.hash()));
     assert!(!node1
         .ledger
@@ -258,7 +258,7 @@ fn deferred_dependent_elections() {
         node1.active.is_active_root(&receive.qualified_root())
     });
 
-    node1.vote_applier.force_confirm(&send2.hash());
+    node1.active.force_confirm(&send2.hash());
     assert_timely2(|| node1.block_confirmed(&send2.hash()));
     assert_timely2(|| node1.active.is_active_root(&receive.qualified_root()));
 }
@@ -637,7 +637,7 @@ fn rep_self_vote() {
     start_election(&node0, &open_big.hash());
 
     assert_timely2(|| node0.active.is_active_root(&open_big.qualified_root()));
-    node0.vote_applier.force_confirm(&open_big.hash());
+    node0.active.force_confirm(&open_big.hash());
 
     // Insert representatives into the node to allow voting
     node0.insert_into_wallet(&rep_big);
@@ -1721,7 +1721,7 @@ fn fork_open() {
     );
 
     assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
-    node.vote_applier.force_confirm(&send1.hash());
+    node.active.force_confirm(&send1.hash());
     assert_timely_eq2(|| node.active.len(), 0);
 
     // register key for genesis account, not sure why we do this, it seems needless,

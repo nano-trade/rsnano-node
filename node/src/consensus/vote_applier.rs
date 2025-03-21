@@ -144,6 +144,7 @@ impl VoteApplier {
             .drain(..)
             .map(|i| (i.voted_block, i.vote_result))
             .collect();
+
         self.notify_vote_processed(vote, voter_weight, source, &results);
         results
     }
@@ -165,9 +166,5 @@ impl VoteApplier {
                 ))
                 .unwrap();
         }
-    }
-
-    pub fn force_confirm(&self, block_hash: &BlockHash) {
-        self.active_elections.force_confirm(block_hash)
     }
 }
