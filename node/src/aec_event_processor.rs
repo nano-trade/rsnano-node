@@ -12,7 +12,7 @@ use crate::{
     cementation::ConfirmingSet,
     consensus::{
         election_schedulers::ElectionSchedulers, AecEvent, BlockVoter, BootstrapElectionActivator,
-        VoteCache, VoteCacheProcessor, VoteRebroadcastQueue,
+        VoteCache, VoteCacheProcessor, VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     NodeEvent,
@@ -79,6 +79,10 @@ impl AecEventProcessor {
 
                     self.vote_rebroadcast_queue
                         .handle_processed_vote(&vote, &results);
+                }
+                AecEvent::FinalPhaseStarted(hash, root) => {
+                    self.block_voter
+                        .try_vote_for_block(hash, root.root, VoteType::Final);
                 }
                 AecEvent::BlockConfirmed(block, election) => {
                     if let Some(tx) = &self.node_event_sender {

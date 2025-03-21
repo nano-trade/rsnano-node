@@ -12,9 +12,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{ActiveElections, AecEvent, BlockVoter, LocalVoteHistory};
 use crate::{
-    block_processing::BlockProcessor,
-    cementation::ConfirmingSet,
-    consensus::{VoteSummary, VoteType},
+    block_processing::BlockProcessor, cementation::ConfirmingSet, consensus::VoteSummary,
     representatives::OnlineReps,
 };
 
@@ -192,14 +190,6 @@ impl VoteApplier {
                 self.stats.inc(StatType::Election, DetailType::Vote);
                 self.stats.inc(StatType::ElectionVote, source.into());
                 tracing::trace!(account = %vote.voter, hash=%result.voted_block, ?source, "vote processed");
-
-                if let Some(winner) = &result.final_phase_started {
-                    self.election_voter.try_vote_for_block(
-                        winner.hash(),
-                        winner.root(),
-                        VoteType::Final,
-                    );
-                }
             }
         }
 

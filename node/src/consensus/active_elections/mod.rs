@@ -43,11 +43,14 @@ impl Default for ActiveElectionsConfig {
 pub enum AecEvent {
     ElectionStarted(BlockHash),
     ElectionStopped(BlockHash),
+    ElectionConfirmed(ConfirmedElection),
+
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     BlockConfirmed(SavedBlock, ConfirmedElection),
-    ElectionConfirmed(ConfirmedElection),
+
     VoteProcessed(Arc<Vote>, Amount, VoteSource, HashMap<BlockHash, VoteCode>),
+    FinalPhaseStarted(BlockHash, QualifiedRoot),
     VacancyUpdated,
 }
 
@@ -374,7 +377,6 @@ pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
 pub struct ApplyVoteResult {
     pub voted_block: BlockHash,
     pub vote_result: VoteCode,
-    pub final_phase_started: Option<MaybeSavedBlock>,
     pub winner_changed: Option<(BlockHash, MaybeSavedBlock)>,
     pub events: Vec<AecEvent>,
 }
@@ -384,7 +386,6 @@ impl ApplyVoteResult {
         Self {
             voted_block,
             vote_result,
-            final_phase_started: None,
             winner_changed: None,
             events: Vec::new(),
         }

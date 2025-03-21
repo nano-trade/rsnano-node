@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    ops::Deref,
     time::{Duration, SystemTime},
 };
 
@@ -371,7 +372,6 @@ impl ActiveElectionsContainer {
                 let election = &mut entry.election;
 
                 let mut result = VoteCode::Invalid;
-                let mut final_vote = None;
                 let mut change_winner = None;
                 let mut events = Vec::new();
                 let rep_weight = rep_weights
@@ -430,7 +430,10 @@ impl ActiveElectionsContainer {
 
                             if election.is_final() {
                                 if !old_final {
-                                    final_vote = Some(election.winner().clone());
+                                    events.push(AecEvent::FinalPhaseStarted(
+                                        election.winner().hash(),
+                                        election.qualified_root().clone(),
+                                    ));
                                 }
                                 if election.is_confirmed() {
                                     let confirmed_election = election.into_confirmed_election(
@@ -448,7 +451,6 @@ impl ActiveElectionsContainer {
                 results.push(ApplyVoteResult {
                     voted_block: vote_summary.hash,
                     vote_result: result,
-                    final_phase_started: final_vote,
                     winner_changed: change_winner,
                     events,
                 });
