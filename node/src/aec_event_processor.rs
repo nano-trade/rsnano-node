@@ -12,8 +12,9 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     consensus::{
-        election_schedulers::ElectionSchedulers, AecEvent, BlockVoter, BootstrapElectionActivator,
-        VoteCache, VoteCacheProcessor, VoteRebroadcastQueue, VoteType,
+        election_schedulers::ElectionSchedulers, ActiveElections, AecEvent, BlockVoter,
+        BootstrapElectionActivator, LocalVoteHistory, VoteCache, VoteCacheProcessor,
+        VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::OnlineReps,
@@ -36,6 +37,8 @@ pub(crate) struct AecEventProcessor {
     pub(crate) confirming_set: Arc<ConfirmingSet>,
     pub(crate) stats: Arc<Stats>,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
+    pub(crate) history: Arc<LocalVoteHistory>,
+    pub(crate) active_elections: Arc<ActiveElections>,
 }
 
 impl AecEventProcessor {
@@ -71,6 +74,19 @@ impl AecEventProcessor {
                     let mut buf = MemoryStream::new();
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());
+                }
+                AecEvent::WinnerChanged(previous_winner, new_winner) => {
+                    // Remove votes from election
+                    let root = new_winner.root();
+                    let list_generated_votes = self.history.votes(&root, &previous_winner, false);
+                    self.active_elections.remove_votes(
+                        &new_winner.qualified_root(),
+                        list_generated_votes.iter().map(|i| &i.voter),
+                    );
+                    // Clear votes cache
+                    self.history.erase(&root);
+                    // Roll back the previous winner and add the new winner to the ledger
+                    self.block_processor.force(new_winner.clone().into());
                 }
                 AecEvent::VoteCounted(block, voter, source, timestamp) => {
                     if source != VoteSource::Cache {

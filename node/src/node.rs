@@ -537,12 +537,10 @@ impl Node {
             active_elections.clone(),
             ledger.clone(),
             online_reps.clone(),
-            stats.clone(),
             block_processor.clone(),
             history.clone(),
             confirming_set.clone(),
             steady_clock.clone(),
-            block_voter.clone(),
             current_network == Networks::NanoDevNetwork,
         ));
 
@@ -1147,6 +1145,8 @@ impl Node {
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
             online_reps: online_reps.clone(),
+            history: history.clone(),
+            active_elections: active_elections.clone(),
         };
 
         std::thread::Builder::new()

@@ -15,8 +15,7 @@ use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use tracing::debug;
 
 use rsnano_core::{
-    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, Vote,
-    VoteCode, VoteSource,
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
@@ -49,6 +48,8 @@ pub enum AecEvent {
     BlockDiscarded(Block),
     BlockConfirmed(SavedBlock, ConfirmedElection),
     VoteCounted(BlockHash, PublicKey, VoteSource, Timestamp),
+    /// old winner + new winner block
+    WinnerChanged(BlockHash, Block),
 
     VoteProcessed(Arc<Vote>, Amount, VoteSource, HashMap<BlockHash, VoteCode>),
     FinalPhaseStarted(BlockHash, QualifiedRoot),
@@ -378,7 +379,6 @@ pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
 pub struct ApplyVoteResult {
     pub voted_block: BlockHash,
     pub vote_result: VoteCode,
-    pub winner_changed: Option<(BlockHash, MaybeSavedBlock)>,
     pub events: Vec<AecEvent>,
 }
 
@@ -387,7 +387,6 @@ impl ApplyVoteResult {
         Self {
             voted_block,
             vote_result,
-            winner_changed: None,
             events: Vec::new(),
         }
     }

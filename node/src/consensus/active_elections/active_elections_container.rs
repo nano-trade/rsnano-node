@@ -372,7 +372,6 @@ impl ActiveElectionsContainer {
                 let election = &mut entry.election;
 
                 let mut result = VoteCode::Invalid;
-                let mut change_winner = None;
                 let mut events = Vec::new();
                 let rep_weight = rep_weights
                     .get(&vote_summary.voter)
@@ -432,7 +431,10 @@ impl ActiveElectionsContainer {
 
                             let winner_changed = election.winner().hash() != old_winner;
                             if winner_changed {
-                                change_winner = Some((old_winner, election.winner().clone()));
+                                events.push(AecEvent::WinnerChanged(
+                                    old_winner,
+                                    election.winner().deref().clone(),
+                                ));
                             }
 
                             if election.is_final() {
@@ -459,7 +461,6 @@ impl ActiveElectionsContainer {
                 results.push(ApplyVoteResult {
                     voted_block: vote_summary.hash,
                     vote_result: result,
-                    winner_changed: change_winner,
                     events,
                 });
             } else {

@@ -8,9 +8,8 @@ use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
-use rsnano_stats::Stats;
 
-use super::{ActiveElections, AecEvent, BlockVoter, LocalVoteHistory};
+use super::{ActiveElections, AecEvent, LocalVoteHistory};
 use crate::{
     block_processing::BlockProcessor, cementation::ConfirmingSet, consensus::VoteSummary,
     representatives::OnlineReps,
@@ -22,12 +21,10 @@ pub struct VoteApplier {
     event_senders: RwLock<Vec<SyncSender<AecEvent>>>,
     ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
-    stats: Arc<Stats>,
     block_processor: Arc<BlockProcessor>,
     history: Arc<LocalVoteHistory>,
     confirming_set: Arc<ConfirmingSet>,
     clock: Arc<SteadyClock>,
-    election_voter: Arc<BlockVoter>,
     is_dev_network: bool,
 }
 
@@ -36,12 +33,10 @@ impl VoteApplier {
         active_elections: Arc<ActiveElections>,
         ledger: Arc<Ledger>,
         online_reps: Arc<Mutex<OnlineReps>>,
-        stats: Arc<Stats>,
         block_processor: Arc<BlockProcessor>,
         history: Arc<LocalVoteHistory>,
         confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
-        election_voter: Arc<BlockVoter>,
         is_dev_network: bool,
     ) -> Self {
         Self {
@@ -49,12 +44,10 @@ impl VoteApplier {
             event_senders: RwLock::new(Vec::new()),
             ledger,
             online_reps,
-            stats,
             block_processor,
             history,
             confirming_set,
             clock,
-            election_voter,
             is_dev_network,
         }
     }
@@ -158,25 +151,6 @@ impl VoteApplier {
             online_weight,
             quorum_delta,
         );
-
-        // Handle vote application results
-        //--------------------------------------------------------------------------------
-
-        for result in &results {
-            if let Some((old_winner, new_winner)) = &result.winner_changed {
-                // Remove votes from election
-                let root = new_winner.root();
-                let list_generated_votes = self.history.votes(&root, &old_winner, false);
-                self.active_elections.remove_votes(
-                    &new_winner.qualified_root(),
-                    list_generated_votes.iter().map(|i| &i.voter),
-                );
-                // Clear votes cache
-                self.history.erase(&root);
-                // Roll back the previous winner and add the new winner to the ledger
-                self.block_processor.force(new_winner.clone().into());
-            }
-        }
 
         let results = results
             .drain(..)
