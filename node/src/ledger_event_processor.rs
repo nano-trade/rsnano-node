@@ -5,18 +5,18 @@ use rsnano_ledger::LedgerEvent;
 use crate::{
     block_processing::{BoundedBacklog, LocalBlockBroadcaster},
     config::NodeFlags,
-    consensus::{election_schedulers::ElectionSchedulers, VoteApplier},
+    consensus::{election_schedulers::ElectionSchedulers, DependentElectionsConfirmer},
     wallets::{Wallets, WalletsExt},
 };
 
 pub(crate) struct LedgerEventProcessor {
     pub receiver: Receiver<LedgerEvent>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
-    pub vote_applier: Arc<VoteApplier>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub bounded_backlog: Arc<BoundedBacklog>,
     pub wallets: Arc<Wallets>,
     pub flags: NodeFlags,
+    pub(crate) dependent_elections_confirmer: DependentElectionsConfirmer,
 }
 
 impl LedgerEventProcessor {
@@ -24,7 +24,8 @@ impl LedgerEventProcessor {
         while let Ok(event) = self.receiver.recv() {
             match event {
                 LedgerEvent::BlocksConfirmed(confirmed) => {
-                    self.vote_applier.confirm_dependent_elections(&confirmed);
+                    self.dependent_elections_confirmer
+                        .confirm_dependent_elections(&confirmed);
                     if !self.flags.disable_activate_successors {
                         self.election_schedulers.batch_cemented(&confirmed);
                     }

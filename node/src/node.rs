@@ -48,11 +48,11 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
-        ConfirmReqSender, ConfirmedElection, ElectionForkAdder, LocalVoteHistory, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApplierEvent,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WinnerBlockBroadcaster,
+        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder,
+        LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteApplierEvent, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators,
+        VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup,
+        VoteRebroadcastQueue, VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -522,7 +522,7 @@ impl Node {
             base_latency,
             steady_clock.clone(),
         );
-        active_elections.set_event_sink(aec_sender);
+        active_elections.set_event_sink(aec_sender.clone());
         let active_elections = Arc::new(active_elections);
 
         let block_voter = Arc::new(BlockVoter::new(
@@ -1140,6 +1140,7 @@ impl Node {
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
             block_voter: block_voter.clone(),
+            recently_cemented_inserter,
         };
 
         std::thread::Builder::new()
@@ -1149,14 +1150,21 @@ impl Node {
             })
             .unwrap();
 
+        let dependent_elections_confirmer = DependentElectionsConfirmer {
+            stats: stats.clone(),
+            confirming_set: confirming_set.clone(),
+            active_elections: active_elections.clone(),
+            event_sender: aec_sender,
+        };
+
         let mut ledger_event_processor = LedgerEventProcessor {
             receiver: ledger_rx,
             local_block_broadcaster: local_block_broadcaster.clone(),
-            vote_applier: vote_applier.clone(),
             election_schedulers: election_schedulers.clone(),
             flags: flags.clone(),
             wallets: wallets.clone(),
             bounded_backlog: bounded_backlog.clone(),
+            dependent_elections_confirmer,
         };
 
         std::thread::Builder::new()
@@ -1204,13 +1212,6 @@ impl Node {
                             }
 
                             vote_rebroadcast_queue.handle_processed_vote(&vote, &results);
-                        }
-                        VoteApplierEvent::BlockCemented(block, election) => {
-                            if let Some(tx) = &node_event_sender {
-                                tx.send(NodeEvent::BlockCemented(block, election.clone()))
-                                    .unwrap();
-                            }
-                            recently_cemented_inserter.insert(election);
                         }
                     }
                 }

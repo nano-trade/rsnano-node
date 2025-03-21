@@ -1,16 +1,17 @@
-use std::sync::Arc;
+use std::sync::{mpsc::SyncSender, Arc};
 
 use rsnano_core::{BlockHash, MaybeSavedBlock, SavedBlock};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::cementation::ConfirmingSet;
 
-use super::{ActiveElections, ConfirmedElection, ElectionResult};
+use super::{ActiveElections, AecEvent, ConfirmedElection, ElectionResult};
 
 pub(crate) struct DependentElectionsConfirmer {
-    stats: Arc<Stats>,
-    confirming_set: Arc<ConfirmingSet>,
-    active_elections: Arc<ActiveElections>,
+    pub(crate) stats: Arc<Stats>,
+    pub(crate) confirming_set: Arc<ConfirmingSet>,
+    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) event_sender: SyncSender<AecEvent>,
 }
 
 impl DependentElectionsConfirmer {
@@ -24,6 +25,12 @@ impl DependentElectionsConfirmer {
             }
         });
 
+        for (_, election) in &confirmed_blocks_with_election {
+            if let Some(election) = election {
+                self.notify_block_confirmed(election.clone());
+            }
+        }
+
         let confirmed = self
             .active_elections
             .confirm_dependent_elections(confirmed_blocks_with_election);
@@ -34,12 +41,6 @@ impl DependentElectionsConfirmer {
             self.stats
                 .inc(StatType::ActiveElectionsCemented, election.result.into());
             self.notify_block_confirmed(election);
-        }
-
-        for (_, election) in confirmed_blocks_with_election {
-            if let Some(election) = election {
-                self.notify_block_confirmed(election);
-            }
         }
     }
 
@@ -67,6 +68,7 @@ impl DependentElectionsConfirmer {
             ),
         }
 
-        self.notify(VoteApplierEvent::BlockCemented(block, election));
+        self.event_sender
+            .send(AecEvent::BlockCemented(block, election));
     }
 }

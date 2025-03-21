@@ -38,6 +38,7 @@ pub use bucketing::Bucketing;
 pub(crate) use confirm_req_sender::*;
 pub use confirmation_solicitor::ConfirmationSolicitor;
 pub(crate) use confirmed_election_cache::*;
+pub(crate) use dependent_elections_confirmer::*;
 pub use election::*;
 pub(crate) use election_fork_adder::ElectionForkAdder;
 pub use election_result::*;

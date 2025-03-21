@@ -11,6 +11,7 @@ use crate::{
         election_schedulers::ElectionSchedulers, AecEvent, BlockVoter, BootstrapElectionActivator,
         VoteCacheProcessor,
     },
+    recently_cemented_inserter::RecentlyCementedInserter,
     NodeEvent,
 };
 
@@ -23,6 +24,7 @@ pub(crate) struct AecEventProcessor {
     pub network_filter: Arc<NetworkFilter>,
     pub bootstrap_election_activator: BootstrapElectionActivator,
     pub block_voter: Arc<BlockVoter>,
+    pub(crate) recently_cemented_inserter: RecentlyCementedInserter,
 }
 
 impl AecEventProcessor {
@@ -48,6 +50,13 @@ impl AecEventProcessor {
                     let mut buf = MemoryStream::new();
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());
+                }
+                AecEvent::BlockCemented(block, election) => {
+                    if let Some(tx) = &self.node_event_sender {
+                        tx.send(NodeEvent::BlockCemented(block, election.clone()))
+                            .unwrap();
+                    }
+                    self.recently_cemented_inserter.insert(election);
                 }
                 AecEvent::VacancyUpdated => self.election_schedulers.notify(),
             }

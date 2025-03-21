@@ -44,6 +44,7 @@ pub enum AecEvent {
     ElectionStopped(BlockHash),
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
+    BlockCemented(SavedBlock, ConfirmedElection),
     VacancyUpdated,
 }
 
