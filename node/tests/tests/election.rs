@@ -58,7 +58,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1
         .vote_processor
-        .vote_blocking(&vote1, None, VoteSource::Live);
+        .vote_blocking(&vote1, None, VoteSource::Live, None);
 
     let channel = node1
         .network
@@ -88,7 +88,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .set_online(config.online_weight_minimum + Amount::raw(20));
     node1
         .vote_processor
-        .vote_blocking(&vote2, None, VoteSource::Live);
+        .vote_blocking(&vote2, None, VoteSource::Live, None);
     assert_timely2(|| node1.ledger.confirmed().block_exists(&send1.hash()));
 }
 
@@ -153,7 +153,7 @@ fn quorum_minimum_confirm_fail() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1
         .vote_processor
-        .vote_blocking(&vote, None, VoteSource::Live);
+        .vote_blocking(&vote, None, VoteSource::Live, None);
 
     // Give the election a chance to confirm
     std::thread::sleep(Duration::from_secs(1));
@@ -192,7 +192,7 @@ fn quorum_minimum_confirm_success() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1
         .vote_processor
-        .vote_blocking(&vote, None, VoteSource::Live);
+        .vote_blocking(&vote, None, VoteSource::Live, None);
 
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
 }
@@ -233,7 +233,7 @@ fn quorum_minimum_flip_fail() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1
         .vote_processor
-        .vote_blocking(&vote, None, VoteSource::Live);
+        .vote_blocking(&vote, None, VoteSource::Live, None);
 
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
@@ -276,7 +276,7 @@ fn quorum_minimum_flip_success() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1
         .vote_processor
-        .vote_blocking(&vote, None, VoteSource::Live);
+        .vote_blocking(&vote, None, VoteSource::Live, None);
 
     // Wait for the election to be confirmed
     assert_timely2(|| node1.block_confirmed(&send2.hash()));

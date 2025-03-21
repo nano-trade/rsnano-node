@@ -38,14 +38,14 @@ fn codes() {
     assert_eq!(
         VoteCode::Invalid,
         node.vote_processor
-            .vote_blocking(&vote_invalid, None, VoteSource::Live)
+            .vote_blocking(&vote_invalid, None, VoteSource::Live, None)
     );
 
     // No ongoing election (vote goes to vote cache)
     assert_eq!(
         VoteCode::Indeterminate,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live)
+            .vote_blocking(&vote, None, VoteSource::Live, None)
     );
 
     assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 1);
@@ -58,21 +58,21 @@ fn codes() {
     assert_eq!(
         VoteCode::Vote,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live)
+            .vote_blocking(&vote, None, VoteSource::Live, None)
     );
 
     // Processing the same vote is a replay
     assert_eq!(
         VoteCode::Replay,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live)
+            .vote_blocking(&vote, None, VoteSource::Live, None)
     );
 
     // Invalid takes precedence
     assert_eq!(
         VoteCode::Invalid,
         node.vote_processor
-            .vote_blocking(&vote_invalid, None, VoteSource::Live)
+            .vote_blocking(&vote_invalid, None, VoteSource::Live, None)
     );
 
     // Once the election is removed (confirmed / dropped) the vote is again indeterminate
@@ -80,7 +80,7 @@ fn codes() {
     assert_eq!(
         VoteCode::Indeterminate,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live)
+            .vote_blocking(&vote, None, VoteSource::Live, None)
     );
 }
 
@@ -98,7 +98,7 @@ fn invalid_signature() {
     start_election(&node, &chain[0].hash());
 
     node.vote_processor_queue
-        .vote(vote_invalid, None, VoteSource::Live);
+        .vote(vote_invalid, None, VoteSource::Live, None);
 
     assert_always_eq(
         Duration::from_millis(500),
@@ -135,7 +135,7 @@ fn overflow() {
     for _ in 0..TOTAL {
         if !node
             .vote_processor_queue
-            .vote(vote.clone(), None, VoteSource::Live)
+            .vote(vote.clone(), None, VoteSource::Live, None)
         {
             not_processed += 1;
         }

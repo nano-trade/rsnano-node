@@ -42,7 +42,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_processor
-                .vote_blocking(&vote1, None, VoteSource::Live),
+                .vote_blocking(&vote1, None, VoteSource::Live, None),
             VoteCode::Vote
         );
         let vote2 = Arc::new(Vote::new(
@@ -56,7 +56,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_processor
-                .vote_blocking(&vote2, None, VoteSource::Live),
+                .vote_blocking(&vote2, None, VoteSource::Live, None),
             VoteCode::Ignored
         );
 
@@ -108,7 +108,7 @@ mod votes {
         ));
         node1
             .vote_processor
-            .vote_blocking(&vote1, None, VoteSource::Live);
+            .vote_blocking(&vote1, None, VoteSource::Live, None);
         // Block is already processed from vote
         node1.active.try_add_fork(&send1, Amount::zero());
         assert_eq!(
@@ -151,7 +151,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_processor
-                .vote_blocking(&vote2, None, VoteSource::Live),
+                .vote_blocking(&vote2, None, VoteSource::Live, None),
             VoteCode::Vote
         );
         assert_eq!(
@@ -176,7 +176,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_processor
-                .vote_blocking(&vote1, None, VoteSource::Live),
+                .vote_blocking(&vote1, None, VoteSource::Live, None),
             VoteCode::Replay
         );
 

@@ -7,14 +7,14 @@ use std::{
 use rsnano_core::{utils::ContainerInfo, BlockHash, VoteSource};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{VoteApplier, VoteCache, VoteProcessorConfig};
+use super::{VoteCache, VoteProcessorConfig, VoteProcessorQueue};
 
 pub(crate) struct VoteCacheProcessor {
     state: Arc<Mutex<State>>,
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_applier: Arc<VoteApplier>,
+    vote_queue: Arc<VoteProcessorQueue>,
     config: VoteProcessorConfig,
 }
 
@@ -22,7 +22,7 @@ impl VoteCacheProcessor {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,
-        vote_applier: Arc<VoteApplier>,
+        vote_queue: Arc<VoteProcessorQueue>,
         config: VoteProcessorConfig,
     ) -> Self {
         Self {
@@ -33,7 +33,7 @@ impl VoteCacheProcessor {
             })),
             condition: Arc::new(Condvar::new()),
             stats,
-            vote_applier,
+            vote_queue,
             vote_cache,
             config,
         }
@@ -48,7 +48,7 @@ impl VoteCacheProcessor {
             condition: self.condition.clone(),
             stats: self.stats.clone(),
             vote_cache: self.vote_cache.clone(),
-            vote_applier: self.vote_applier.clone(),
+            vote_queue: self.vote_queue.clone(),
         };
 
         self.state.lock().unwrap().thread = Some(
@@ -114,7 +114,7 @@ struct VoteCacheLoop {
     condition: Arc<Condvar>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    vote_applier: Arc<VoteApplier>,
+    vote_queue: Arc<VoteProcessorQueue>,
 }
 
 impl VoteCacheLoop {
@@ -150,8 +150,8 @@ impl VoteCacheLoop {
         for hash in hashes {
             let cached = self.vote_cache.lock().unwrap().find(&hash);
             for cached_vote in cached {
-                self.vote_applier
-                    .vote_filter(&cached_vote, VoteSource::Cache, None, &hash);
+                self.vote_queue
+                    .vote(cached_vote, None, VoteSource::Cache, Some(hash));
             }
         }
     }

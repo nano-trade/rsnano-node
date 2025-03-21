@@ -11,7 +11,7 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{Vote, VoteCode, VoteSource};
+use rsnano_core::{BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -46,7 +46,7 @@ pub type VoteProcessedCallback2 =
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
     queue: Arc<VoteProcessorQueue>,
-    vote_applier: Arc<VoteApplier>,
+    vote_applier: VoteApplier,
     stats: Arc<Stats>,
     pub total_processed: AtomicU64,
 }
@@ -54,7 +54,7 @@ pub struct VoteProcessor {
 impl VoteProcessor {
     pub(crate) fn new(
         queue: Arc<VoteProcessorQueue>,
-        vote_applier: Arc<VoteApplier>,
+        vote_applier: VoteApplier,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
@@ -95,8 +95,8 @@ impl VoteProcessor {
 
             let start = Instant::now();
 
-            for (_, (vote, source, channel)) in &batch {
-                self.vote_blocking(vote, channel.clone(), *source);
+            for (_, (vote, source, channel, filter)) in &batch {
+                self.vote_blocking(vote, channel.clone(), *source, *filter);
             }
 
             self.total_processed
@@ -119,10 +119,14 @@ impl VoteProcessor {
         vote: &Arc<Vote>,
         channel: Option<Arc<Channel>>,
         source: VoteSource,
+        filter: Option<BlockHash>,
     ) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let vote_results = self.vote_applier.vote(vote, source, channel.clone());
+            let filter = filter.unwrap_or_default();
+            let vote_results = self
+                .vote_applier
+                .vote_filter(vote, source, channel.clone(), filter);
 
             // Aggregate results for individual hashes
             let mut ignored = false;

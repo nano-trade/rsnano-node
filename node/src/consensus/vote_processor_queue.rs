@@ -8,7 +8,7 @@ use strum::IntoEnumIterator;
 
 use rsnano_core::{
     utils::{ContainerInfo, FairQueue, FairQueueInfo},
-    Vote, VoteSource,
+    BlockHash, Vote, VoteSource,
 };
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -30,9 +30,17 @@ impl VoteProcessorQueue {
             data: Mutex::new(VoteProcessorQueueData {
                 stopped: false,
                 queue: FairQueue::new(
-                    move |(tier, _)| match tier {
-                        RepTier::Tier1 | RepTier::Tier2 | RepTier::Tier3 => conf.max_pr_queue,
-                        RepTier::None => conf.max_non_pr_queue,
+                    move |(tier, channel)| {
+                        let max_size = match tier {
+                            RepTier::Tier1 | RepTier::Tier2 | RepTier::Tier3 => conf.max_pr_queue,
+                            RepTier::None => conf.max_non_pr_queue,
+                        };
+                        if *channel == ChannelId::LOOPBACK {
+                            // allow more votes for LOOPBACK, which comes from the vote cache!
+                            max_size * 10
+                        } else {
+                            max_size
+                        }
                     },
                     move |(tier, _)| match tier {
                         RepTier::Tier3 => conf.pr_priority * conf.pr_priority * conf.pr_priority,
@@ -58,7 +66,13 @@ impl VoteProcessorQueue {
     }
 
     /// Queue vote for processing. @returns true if the vote was queued
-    pub fn vote(&self, vote: Arc<Vote>, channel: Option<Arc<Channel>>, source: VoteSource) -> bool {
+    pub fn vote(
+        &self,
+        vote: Arc<Vote>,
+        channel: Option<Arc<Channel>>,
+        source: VoteSource,
+        filter: Option<BlockHash>,
+    ) -> bool {
         let channel_id = match &channel {
             Some(channel) => channel.channel_id(),
             None => ChannelId::LOOPBACK,
@@ -70,7 +84,7 @@ impl VoteProcessorQueue {
             let mut guard = self.data.lock().unwrap();
             guard
                 .queue
-                .push((tier, channel_id), (vote, source, channel))
+                .push((tier, channel_id), (vote, source, channel, filter))
         };
 
         if added {
@@ -91,7 +105,12 @@ impl VoteProcessorQueue {
         max_batch_size: usize,
     ) -> VecDeque<(
         (RepTier, ChannelId),
-        (Arc<Vote>, VoteSource, Option<Arc<Channel>>),
+        (
+            Arc<Vote>,
+            VoteSource,
+            Option<Arc<Channel>>,
+            Option<BlockHash>,
+        ),
     )> {
         let mut guard = self.data.lock().unwrap();
         loop {
@@ -165,5 +184,13 @@ impl DeadChannelCleanupStep for VoteProcessorQueueCleanup {
 
 struct VoteProcessorQueueData {
     stopped: bool,
-    queue: FairQueue<(RepTier, ChannelId), (Arc<Vote>, VoteSource, Option<Arc<Channel>>)>,
+    queue: FairQueue<
+        (RepTier, ChannelId),
+        (
+            Arc<Vote>,
+            VoteSource,
+            Option<Arc<Channel>>,
+            Option<BlockHash>, //filter
+        ),
+    >,
 }

@@ -1797,7 +1797,7 @@ fn online_reps_rep_crawler() {
     // Without rep crawler
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote, Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote, Some(channel.clone()), VoteSource::Live, None);
     assert_eq!(
         Amount::zero(),
         node.online_reps.lock().unwrap().online_weight()
@@ -1807,7 +1807,7 @@ fn online_reps_rep_crawler() {
     node.rep_crawler
         .force_query(*DEV_GENESIS_HASH, channel.channel_id());
     node.vote_processor
-        .vote_blocking(&vote, Some(channel), VoteSource::Live);
+        .vote_blocking(&vote, Some(channel), VoteSource::Live, None);
     assert_eq!(
         Amount::MAX,
         node.online_reps.lock().unwrap().online_weight()
@@ -1843,7 +1843,7 @@ fn online_reps_election() {
 
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote, Some(channel), VoteSource::Live);
+        .vote_blocking(&vote, Some(channel), VoteSource::Live, None);
 
     assert_eq!(
         Amount::MAX - Amount::nano(1000),
@@ -1883,7 +1883,7 @@ fn vote_republish() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1
         .vote_processor_queue
-        .vote(vote, None, VoteSource::Live);
+        .vote(vote, None, VoteSource::Live, None);
 
     // FIXME: there is a race condition here, if the vote arrives before the block then the vote is wasted and the test fails
     // we could resend the vote but then there is a race condition between the vote resending and the election reaching quorum on node1
@@ -1931,7 +1931,7 @@ fn vote_by_hash_republish() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1
         .vote_processor_queue
-        .vote(vote, None, VoteSource::Live);
+        .vote(vote, None, VoteSource::Live, None);
 
     // send2 should win on both nodes
     assert_timely2(|| node1.blocks_confirmed(&[send2.clone()]));
@@ -2021,7 +2021,8 @@ fn confirm_back() {
     start_election(&node, &send2.hash());
     assert_eq!(node.active.len(), 3);
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node.vote_processor_queue.vote(vote, None, VoteSource::Live);
+    node.vote_processor_queue
+        .vote(vote, None, VoteSource::Live, None);
     assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
 }
 
@@ -2085,7 +2086,7 @@ fn rollback_vote_self() {
             vec![fork.hash()],
         ));
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live);
+            .vote_blocking(&vote, None, VoteSource::Live, None);
 
         // The winner changed
         assert_eq!(

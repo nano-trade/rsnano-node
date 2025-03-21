@@ -532,24 +532,24 @@ impl Node {
             current_network,
         ));
 
-        let vote_applier = Arc::new(VoteApplier::new(
+        let vote_applier = VoteApplier::new(
             active_elections.clone(),
             ledger.clone(),
             online_reps.clone(),
             steady_clock.clone(),
             current_network == Networks::NanoDevNetwork,
-        ));
+        );
 
         let vote_processor = Arc::new(VoteProcessor::new(
             vote_processor_queue.clone(),
-            vote_applier.clone(),
+            vote_applier,
             stats.clone(),
         ));
 
         let vote_cache_processor = Arc::new(VoteCacheProcessor::new(
             stats.clone(),
             vote_cache.clone(),
-            vote_applier,
+            vote_processor_queue.clone(),
             config.vote_processor.clone(),
         ));
 

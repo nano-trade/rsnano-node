@@ -57,7 +57,7 @@ impl VoteApplier {
         source: VoteSource,
         channel: Option<Arc<Channel>>,
     ) -> HashMap<BlockHash, VoteCode> {
-        self.vote_filter(vote, source, channel, &BlockHash::zero())
+        self.vote_filter(vote, source, channel, BlockHash::zero())
     }
 
     /// Route vote to associated elections
@@ -69,15 +69,15 @@ impl VoteApplier {
         vote: &Arc<Vote>,
         source: VoteSource,
         channel: Option<Arc<Channel>>,
-        filter: &BlockHash,
+        filter: BlockHash,
     ) -> HashMap<BlockHash, VoteCode> {
         debug_assert!(vote.validate().is_ok());
         // If present, filter should be set to one of the hashes in the vote
-        debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| h == filter));
+        debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| *h == filter));
 
         let relevant_hashes = vote.hashes.iter().filter(|h| {
             // Ignore votes for other hashes if a filter is set
-            if !filter.is_zero() && *h != filter {
+            if !filter.is_zero() && **h != filter {
                 false
             } else {
                 true
@@ -125,7 +125,7 @@ impl VoteApplier {
             .iter()
             .filter(|h| {
                 // Ignore votes for other hashes if a filter is set
-                if !filter.is_zero() && *h != filter {
+                if !filter.is_zero() && **h != filter {
                     false
                 } else {
                     true

@@ -37,7 +37,8 @@ fn check_signature() {
         node.vote_processor.vote_blocking(
             &Arc::new(vote1.clone()),
             Some(channel.clone()),
-            VoteSource::Live
+            VoteSource::Live,
+            None
         )
     );
 
@@ -47,7 +48,8 @@ fn check_signature() {
         node.vote_processor.vote_blocking(
             &Arc::new(vote1.clone()),
             Some(channel.clone()),
-            VoteSource::Live
+            VoteSource::Live,
+            None
         )
     );
     assert_eq!(
@@ -55,7 +57,8 @@ fn check_signature() {
         node.vote_processor.vote_blocking(
             &Arc::new(vote1.clone()),
             Some(channel.clone()),
-            VoteSource::Live
+            VoteSource::Live,
+            None
         )
     );
 }
@@ -80,7 +83,7 @@ fn add_old() {
     ));
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote1, Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote1, Some(channel.clone()), VoteSource::Live, None);
 
     let key2 = PrivateKey::new();
     let send2 = fork_lattice.genesis().send_max(&key2);
@@ -98,7 +101,7 @@ fn add_old() {
     );
 
     node.vote_processor
-        .vote_blocking(&vote2, Some(channel), VoteSource::Live);
+        .vote_blocking(&vote2, Some(channel), VoteSource::Live, None);
 
     let active = node.active.read();
     let election = active.election_for_root(&send1.qualified_root()).unwrap();
@@ -129,7 +132,7 @@ fn add_cooldown() {
     ));
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote1, Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote1, Some(channel.clone()), VoteSource::Live, None);
 
     let key2 = PrivateKey::new();
     let send2 = fork_lattice.genesis().send_max(&key2);
@@ -141,7 +144,7 @@ fn add_cooldown() {
     ));
 
     node.vote_processor
-        .vote_blocking(&vote2, Some(channel), VoteSource::Live);
+        .vote_blocking(&vote2, Some(channel), VoteSource::Live, None);
 
     let active = node.active.read();
     let election1 = active.election_for_root(&send1.qualified_root()).unwrap();

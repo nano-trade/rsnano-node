@@ -132,6 +132,7 @@ impl RealtimeMessageHandler {
                     Arc::new(ack.vote().clone()),
                     Some(channel.clone()),
                     source,
+                    None,
                 );
 
                 if !added {
