@@ -594,7 +594,7 @@ fn ledger_cache() {
         let check_impl = |ledger: &Ledger, expected: &ExpectedCache| {
             assert_eq!(ledger.account_count(), expected.account_count);
             assert_eq!(ledger.block_count(), expected.block_count);
-            assert_eq!(ledger.cemented_count(), expected.cemented_count);
+            assert_eq!(ledger.confirmed_count(), expected.cemented_count);
             assert_eq!(ledger.pruned_count(), expected.pruned_count);
         };
 
@@ -630,7 +630,7 @@ fn ledger_cache() {
             ctx.ledger
                 .store
                 .cache
-                .cemented_count
+                .confirmed_count
                 .fetch_add(1, Ordering::Relaxed);
             expected.cemented_count += 1;
         }
@@ -641,7 +641,7 @@ fn ledger_cache() {
             ctx.ledger
                 .store
                 .cache
-                .cemented_count
+                .confirmed_count
                 .fetch_add(1, Ordering::Relaxed);
             expected.cemented_count += 1;
         }

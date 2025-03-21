@@ -243,12 +243,6 @@ impl VoteApplier {
         }
     }
 
-    fn notify(&self, event: AecEvent) {
-        for sender in self.event_senders.read().unwrap().iter() {
-            sender.send(event.clone()).unwrap();
-        }
-    }
-
     pub fn force_confirm(&self, block_hash: &BlockHash) {
         let confirmed = self
             .active_elections

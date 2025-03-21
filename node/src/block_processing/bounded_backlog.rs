@@ -206,8 +206,8 @@ impl BoundedBacklog {
             })
     }
 
-    pub fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
-        // Remove cemented blocks from the backlog
+    pub fn remove(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+        // Remove confirmed blocks from the backlog
         self.erase_hashes(confirmed.iter().map(|i| i.0.hash()));
     }
 

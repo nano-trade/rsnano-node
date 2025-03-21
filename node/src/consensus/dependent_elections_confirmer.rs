@@ -19,9 +19,9 @@ impl DependentElectionsConfirmer {
     pub fn confirm_dependent_elections(&self, confirmed_blocks: &Vec<(SavedBlock, BlockHash)>) {
         let mut confirmed_blocks_with_election = Vec::with_capacity(confirmed_blocks.len());
         self.confirming_set.do_election_cache(|cache| {
-            for (cemented_block, _) in confirmed_blocks {
-                let source_election = cache.get(&cemented_block.hash()).cloned();
-                confirmed_blocks_with_election.push((cemented_block.clone(), source_election));
+            for (confirmed_block, _) in confirmed_blocks {
+                let source_election = cache.get(&confirmed_block.hash()).cloned();
+                confirmed_blocks_with_election.push((confirmed_block.clone(), source_election));
             }
         });
 

@@ -525,7 +525,7 @@ fn inactive_votes_cache_election_start() {
         .vote(vote1, None, VoteSource::Live);
     assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 3);
     assert_eq!(node.active.len(), 0);
-    assert_eq!(1, node.ledger.cemented_count());
+    assert_eq!(1, node.ledger.confirmed_count());
 
     // 2 votes are required to start election (dev network)
     let vote2 = Arc::new(Vote::new(
@@ -548,7 +548,7 @@ fn inactive_votes_cache_election_start() {
     node.vote_processor_queue
         .vote(vote0, None, VoteSource::Live);
     assert_timely_eq2(|| node.active.len(), 0);
-    assert_timely_eq2(|| node.ledger.cemented_count(), 5);
+    assert_timely_eq2(|| node.ledger.confirmed_count(), 5);
     // Confirmation on disk may lag behind cemented_count cache
     assert_timely2(|| {
         node.block_hashes_confirmed(&[send1.hash(), send2.hash(), open1.hash(), open2.hash()])
@@ -564,7 +564,7 @@ fn inactive_votes_cache_election_start() {
     assert_eq!(node.confirming_set.contains(&send3.hash()), false);
     // send7 cannot be voted on but an election should be started from inactive votes
     node.process_active(send4);
-    assert_timely_eq2(|| node.ledger.cemented_count(), 7);
+    assert_timely_eq2(|| node.ledger.confirmed_count(), 7);
 }
 
 #[test]
@@ -768,7 +768,7 @@ fn confirm_frontier() {
     assert_timely2(|| node2.active.is_active_root(&send.qualified_root()));
 
     assert_timely2(|| node2.block_confirmed(&send.hash()));
-    assert_timely_eq2(|| node2.ledger.cemented_count(), 2);
+    assert_timely_eq2(|| node2.ledger.confirmed_count(), 2);
     assert_timely_eq2(|| node2.active.len(), 0);
 }
 
@@ -1303,8 +1303,8 @@ fn confirm_new() {
     // Let node2 know about the block
     assert_timely2(|| node2.block_exists(&send.hash()));
     // Wait confirmation
-    assert_timely_eq2(|| node1.ledger.cemented_count(), 2);
-    assert_timely_eq2(|| node2.ledger.cemented_count(), 2);
+    assert_timely_eq2(|| node1.ledger.confirmed_count(), 2);
+    assert_timely_eq2(|| node2.ledger.confirmed_count(), 2);
 }
 
 #[test]

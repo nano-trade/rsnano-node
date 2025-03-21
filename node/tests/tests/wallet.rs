@@ -1486,7 +1486,7 @@ fn receive_pruned() {
         .unwrap();
 
     // Pruning
-    assert_timely_eq2(|| node2.ledger.cemented_count(), 3);
+    assert_timely_eq2(|| node2.ledger.confirmed_count(), 3);
     assert_eq!(node2.ledger.prune_one(&send1.hash(), 2), 1);
 
     node2
@@ -1512,7 +1512,7 @@ fn receive_pruned() {
         node2.ledger.any().block_balance(&open1.hash()),
         Some(amount)
     );
-    assert_timely_eq2(|| node2.ledger.cemented_count(), 4);
+    assert_timely_eq2(|| node2.ledger.confirmed_count(), 4);
 }
 
 fn upgrade_genesis_epoch(node: &Node, epoch: Epoch) {

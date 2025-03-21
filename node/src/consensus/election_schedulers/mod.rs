@@ -91,10 +91,6 @@ impl ElectionSchedulers {
         self.manual.contains(hash) || self.priority.contains(hash)
     }
 
-    pub fn activate_successors(&self, any: &impl AnySet, block: &SavedBlock) {
-        self.priority.activate_successors(any, block);
-    }
-
     pub fn activate_backlog(
         &self,
         any: &impl AnySet,
@@ -122,11 +118,11 @@ impl ElectionSchedulers {
         self.manual.push(block, None);
     }
 
-    pub fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
-        // Activate successors of cemented blocks
+    pub fn activate_successors(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+        // Activate successors of confirmed blocks
         let any = self.ledger.any();
         for (block, _) in confirmed {
-            self.activate_successors(&any, block);
+            self.priority.activate_successors(&any, block);
         }
     }
 

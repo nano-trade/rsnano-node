@@ -17,7 +17,7 @@ pub struct Monitor {
     online_reps: Arc<Mutex<OnlineReps>>,
     active: Arc<ActiveElections>,
     last_time: Option<Instant>,
-    last_blocks_cemented: u64,
+    last_blocks_confirmed: u64,
     last_blocks_total: u64,
 }
 
@@ -35,21 +35,21 @@ impl Monitor {
             active,
             last_time: None,
             last_blocks_total: 0,
-            last_blocks_cemented: 0,
+            last_blocks_confirmed: 0,
         }
     }
 
-    fn log(&self, last: Instant, blocks_cemented: u64, blocks_total: u64) {
+    fn log(&self, last: Instant, blocks_confirmed: u64, blocks_total: u64) {
         // TODO: Maybe emphasize somehow that confirmed doesn't need to be equal to total; backlog is OK
         info!(
             "Blocks confirmed: {} | total: {}",
-            blocks_cemented, blocks_total
+            blocks_confirmed, blocks_total
         );
 
         // Calculate the rates
         let elapsed_secs = last.elapsed().as_secs() as f64;
         let blocks_confirmed_rate =
-            (blocks_cemented - self.last_blocks_cemented) as f64 / elapsed_secs;
+            (blocks_confirmed - self.last_blocks_confirmed) as f64 / elapsed_secs;
 
         // Block rollback can cause the block count to go down!
         let blocks_checked_rate =
@@ -97,16 +97,16 @@ impl Monitor {
 
 impl Runnable for Monitor {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        let blocks_cemented = self.ledger.cemented_count();
+        let blocks_confirmed = self.ledger.confirmed_count();
         let blocks_total = self.ledger.block_count();
 
         if let Some(last) = self.last_time {
-            self.log(last, blocks_cemented, blocks_total);
+            self.log(last, blocks_confirmed, blocks_total);
         } else {
             // Wait for node to warm up before logging
         }
         self.last_time = Some(Instant::now());
-        self.last_blocks_cemented = blocks_cemented;
+        self.last_blocks_confirmed = blocks_confirmed;
         self.last_blocks_total = blocks_total;
     }
 }

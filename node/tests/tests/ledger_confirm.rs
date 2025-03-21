@@ -31,7 +31,7 @@ fn single() {
     assert_eq!(conf_info.height, 2);
     assert_eq!(conf_info.frontier, send1.hash());
 
-    // Rollbacks should fail as these blocks have been cemented
+    // Rollbacks should fail as these blocks have been confirmed
     assert!(node.ledger.rollback(&latest1).is_err());
     assert!(node.ledger.rollback(&send1.hash()).is_err());
     assert_eq!(
@@ -42,7 +42,7 @@ fn single() {
         ),
         1
     );
-    assert_eq!(node.ledger.cemented_count(), 2);
+    assert_eq!(node.ledger.confirmed_count(), 2);
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn multiple_accounts() {
         ),
         10
     );
-    assert_eq!(node.ledger.cemented_count(), 11);
+    assert_eq!(node.ledger.confirmed_count(), 11);
     let any = node.ledger.any();
     assert!(any.confirmed().block_exists(&receive3.hash()));
     assert_eq!(
@@ -177,7 +177,7 @@ fn multiple_accounts() {
     assert!(node.ledger.rollback(&receive3.hash()).is_err());
     assert!(node.ledger.rollback(&send3.hash()).is_err());
 
-    // Attempt some others which have been cemented
+    // Attempt some others which have been confirmed
     assert!(node.ledger.rollback(&open1.hash()).is_err());
     assert!(node.ledger.rollback(&send2.hash()).is_err());
 }
@@ -239,7 +239,7 @@ fn send_receive_between_2_accounts() {
         ),
         10
     );
-    assert_eq!(node.ledger.cemented_count(), 11);
+    assert_eq!(node.ledger.confirmed_count(), 11);
 }
 
 #[test]
@@ -281,7 +281,7 @@ fn send_receive_self() {
         any.get_account(&DEV_GENESIS_ACCOUNT).unwrap().block_count,
         8
     );
-    assert_eq!(node.ledger.cemented_count(), 7);
+    assert_eq!(node.ledger.confirmed_count(), 7);
 }
 
 #[test]
@@ -337,13 +337,13 @@ fn all_block_types() {
     ]);
     let confirmed = node.ledger.confirm(state_send2.hash());
     assert_eq!(confirmed.len(), 15);
-    assert_eq!(node.ledger.cemented_count(), 16);
+    assert_eq!(node.ledger.confirmed_count(), 16);
 }
 
 #[test]
-// This test ensures a block that's cemented cannot be rolled back by the node
+// This test ensures a block that's confirmed cannot be rolled back by the node
 // A block is inserted and confirmed then later a different block is force inserted with a rollback attempt
-fn conflict_rollback_cemented() {
+fn conflict_rollback_confirmed() {
     let mut system = System::new();
     let node1 = system.make_node();
 
@@ -359,8 +359,8 @@ fn conflict_rollback_cemented() {
     let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
     let fork1b = fork_lattice.genesis().send(&key2, 100);
     node1.block_processor.force(fork1b.into());
-    // node2 already has send2 forced confirmed whilst node1 should have confirmed send1 and therefore we have a cemented fork on node2
-    // and node2 should print an error message on the log that it cannot rollback send2 because it is already cemented
+    // node2 already has send2 forced confirmed whilst node1 should have confirmed send1 and therefore we have a confirmed fork on node2
+    // and node2 should print an error message on the log that it cannot rollback send2 because it is already confirmed
     assert_timely_eq(
         Duration::from_secs(5),
         || {

@@ -376,8 +376,8 @@ impl ConfirmingSetImpl {
     }
 }
 
-pub struct CementingContext {
-    /// The block that was cemented
+pub struct ConfirmationContext {
+    /// The block that was confirmed
     pub block: SavedBlock,
     /// The hash of the block which caused the block to be cemented
     pub confirmation_root: BlockHash,
@@ -385,21 +385,21 @@ pub struct CementingContext {
 
 struct CementedNotifier<'a> {
     confirming_set: &'a ConfirmingSetThread,
-    already_cemented: VecDeque<BlockHash>,
+    already_confirmed: VecDeque<BlockHash>,
 }
 
 impl<'a> CementedNotifier<'a> {
     fn new(confirming_set: &'a ConfirmingSetThread) -> Self {
         Self {
             confirming_set,
-            already_cemented: Default::default(),
+            already_confirmed: Default::default(),
         }
     }
 }
 
 impl<'a> CementingObserver for CementedNotifier<'a> {
-    fn already_cemented(&mut self, hash: &BlockHash) {
-        self.already_cemented.push_back(*hash);
+    fn already_confirmed(&mut self, hash: &BlockHash) {
+        self.already_confirmed.push_back(*hash);
     }
 
     fn cementing_failed(&mut self, hash: &BlockHash) {

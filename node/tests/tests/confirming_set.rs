@@ -40,7 +40,7 @@ fn observer_callbacks() {
         ),
         2
     );
-    assert_eq!(node.ledger.cemented_count(), 3);
+    assert_eq!(node.ledger.confirmed_count(), 3);
 }
 
 // The callback and confirmation history should only be updated after confirmation height is set (and not just after voting)
@@ -154,7 +154,7 @@ fn confirmed_history() {
         },
         2,
     );
-    assert_eq!(node.ledger.cemented_count(), 3);
+    assert_eq!(node.ledger.confirmed_count(), 3);
 }
 
 #[test]
@@ -226,5 +226,5 @@ fn dependent_election() {
         },
         1,
     );
-    assert_eq!(node.ledger.cemented_count(), 4);
+    assert_eq!(node.ledger.confirmed_count(), 4);
 }

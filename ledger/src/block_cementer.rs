@@ -69,7 +69,7 @@ impl<'a> BlockCementer<'a> {
                         .put(txn, &block.account(), &conf_height);
                     self.store
                         .cache
-                        .cemented_count
+                        .confirmed_count
                         .fetch_add(1, Ordering::SeqCst);
 
                     self.stats.add_dir(

@@ -300,16 +300,16 @@ impl Ledger {
             });
         }
 
-        if generate_cache.cemented_count {
+        if generate_cache.confirmed_count {
             self.store.confirmation_height.for_each_par(|iter| {
-                let mut cemented_count = 0;
+                let mut confirmed_count = 0;
                 for (_, info) in iter {
-                    cemented_count += info.height;
+                    confirmed_count += info.height;
                 }
                 self.store
                     .cache
-                    .cemented_count
-                    .fetch_add(cemented_count, Ordering::SeqCst);
+                    .confirmed_count
+                    .fetch_add(confirmed_count, Ordering::SeqCst);
             });
         }
 
@@ -720,8 +720,8 @@ impl Ledger {
     ) where
         O: CementingObserver,
     {
-        let mut cemented = Vec::new();
-        let mut blocks_cemented = 0;
+        let mut confirmed = Vec::new();
+        let mut blocks_confirmed = 0;
         {
             let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
 
@@ -735,23 +735,25 @@ impl Ledger {
                         return;
                     }
 
-                    // Issue notifications here, so that `cemented` set is not too large before we add more blocks
-                    if blocks_cemented >= max_blocks {
+                    // Issue notifications here, so that `confirmed` set is not too large before we add more blocks
+                    if blocks_confirmed >= max_blocks {
                         tx.commit();
-                        blocks_cemented = 0;
+                        blocks_confirmed = 0;
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
                         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                            sender.send(LedgerEvent::BlocksConfirmed(cemented)).unwrap();
+                            sender
+                                .send(LedgerEvent::BlocksConfirmed(confirmed))
+                                .unwrap();
                         }
-                        cemented = Vec::new();
+                        confirmed = Vec::new();
                         tx.renew();
                     }
 
                     self.stats
                         .inc(StatType::ConfirmingSet, DetailType::Cementing);
 
-                    // The block might be rolled back before it's fully cemented
+                    // The block might be rolled back before it's fully confirmed
                     if !self.store.block.exists(&tx, confirmation_root) {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::MissingBlock);
@@ -767,14 +769,14 @@ impl Ledger {
                             DetailType::Cemented,
                             added.len() as u64,
                         );
-                        blocks_cemented += added.len();
+                        blocks_confirmed += added.len();
                         for block in added {
-                            cemented.push((block, *confirmation_root));
+                            confirmed.push((block, *confirmation_root));
                         }
                     } else {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
-                        observer.already_cemented(confirmation_root);
+                        observer.already_confirmed(confirmation_root);
                     }
 
                     success = {
@@ -810,9 +812,11 @@ impl Ledger {
             }
         }
 
-        if !cemented.is_empty() {
+        if !confirmed.is_empty() {
             if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                sender.send(LedgerEvent::BlocksConfirmed(cemented)).unwrap();
+                sender
+                    .send(LedgerEvent::BlocksConfirmed(confirmed))
+                    .unwrap();
             }
         }
     }
@@ -829,8 +833,8 @@ impl Ledger {
         verifier.verify_votes(candidates, is_final)
     }
 
-    pub fn cemented_count(&self) -> u64 {
-        self.store.cache.cemented_count.load(Ordering::SeqCst)
+    pub fn confirmed_count(&self) -> u64 {
+        self.store.cache.confirmed_count.load(Ordering::SeqCst)
     }
 
     pub fn block_count(&self) -> u64 {
@@ -847,9 +851,9 @@ impl Ledger {
 
     pub fn backlog_count(&self) -> u64 {
         let blocks = self.block_count();
-        let cemented = self.cemented_count();
-        if blocks > cemented {
-            blocks - cemented
+        let confirmed = self.confirmed_count();
+        if blocks > confirmed {
+            blocks - confirmed
         } else {
             0
         }
@@ -898,6 +902,6 @@ pub struct BatchProcessResult {
 }
 
 pub trait CementingObserver {
-    fn already_cemented(&mut self, hash: &BlockHash);
+    fn already_confirmed(&mut self, hash: &BlockHash);
     fn cementing_failed(&mut self, hash: &BlockHash);
 }

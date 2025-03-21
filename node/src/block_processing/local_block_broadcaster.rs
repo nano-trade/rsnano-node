@@ -261,7 +261,7 @@ impl LocalBlockBroadcaster {
         publisher.flood_prs_and_some_non_prs(&message, TrafficType::BlockBroadcastInitial, 1.0);
     }
 
-    pub fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+    pub fn remove(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
         let mut guard = self.mutex.lock().unwrap();
         for (block, _) in confirmed {
             if guard.local_blocks.remove(&block.hash()) {

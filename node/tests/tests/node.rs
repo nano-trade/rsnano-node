@@ -1035,7 +1035,7 @@ fn search_receivable_pruned() {
         node1.active.len() == 0 && node2.active.len() == 0
     });
     assert_timely2(|| node1.ledger.confirmed().block_exists(&send2.hash()));
-    assert_timely_eq2(|| node2.ledger.cemented_count(), 3);
+    assert_timely_eq2(|| node2.ledger.confirmed_count(), 3);
 
     node1
         .wallets
@@ -2468,7 +2468,7 @@ fn auto_bootstrap() {
     // Confirmation for all blocks
     assert_timely_msg(
         Duration::from_secs(5),
-        || node1.ledger.cemented_count() == 3,
+        || node1.ledger.confirmed_count() == 3,
         "cemented count not 3",
     );
 }
@@ -2665,7 +2665,7 @@ fn unconfirmed_send() {
         || node1.block_confirmed(&send3.hash()),
         "send3 not confirmed on node1",
     );
-    assert_timely_eq(Duration::from_secs(5), || node2.ledger.cemented_count(), 7);
+    assert_timely_eq(Duration::from_secs(5), || node2.ledger.confirmed_count(), 7);
     assert_timely_eq(
         Duration::from_secs(5),
         || node1.balance(&DEV_GENESIS_ACCOUNT),
@@ -2857,12 +2857,12 @@ fn dependency_graph_frontier() {
     start_election(&node1, &gen_send1.hash());
     assert_timely_eq(
         Duration::from_secs(15),
-        || node1.ledger.cemented_count(),
+        || node1.ledger.confirmed_count(),
         node1.ledger.block_count(),
     );
     assert_timely_eq(
         Duration::from_secs(15),
-        || node2.ledger.cemented_count(),
+        || node2.ledger.confirmed_count(),
         node2.ledger.block_count(),
     );
 }
@@ -2970,9 +2970,9 @@ fn dependency_graph() {
             false
         });
         assert!(!error);
-        error || node.ledger.cemented_count() == node.ledger.block_count()
+        error || node.ledger.confirmed_count() == node.ledger.block_count()
     });
-    assert_eq!(node.ledger.cemented_count(), node.ledger.block_count());
+    assert_eq!(node.ledger.confirmed_count(), node.ledger.block_count());
     assert_timely(Duration::from_secs(5), || node.active.len() == 0);
 }
 

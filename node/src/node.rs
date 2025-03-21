@@ -285,7 +285,7 @@ impl Node {
 
         let ledger = Arc::new(ledger);
         info!("Block count:    {}", ledger.block_count());
-        info!("Cemented count: {}", ledger.cemented_count());
+        info!("Confirmed count: {}", ledger.confirmed_count());
         info!("Account count:  {}", ledger.account_count());
         info!("Pruned count:   {}", ledger.pruned_count());
         info!("Representative count: {}", ledger.rep_weights.len());

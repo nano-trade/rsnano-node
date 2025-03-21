@@ -28,6 +28,6 @@ pub(crate) fn view_ledger_stats(ui: &mut Ui, stats: &LedgerStats) {
     ui.label("blocks:");
     ui.label(formatted_number(stats.total_blocks));
     ui.add_space(10.0);
-    ui.label("cemented:");
-    ui.label(formatted_number(stats.cemented_blocks));
+    ui.label("confirmed:");
+    ui.label(formatted_number(stats.confirmed_blocks));
 }

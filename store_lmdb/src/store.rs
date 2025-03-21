@@ -26,7 +26,7 @@ pub enum Vacuuming {
 }
 
 pub struct LedgerCache {
-    pub cemented_count: AtomicU64,
+    pub confirmed_count: AtomicU64,
     pub block_count: AtomicU64,
     pub pruned_count: AtomicU64,
     pub account_count: AtomicU64,
@@ -35,7 +35,7 @@ pub struct LedgerCache {
 impl LedgerCache {
     pub fn new() -> Self {
         Self {
-            cemented_count: AtomicU64::new(0),
+            confirmed_count: AtomicU64::new(0),
             block_count: AtomicU64::new(0),
             pruned_count: AtomicU64::new(0),
             account_count: AtomicU64::new(0),
@@ -43,7 +43,7 @@ impl LedgerCache {
     }
 
     pub fn reset(&self) {
-        self.cemented_count.store(0, Ordering::SeqCst);
+        self.confirmed_count.store(0, Ordering::SeqCst);
         self.block_count.store(0, Ordering::SeqCst);
         self.pruned_count.store(0, Ordering::SeqCst);
         self.account_count.store(0, Ordering::SeqCst);

@@ -66,7 +66,7 @@ fn view_peers_table(ui: &mut Ui, mut model: ChannelsViewModel) {
                 ui.strong("Blocks");
             });
             header.col(|ui| {
-                ui.strong("Cemented");
+                ui.strong("Confirmed");
             });
             header.col(|ui| {
                 ui.strong("Unchecked");
@@ -106,7 +106,7 @@ fn view_peers_table(ui: &mut Ui, mut model: ChannelsViewModel) {
                     ui.add(Label::new(row_model.block_count).selectable(false));
                 });
                 row.col(|ui| {
-                    ui.add(Label::new(row_model.cemented_count).selectable(false));
+                    ui.add(Label::new(row_model.confirmed_count).selectable(false));
                 });
                 row.col(|ui| {
                     ui.add(Label::new(row_model.unchecked_count).selectable(false));

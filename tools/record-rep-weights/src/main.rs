@@ -28,9 +28,9 @@ async fn main() -> anyhow::Result<()> {
     let rpc_addr = args
         .rpc
         .unwrap_or_else(|| rpc_addr_for(network).to_string());
-    let (cemented, representatives) = get_raw_data(rpc_addr.parse()?).await?;
+    let (confirmed, representatives) = get_raw_data(rpc_addr.parse()?).await?;
 
-    let rep_file = create_rep_file(&representatives, cemented);
+    let rep_file = create_rep_file(&representatives, confirmed);
 
     write_file(network, rep_file)?;
     Ok(())
@@ -51,12 +51,12 @@ async fn get_raw_data(rpc_url: Url) -> anyhow::Result<(u64, RepresentativesRespo
             sorting: Some(true.into()),
         })
         .await?;
-    let cemented = client.block_count().await?.cemented;
-    Ok((cemented.into(), representatives))
+    let confirmed = client.block_count().await?.cemented;
+    Ok((confirmed.into(), representatives))
 }
 
-fn create_rep_file(reps: &RepresentativesResponse, cemented: u64) -> RepsFile {
-    let block_height = cemented - CUTOFF;
+fn create_rep_file(reps: &RepresentativesResponse, confirmed: u64) -> RepsFile {
+    let block_height = confirmed - CUTOFF;
     let supply_max = get_supply_max(reps, PERCENTAGE_LIMIT);
 
     let mut content = String::new();

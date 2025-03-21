@@ -38,7 +38,7 @@ impl TelemetryFactory {
         let mut telemetry_data = TelemetryData {
             node_id: self.node_id_key.public_key().into(),
             block_count: self.ledger.block_count(),
-            cemented_count: self.ledger.cemented_count(),
+            cemented_count: self.ledger.confirmed_count(),
             bandwidth_cap,
             protocol_version,
             uptime: self.startup_time.elapsed(self.clock.now()).as_secs(),

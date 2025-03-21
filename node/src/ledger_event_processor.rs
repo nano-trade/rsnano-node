@@ -27,11 +27,11 @@ impl LedgerEventProcessor {
                     self.dependent_elections_confirmer
                         .confirm_dependent_elections(&confirmed);
                     if !self.flags.disable_activate_successors {
-                        self.election_schedulers.batch_cemented(&confirmed);
+                        self.election_schedulers.activate_successors(&confirmed);
                     }
-                    self.bounded_backlog.batch_cemented(&confirmed);
-                    self.local_block_broadcaster.batch_cemented(&confirmed);
-                    self.wallets.batch_cemented(&confirmed);
+                    self.bounded_backlog.remove(&confirmed);
+                    self.local_block_broadcaster.remove(&confirmed);
+                    self.wallets.try_receive(&confirmed);
                 }
             }
         }

@@ -80,7 +80,7 @@ impl<'a> ChannelsViewModel<'a> {
             },
             is_selected: self.0.selected_index() == Some(index),
             block_count: String::new(),
-            cemented_count: String::new(),
+            confirmed_count: String::new(),
             unchecked_count: String::new(),
             maker: "",
             version: String::new(),
@@ -91,7 +91,7 @@ impl<'a> ChannelsViewModel<'a> {
 
         if let Some(telemetry) = &channel.telemetry {
             result.block_count = formatted_number(telemetry.block_count);
-            result.cemented_count = formatted_number(telemetry.cemented_count);
+            result.confirmed_count = formatted_number(telemetry.cemented_count);
             result.unchecked_count = formatted_number(telemetry.unchecked_count);
             result.maker = match telemetry.maker {
                 0 | 1 => "NF",
@@ -127,7 +127,7 @@ pub(crate) struct ChannelViewModel {
     pub direction: &'static str,
     pub is_selected: bool,
     pub block_count: String,
-    pub cemented_count: String,
+    pub confirmed_count: String,
     pub unchecked_count: String,
     pub maker: &'static str,
     pub version: String,

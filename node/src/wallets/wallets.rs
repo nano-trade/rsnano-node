@@ -1161,11 +1161,11 @@ pub trait WalletsExt {
     fn ensure_wallet_is_unlocked(&self, wallet_id: WalletId, password: &str) -> bool;
 
     fn initialize2(&self);
-    fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, BlockHash)>);
+    fn try_receive(&self, confirmed: &Vec<(SavedBlock, BlockHash)>);
 }
 
 impl WalletsExt for Arc<Wallets> {
-    fn batch_cemented(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+    fn try_receive(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
         for (block, _) in confirmed {
             // TODO: Is it neccessary to call this for all blocks?
             if block.is_send() {

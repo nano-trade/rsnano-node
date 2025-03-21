@@ -256,9 +256,6 @@ impl ActiveElectionsContainer {
     ) -> Vec<ConfirmedElection> {
         let mut results = Vec::new();
 
-        // Process all cemented blocks while holding the lock to avoid
-        // races where an election for a block that is already
-        // cemented is inserted
         for (block, source_election) in confirmed_blocks {
             let mut dependent_election = self.roots.get_mut(&block.qualified_root());
 
@@ -273,7 +270,7 @@ impl ActiveElectionsContainer {
                 }
             }
 
-            // Check if the currently cemented block was part of an election that triggered the confirmation
+            // Check if the currently confirmed block was part of an election that triggered the confirmation
             if let Some(source) = source_election {
                 if source.winner.hash() == block.hash() {
                     // This is the block that was directly confirmed by the source election.

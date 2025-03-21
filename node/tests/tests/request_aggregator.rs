@@ -427,7 +427,7 @@ fn split() {
     }
     // Confirm all blocks
     node.confirm(blocks.last().unwrap().hash());
-    assert_eq!(node.ledger.cemented_count(), MAX_VBH as u64 + 2);
+    assert_eq!(node.ledger.confirmed_count(), MAX_VBH as u64 + 2);
     assert_eq!(MAX_VBH + 1, roots_hashes.len());
 
     let dummy_channel = make_fake_channel(&node);
