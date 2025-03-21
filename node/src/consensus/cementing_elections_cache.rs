@@ -4,13 +4,13 @@ use rsnano_core::BlockHash;
 
 use super::ConfirmedElection;
 
-pub(crate) struct CementingElectionsCache {
+pub(crate) struct ConfirmedElectionsCache {
     max_len: usize,
     elections: HashMap<BlockHash, ConfirmedElection>,
     sequential: VecDeque<BlockHash>,
 }
 
-impl CementingElectionsCache {
+impl ConfirmedElectionsCache {
     const DEFAULT_MAX_LEN: usize = 4096;
 
     pub fn with_max_len(max_len: usize) -> Self {
@@ -49,7 +49,7 @@ impl CementingElectionsCache {
     }
 }
 
-impl Default for CementingElectionsCache {
+impl Default for ConfirmedElectionsCache {
     fn default() -> Self {
         Self::with_max_len(Self::DEFAULT_MAX_LEN)
     }
@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        let cache = CementingElectionsCache::default();
+        let cache = ConfirmedElectionsCache::default();
         assert_eq!(cache.max_len(), 4096);
         assert_eq!(cache.len(), 0);
         assert!(cache.get(&BlockHash::from(123)).is_none());
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn insert_one() {
-        let mut cache = CementingElectionsCache::default();
+        let mut cache = ConfirmedElectionsCache::default();
         let (winner, election) = create_election(1);
 
         cache.insert(election);
@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn insert_multiple() {
-        let mut cache = CementingElectionsCache::default();
+        let mut cache = ConfirmedElectionsCache::default();
         let (winner1, election1) = create_election(1);
         let (winner2, election2) = create_election(2);
 
@@ -100,13 +100,13 @@ mod tests {
 
     #[test]
     fn create_with_custom_max_len() {
-        let cache = CementingElectionsCache::with_max_len(2);
+        let cache = ConfirmedElectionsCache::with_max_len(2);
         assert_eq!(cache.max_len(), 2);
     }
 
     #[test]
     fn when_max_len_reached_should_discard_oldest_entry() {
-        let mut cache = CementingElectionsCache::with_max_len(2);
+        let mut cache = ConfirmedElectionsCache::with_max_len(2);
         let (winner1, election1) = create_election(1);
         let (winner2, election2) = create_election(2);
         let (winner3, election3) = create_election(3);
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn ignore_duplicates() {
-        let mut cache = CementingElectionsCache::default();
+        let mut cache = ConfirmedElectionsCache::default();
         let (_, election) = create_election(1);
         cache.insert(election.clone());
         cache.insert(election);

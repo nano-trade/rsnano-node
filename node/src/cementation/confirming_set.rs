@@ -16,7 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::ordered_entries::OrderedEntries;
 use crate::{
     block_processing::BlockContext,
-    consensus::{CementingElectionsCache, ConfirmedElection},
+    consensus::{ConfirmedElection, ConfirmedElectionsCache},
     utils::{ThreadPool, ThreadPoolImpl},
 };
 
@@ -78,7 +78,7 @@ impl ConfirmingSet {
                     cooldown: false,
                     near_full_limit: config.max_blocks * 100 / 75,
                     recovered_limit: config.max_blocks * 100 / 50,
-                    cementing_elections_cache: CementingElectionsCache::default(),
+                    election_cache: ConfirmedElectionsCache::default(),
                 }),
                 stopped: AtomicBool::new(false),
                 condition: Condvar::new(),
@@ -164,9 +164,9 @@ impl ConfirmingSet {
         }
     }
 
-    pub(crate) fn with_election_cache(&self, mut action: impl FnMut(&CementingElectionsCache)) {
+    pub(crate) fn with_election_cache(&self, mut action: impl FnMut(&ConfirmedElectionsCache)) {
         let guard = self.thread.mutex.lock().unwrap();
-        action(&guard.cementing_elections_cache);
+        action(&guard.election_cache);
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -218,7 +218,7 @@ impl ConfirmingSetThread {
         {
             let mut guard = self.mutex.lock().unwrap();
             if let Some(e) = election {
-                guard.cementing_elections_cache.insert(e);
+                guard.election_cache.insert(e);
             }
             added = guard.set.push_back(CementingEntry {
                 confirmation_root: hash,
@@ -335,7 +335,7 @@ struct ConfirmingSetImpl {
     cooldown: bool,
     near_full_limit: usize,
     recovered_limit: usize,
-    cementing_elections_cache: CementingElectionsCache,
+    election_cache: ConfirmedElectionsCache,
 }
 
 impl ConfirmingSetImpl {
