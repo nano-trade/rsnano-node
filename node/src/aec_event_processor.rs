@@ -1,15 +1,16 @@
 use std::sync::{
     mpsc::{Receiver, SyncSender},
-    Arc,
+    Arc, Mutex,
 };
 
-use rsnano_core::utils::MemoryStream;
+use rsnano_core::{utils::MemoryStream, VoteSource};
+use rsnano_ledger::RepWeightCache;
 use rsnano_messages::NetworkFilter;
 
 use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, AecEvent, BlockVoter, BootstrapElectionActivator,
-        VoteCacheProcessor,
+        VoteCache, VoteCacheProcessor, VoteRebroadcastQueue,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     NodeEvent,
@@ -19,12 +20,15 @@ use crate::{
 pub(crate) struct AecEventProcessor {
     pub receiver: Receiver<AecEvent>,
     pub vote_cache_processor: Arc<VoteCacheProcessor>,
+    pub vote_cache: Arc<Mutex<VoteCache>>,
     pub node_event_sender: Option<SyncSender<NodeEvent>>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub network_filter: Arc<NetworkFilter>,
     pub bootstrap_election_activator: BootstrapElectionActivator,
     pub block_voter: Arc<BlockVoter>,
     pub(crate) recently_cemented_inserter: RecentlyCementedInserter,
+    pub rep_weights: Arc<RepWeightCache>,
+    pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
 }
 
 impl AecEventProcessor {
@@ -57,6 +61,19 @@ impl AecEventProcessor {
                             .unwrap();
                     }
                     self.recently_cemented_inserter.insert(election);
+                }
+                AecEvent::VoteProcessed(vote, source, results) => {
+                    // Cache the votes that didn't match any election
+                    if source != VoteSource::Cache {
+                        let rep_weight = self.rep_weights.weight(&vote.voter);
+                        self.vote_cache
+                            .lock()
+                            .unwrap()
+                            .insert(&vote, rep_weight, &results);
+                    }
+
+                    self.vote_rebroadcast_queue
+                        .handle_processed_vote(&vote, &results);
                 }
                 AecEvent::VacancyUpdated => self.election_schedulers.notify(),
             }

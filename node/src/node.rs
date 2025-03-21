@@ -50,9 +50,9 @@ use crate::{
         ActiveElections, ActiveElectionsDriver, BlockVoter, BootstrapElectionActivator,
         ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder,
         LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteApplierEvent, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators,
-        VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup,
-        VoteRebroadcastQueue, VoteRebroadcaster, WinnerBlockBroadcaster,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -1141,6 +1141,9 @@ impl Node {
             bootstrap_election_activator,
             block_voter: block_voter.clone(),
             recently_cemented_inserter,
+            vote_cache: vote_cache.clone(),
+            rep_weights: ledger.rep_weights.clone(),
+            vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
         };
 
         std::thread::Builder::new()
@@ -1154,7 +1157,7 @@ impl Node {
             stats: stats.clone(),
             confirming_set: confirming_set.clone(),
             active_elections: active_elections.clone(),
-            event_sender: aec_sender,
+            event_sender: aec_sender.clone(),
         };
 
         let mut ledger_event_processor = LedgerEventProcessor {
@@ -1191,32 +1194,7 @@ impl Node {
             })
             .unwrap();
 
-        let (vote_route_tx, vote_route_rx) = sync_channel(128);
-        vote_applier.add_event_sink(vote_route_tx);
-
-        let rep_weights_l = rep_weights.clone();
-        let vote_cache_l = vote_cache.clone();
-        std::thread::Builder::new()
-            .name("Vote appl proc".to_owned())
-            .spawn(move || {
-                while let Ok(e) = vote_route_rx.recv() {
-                    match e {
-                        VoteApplierEvent::VoteProcessed(vote, source, results) => {
-                            // Cache the votes that didn't match any election
-                            if source != VoteSource::Cache {
-                                let rep_weight = rep_weights_l.weight(&vote.voter);
-                                vote_cache_l
-                                    .lock()
-                                    .unwrap()
-                                    .insert(&vote, rep_weight, &results);
-                            }
-
-                            vote_rebroadcast_queue.handle_processed_vote(&vote, &results);
-                        }
-                    }
-                }
-            })
-            .unwrap();
+        vote_applier.add_event_sink(aec_sender);
 
         Self {
             is_nulled,

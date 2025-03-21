@@ -11,7 +11,7 @@ use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, BlockVoter, LocalVoteHistory};
+use super::{ActiveElections, AecEvent, BlockVoter, LocalVoteHistory};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
@@ -19,15 +19,10 @@ use crate::{
     representatives::OnlineReps,
 };
 
-#[derive(Clone)]
-pub enum VoteApplierEvent {
-    VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
-}
-
 /// Applies a vote to an election
 pub struct VoteApplier {
     active_elections: Arc<ActiveElections>,
-    event_senders: RwLock<Vec<SyncSender<VoteApplierEvent>>>,
+    event_senders: RwLock<Vec<SyncSender<AecEvent>>>,
     ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
     stats: Arc<Stats>,
@@ -67,7 +62,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn add_event_sink(&self, sink: SyncSender<VoteApplierEvent>) {
+    pub fn add_event_sink(&self, sink: SyncSender<AecEvent>) {
         self.event_senders.write().unwrap().push(sink);
     }
 
@@ -237,7 +232,7 @@ impl VoteApplier {
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
             sender
-                .send(VoteApplierEvent::VoteProcessed(
+                .send(AecEvent::VoteProcessed(
                     vote.clone(),
                     source,
                     results.clone(),
@@ -246,7 +241,7 @@ impl VoteApplier {
         }
     }
 
-    fn notify(&self, event: VoteApplierEvent) {
+    fn notify(&self, event: AecEvent) {
         for sender in self.event_senders.read().unwrap().iter() {
             sender.send(event.clone()).unwrap();
         }

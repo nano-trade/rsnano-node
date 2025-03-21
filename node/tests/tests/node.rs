@@ -19,7 +19,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{AggregatorRequest, VoteApplierEvent},
+    consensus::{AecEvent, AggregatorRequest},
     wallets::WalletsExt,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
@@ -371,7 +371,7 @@ fn vote_by_hash_bundle() {
 
     let mut max_hashes = 0;
     while let Ok(e) = rx.recv_timeout(Duration::from_secs(2)) {
-        if let VoteApplierEvent::VoteProcessed(vote, _, _) = e {
+        if let AecEvent::VoteProcessed(vote, _, _) = e {
             max_hashes = max(max_hashes, vote.hashes.len());
 
             if max_hashes >= 3 {

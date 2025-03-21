@@ -15,8 +15,8 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
 use rsnano_core::{
-    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
-    VoteSource,
+    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, Vote,
+    VoteCode, VoteSource,
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
@@ -39,12 +39,14 @@ impl Default for ActiveElectionsConfig {
     }
 }
 
+#[derive(Clone)]
 pub enum AecEvent {
     ElectionStarted(BlockHash),
     ElectionStopped(BlockHash),
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     BlockCemented(SavedBlock, ConfirmedElection),
+    VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
     VacancyUpdated,
 }
 
