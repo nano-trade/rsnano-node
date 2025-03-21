@@ -52,16 +52,6 @@ pub fn create_websocket_server(
             }
         }));
 
-    let server_w = Arc::downgrade(&server);
-    node.vote_processor
-        .on_vote_processed(Box::new(move |vote, _channel, _source, vote_code| {
-            if let Some(server) = server_w.upgrade() {
-                if server.any_subscriber(Topic::Vote) {
-                    server.broadcast(&vote_received(vote, vote_code));
-                }
-            }
-        }));
-
     // Announce new blocks via websocket
     let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
     node.ledger_notifications.on_blocks_processed(Box::new(
@@ -220,6 +210,11 @@ impl NodeEventHandler for NodeEventProcessor {
                     .unwrap_or_default();
 
                 self.server.broadcast_confirmation(block, &amount, election);
+            }
+            NodeEvent::VoteProcessed(vote, vote_code) => {
+                if self.server.any_subscriber(Topic::Vote) {
+                    self.server.broadcast(&vote_received(vote, *vote_code));
+                }
             }
         }
     }

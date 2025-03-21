@@ -14,8 +14,8 @@ use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
-    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
-    VoteSource, WorkNonce,
+    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
+    VoteCode, VoteSource, WorkNonce,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;
@@ -1638,6 +1638,7 @@ pub enum NodeEvent {
     ElectionStarted(BlockHash),
     ElectionStopped(BlockHash),
     BlockConfirmed(SavedBlock, ConfirmedElection),
+    VoteProcessed(Arc<Vote>, VoteCode),
 }
 
 pub trait NodeEventHandler {

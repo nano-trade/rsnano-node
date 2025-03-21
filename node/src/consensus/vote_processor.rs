@@ -134,23 +134,9 @@ impl VoteProcessor {
             } else {
                 VoteCode::Indeterminate
             };
-
-            let callbacks = self.vote_processed.lock().unwrap();
-            for callback in callbacks.iter() {
-                (callback)(vote, channel.as_ref(), source, result);
-            }
         }
 
         result
-    }
-
-    pub fn on_vote_processed(
-        &self,
-        callback: Box<
-            dyn Fn(&Arc<Vote>, Option<&Arc<Channel>>, VoteSource, VoteCode) + Send + Sync,
-        >,
-    ) {
-        self.vote_processed.lock().unwrap().push(callback);
     }
 }
 

@@ -144,6 +144,10 @@ impl AecEventProcessor {
                                 .vote_observed(vote.voter, self.clock.now());
                         }
                     }
+
+                    if let Some(tx) = &self.node_event_sender {
+                        tx.send(NodeEvent::VoteProcessed(vote, result)).unwrap();
+                    }
                 }
                 AecEvent::FinalPhaseStarted(hash, root) => {
                     self.block_voter
