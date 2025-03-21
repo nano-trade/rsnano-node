@@ -115,9 +115,9 @@ fn pruning_automatic() {
 
     // Force-confirm both blocks
 
-    node1.confirming_set.add(send1.hash().clone());
+    node1.confirming_set.add_block(send1.hash().clone());
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
-    node1.confirming_set.add(send2.hash().clone());
+    node1.confirming_set.add_block(send2.hash().clone());
     assert_timely2(|| node1.block_confirmed(&send2.hash()));
 
     // Check pruning result
@@ -578,7 +578,7 @@ fn bootstrap_fork_open() {
     node0.process(open0.clone());
     node1.process(open1.clone());
 
-    node0.confirming_set.add(open0.hash());
+    node0.confirming_set.add_block(open0.hash());
     assert_timely2(|| node0.block_confirmed(&open0.hash()));
 
     // Start election for open block which is necessary to resolve the fork

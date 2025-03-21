@@ -16,6 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::ordered_entries::OrderedEntries;
 use crate::{
     block_processing::BlockContext,
+    consensus::{CementingElectionsCache, ConfirmedElection},
     utils::{ThreadPool, ThreadPoolImpl},
 };
 
@@ -77,6 +78,7 @@ impl ConfirmingSet {
                     cooldown: false,
                     near_full_limit: config.max_blocks * 100 / 75,
                     recovered_limit: config.max_blocks * 100 / 50,
+                    cementing_elections_cache: CementingElectionsCache::default(),
                 }),
                 stopped: AtomicBool::new(false),
                 condition: Condvar::new(),
@@ -94,8 +96,13 @@ impl ConfirmingSet {
     }
 
     /// Adds a block to the set of blocks to be confirmed
-    pub fn add(&self, hash: BlockHash) {
-        self.thread.add(hash);
+    pub fn add_block(&self, hash: BlockHash) {
+        self.thread.add(hash, None);
+    }
+
+    /// Adds a block + its election to the set of blocks to be confirmed
+    pub fn add(&self, election: ConfirmedElection) {
+        self.thread.add(election.winner.hash(), Some(election));
     }
 
     pub fn start(&self) {
@@ -157,6 +164,11 @@ impl ConfirmingSet {
         }
     }
 
+    pub(crate) fn with_election_cache(&self, mut action: impl FnMut(&CementingElectionsCache)) {
+        let guard = self.thread.mutex.lock().unwrap();
+        action(&guard.cementing_elections_cache);
+    }
+
     pub fn container_info(&self) -> ContainerInfo {
         let guard = self.thread.mutex.lock().unwrap();
         [
@@ -200,11 +212,14 @@ impl ConfirmingSetThread {
         self.condition.notify_all();
     }
 
-    fn add(&self, hash: BlockHash) {
+    fn add(&self, hash: BlockHash, election: Option<ConfirmedElection>) {
         let added;
         let mut near_full_warning = false;
         {
             let mut guard = self.mutex.lock().unwrap();
+            if let Some(e) = election {
+                guard.cementing_elections_cache.insert(e);
+            }
             added = guard.set.push_back(CementingEntry {
                 confirmation_root: hash,
                 timestamp: Instant::now(),
@@ -320,6 +335,7 @@ struct ConfirmingSetImpl {
     cooldown: bool,
     near_full_limit: usize,
     recovered_limit: usize,
+    cementing_elections_cache: CementingElectionsCache,
 }
 
 impl ConfirmingSetImpl {
@@ -409,7 +425,7 @@ mod tests {
         let confirming_set =
             ConfirmingSet::new(Default::default(), ledger, Arc::new(Stats::default()));
         let hash = BlockHash::from(1);
-        confirming_set.add(hash);
+        confirming_set.add_block(hash);
         assert!(confirming_set.contains(&hash));
     }
 }

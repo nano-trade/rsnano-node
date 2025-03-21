@@ -20,7 +20,7 @@ fn observer_callbacks() {
     let send1 = lattice.genesis().send(&key1, Amount::nano(1000));
     node.process_multi(&[send.clone(), send1.clone()]);
 
-    node.confirming_set.add(send1.hash());
+    node.confirming_set.add_block(send1.hash());
 
     // Callback is performed for all blocks that are confirmed
     assert_timely_eq(

@@ -45,7 +45,8 @@ impl Runnable for ActiveElectionsDriver {
         /*
          * Loop through active elections requesting confirmation
          *
-         * Only up to a certain amount of elections are queued for confirmation request and block rebroadcasting. The remaining elections can still be confirmed if votes arrive
+         * Only up to a certain amount of elections are queued for confirmation request and block rebroadcasting.
+         * The remaining elections can still be confirmed if votes arrive
          * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
          * Flushed elections are later re-activated via frontier confirmation
          */

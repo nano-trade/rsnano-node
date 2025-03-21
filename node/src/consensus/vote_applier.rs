@@ -11,9 +11,7 @@ use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use super::{
-    ActiveElections, BlockVoter, CementingElectionsCache, ConfirmedElection, LocalVoteHistory,
-};
+use super::{ActiveElections, BlockVoter, ConfirmedElection, LocalVoteHistory};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
@@ -39,7 +37,6 @@ pub struct VoteApplier {
     confirming_set: Arc<ConfirmingSet>,
     clock: Arc<SteadyClock>,
     election_voter: Arc<BlockVoter>,
-    cementing_elections_cache: Mutex<CementingElectionsCache>,
     is_dev_network: bool,
 }
 
@@ -67,7 +64,6 @@ impl VoteApplier {
             confirming_set,
             clock,
             election_voter,
-            cementing_elections_cache: Mutex::new(CementingElectionsCache::default()),
             is_dev_network,
         }
     }
@@ -219,12 +215,7 @@ impl VoteApplier {
                     ChannelId::LOOPBACK,
                 );
 
-                self.cementing_elections_cache
-                    .lock()
-                    .unwrap()
-                    .insert(election.clone());
-
-                self.confirming_set.add(election.winner.hash());
+                self.confirming_set.add(election.clone());
             }
         }
 
@@ -260,32 +251,23 @@ impl VoteApplier {
     }
 
     pub fn force_confirm(&self, block_hash: &BlockHash) {
-        let ended_election = self
+        let confirmed = self
             .active_elections
             .force_confirm(block_hash)
             .expect("no election found for given block");
 
-        let winner_hash = ended_election.winner.hash();
-
-        // These lines are duplicated! TODO remove duplication
-        self.cementing_elections_cache
-            .lock()
-            .unwrap()
-            .insert(ended_election);
-
-        self.confirming_set.add(winner_hash);
+        self.confirming_set.add(confirmed);
     }
 
     /// Cementing blocks might implicitly confirm dependent elections
     pub fn batch_cemented(&self, cemented: &Vec<(SavedBlock, BlockHash)>) {
         let mut cemented_blocks_with_election = Vec::with_capacity(cemented.len());
-        {
-            let cementing_cache = self.cementing_elections_cache.lock().unwrap();
+        self.confirming_set.with_election_cache(|cache| {
             for (cemented_block, _) in cemented {
-                let source_election = cementing_cache.get(&cemented_block.hash()).cloned();
+                let source_election = cache.get(&cemented_block.hash()).cloned();
                 cemented_blocks_with_election.push((cemented_block.clone(), source_election));
             }
-        }
+        });
 
         let results = self
             .active_elections
@@ -303,13 +285,13 @@ impl VoteApplier {
         }
     }
 
-    fn notify_block_cemented(&self, ended_election: ConfirmedElection) {
-        let MaybeSavedBlock::Saved(block) = &ended_election.winner else {
+    fn notify_block_cemented(&self, election: ConfirmedElection) {
+        let MaybeSavedBlock::Saved(block) = &election.winner else {
             return;
         };
         let block = block.clone();
 
-        match ended_election.result {
+        match election.result {
             ElectionResult::ActiveConfirmedQuorum => self.stats.inc_dir(
                 StatType::ConfirmationObserver,
                 DetailType::ActiveQuorum,
@@ -327,6 +309,6 @@ impl VoteApplier {
             ),
         }
 
-        self.notify(VoteApplierEvent::BlockCemented(block, ended_election));
+        self.notify(VoteApplierEvent::BlockCemented(block, election));
     }
 }
