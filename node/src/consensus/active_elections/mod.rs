@@ -11,7 +11,7 @@ use std::{
 };
 
 use root_container::{Entry, RootContainer};
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use tracing::debug;
 
 use rsnano_core::{
@@ -48,6 +48,7 @@ pub enum AecEvent {
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     BlockConfirmed(SavedBlock, ConfirmedElection),
+    VoteCounted(BlockHash, PublicKey, VoteSource, Timestamp),
 
     VoteProcessed(Arc<Vote>, Amount, VoteSource, HashMap<BlockHash, VoteCode>),
     FinalPhaseStarted(BlockHash, QualifiedRoot),

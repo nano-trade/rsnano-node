@@ -6,6 +6,7 @@ use std::sync::{
 use rsnano_core::{utils::MemoryStream, VoteSource};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::ChannelId;
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -15,6 +16,7 @@ use crate::{
         VoteCache, VoteCacheProcessor, VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
+    representatives::OnlineReps,
     NodeEvent,
 };
 
@@ -32,6 +34,8 @@ pub(crate) struct AecEventProcessor {
     pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
+    pub(crate) stats: Arc<Stats>,
+    pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
 }
 
 impl AecEventProcessor {
@@ -67,6 +71,19 @@ impl AecEventProcessor {
                     let mut buf = MemoryStream::new();
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());
+                }
+                AecEvent::VoteCounted(block, voter, source, timestamp) => {
+                    if source != VoteSource::Cache {
+                        // Representative is defined as online if replying to live votes or rep_crawler queries
+                        self.online_reps
+                            .lock()
+                            .unwrap()
+                            .vote_observed(voter, timestamp);
+                    }
+
+                    self.stats.inc(StatType::Election, DetailType::Vote);
+                    self.stats.inc(StatType::ElectionVote, source.into());
+                    tracing::trace!(account = %voter, hash=%block, ?source, "vote processed");
                 }
                 AecEvent::VoteProcessed(vote, voter_weight, source, results) => {
                     // Cache the votes that didn't match any election

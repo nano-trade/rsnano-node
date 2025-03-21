@@ -1145,6 +1145,8 @@ impl Node {
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
             block_processor: block_processor.clone(),
             confirming_set: confirming_set.clone(),
+            stats: stats.clone(),
+            online_reps: online_reps.clone(),
         };
 
         std::thread::Builder::new()

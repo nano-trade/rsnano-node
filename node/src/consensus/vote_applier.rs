@@ -8,7 +8,7 @@ use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::Stats;
 
 use super::{ActiveElections, AecEvent, BlockVoter, LocalVoteHistory};
 use crate::{
@@ -130,7 +130,6 @@ impl VoteApplier {
                 online_reps.quorum_delta(),
             )
         };
-        let now = self.clock.now();
         let sys_now = SystemTime::now();
 
         let vote_summaries = vote
@@ -176,20 +175,6 @@ impl VoteApplier {
                 self.history.erase(&root);
                 // Roll back the previous winner and add the new winner to the ledger
                 self.block_processor.force(new_winner.clone().into());
-            }
-
-            if result.vote_result == VoteCode::Vote {
-                if source != VoteSource::Cache {
-                    // Representative is defined as online if replying to live votes or rep_crawler queries
-                    self.online_reps
-                        .lock()
-                        .unwrap()
-                        .vote_observed(vote.voter, now);
-                }
-
-                self.stats.inc(StatType::Election, DetailType::Vote);
-                self.stats.inc(StatType::ElectionVote, source.into());
-                tracing::trace!(account = %vote.voter, hash=%result.voted_block, ?source, "vote processed");
             }
         }
 

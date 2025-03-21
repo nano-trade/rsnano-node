@@ -416,6 +416,13 @@ impl ActiveElectionsContainer {
                             vote_summary.hash,
                         );
 
+                        events.push(AecEvent::VoteCounted(
+                            vote_summary.hash,
+                            vote_summary.voter,
+                            source,
+                            now,
+                        ));
+
                         // CONFIRM IF QUORUM:
                         if !election.is_confirmed() {
                             let old_winner = election.winner().hash();
@@ -444,6 +451,7 @@ impl ActiveElectionsContainer {
                                 }
                             }
                         }
+
                         result = VoteCode::Vote;
                     }
                 }
