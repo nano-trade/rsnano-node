@@ -1004,29 +1004,6 @@ impl Node {
                     .try_send(&channel, &keepalive, TrafficType::Keepalive);
             }));
 
-        let rep_crawler_w = Arc::downgrade(&rep_crawler);
-        let reps_w = Arc::downgrade(&online_reps);
-        let clock = steady_clock.clone();
-        vote_processor.on_vote_processed(Box::new(move |vote, channel, source, code| {
-            debug_assert!(code != VoteCode::Invalid);
-            let Some(rep_crawler) = rep_crawler_w.upgrade() else {
-                return;
-            };
-            let Some(reps) = reps_w.upgrade() else {
-                return;
-            };
-            // Ignore republished votes
-            if source != VoteSource::Live {
-                return;
-            }
-
-            let active_in_rep_crawler = rep_crawler.process(vote, channel);
-            if active_in_rep_crawler {
-                // Representative is defined as online if replying to live votes or rep_crawler queries
-                reps.lock().unwrap().vote_observed(vote.voter, clock.now());
-            }
-        }));
-
         if !distributed_work.work_generation_enabled() {
             info!("Work generation is disabled");
         }
@@ -1144,6 +1121,8 @@ impl Node {
             online_reps: online_reps.clone(),
             history: history.clone(),
             active_elections: active_elections.clone(),
+            rep_crawler: rep_crawler.clone(),
+            clock: steady_clock.clone(),
         };
 
         std::thread::Builder::new()

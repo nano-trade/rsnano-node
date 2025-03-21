@@ -56,7 +56,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1.vote_applier.vote(&vote1, VoteSource::Live);
+    node1.vote_applier.vote(&vote1, VoteSource::Live, None);
 
     let channel = node1
         .network
@@ -84,7 +84,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .lock()
         .unwrap()
         .set_online(config.online_weight_minimum + Amount::raw(20));
-    node1.vote_applier.vote(&vote2, VoteSource::Live);
+    node1.vote_applier.vote(&vote2, VoteSource::Live, None);
     assert_timely2(|| node1.ledger.confirmed().block_exists(&send1.hash()));
 }
 
@@ -147,7 +147,7 @@ fn quorum_minimum_confirm_fail() {
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1.vote_applier.vote(&vote, VoteSource::Live);
+    node1.vote_applier.vote(&vote, VoteSource::Live, None);
 
     // Give the election a chance to confirm
     std::thread::sleep(Duration::from_secs(1));
@@ -184,7 +184,7 @@ fn quorum_minimum_confirm_success() {
     assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1.vote_applier.vote(&vote, VoteSource::Live);
+    node1.vote_applier.vote(&vote, VoteSource::Live, None);
 
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
 }
@@ -223,7 +223,7 @@ fn quorum_minimum_flip_fail() {
     // Genesis generates a final vote for send2 but it should not be enough to reach quorum
     // due to the online_weight_minimum being so high
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node1.vote_applier.vote(&vote, VoteSource::Live);
+    node1.vote_applier.vote(&vote, VoteSource::Live, None);
 
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
@@ -264,7 +264,7 @@ fn quorum_minimum_flip_success() {
 
     // Genesis generates a final vote for send2
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node1.vote_applier.vote(&vote, VoteSource::Live);
+    node1.vote_applier.vote(&vote, VoteSource::Live, None);
 
     // Wait for the election to be confirmed
     assert_timely2(|| node1.block_confirmed(&send2.hash()));

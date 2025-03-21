@@ -371,7 +371,7 @@ fn vote_by_hash_bundle() {
 
     let mut max_hashes = 0;
     while let Ok(e) = rx.recv_timeout(Duration::from_secs(2)) {
-        if let AecEvent::VoteProcessed(vote, _, _, _) = e {
+        if let AecEvent::VoteProcessed(vote, _, _, _, _) = e {
             max_hashes = max(max_hashes, vote.hashes.len());
 
             if max_hashes >= 3 {
@@ -2084,7 +2084,7 @@ fn rollback_vote_self() {
             0,
             vec![fork.hash()],
         ));
-        node.vote_applier.vote(&vote, VoteSource::Live);
+        node.vote_applier.vote(&vote, VoteSource::Live, None);
 
         // The winner changed
         assert_eq!(

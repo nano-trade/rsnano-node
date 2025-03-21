@@ -8,7 +8,7 @@ use std::{
     time::Instant,
 };
 
-use tracing::{debug, trace};
+use tracing::debug;
 
 use rsnano_core::{Vote, VoteCode, VoteSource};
 use rsnano_network::Channel;
@@ -118,14 +118,14 @@ impl VoteProcessor {
     ) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let vote_results = self.vote_applier.vote(vote, source);
+            let vote_results = self.vote_applier.vote(vote, source, channel.clone());
 
             // Aggregate results for individual hashes
             let mut replay = false;
             let mut processed = false;
-            for (_, hash_result) in vote_results {
-                replay |= hash_result == VoteCode::Replay;
-                processed |= hash_result == VoteCode::Vote;
+            for (_, vote_code) in vote_results {
+                replay |= vote_code == VoteCode::Replay;
+                processed |= vote_code == VoteCode::Vote;
             }
             result = if replay {
                 VoteCode::Replay
@@ -140,9 +140,6 @@ impl VoteProcessor {
                 (callback)(vote, channel.as_ref(), source, result);
             }
         }
-
-        self.stats.inc(StatType::Vote, DetailType::VoteProcessed);
-        trace!(?vote, ?result, ?source, "vote processed");
 
         result
     }

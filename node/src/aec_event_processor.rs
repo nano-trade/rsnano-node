@@ -3,9 +3,10 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use rsnano_core::{utils::MemoryStream, VoteSource};
+use rsnano_core::{utils::MemoryStream, VoteCode, VoteSource};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::ChannelId;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
@@ -17,7 +18,7 @@ use crate::{
         VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
-    representatives::OnlineReps,
+    representatives::{OnlineReps, RepCrawler},
     NodeEvent,
 };
 
@@ -39,6 +40,8 @@ pub(crate) struct AecEventProcessor {
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
     pub(crate) history: Arc<LocalVoteHistory>,
     pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) rep_crawler: Arc<RepCrawler>,
+    pub(crate) clock: Arc<SteadyClock>,
 }
 
 impl AecEventProcessor {
@@ -101,7 +104,7 @@ impl AecEventProcessor {
                     self.stats.inc(StatType::ElectionVote, source.into());
                     tracing::trace!(account = %voter, hash=%block, ?source, "vote processed");
                 }
-                AecEvent::VoteProcessed(vote, voter_weight, source, results) => {
+                AecEvent::VoteProcessed(vote, voter_weight, source, channel, results) => {
                     // Cache the votes that didn't match any election
                     if source != VoteSource::Cache {
                         self.vote_cache
@@ -112,6 +115,35 @@ impl AecEventProcessor {
 
                     self.vote_rebroadcast_queue
                         .handle_processed_vote(&vote, &results);
+
+                    // Aggregate results for individual hashes
+                    let mut result = VoteCode::Invalid;
+                    let mut replay = false;
+                    let mut processed = false;
+                    for (_, vote_code) in results {
+                        replay |= vote_code == VoteCode::Replay;
+                        processed |= vote_code == VoteCode::Vote;
+                    }
+                    result = if replay {
+                        VoteCode::Replay
+                    } else if processed {
+                        VoteCode::Vote
+                    } else {
+                        VoteCode::Indeterminate
+                    };
+
+                    // Ignore republished votes
+                    if source == VoteSource::Live {
+                        let active_in_rep_crawler =
+                            self.rep_crawler.process(&vote, channel.as_ref());
+                        if active_in_rep_crawler {
+                            // Representative is defined as online if replying to live votes or rep_crawler queries
+                            self.online_reps
+                                .lock()
+                                .unwrap()
+                                .vote_observed(vote.voter, self.clock.now());
+                        }
+                    }
                 }
                 AecEvent::FinalPhaseStarted(hash, root) => {
                     self.block_voter

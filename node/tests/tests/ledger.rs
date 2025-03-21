@@ -42,7 +42,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_applier
-                .vote(&vote1, VoteSource::Live)
+                .vote(&vote1, VoteSource::Live, None)
                 .values()
                 .next()
                 .unwrap(),
@@ -59,7 +59,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_applier
-                .vote(&vote2, VoteSource::Live)
+                .vote(&vote2, VoteSource::Live, None)
                 .values()
                 .next()
                 .unwrap(),
@@ -112,7 +112,7 @@ mod votes {
             0,
             vec![send1.hash()],
         ));
-        node1.vote_applier.vote(&vote1, VoteSource::Live);
+        node1.vote_applier.vote(&vote1, VoteSource::Live, None);
         // Block is already processed from vote
         node1.active.try_add_fork(&send1, Amount::zero());
         assert_eq!(
@@ -155,7 +155,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_applier
-                .vote(&vote2, VoteSource::Live)
+                .vote(&vote2, VoteSource::Live, None)
                 .get(&send2.hash())
                 .unwrap(),
             &VoteCode::Vote
@@ -182,7 +182,7 @@ mod votes {
         assert_eq!(
             node1
                 .vote_applier
-                .vote(&vote1, VoteSource::Live)
+                .vote(&vote1, VoteSource::Live, None)
                 .get(&send1.hash())
                 .unwrap(),
             &VoteCode::Replay

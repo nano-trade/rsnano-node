@@ -3,6 +3,7 @@ mod recently_confirmed_cache;
 mod root_container;
 
 pub use active_elections_container::*;
+use rsnano_network::Channel;
 
 use std::{
     collections::HashMap,
@@ -51,7 +52,13 @@ pub enum AecEvent {
     /// old winner + new winner block
     WinnerChanged(BlockHash, Block),
 
-    VoteProcessed(Arc<Vote>, Amount, VoteSource, HashMap<BlockHash, VoteCode>),
+    VoteProcessed(
+        Arc<Vote>,
+        Amount,
+        VoteSource,
+        Option<Arc<Channel>>,
+        HashMap<BlockHash, VoteCode>,
+    ),
     FinalPhaseStarted(BlockHash, QualifiedRoot),
     VacancyUpdated,
 }

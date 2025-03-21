@@ -4,6 +4,7 @@ use std::{
     time::SystemTime,
 };
 
+use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
@@ -50,8 +51,13 @@ impl VoteApplier {
 
     /// Route vote to associated elections
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
-    pub fn vote(&self, vote: &Arc<Vote>, source: VoteSource) -> HashMap<BlockHash, VoteCode> {
-        self.vote_filter(vote, source, &BlockHash::zero())
+    pub fn vote(
+        &self,
+        vote: &Arc<Vote>,
+        source: VoteSource,
+        channel: Option<Arc<Channel>>,
+    ) -> HashMap<BlockHash, VoteCode> {
+        self.vote_filter(vote, source, channel, &BlockHash::zero())
     }
 
     /// Route vote to associated elections
@@ -62,6 +68,7 @@ impl VoteApplier {
         &self,
         vote: &Arc<Vote>,
         source: VoteSource,
+        channel: Option<Arc<Channel>>,
         filter: &BlockHash,
     ) -> HashMap<BlockHash, VoteCode> {
         debug_assert!(vote.validate().is_ok());
@@ -140,7 +147,7 @@ impl VoteApplier {
             quorum_delta,
         );
 
-        self.notify_vote_processed(vote, voter_weight, source, &results);
+        self.notify_vote_processed(vote, voter_weight, source, channel, &results);
         results
     }
 
@@ -149,6 +156,7 @@ impl VoteApplier {
         vote: &Arc<Vote>,
         voter_weight: Amount,
         source: VoteSource,
+        channel: Option<Arc<Channel>>,
         results: &HashMap<BlockHash, VoteCode>,
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
@@ -157,6 +165,7 @@ impl VoteApplier {
                     vote.clone(),
                     voter_weight,
                     source,
+                    channel.clone(),
                     results.clone(),
                 ))
                 .unwrap();
