@@ -2,6 +2,7 @@ use std::{
     cmp::{max, min},
     sync::{
         atomic::{AtomicU64, Ordering},
+        mpsc::SyncSender,
         Arc, Mutex,
     },
     thread::JoinHandle,
@@ -14,7 +15,7 @@ use rsnano_core::{Vote, VoteCode, VoteSource};
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{VoteApplier, VoteProcessorQueue};
+use super::{AecEvent, VoteApplier, VoteProcessorQueue};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteProcessorConfig {
@@ -47,7 +48,6 @@ pub struct VoteProcessor {
     queue: Arc<VoteProcessorQueue>,
     vote_applier: Arc<VoteApplier>,
     stats: Arc<Stats>,
-    vote_processed: Mutex<Vec<VoteProcessedCallback2>>,
     pub total_processed: AtomicU64,
 }
 
@@ -61,13 +61,17 @@ impl VoteProcessor {
             queue,
             vote_applier,
             stats,
-            vote_processed: Mutex::new(Vec::new()),
             threads: Mutex::new(Vec::new()),
             total_processed: AtomicU64::new(0),
         }
     }
 
+    pub fn add_event_sink(&self, sink: SyncSender<AecEvent>) {
+        self.vote_applier.add_event_sink(sink);
+    }
+
     pub fn stop(&self) {
+        self.vote_applier.stop();
         self.queue.stop();
 
         let mut handles = Vec::new();

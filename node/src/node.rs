@@ -113,7 +113,6 @@ pub struct Node {
     pub wallets: Arc<Wallets>,
     pub vote_generators: Arc<VoteGenerators>,
     pub active: Arc<ActiveElections>,
-    pub vote_applier: Arc<VoteApplier>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
     pub rep_crawler: Arc<RepCrawler>,
@@ -550,7 +549,7 @@ impl Node {
         let vote_cache_processor = Arc::new(VoteCacheProcessor::new(
             stats.clone(),
             vote_cache.clone(),
-            vote_applier.clone(),
+            vote_applier,
             config.vote_processor.clone(),
         ));
 
@@ -1173,7 +1172,7 @@ impl Node {
             })
             .unwrap();
 
-        vote_applier.add_event_sink(aec_sender);
+        vote_processor.add_event_sink(aec_sender);
 
         Self {
             is_nulled,
@@ -1201,7 +1200,6 @@ impl Node {
             online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
             online_reps,
             rep_tiers,
-            vote_applier,
             vote_processor_queue,
             history,
             confirming_set,
@@ -1558,7 +1556,6 @@ impl Node {
         self.ledger.stop();
         self.ledger_notification_thread.stop();
         self.online_weight_calculation.stop();
-        self.vote_applier.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();
         self.peer_cache_connector.stop();
