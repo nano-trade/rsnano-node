@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use rsnano_core::{utils::MemoryStream, VoteSource};
-use rsnano_ledger::RepWeightCache;
 use rsnano_messages::NetworkFilter;
 
 use crate::{
@@ -27,7 +26,6 @@ pub(crate) struct AecEventProcessor {
     pub bootstrap_election_activator: BootstrapElectionActivator,
     pub block_voter: Arc<BlockVoter>,
     pub(crate) recently_cemented_inserter: RecentlyCementedInserter,
-    pub rep_weights: Arc<RepWeightCache>,
     pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
 }
 
@@ -55,21 +53,20 @@ impl AecEventProcessor {
                     block.serialize_without_block_type(&mut buf);
                     self.network_filter.clear_bytes(buf.as_bytes());
                 }
-                AecEvent::BlockCemented(block, election) => {
+                AecEvent::BlockConfirmed(block, election) => {
                     if let Some(tx) = &self.node_event_sender {
-                        tx.send(NodeEvent::BlockCemented(block, election.clone()))
+                        tx.send(NodeEvent::BlockConfirmed(block, election.clone()))
                             .unwrap();
                     }
                     self.recently_cemented_inserter.insert(election);
                 }
-                AecEvent::VoteProcessed(vote, source, results) => {
+                AecEvent::VoteProcessed(vote, voter_weight, source, results) => {
                     // Cache the votes that didn't match any election
                     if source != VoteSource::Cache {
-                        let rep_weight = self.rep_weights.weight(&vote.voter);
                         self.vote_cache
                             .lock()
                             .unwrap()
-                            .insert(&vote, rep_weight, &results);
+                            .insert(&vote, voter_weight, &results);
                     }
 
                     self.vote_rebroadcast_queue

@@ -45,8 +45,8 @@ pub enum AecEvent {
     ElectionStopped(BlockHash),
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
-    BlockCemented(SavedBlock, ConfirmedElection),
-    VoteProcessed(Arc<Vote>, VoteSource, HashMap<BlockHash, VoteCode>),
+    BlockConfirmed(SavedBlock, ConfirmedElection),
+    VoteProcessed(Arc<Vote>, Amount, VoteSource, HashMap<BlockHash, VoteCode>),
     VacancyUpdated,
 }
 

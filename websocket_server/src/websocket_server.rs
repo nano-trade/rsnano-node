@@ -212,7 +212,7 @@ impl NodeEventHandler for NodeEventProcessor {
                     self.server.broadcast(&stopped_election(&hash));
                 }
             }
-            NodeEvent::BlockCemented(block, election) => {
+            NodeEvent::BlockConfirmed(block, election) => {
                 let amount = self
                     .ledger
                     .any()

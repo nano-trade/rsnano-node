@@ -4,7 +4,7 @@ use bounded_vec_deque::BoundedVecDeque;
 
 use crate::consensus::ConfirmedElection;
 
-/// When a block gets cemented, this struct inserts that
+/// When a block gets confirmed, this struct inserts that
 /// block into the recently cemented cache
 pub(crate) struct RecentlyCementedInserter {
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,

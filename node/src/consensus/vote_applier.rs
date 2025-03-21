@@ -6,7 +6,7 @@ use std::{
 
 use rsnano_nullable_clock::SteadyClock;
 
-use rsnano_core::{BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -220,13 +220,14 @@ impl VoteApplier {
             .drain(..)
             .map(|i| (i.voted_block, i.vote_result))
             .collect();
-        self.notify_vote_processed(vote, source, &results);
+        self.notify_vote_processed(vote, voter_weight, source, &results);
         results
     }
 
     fn notify_vote_processed(
         &self,
         vote: &Arc<Vote>,
+        voter_weight: Amount,
         source: VoteSource,
         results: &HashMap<BlockHash, VoteCode>,
     ) {
@@ -234,6 +235,7 @@ impl VoteApplier {
             sender
                 .send(AecEvent::VoteProcessed(
                     vote.clone(),
+                    voter_weight,
                     source,
                     results.clone(),
                 ))

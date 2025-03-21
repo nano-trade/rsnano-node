@@ -86,7 +86,7 @@ impl HttpCallbacks {
 impl NodeEventHandler for HttpCallbacks {
     fn handle(&mut self, event: &NodeEvent) {
         match event {
-            NodeEvent::BlockCemented(block, status) => {
+            NodeEvent::BlockConfirmed(block, status) => {
                 let amount = self
                     .ledger
                     .any()
