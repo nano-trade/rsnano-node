@@ -478,18 +478,14 @@ impl ActiveElectionsContainer {
         results
     }
 
-    pub fn force_confirm(
-        &mut self,
-        block_hash: &BlockHash,
-        now: Timestamp,
-    ) -> Option<ConfirmedElection> {
+    pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) -> Option<AecEvent> {
         let root = self.vote_router.qualified_root(block_hash)?;
         let entry = self.roots.get_mut(&root)?;
         let election = &mut entry.election;
         if election.force_confirm() {
             let confirmed_election =
                 election.into_confirmed_election(now, ElectionResult::ActiveConfirmedQuorum);
-            Some(confirmed_election)
+            Some(AecEvent::ElectionConfirmed(confirmed_election))
         } else {
             None
         }

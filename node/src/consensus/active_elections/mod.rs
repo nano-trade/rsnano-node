@@ -356,11 +356,16 @@ impl ActiveElections {
         results
     }
 
-    pub fn force_confirm(&self, block_hash: &BlockHash) -> Option<ConfirmedElection> {
-        self.container
+    pub fn force_confirm(&self, block_hash: &BlockHash) {
+        let event = self
+            .container
             .write()
             .unwrap()
-            .force_confirm(block_hash, self.clock.now())
+            .force_confirm(block_hash, self.clock.now());
+
+        if let Some(e) = event {
+            self.notify(e);
+        }
     }
 
     pub fn cancel(&self, root: &QualifiedRoot) {

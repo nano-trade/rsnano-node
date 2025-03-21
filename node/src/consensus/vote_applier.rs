@@ -9,11 +9,8 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
 
-use super::{ActiveElections, AecEvent, LocalVoteHistory};
-use crate::{
-    block_processing::BlockProcessor, cementation::ConfirmingSet, consensus::VoteSummary,
-    representatives::OnlineReps,
-};
+use super::{ActiveElections, AecEvent};
+use crate::{consensus::VoteSummary, representatives::OnlineReps};
 
 /// Applies a vote to an election
 pub struct VoteApplier {
@@ -21,9 +18,6 @@ pub struct VoteApplier {
     event_senders: RwLock<Vec<SyncSender<AecEvent>>>,
     ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
-    block_processor: Arc<BlockProcessor>,
-    history: Arc<LocalVoteHistory>,
-    confirming_set: Arc<ConfirmingSet>,
     clock: Arc<SteadyClock>,
     is_dev_network: bool,
 }
@@ -33,9 +27,6 @@ impl VoteApplier {
         active_elections: Arc<ActiveElections>,
         ledger: Arc<Ledger>,
         online_reps: Arc<Mutex<OnlineReps>>,
-        block_processor: Arc<BlockProcessor>,
-        history: Arc<LocalVoteHistory>,
-        confirming_set: Arc<ConfirmingSet>,
         clock: Arc<SteadyClock>,
         is_dev_network: bool,
     ) -> Self {
@@ -44,9 +35,6 @@ impl VoteApplier {
             event_senders: RwLock::new(Vec::new()),
             ledger,
             online_reps,
-            block_processor,
-            history,
-            confirming_set,
             clock,
             is_dev_network,
         }
@@ -180,11 +168,6 @@ impl VoteApplier {
     }
 
     pub fn force_confirm(&self, block_hash: &BlockHash) {
-        let confirmed = self
-            .active_elections
-            .force_confirm(block_hash)
-            .expect("no election found for given block");
-
-        self.confirming_set.add(confirmed);
+        self.active_elections.force_confirm(block_hash)
     }
 }

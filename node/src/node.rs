@@ -537,9 +537,6 @@ impl Node {
             active_elections.clone(),
             ledger.clone(),
             online_reps.clone(),
-            block_processor.clone(),
-            history.clone(),
-            confirming_set.clone(),
             steady_clock.clone(),
             current_network == Networks::NanoDevNetwork,
         ));
