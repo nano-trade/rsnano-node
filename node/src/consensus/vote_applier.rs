@@ -14,7 +14,7 @@ use super::{ActiveElections, AecEvent};
 use crate::{consensus::VoteSummary, representatives::OnlineReps};
 
 /// Applies a vote to an election
-pub struct VoteApplier {
+pub(crate) struct VoteApplier {
     active_elections: Arc<ActiveElections>,
     event_senders: RwLock<Vec<SyncSender<AecEvent>>>,
     ledger: Arc<Ledger>,
@@ -51,20 +51,9 @@ impl VoteApplier {
 
     /// Route vote to associated elections
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
-    pub fn vote(
-        &self,
-        vote: &Arc<Vote>,
-        source: VoteSource,
-        channel: Option<Arc<Channel>>,
-    ) -> HashMap<BlockHash, VoteCode> {
-        self.vote_filter(vote, source, channel, BlockHash::zero())
-    }
-
-    /// Route vote to associated elections
-    /// Distinguishes replay votes, cannot be determined if the block is not in any election
     /// If 'filter' parameter is non-zero, only elections for the specified hash are notified.
     /// This eliminates duplicate processing when triggering votes from the vote_cache as the result of a specific election being created.
-    pub fn vote_filter(
+    pub fn vote(
         &self,
         vote: &Arc<Vote>,
         source: VoteSource,

@@ -126,7 +126,7 @@ impl VoteProcessor {
             let filter = filter.unwrap_or_default();
             let vote_results = self
                 .vote_applier
-                .vote_filter(vote, source, channel.clone(), filter);
+                .vote(vote, source, channel.clone(), filter);
 
             // Aggregate results for individual hashes
             let mut ignored = false;

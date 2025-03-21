@@ -45,7 +45,7 @@ pub use election_result::*;
 pub use election_state::*;
 pub(crate) use rebroadcast::*;
 pub use rep_tiers::*;
-pub use vote_applier::*;
+pub(crate) use vote_applier::*;
 pub use vote_broadcaster::*;
 pub use vote_cache::{CacheEntry, TopEntry, VoteCache, VoteCacheConfig, VoterEntry};
 pub(crate) use vote_cache_processor::*;
