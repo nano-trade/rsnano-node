@@ -3,6 +3,7 @@ mod recently_confirmed_cache;
 mod root_container;
 
 pub use active_elections_container::*;
+use rsnano_ledger::RepWeightCache;
 use rsnano_network::Channel;
 
 use std::{
@@ -12,7 +13,7 @@ use std::{
 };
 
 use root_container::{Entry, RootContainer};
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
 use rsnano_core::{
@@ -68,6 +69,7 @@ pub struct ActiveElections {
     max_elections: usize,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
+    rep_weights: Arc<RepWeightCache>,
     event_sender: RwLock<Option<SyncSender<AecEvent>>>,
 }
 
@@ -75,6 +77,7 @@ impl ActiveElections {
     pub(crate) fn new(
         config: ActiveElectionsConfig,
         stats: Arc<Stats>,
+        rep_weights: Arc<RepWeightCache>,
         base_latency: Duration,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -82,6 +85,7 @@ impl ActiveElections {
         Self {
             container: RwLock::new(ActiveElectionsContainer::new(config, base_latency)),
             max_elections,
+            rep_weights,
             stats,
             clock,
             event_sender: RwLock::new(None),
@@ -341,18 +345,21 @@ impl ActiveElections {
         &self,
         votes: impl IntoIterator<Item = VoteSummary>,
         source: VoteSource,
-        rep_weights: &HashMap<PublicKey, Amount>,
         online_weight: Amount,
         quorum_delta: Amount,
     ) -> HashMap<BlockHash, VoteCode> {
-        let (results, events) = self.container.write().unwrap().apply_votes(
-            votes,
-            source,
-            rep_weights,
-            online_weight,
-            quorum_delta,
-            self.clock.now(),
-        );
+        let (results, events) = {
+            let mut container = self.container.write().unwrap();
+            let rep_weights = self.rep_weights.read();
+            container.apply_votes(
+                votes,
+                source,
+                &rep_weights,
+                online_weight,
+                quorum_delta,
+                self.clock.now(),
+            )
+        };
 
         for e in events {
             self.notify(e);

@@ -14,6 +14,7 @@ use rsnano_ledger::RepWeightCache;
 use rsnano_network::{Channel, ChannelId};
 use rsnano_nullable_clock::Timestamp;
 use std::{cmp::max, sync::Arc, time::Duration};
+
 use {online_container::OnlineContainer, peered_container::PeeredContainer};
 
 const ONLINE_WEIGHT_QUORUM: u8 = 67;
@@ -116,9 +117,10 @@ impl OnlineReps {
     /// Query if a peer manages a principle representative
     pub fn is_principal_rep(&self, channel_id: ChannelId) -> bool {
         let min_weight = self.minimum_principal_weight();
+        let rep_weights = self.rep_weights.read();
         self.peered_reps
             .accounts_by_channel(channel_id)
-            .any(|account| self.rep_weights.weight(account) >= min_weight)
+            .any(|account| rep_weights.get(account).cloned().unwrap_or_default() >= min_weight)
     }
 
     /// Get total available weight from peered representatives
@@ -187,10 +189,13 @@ impl OnlineReps {
     pub fn representatives_filter(&self, min_weight: Amount) -> Vec<PeeredRepInfo> {
         let mut reps_with_weight = Vec::new();
 
-        for rep in self.peered_reps.iter() {
-            let weight = self.rep_weights.weight(&rep.account);
-            if weight > min_weight {
-                reps_with_weight.push((rep.clone(), weight));
+        {
+            let rep_weights = self.rep_weights.read();
+            for rep in self.peered_reps.iter() {
+                let weight = rep_weights.get(&rep.account).cloned().unwrap_or_default();
+                if weight > min_weight {
+                    reps_with_weight.push((rep.clone(), weight));
+                }
             }
         }
 
@@ -227,8 +232,9 @@ impl OnlineReps {
 
     fn calculate_online_weight(&mut self) {
         let mut current = Amount::zero();
+        let rep_weights = self.rep_weights.read();
         for account in self.online_reps.iter() {
-            current += self.rep_weights.weight(account);
+            current += rep_weights.get(account).cloned().unwrap_or_default();
         }
         self.online_weight = current;
     }

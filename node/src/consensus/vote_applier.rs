@@ -74,8 +74,13 @@ impl VoteApplier {
         });
 
         let minimum_pr_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
-        let rep_weights = self.ledger.rep_weights.read();
-        let voter_weight = rep_weights.get(&vote.voter).cloned().unwrap_or_default();
+        let voter_weight = self
+            .ledger
+            .rep_weights
+            .read()
+            .get(&vote.voter)
+            .cloned()
+            .unwrap_or_default();
 
         if !self.is_dev_network && voter_weight <= minimum_pr_weight {
             // Ignore votes from reps below min PR weight!
@@ -128,13 +133,9 @@ impl VoteApplier {
                 weight: voter_weight,
             });
 
-        let results = self.active_elections.apply_votes(
-            vote_summaries,
-            source,
-            &rep_weights,
-            online_weight,
-            quorum_delta,
-        );
+        let results =
+            self.active_elections
+                .apply_votes(vote_summaries, source, online_weight, quorum_delta);
 
         self.notify_vote_processed(vote, voter_weight, source, channel, &results);
         results

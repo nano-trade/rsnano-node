@@ -518,6 +518,7 @@ impl Node {
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
             stats.clone(),
+            ledger.rep_weights.clone(),
             base_latency,
             steady_clock.clone(),
         );
