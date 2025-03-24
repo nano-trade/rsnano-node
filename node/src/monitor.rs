@@ -1,15 +1,15 @@
-use crate::{
-    consensus::ActiveElections,
-    representatives::OnlineReps,
-    utils::{CancellationToken, Runnable},
-};
-use rsnano_ledger::Ledger;
-use rsnano_network::Network;
 use std::{
     sync::{Arc, Mutex, RwLock},
     time::Instant,
 };
+
 use tracing::info;
+
+use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_ledger::Ledger;
+use rsnano_network::Network;
+
+use crate::{consensus::ActiveElections, representatives::OnlineReps};
 
 pub struct Monitor {
     ledger: Arc<Ledger>,

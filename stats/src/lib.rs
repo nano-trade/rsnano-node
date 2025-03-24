@@ -1,4 +1,5 @@
 mod stats;
+mod stats_collector;
 mod stats_config;
 mod stats_enums;
 mod stats_log_sink;

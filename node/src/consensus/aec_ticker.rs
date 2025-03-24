@@ -1,14 +1,10 @@
 use std::sync::{Arc, Mutex, RwLock};
 
+use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_network::Network;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::{
-    config::NetworkParams,
-    representatives::OnlineReps,
-    transport::MessageFlooder,
-    utils::{CancellationToken, Runnable},
-};
+use crate::{config::NetworkParams, representatives::OnlineReps, transport::MessageFlooder};
 
 use super::{
     confirm_req_sender::ConfirmReqSender, winner_block_broadcaster::WinnerBlockBroadcaster,

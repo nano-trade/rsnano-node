@@ -3737,6 +3737,7 @@ dependencies = [
  "primitive-types",
  "rand 0.9.0",
  "rsnano_nullable_random",
+ "rsnano_output_tracker",
  "rust-argon2",
  "serde",
  "serde_json",

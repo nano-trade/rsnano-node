@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 rsnano_nullable_random = { path = "../nullables/random" }
+rsnano_output_tracker = { path = "../nullables/output_tracker" }
 rand = { version = "0" }
 aes = "0"
 anyhow = "1"
