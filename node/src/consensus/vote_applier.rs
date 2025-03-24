@@ -7,7 +7,7 @@ use std::{
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
 
-use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource, utils::BackpressureSender};
 use rsnano_ledger::Ledger;
 
 use super::{ActiveElections, AecEvent};
@@ -16,7 +16,7 @@ use crate::{consensus::VoteSummary, representatives::OnlineReps};
 /// Applies a vote to an election
 pub(crate) struct VoteApplier {
     active_elections: Arc<ActiveElections>,
-    event_senders: RwLock<Vec<SyncSender<AecEvent>>>,
+    event_senders: RwLock<Vec<BackpressureSender<AecEvent>>>,
     ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
     clock: Arc<SteadyClock>,
@@ -41,7 +41,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn add_event_sink(&self, sink: SyncSender<AecEvent>) {
+    pub fn add_event_sink(&self, sink: BackpressureSender<AecEvent>) {
         self.event_senders.write().unwrap().push(sink);
     }
 

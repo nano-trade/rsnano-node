@@ -13,7 +13,7 @@ use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
-    utils::{ContainerInfo, Peer},
+    utils::{backpressure_channel, BackpressureSender, ContainerInfo, Peer},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
     VoteCode, WorkNonce,
 };
@@ -48,11 +48,11 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, AecTicker, BlockVoter, BootstrapElectionActivator, ConfirmReqSender,
-        ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder, LocalVoteHistory,
-        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster,
-        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
-        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
-        WinnerBlockBroadcaster,
+        ConfirmedElection, CooldownSource, DependentElectionsConfirmer, ElectionForkAdder,
+        LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -514,7 +514,7 @@ impl Node {
             _ => Duration::from_millis(1000),
         };
 
-        let (aec_sender, aec_receiver) = sync_channel(1024);
+        let (aec_sender, aec_receiver) = backpressure_channel(1024);
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
             stats.clone(),
@@ -1174,8 +1174,12 @@ impl Node {
                             // Do some cleanup due to this block never being processed by confirmation height processor
                             active_l.remove_recently_confirmed(&block_hash);
                         }
-                        CementingEvent::NearFull => active_l.cool_down(),
-                        CementingEvent::Recovered => active_l.resume(),
+                        CementingEvent::NearFull => {
+                            active_l.set_cooldown(CooldownSource::ConfirmingSet, true)
+                        }
+                        CementingEvent::Recovered => {
+                            active_l.set_cooldown(CooldownSource::ConfirmingSet, false)
+                        }
                     }
                 }
             })

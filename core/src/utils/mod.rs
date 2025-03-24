@@ -8,6 +8,9 @@ use chrono::{DateTime, TimeZone, Utc};
 pub use container_info::*;
 pub use fair_queue::*;
 pub use peer::*;
+pub use backperssure_channel::*;
+pub use stream::*;
+
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
     ops::{Add, Mul},
@@ -15,7 +18,6 @@ use std::{
     thread::available_parallelism,
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
-pub use stream::*;
 
 pub trait Serialize {
     fn serialize(&self, stream: &mut dyn BufferWriter);

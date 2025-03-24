@@ -15,8 +15,9 @@ use crate::consensus::{
 };
 
 use super::{
-    recently_confirmed_cache::RecentlyConfirmedCache, ActiveElectionsConfig, AecEvent, Entry,
-    ErasedCallback, RootContainer, VoteRouter,
+    cooldown_controller::{CooldownController, CooldownSource},
+    recently_confirmed_cache::RecentlyConfirmedCache,
+    ActiveElectionsConfig, AecEvent, Entry, ErasedCallback, RootContainer, VoteRouter,
 };
 
 pub struct ActiveElectionsContainer {
@@ -29,7 +30,7 @@ pub struct ActiveElectionsContainer {
     base_latency: Duration,
     pub(super) vote_router: VoteRouter,
     pub(super) recently_confirmed: RecentlyConfirmedCache,
-    cool_down: bool,
+    cooldown: CooldownController,
     max_elections: usize,
 }
 
@@ -45,7 +46,7 @@ impl ActiveElectionsContainer {
             optimistic_count: 0,
             base_latency,
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
-            cool_down: false,
+            cooldown: CooldownController::new(),
             max_elections: config.max_elections,
         }
     }
@@ -144,19 +145,15 @@ impl ActiveElectionsContainer {
     /// How many election slots are available
     /// This is a soft limit and can be negative!
     pub fn vacancy(&self) -> i64 {
-        if self.cool_down {
+        if self.cooldown.is_cooling_down() {
             return 0;
         }
         let current_size = self.roots.len() as i64;
         self.max_elections as i64 - current_size
     }
 
-    pub(super) fn cool_down(&mut self) {
-        self.cool_down = true;
-    }
-
-    pub(super) fn resume(&mut self) {
-        self.cool_down = false;
+    pub(super) fn set_cooldown(&mut self, cooldown_source: CooldownSource, cool_down: bool) {
+        self.cooldown.set_cooldown(cooldown_source, cool_down);
     }
 
     pub(super) fn stop(&mut self) {

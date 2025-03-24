@@ -2,7 +2,6 @@ use std::{
     cmp::{max, min},
     sync::{
         atomic::{AtomicU64, Ordering},
-        mpsc::SyncSender,
         Arc, Mutex,
     },
     thread::JoinHandle,
@@ -11,7 +10,7 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{utils::BackpressureSender, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -66,7 +65,7 @@ impl VoteProcessor {
         }
     }
 
-    pub fn add_event_sink(&self, sink: SyncSender<AecEvent>) {
+    pub fn add_event_sink(&self, sink: BackpressureSender<AecEvent>) {
         self.vote_applier.add_event_sink(sink);
     }
 

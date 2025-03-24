@@ -1,9 +1,9 @@
-use std::sync::{
-    mpsc::{Receiver, SyncSender},
-    Arc, Mutex,
-};
+use std::sync::{mpsc::SyncSender, Arc, Mutex};
 
-use rsnano_core::{utils::MemoryStream, VoteCode, VoteSource};
+use rsnano_core::{
+    utils::{BackpressureReceiver, MemoryStream},
+    VoteCode, VoteSource,
+};
 use rsnano_ledger::{Ledger, LedgerSet};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::ChannelId;
@@ -15,8 +15,8 @@ use crate::{
     cementation::ConfirmingSet,
     consensus::{
         election_schedulers::ElectionSchedulers, ActiveElections, AecEvent, BlockVoter,
-        BootstrapElectionActivator, LocalVoteHistory, VoteCache, VoteCacheProcessor,
-        VoteRebroadcastQueue, VoteType,
+        BootstrapElectionActivator, CooldownSource, LocalVoteHistory, VoteCache,
+        VoteCacheProcessor, VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -25,7 +25,7 @@ use crate::{
 
 /// Processes events from the active election container (AEC)
 pub(crate) struct AecEventProcessor {
-    pub(crate) receiver: Receiver<AecEvent>,
+    pub(crate) receiver: BackpressureReceiver<AecEvent>,
     pub(crate) vote_cache_processor: Arc<VoteCacheProcessor>,
     pub(crate) vote_cache: Arc<Mutex<VoteCache>>,
     pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
@@ -48,7 +48,27 @@ pub(crate) struct AecEventProcessor {
 
 impl AecEventProcessor {
     pub(crate) fn run(&mut self) {
+        let mut previous_cooldown_state = false;
+        
         while let Ok(event) = self.receiver.recv() {
+            // Check if we need to cool down the processing to avoid overwhelming the system
+            let current_cooldown = self.receiver.should_cool_down();
+            
+            // Update the active elections cooldown state
+            self.active_elections
+                .set_cooldown(CooldownSource::ActiveElections, current_cooldown);
+            
+            // Log only when the state changes
+            if current_cooldown != previous_cooldown_state {
+                if current_cooldown {
+                    self.stats.inc(StatType::ActiveElections, DetailType::Cooldown);
+                } else {
+                    self.stats.inc(StatType::ActiveElections, DetailType::Recovered);
+                }
+                
+                previous_cooldown_state = current_cooldown;
+            }
+
             match event {
                 AecEvent::ElectionStarted(hash) => {
                     self.bootstrap_election_activator.election_started(hash);

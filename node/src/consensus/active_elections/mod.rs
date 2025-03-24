@@ -1,14 +1,16 @@
 mod active_elections_container;
+mod cooldown_controller;
 mod recently_confirmed_cache;
 mod root_container;
 
 pub use active_elections_container::*;
+pub use cooldown_controller::CooldownSource;
 use rsnano_ledger::RepWeightCache;
 use rsnano_network::Channel;
 
 use std::{
     collections::HashMap,
-    sync::{mpsc::SyncSender, Arc, RwLock, RwLockReadGuard},
+    sync::{Arc, RwLock, RwLockReadGuard},
     time::{Duration, SystemTime},
 };
 
@@ -17,7 +19,8 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
 use rsnano_core::{
-    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
+    utils::BackpressureSender, Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock,
+    Vote, VoteCode, VoteSource,
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats};
 
@@ -70,7 +73,7 @@ pub struct ActiveElections {
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
     rep_weights: Arc<RepWeightCache>,
-    event_sender: RwLock<Option<SyncSender<AecEvent>>>,
+    event_sender: RwLock<Option<BackpressureSender<AecEvent>>>,
 }
 
 impl ActiveElections {
@@ -92,7 +95,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn set_event_sink(&self, sink: SyncSender<AecEvent>) {
+    pub fn set_event_sink(&self, sink: BackpressureSender<AecEvent>) {
         *self.event_sender.write().unwrap() = Some(sink);
     }
 
@@ -108,12 +111,11 @@ impl ActiveElections {
         self.max_elections
     }
 
-    pub fn cool_down(&self) {
-        self.container.write().unwrap().cool_down();
-    }
-
-    pub fn resume(&self) {
-        self.container.write().unwrap().resume();
+    pub fn set_cooldown(&self, cooldown_source: CooldownSource, cool_down: bool) {
+        self.container
+            .write()
+            .unwrap()
+            .set_cooldown(cooldown_source, cool_down);
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {

@@ -142,6 +142,7 @@ pub enum DetailType {
     Unconfirmed,
     Cemented,
     Cooldown,
+    Recovered,
     Empty,
     Done,
     Retry,

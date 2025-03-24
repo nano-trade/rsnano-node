@@ -1,6 +1,6 @@
 use std::sync::{mpsc::SyncSender, Arc};
 
-use rsnano_core::{BlockHash, MaybeSavedBlock, SavedBlock};
+use rsnano_core::{utils::BackpressureSender, BlockHash, MaybeSavedBlock, SavedBlock};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::cementation::ConfirmingSet;
@@ -11,7 +11,7 @@ pub(crate) struct DependentElectionsConfirmer {
     pub(crate) stats: Arc<Stats>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
     pub(crate) active_elections: Arc<ActiveElections>,
-    pub(crate) event_sender: SyncSender<AecEvent>,
+    pub(crate) event_sender: BackpressureSender<AecEvent>,
 }
 
 impl DependentElectionsConfirmer {

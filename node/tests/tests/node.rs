@@ -7,8 +7,9 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey,
-    PublicKey, Root, Signature, StateBlockArgs, UncheckedInfo, Vote, VoteSource, DEV_GENESIS_KEY,
+    utils::{backpressure_channel, UnixMillisTimestamp},
+    Account, Amount, Block, BlockHash, DifficultyV1, PrivateKey, PublicKey, Root, Signature,
+    StateBlockArgs, UncheckedInfo, Vote, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockStatus, ConfirmedSet, LedgerSet, Writer,
@@ -360,7 +361,7 @@ fn vote_by_hash_bundle() {
 
     // Set up an observer to track the maximum number of hashes in a vote
 
-    let (tx, rx) = sync_channel(128);
+    let (tx, rx) = backpressure_channel(128);
     node.vote_processor.add_event_sink(tx);
 
     // Enqueue vote requests for all the blocks
@@ -370,7 +371,7 @@ fn vote_by_hash_bundle() {
     }
 
     let mut max_hashes = 0;
-    while let Ok(e) = rx.recv_timeout(Duration::from_secs(2)) {
+    while let Ok(e) = rx.recv() {
         if let AecEvent::VoteProcessed(vote, _, _, _, _) = e {
             max_hashes = max(max_hashes, vote.hashes.len());
 
