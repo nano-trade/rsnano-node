@@ -225,7 +225,7 @@ impl Node {
         let application_path = args.data_path;
         let node_id = node_id_key_file.initialize(&application_path).unwrap();
 
-        let stats = Arc::new(Stats::new(config.stat_config.clone()));
+        let stats = Arc::new(Stats::new(Default::default()));
 
         let store = if is_nulled {
             Arc::new(LmdbStore::new_null())
@@ -1527,7 +1527,6 @@ impl Node {
         self.bootstrap_responder.start();
         self.bootstrapper.start();
         self.telemetry.start();
-        self.stats.start();
         self.local_block_broadcaster.start();
 
         let peer_cache_update_interval = if self.network_params.network.is_dev_network() {
@@ -1590,7 +1589,6 @@ impl Node {
         self.telemetry.stop();
         self.bootstrap_responder.stop();
         self.wallets.stop();
-        self.stats.stop();
         self.local_block_broadcaster.stop();
         self.message_processor.lock().unwrap().stop();
         self.network_threads.lock().unwrap().stop(); // Stop network last to avoid killing in-use sockets

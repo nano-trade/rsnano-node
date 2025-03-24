@@ -93,7 +93,6 @@ pub struct NodeConfig {
     pub callback_target: String,
     pub websocket_config: WebsocketConfig,
     pub diagnostics_config: DiagnosticsConfig,
-    pub stat_config: StatsConfig,
     pub lmdb_config: LmdbConfig,
     pub vote_cache: VoteCacheConfig,
     pub rep_crawler_query_timeout: Duration,
@@ -302,7 +301,6 @@ impl NodeConfig {
             callback_target: String::new(),
             websocket_config: WebsocketConfig::new(&network_params.network),
             diagnostics_config: DiagnosticsConfig::new(),
-            stat_config: StatsConfig::new(),
             lmdb_config: LmdbConfig::new(),
             optimistic_scheduler: OptimisticSchedulerConfig::new(),
             hinted_scheduler: if network_params.network.is_dev_network() {

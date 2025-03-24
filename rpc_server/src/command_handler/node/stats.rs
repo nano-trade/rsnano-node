@@ -1,11 +1,11 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::utils::ContainerInfo;
 use rsnano_rpc_messages::{StatsArgs, StatsType, SuccessResponse};
-use rsnano_stats::StatsJsonWriterV2;
+use rsnano_stats::StatsJsonWriter;
 
 impl RpcCommandHandler {
     pub(crate) fn stats(&self, args: StatsArgs) -> anyhow::Result<serde_json::Value> {
-        let mut sink = StatsJsonWriterV2::new();
+        let mut sink = StatsJsonWriter::new();
         match args.stats_type {
             StatsType::Counters => {
                 self.node.stats.log_counters(&mut sink).unwrap();

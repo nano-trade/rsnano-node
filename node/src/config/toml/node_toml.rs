@@ -60,7 +60,6 @@ pub struct NodeToml {
     pub priority_bucket: Option<PriorityBucketToml>,
     pub rep_crawler: Option<RepCrawlerToml>,
     pub request_aggregator: Option<RequestAggregatorToml>,
-    pub statistics: Option<StatsToml>,
     pub vote_cache: Option<VoteCacheToml>,
     pub vote_processor: Option<VoteProcessorToml>,
     pub websocket: Option<WebsocketToml>,
@@ -278,9 +277,6 @@ impl NodeConfig {
         if let Some(diagnostics_config_toml) = &toml.diagnostics {
             self.diagnostics_config = diagnostics_config_toml.into();
         }
-        if let Some(stat_config_toml) = &toml.statistics {
-            self.stat_config = stat_config_toml.into();
-        }
         if let Some(lmdb_config_toml) = &toml.lmdb {
             self.lmdb_config = lmdb_config_toml.into();
         }
@@ -460,7 +456,6 @@ impl From<&NodeConfig> for NodeToml {
             bootstrap_server: Some((&config.bootstrap_responder).into()),
             websocket: Some((&config.websocket_config).into()),
             diagnostics: Some((&config.diagnostics_config).into()),
-            statistics: Some((&config.stat_config).into()),
             lmdb: Some((&config.lmdb_config).into()),
             vote_cache: Some((&config.vote_cache).into()),
             block_processor: Some((&config.block_processor).into()),

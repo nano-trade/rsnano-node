@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
-    sync::{atomic::AtomicU64, Arc, Condvar, LazyLock, Mutex, RwLock},
-    thread::JoinHandle,
+    sync::{atomic::AtomicU64, Arc, Mutex, RwLock},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -11,13 +10,11 @@ use tracing::debug;
 
 use rsnano_core::utils::get_env_bool;
 
-use crate::{DetailType, Direction, Sample, StatFileWriter, StatType, StatsConfig, StatsLogSink};
+use crate::{DetailType, Direction, Sample, StatType, StatsConfig, StatsLogSink};
 
 pub struct Stats {
     config: StatsConfig,
     mutables: Arc<RwLock<StatMutables>>,
-    thread: Mutex<Option<JoinHandle<()>>>,
-    stats_loop: Arc<StatsLoop>,
     enable_logging: bool,
 }
 
@@ -36,47 +33,8 @@ impl Stats {
         }));
         Self {
             config: config.clone(),
-            thread: Mutex::new(None),
-            stats_loop: Arc::new(StatsLoop {
-                condition: Condvar::new(),
-                mutables: Arc::clone(&mutables),
-                config,
-                loop_state: Mutex::new(StatsLoopState {
-                    stopped: false,
-                    log_last_count_writeout: Instant::now(),
-                    log_last_sample_writeout: Instant::now(),
-                }),
-            }),
             mutables,
             enable_logging: get_env_bool("NANO_LOG_STATS").unwrap_or(false),
-        }
-    }
-
-    pub fn start(&self) {
-        if !self.should_run() {
-            return;
-        };
-
-        let stats_loop = Arc::clone(&self.stats_loop);
-        *self.thread.lock().unwrap() = Some(
-            std::thread::Builder::new()
-                .name("Stats".to_string())
-                .spawn(move || stats_loop.run())
-                .unwrap(),
-        );
-    }
-
-    fn should_run(&self) -> bool {
-        !self.config.log_counters_interval.is_zero() || !self.config.log_samples_interval.is_zero()
-    }
-
-    /// Stop stats being output
-    pub fn stop(&self) {
-        self.stats_loop.loop_state.lock().unwrap().stopped = true;
-        self.stats_loop.condition.notify_all();
-        let handle = self.thread.lock().unwrap().take();
-        if let Some(handle) = handle {
-            handle.join().unwrap();
         }
     }
 
@@ -412,77 +370,6 @@ impl SamplerEntry {
         guard.drain(..).collect()
     }
 }
-
-struct StatsLoop {
-    mutables: Arc<RwLock<StatMutables>>,
-    condition: Condvar,
-    loop_state: Mutex<StatsLoopState>,
-    config: StatsConfig,
-}
-
-impl StatsLoop {
-    fn run(&self) {
-        let mut guard = self.loop_state.lock().unwrap();
-        while !guard.stopped {
-            guard = self
-                .condition
-                .wait_timeout_while(guard, Duration::from_secs(1), |g| !g.stopped)
-                .unwrap()
-                .0;
-
-            if !guard.stopped {
-                self.run_one(&mut guard).unwrap();
-            }
-        }
-    }
-
-    fn run_one(&self, lock: &mut StatsLoopState) -> anyhow::Result<()> {
-        let stats = self.mutables.read().unwrap();
-        // Counters
-        if !self.config.log_counters_interval.is_zero()
-            && lock.log_last_count_writeout.elapsed() > self.config.log_counters_interval
-        {
-            let mut log_count = LOG_COUNT.lock().unwrap();
-            let writer = match log_count.as_mut() {
-                Some(x) => x,
-                None => {
-                    let writer = StatFileWriter::new(&self.config.log_counters_filename)?;
-                    log_count.get_or_insert(writer)
-                }
-            };
-
-            stats.log_counters_impl(writer, &self.config, SystemTime::now())?;
-            lock.log_last_count_writeout = Instant::now();
-        }
-
-        // Samples
-        if !self.config.log_samples_interval.is_zero()
-            && lock.log_last_sample_writeout.elapsed() > self.config.log_samples_interval
-        {
-            let mut log_sample = LOG_SAMPLE.lock().unwrap();
-            let writer = match log_sample.as_mut() {
-                Some(x) => x,
-                None => {
-                    let writer = StatFileWriter::new(&self.config.log_samples_filename)?;
-                    log_sample.get_or_insert(writer)
-                }
-            };
-            stats.log_samples_impl(writer, &self.config, SystemTime::now())?;
-            lock.log_last_sample_writeout = Instant::now();
-        }
-
-        Ok(())
-    }
-}
-
-struct StatsLoopState {
-    stopped: bool,
-    log_last_count_writeout: Instant,
-    log_last_sample_writeout: Instant,
-}
-
-static LOG_COUNT: LazyLock<Mutex<Option<StatFileWriter>>> = LazyLock::new(|| Mutex::new(None));
-static LOG_SAMPLE: LazyLock<Mutex<Option<StatFileWriter>>> = LazyLock::new(|| Mutex::new(None));
 
 #[cfg(test)]
 mod tests {

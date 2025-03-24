@@ -6,7 +6,7 @@ mod stats_log_sink;
 pub use stats::*;
 pub use stats_config::StatsConfig;
 pub use stats_enums::*;
-pub use stats_log_sink::{StatFileWriter, StatsJsonWriterV2, StatsLogSink};
+pub use stats_log_sink::{StatsJsonWriter, StatsLogSink};
 
 use rsnano_core::{BlockSubType, VoteSource};
 

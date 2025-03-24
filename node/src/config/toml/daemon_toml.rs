@@ -578,38 +578,6 @@ mod tests {
             default_cfg.node.monitor.interval
         );
 
-        // Statistics section
-        assert_ne!(
-            deserialized.node.stat_config.max_samples,
-            default_cfg.node.stat_config.max_samples
-        );
-
-        // Statistics Log section
-        assert_ne!(
-            deserialized.node.stat_config.log_counters_filename,
-            default_cfg.node.stat_config.log_counters_filename
-        );
-        assert_ne!(
-            deserialized.node.stat_config.log_samples_filename,
-            default_cfg.node.stat_config.log_samples_filename
-        );
-        assert_ne!(
-            deserialized.node.stat_config.log_headers,
-            default_cfg.node.stat_config.log_headers
-        );
-        assert_ne!(
-            deserialized.node.stat_config.log_counters_interval,
-            default_cfg.node.stat_config.log_counters_interval
-        );
-        assert_ne!(
-            deserialized.node.stat_config.log_samples_interval,
-            default_cfg.node.stat_config.log_samples_interval
-        );
-        assert_ne!(
-            deserialized.node.stat_config.log_rotation_count,
-            default_cfg.node.stat_config.log_rotation_count
-        );
-
         // WebSocket section
         assert_ne!(
             deserialized.node.websocket_config.address,
