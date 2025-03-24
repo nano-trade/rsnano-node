@@ -16,7 +16,7 @@ use super::{
 };
 
 /// Every 300ms tries to transitions election state and send votes + blocks
-pub struct ActiveElectionsTicker {
+pub struct AecTicker {
     pub(crate) active_elections: Arc<ActiveElections>,
     pub(crate) stats: Arc<Stats>,
     pub(crate) message_flooder: MessageFlooder,
@@ -28,7 +28,7 @@ pub struct ActiveElectionsTicker {
     pub(crate) confirm_req_sender: ConfirmReqSender,
 }
 
-impl Runnable for ActiveElectionsTicker {
+impl Runnable for AecTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::Active, DetailType::Loop);
 

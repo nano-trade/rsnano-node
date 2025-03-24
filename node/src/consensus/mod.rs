@@ -1,5 +1,5 @@
 mod active_elections;
-mod active_elections_ticker;
+mod aec_ticker;
 mod block_tallies;
 mod bootstrap_election_activator;
 mod bootstrap_weights;
@@ -29,7 +29,7 @@ mod vote_router;
 mod winner_block_broadcaster;
 
 pub use active_elections::*;
-pub(crate) use active_elections_ticker::ActiveElectionsTicker;
+pub(crate) use aec_ticker::AecTicker;
 pub use block_tallies::*;
 pub(crate) use bootstrap_election_activator::*;
 pub(crate) use bootstrap_weights::*;

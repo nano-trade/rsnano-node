@@ -47,12 +47,12 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsTicker, BlockVoter, BootstrapElectionActivator,
-        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder,
-        LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WinnerBlockBroadcaster,
+        ActiveElections, AecTicker, BlockVoter, BootstrapElectionActivator, ConfirmReqSender,
+        ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder, LocalVoteHistory,
+        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster,
+        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
+        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
+        WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -145,7 +145,7 @@ pub struct Node {
     pub ledger_notifications: LedgerNotifications,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
-    pub active_elections_driver: TimerThread<ActiveElectionsTicker>,
+    pub active_elections_driver: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
 }
 
@@ -563,7 +563,7 @@ impl Node {
 
         let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
 
-        let aec_driver = ActiveElectionsTicker {
+        let aec_ticker = AecTicker {
             active_elections: active_elections.clone(),
             stats: stats.clone(),
             message_flooder: message_flooder.clone(),
@@ -1245,7 +1245,7 @@ impl Node {
             ledger_notifications,
             vote_rebroadcaster,
             tokio_runner,
-            active_elections_driver: TimerThread::new("Request loop", aec_driver),
+            active_elections_driver: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
         }
     }
