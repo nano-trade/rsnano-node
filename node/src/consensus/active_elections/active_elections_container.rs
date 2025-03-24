@@ -300,7 +300,7 @@ impl ActiveElectionsContainer {
         results
     }
 
-    pub(super) fn cementing_failed(&mut self, block_hash: &BlockHash) {
+    pub(super) fn remove_recently_confirmed(&mut self, block_hash: &BlockHash) {
         self.recently_confirmed.erase(block_hash);
     }
 

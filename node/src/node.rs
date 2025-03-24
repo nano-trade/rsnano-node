@@ -1172,7 +1172,7 @@ impl Node {
                     match e {
                         CementingEvent::CementingFailed(block_hash) => {
                             // Do some cleanup due to this block never being processed by confirmation height processor
-                            active_l.cementing_failed(&block_hash);
+                            active_l.remove_recently_confirmed(&block_hash);
                         }
                         CementingEvent::NearFull => active_l.cool_down(),
                         CementingEvent::Recovered => active_l.resume(),

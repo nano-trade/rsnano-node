@@ -266,8 +266,11 @@ impl ActiveElections {
         added
     }
 
-    pub fn cementing_failed(&self, block_hash: &BlockHash) {
-        self.container.write().unwrap().cementing_failed(block_hash);
+    pub fn remove_recently_confirmed(&self, block_hash: &BlockHash) {
+        self.container
+            .write()
+            .unwrap()
+            .remove_recently_confirmed(block_hash);
     }
 
     pub fn stop(&self) {
