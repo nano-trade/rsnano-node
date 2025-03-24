@@ -1,13 +1,13 @@
 use std::{
     collections::HashMap,
-    sync::{mpsc::SyncSender, Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock},
     time::SystemTime,
 };
 
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
 
-use rsnano_core::{Amount, BlockHash, Vote, VoteCode, VoteSource, utils::BackpressureSender};
+use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
 
 use super::{ActiveElections, AecEvent};

@@ -16,7 +16,7 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, ActiveElections, AecCooldownReason, AecEvent,
         BlockVoter, BootstrapElectionActivator, LocalVoteHistory, VoteCache, VoteCacheProcessor,
-        VoteRebroadcastQueue, VoteType,
+        VoteProcessor, VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -27,6 +27,7 @@ use crate::{
 pub(crate) struct AecEventProcessor {
     pub(crate) receiver: BackpressureReceiver<AecEvent>,
     pub(crate) vote_cache_processor: Arc<VoteCacheProcessor>,
+    pub(crate) vote_processor: Arc<VoteProcessor>,
     pub(crate) vote_cache: Arc<Mutex<VoteCache>>,
     pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
     pub(crate) election_schedulers: Arc<ElectionSchedulers>,
@@ -54,12 +55,11 @@ impl AecEventProcessor {
             // Check if we need to cool down the processing to avoid overwhelming the system
             let current_cooldown = self.receiver.should_cool_down();
 
-            // Update the active elections cooldown state
-            self.active_elections
-                .set_cooldown(AecCooldownReason::AecEventQueueFull, current_cooldown);
-
-            // Log only when the state changes
             if current_cooldown != previous_cooldown_state {
+                self.active_elections
+                    .set_cooldown(current_cooldown, AecCooldownReason::AecEventQueueFull);
+                self.vote_processor.set_cooldown(current_cooldown);
+
                 if current_cooldown {
                     self.stats
                         .inc(StatType::ActiveElections, DetailType::Cooldown);

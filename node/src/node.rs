@@ -517,7 +517,7 @@ impl Node {
             _ => Duration::from_millis(1000),
         };
 
-        let (aec_sender, aec_receiver) = backpressure_channel(1024);
+        let (aec_sender, aec_receiver) = backpressure_channel(1024 * 5);
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
             stats.clone(),
@@ -1126,6 +1126,7 @@ impl Node {
             recently_cemented_inserter,
             vote_cache: vote_cache.clone(),
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
+            vote_processor: vote_processor.clone(),
             block_processor: block_processor.clone(),
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
@@ -1175,8 +1176,8 @@ impl Node {
             .spawn(move || {
                 while let Ok(e) = rx_confirming.recv() {
                     active_l.set_cooldown(
-                        AecCooldownReason::ConfirmingSetEventQueueFull,
                         rx_confirming.should_cool_down(),
+                        AecCooldownReason::ConfirmingSetEventQueueFull,
                     );
                     match e {
                         CementingEvent::CementingFailed(block_hash) => {
@@ -1184,10 +1185,10 @@ impl Node {
                             active_l.remove_recently_confirmed(&block_hash);
                         }
                         CementingEvent::NearFull => {
-                            active_l.set_cooldown(AecCooldownReason::ConfirmingSetFull, true)
+                            active_l.set_cooldown(true, AecCooldownReason::ConfirmingSetFull)
                         }
                         CementingEvent::Recovered => {
-                            active_l.set_cooldown(AecCooldownReason::ConfirmingSetFull, false)
+                            active_l.set_cooldown(false, AecCooldownReason::ConfirmingSetFull)
                         }
                     }
                 }

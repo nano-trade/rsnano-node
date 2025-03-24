@@ -111,11 +111,15 @@ impl ActiveElections {
         self.max_elections
     }
 
-    pub fn set_cooldown(&self, cooldown_source: AecCooldownReason, cool_down: bool) {
-        self.container
+    pub fn set_cooldown(&self, cool_down: bool, reason: AecCooldownReason) {
+        let ev = self
+            .container
             .write()
             .unwrap()
-            .set_cooldown(cooldown_source, cool_down);
+            .set_cooldown(cool_down, reason);
+        if let Some(ev) = ev {
+            self.notify(ev);
+        }
     }
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {

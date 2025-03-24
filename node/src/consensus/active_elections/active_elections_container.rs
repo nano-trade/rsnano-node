@@ -152,8 +152,20 @@ impl ActiveElectionsContainer {
         self.max_elections as i64 - current_size
     }
 
-    pub(super) fn set_cooldown(&mut self, cooldown_source: AecCooldownReason, cool_down: bool) {
-        self.cooldown.set_cooldown(cooldown_source, cool_down);
+    pub(super) fn set_cooldown(
+        &mut self,
+        cool_down: bool,
+        reason: AecCooldownReason,
+    ) -> Option<AecEvent> {
+        let was_cooling_down_before = self.cooldown.is_cooling_down();
+        self.cooldown.set_cooldown(cool_down, reason);
+        let cooling_down = self.cooldown.is_cooling_down();
+        let recovered = !cooling_down && was_cooling_down_before;
+        if recovered {
+            Some(AecEvent::VacancyUpdated)
+        } else {
+            None
+        }
     }
 
     pub(super) fn stop(&mut self) {

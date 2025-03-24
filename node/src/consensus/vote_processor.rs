@@ -1,11 +1,11 @@
 use std::{
     cmp::{max, min},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
     thread::JoinHandle,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use tracing::debug;
@@ -48,6 +48,7 @@ pub struct VoteProcessor {
     vote_applier: VoteApplier,
     stats: Arc<Stats>,
     pub total_processed: AtomicU64,
+    cool_down: AtomicBool,
 }
 
 impl VoteProcessor {
@@ -62,11 +63,16 @@ impl VoteProcessor {
             stats,
             threads: Mutex::new(Vec::new()),
             total_processed: AtomicU64::new(0),
+            cool_down: AtomicBool::new(false),
         }
     }
 
     pub fn add_event_sink(&self, sink: BackpressureSender<AecEvent>) {
         self.vote_applier.add_event_sink(sink);
+    }
+
+    pub fn set_cooldown(&self, cool_down: bool) {
+        self.cool_down.store(cool_down, Ordering::Relaxed);
     }
 
     pub fn stop(&self) {
@@ -85,6 +91,11 @@ impl VoteProcessor {
 
     pub fn run(&self) {
         loop {
+            if self.cool_down.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
+            }
+
             self.stats.inc(StatType::VoteProcessor, DetailType::Loop);
 
             let batch = self.queue.wait_for_votes(self.queue.config.batch_size);
