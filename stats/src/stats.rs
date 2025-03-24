@@ -1,6 +1,9 @@
 use std::{
     collections::BTreeMap,
-    sync::{atomic::AtomicU64, Arc, Mutex, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex, RwLock,
+    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -10,7 +13,10 @@ use tracing::debug;
 
 use rsnano_core::utils::get_env_bool;
 
-use crate::{DetailType, Direction, Sample, StatType, StatsConfig, StatsLogSink};
+use crate::{
+    DetailType, Direction, Sample, StatType, StatsCollection, StatsConfig, StatsKey, StatsLogSink,
+    StatsSource,
+};
 
 pub struct Stats {
     config: StatsConfig,
@@ -368,6 +374,16 @@ impl SamplerEntry {
     fn collect(&self) -> Vec<i64> {
         let mut guard = self.samples.lock().unwrap();
         guard.drain(..).collect()
+    }
+}
+
+impl StatsSource for Stats {
+    fn collect(&self, result: &mut StatsCollection) {
+        let guard = self.mutables.read().unwrap();
+        for (key, entry) in &guard.counters {
+            let stats_key = StatsKey::new(key.stat_type.as_str(), key.detail.as_str(), key.dir);
+            result.insert(stats_key, entry.0.load(Ordering::Relaxed));
+        }
     }
 }
 

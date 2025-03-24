@@ -25,7 +25,7 @@ use rsnano_network::{
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
-use rsnano_stats::Stats;
+use rsnano_stats::{Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
@@ -147,6 +147,7 @@ pub struct Node {
     tokio_runner: TokioRunner,
     pub active_elections_driver: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
+    stats_collector: TimerThread<StatsCollector>,
 }
 
 pub(crate) struct NodeArgs {
@@ -225,6 +226,8 @@ impl Node {
         let application_path = args.data_path;
         let node_id = node_id_key_file.initialize(&application_path).unwrap();
 
+        let stats_collection = Arc::new(Mutex::new(StatsCollection::new()));
+        let mut stats_collector = StatsCollector::new(stats_collection);
         let stats = Arc::new(Stats::new(Default::default()));
 
         let store = if is_nulled {
@@ -1247,6 +1250,7 @@ impl Node {
             tokio_runner,
             active_elections_driver: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
+            stats_collector: TimerThread::new("Stats", stats_collector),
         }
     }
 
@@ -1546,6 +1550,13 @@ impl Node {
             self.monitor.start_delayed(self.config.monitor.interval);
         }
         self.vote_rebroadcaster.start();
+
+        let stats_interval = if self.network_params.network.is_dev_network() {
+            Duration::from_millis(100)
+        } else {
+            Duration::from_secs(1)
+        };
+        self.stats_collector.start(stats_interval);
     }
 
     pub fn stop(&mut self) {
@@ -1560,6 +1571,7 @@ impl Node {
         }
         info!("Node stopping...");
 
+        self.stats_collector.stop();
         self.tcp_listener.stop();
         self.ledger.stop();
         self.ledger_notification_thread.stop();
