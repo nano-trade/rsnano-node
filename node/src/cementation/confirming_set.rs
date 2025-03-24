@@ -2,14 +2,16 @@ use std::{
     collections::{HashSet, VecDeque},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::SyncSender,
         Arc, Condvar, Mutex, RwLock,
     },
     thread::JoinHandle,
     time::{Duration, Instant},
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash, SavedBlock};
+use rsnano_core::{
+    utils::{BackpressureSender, ContainerInfo},
+    BlockHash, SavedBlock,
+};
 use rsnano_ledger::{BlockStatus, CementingObserver, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -75,7 +77,8 @@ impl ConfirmingSet {
                     current: HashSet::new(),
                     stats: stats.clone(),
                     config: config.clone(),
-                    cooldown: false,
+                    near_full: false,
+                    cool_down: false,
                     near_full_limit: config.max_blocks * 100 / 75,
                     recovered_limit: config.max_blocks * 100 / 50,
                     election_cache: ConfirmedElectionsCache::default(),
@@ -91,7 +94,7 @@ impl ConfirmingSet {
         }
     }
 
-    pub fn set_event_sink(&self, sink: SyncSender<CementingEvent>) {
+    pub fn set_event_sink(&self, sink: BackpressureSender<CementingEvent>) {
         *self.thread.event_sender.write().unwrap() = Some(sink);
     }
 
@@ -169,6 +172,11 @@ impl ConfirmingSet {
         action(&guard.election_cache);
     }
 
+    pub fn set_cooldown(&self, cool_down: bool) {
+        self.thread.mutex.lock().unwrap().cool_down = cool_down;
+        self.thread.condition.notify_all();
+    }
+
     pub fn container_info(&self) -> ContainerInfo {
         let guard = self.thread.mutex.lock().unwrap();
         [
@@ -199,7 +207,7 @@ struct ConfirmingSetThread {
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
     workers: ThreadPoolImpl,
-    event_sender: RwLock<Option<SyncSender<CementingEvent>>>,
+    event_sender: RwLock<Option<BackpressureSender<CementingEvent>>>,
 }
 
 impl ConfirmingSetThread {
@@ -225,8 +233,8 @@ impl ConfirmingSetThread {
                 timestamp: Instant::now(),
             });
 
-            if !guard.cooldown && guard.set.len() + guard.current.len() >= guard.near_full_limit {
-                guard.cooldown = true;
+            if !guard.near_full && guard.set.len() + guard.current.len() >= guard.near_full_limit {
+                guard.near_full = true;
                 near_full_warning = true;
             }
         };
@@ -257,7 +265,7 @@ impl ConfirmingSetThread {
 
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
-        while !self.stopped.load(Ordering::SeqCst) {
+        while !self.stopped.load(Ordering::SeqCst) {            
             self.stats.inc(StatType::ConfirmingSet, DetailType::Loop);
             let evicted = guard.cleanup();
 
@@ -270,7 +278,7 @@ impl ConfirmingSetThread {
                     }
                 }
                 guard = self.mutex.lock().unwrap();
-            }
+            }            
 
             if !guard.set.is_empty() {
                 let batch = guard.next_batch(self.config.batch_size);
@@ -280,9 +288,9 @@ impl ConfirmingSetThread {
                 for entry in &batch {
                     guard.current.insert(entry.confirmation_root);
                 }
-                let recovered = guard.cooldown && guard.set.len() < guard.recovered_limit;
+                let recovered = guard.near_full && guard.set.len() < guard.recovered_limit;
                 if recovered {
-                    guard.cooldown = false;
+                    guard.near_full = false;
                 }
 
                 drop(guard);
@@ -295,7 +303,7 @@ impl ConfirmingSetThread {
                 guard = self
                     .condition
                     .wait_while(guard, |i| {
-                        i.set.is_empty() && !self.stopped.load(Ordering::SeqCst)
+                        (i.set.is_empty() || i.cool_down) && !self.stopped.load(Ordering::SeqCst)
                     })
                     .unwrap();
             }
@@ -332,7 +340,8 @@ struct ConfirmingSetImpl {
 
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
-    cooldown: bool,
+    near_full: bool,
+    cool_down: bool,
     near_full_limit: usize,
     recovered_limit: usize,
     election_cache: ConfirmedElectionsCache,

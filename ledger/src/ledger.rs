@@ -7,7 +7,7 @@ use crate::{
     RepWeightCache, RepWeightsUpdater, Writer,
 };
 use rsnano_core::{
-    utils::{ContainerInfo, UnixTimestamp},
+    utils::{BackpressureSender, ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
     PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
 };
@@ -115,7 +115,7 @@ pub struct Ledger {
     pub constants: LedgerConstants,
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
-    event_sender: RwLock<Option<SyncSender<LedgerEvent>>>,
+    event_sender: RwLock<Option<BackpressureSender<LedgerEvent>>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -259,7 +259,7 @@ impl Ledger {
         Ok(ledger)
     }
 
-    pub fn set_event_sink(&mut self, sink: SyncSender<LedgerEvent>) {
+    pub fn set_event_sink(&mut self, sink: BackpressureSender<LedgerEvent>) {
         *self.event_sender.write().unwrap() = Some(sink);
     }
 

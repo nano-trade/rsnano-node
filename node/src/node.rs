@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{sync_channel, Receiver, SyncSender},
+        mpsc::{Receiver, SyncSender},
         Arc, Mutex, RwLock,
     },
     time::Duration,
@@ -13,7 +13,7 @@ use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
-    utils::{backpressure_channel, BackpressureSender, ContainerInfo, Peer},
+    utils::{backpressure_channel, ContainerInfo, Peer},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
     VoteCode, WorkNonce,
 };
@@ -282,7 +282,7 @@ impl Node {
         )
         .expect("Could not initialize ledger");
 
-        let (ledger_tx, ledger_rx) = sync_channel(1024);
+        let (ledger_tx, ledger_rx) = backpressure_channel(1024);
         ledger.set_event_sink(ledger_tx);
 
         let ledger = Arc::new(ledger);
@@ -425,7 +425,7 @@ impl Node {
             ledger.clone(),
             stats.clone(),
         ));
-        let (tx_confirming, rx_confirming) = sync_channel(32);
+        let (tx_confirming, rx_confirming) = backpressure_channel(32);
         confirming_set.set_event_sink(tx_confirming);
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
@@ -1158,6 +1158,8 @@ impl Node {
             flags: flags.clone(),
             bounded_backlog: bounded_backlog.clone(),
             dependent_elections_confirmer,
+            confirming_set: confirming_set.clone(),
+            stats: stats.clone(),
         };
 
         std::thread::Builder::new()
