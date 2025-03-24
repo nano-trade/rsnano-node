@@ -2,23 +2,23 @@ use strum::EnumCount;
 use strum_macros::EnumCount as EnumCountMacro;
 
 #[derive(Clone, Debug, PartialEq, EnumCountMacro, num_derive::FromPrimitive)]
-pub enum CooldownSource {
-    /// The node is cooling down due to high load
-    ConfirmingSet,
-    ActiveElections,
+pub enum AecCooldownReason {
+    ConfirmingSetFull,
+    ConfirmingSetEventQueueFull,
+    AecEventQueueFull,
 }
 
 pub(crate) struct CooldownController {
     // Array of cooldown states, indexed by CooldownSource as usize
-    source_states: [bool; CooldownSource::COUNT],
+    source_states: [bool; AecCooldownReason::COUNT],
     cool_down: bool,
 }
 
 impl CooldownController {
     pub fn new() -> Self {
-        Self { 
-            source_states: [false; CooldownSource::COUNT],
-            cool_down: false 
+        Self {
+            source_states: [false; AecCooldownReason::COUNT],
+            cool_down: false,
         }
     }
 
@@ -26,15 +26,15 @@ impl CooldownController {
         self.cool_down
     }
 
-    pub fn is_source_cooling_down(&self, source: CooldownSource) -> bool {
+    pub fn is_source_cooling_down(&self, source: AecCooldownReason) -> bool {
         self.source_states[source as usize]
     }
 
-    pub fn set_cooldown(&mut self, cooldown_source: CooldownSource, cool_down: bool) {
+    pub fn set_cooldown(&mut self, cooldown_source: AecCooldownReason, cool_down: bool) {
         // Update the specific source state
         let index = cooldown_source as usize;
         self.source_states[index] = cool_down;
-        
+
         // Update overall cooldown state - true if any source is cooling down
         self.cool_down = self.source_states.iter().any(|&state| state);
     }
@@ -53,23 +53,23 @@ mod tests {
     #[test]
     fn one_cooldown() {
         let mut controller = CooldownController::new();
-        controller.set_cooldown(CooldownSource::ConfirmingSet, true);
+        controller.set_cooldown(AecCooldownReason::ConfirmingSetFull, true);
         assert_eq!(controller.is_cooling_down(), true);
     }
 
     #[test]
     fn end_cooldown() {
         let mut controller = CooldownController::new();
-        controller.set_cooldown(CooldownSource::ConfirmingSet, true);
-        controller.set_cooldown(CooldownSource::ConfirmingSet, false);
+        controller.set_cooldown(AecCooldownReason::ConfirmingSetFull, true);
+        controller.set_cooldown(AecCooldownReason::ConfirmingSetFull, false);
         assert_eq!(controller.is_cooling_down(), false);
     }
 
     #[test]
     fn mutliple_sources_different_cooldowns() {
         let mut controller = CooldownController::new();
-        controller.set_cooldown(CooldownSource::ConfirmingSet, true);
-        controller.set_cooldown(CooldownSource::ActiveElections, false);
+        controller.set_cooldown(AecCooldownReason::ConfirmingSetFull, true);
+        controller.set_cooldown(AecCooldownReason::AecEventQueueFull, false);
         assert_eq!(controller.is_cooling_down(), true);
     }
 }

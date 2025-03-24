@@ -15,7 +15,7 @@ use crate::consensus::{
 };
 
 use super::{
-    cooldown_controller::{CooldownController, CooldownSource},
+    cooldown_controller::{AecCooldownReason, CooldownController},
     recently_confirmed_cache::RecentlyConfirmedCache,
     ActiveElectionsConfig, AecEvent, Entry, ErasedCallback, RootContainer, VoteRouter,
 };
@@ -152,7 +152,7 @@ impl ActiveElectionsContainer {
         self.max_elections as i64 - current_size
     }
 
-    pub(super) fn set_cooldown(&mut self, cooldown_source: CooldownSource, cool_down: bool) {
+    pub(super) fn set_cooldown(&mut self, cooldown_source: AecCooldownReason, cool_down: bool) {
         self.cooldown.set_cooldown(cooldown_source, cool_down);
     }
 

@@ -14,9 +14,9 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     consensus::{
-        election_schedulers::ElectionSchedulers, ActiveElections, AecEvent, BlockVoter,
-        BootstrapElectionActivator, CooldownSource, LocalVoteHistory, VoteCache,
-        VoteCacheProcessor, VoteRebroadcastQueue, VoteType,
+        election_schedulers::ElectionSchedulers, ActiveElections, AecCooldownReason, AecEvent,
+        BlockVoter, BootstrapElectionActivator, LocalVoteHistory, VoteCache, VoteCacheProcessor,
+        VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -49,23 +49,25 @@ pub(crate) struct AecEventProcessor {
 impl AecEventProcessor {
     pub(crate) fn run(&mut self) {
         let mut previous_cooldown_state = false;
-        
+
         while let Ok(event) = self.receiver.recv() {
             // Check if we need to cool down the processing to avoid overwhelming the system
             let current_cooldown = self.receiver.should_cool_down();
-            
+
             // Update the active elections cooldown state
             self.active_elections
-                .set_cooldown(CooldownSource::ActiveElections, current_cooldown);
-            
+                .set_cooldown(AecCooldownReason::AecEventQueueFull, current_cooldown);
+
             // Log only when the state changes
             if current_cooldown != previous_cooldown_state {
                 if current_cooldown {
-                    self.stats.inc(StatType::ActiveElections, DetailType::Cooldown);
+                    self.stats
+                        .inc(StatType::ActiveElections, DetailType::Cooldown);
                 } else {
-                    self.stats.inc(StatType::ActiveElections, DetailType::Recovered);
+                    self.stats
+                        .inc(StatType::ActiveElections, DetailType::Recovered);
                 }
-                
+
                 previous_cooldown_state = current_cooldown;
             }
 

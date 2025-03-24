@@ -47,8 +47,8 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, AecTicker, BlockVoter, BootstrapElectionActivator, ConfirmReqSender,
-        ConfirmedElection, CooldownSource, DependentElectionsConfirmer, ElectionForkAdder,
+        ActiveElections, AecCooldownReason, AecTicker, BlockVoter, BootstrapElectionActivator,
+        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder,
         LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
@@ -425,7 +425,7 @@ impl Node {
             ledger.clone(),
             stats.clone(),
         ));
-        let (tx_confirming, rx_confirming) = backpressure_channel(32);
+        let (tx_confirming, rx_confirming) = backpressure_channel(1024);
         confirming_set.set_event_sink(tx_confirming);
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
@@ -1174,16 +1174,20 @@ impl Node {
             .name("Confset ev proc".to_owned())
             .spawn(move || {
                 while let Ok(e) = rx_confirming.recv() {
+                    active_l.set_cooldown(
+                        AecCooldownReason::ConfirmingSetEventQueueFull,
+                        rx_confirming.should_cool_down(),
+                    );
                     match e {
                         CementingEvent::CementingFailed(block_hash) => {
                             // Do some cleanup due to this block never being processed by confirmation height processor
                             active_l.remove_recently_confirmed(&block_hash);
                         }
                         CementingEvent::NearFull => {
-                            active_l.set_cooldown(CooldownSource::ConfirmingSet, true)
+                            active_l.set_cooldown(AecCooldownReason::ConfirmingSetFull, true)
                         }
                         CementingEvent::Recovered => {
-                            active_l.set_cooldown(CooldownSource::ConfirmingSet, false)
+                            active_l.set_cooldown(AecCooldownReason::ConfirmingSetFull, false)
                         }
                     }
                 }

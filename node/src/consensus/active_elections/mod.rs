@@ -4,7 +4,7 @@ mod recently_confirmed_cache;
 mod root_container;
 
 pub use active_elections_container::*;
-pub use cooldown_controller::CooldownSource;
+pub use cooldown_controller::AecCooldownReason;
 use rsnano_ledger::RepWeightCache;
 use rsnano_network::Channel;
 
@@ -111,7 +111,7 @@ impl ActiveElections {
         self.max_elections
     }
 
-    pub fn set_cooldown(&self, cooldown_source: CooldownSource, cool_down: bool) {
+    pub fn set_cooldown(&self, cooldown_source: AecCooldownReason, cool_down: bool) {
         self.container
             .write()
             .unwrap()
