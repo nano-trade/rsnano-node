@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use rsnano_core::utils::{CancellationToken, Runnable};
 use tracing::debug;
 
 use rsnano_ledger::{Ledger, Writer};
@@ -11,8 +12,6 @@ use rsnano_network::{Channel, Network};
 use rsnano_nullable_clock::SystemTimeFactory;
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::LmdbWriteTransaction;
-
-use crate::utils::{CancellationToken, Runnable};
 
 /// Writes a snapshot of the current peers to the database,
 /// so that we can reconnect to them when the node is restarted

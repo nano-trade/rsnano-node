@@ -1,14 +1,16 @@
 mod backperssure_channel;
+mod cancellation_token;
 mod container_info;
 mod fair_queue;
 mod peer;
 mod stream;
 
+pub use backperssure_channel::*;
+pub use cancellation_token::CancellationToken;
 use chrono::{DateTime, TimeZone, Utc};
 pub use container_info::*;
 pub use fair_queue::*;
 pub use peer::*;
-pub use backperssure_channel::*;
 pub use stream::*;
 
 use std::{
@@ -352,4 +354,8 @@ impl<T> OneShotNotification<T> {
         let guard = self.0 .0.lock().unwrap();
         self.0 .1.wait_while(guard, |i| !i.0).unwrap().1.take()
     }
+}
+
+pub trait Runnable: Send {
+    fn run(&mut self, cancel_token: &CancellationToken);
 }

@@ -2,11 +2,10 @@ use std::{net::SocketAddrV6, sync::Arc, time::Duration};
 
 use tracing::info;
 
+use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_ledger::Ledger;
 use rsnano_network::PeerConnector;
 use rsnano_stats::{DetailType, StatType, Stats};
-
-use crate::utils::{CancellationToken, Runnable};
 
 // Tries to connect to peers that are stored in the peer cache
 pub struct PeerCacheConnector {

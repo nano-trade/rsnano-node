@@ -604,7 +604,7 @@ impl DetailType {
 }
 
 /// Direction of the stat. If the direction is irrelevant, use In
-#[derive(FromPrimitive, PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Debug)]
+#[derive(FromPrimitive, PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Debug, Hash)]
 #[repr(u8)]
 pub enum Direction {
     In,

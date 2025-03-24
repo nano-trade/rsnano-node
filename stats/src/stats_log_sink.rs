@@ -1,4 +1,4 @@
-use std::{any::Any, fs::File, io::Write, path::PathBuf, time::SystemTime};
+use std::{any::Any, time::SystemTime};
 
 use anyhow::Result;
 use chrono::{DateTime, Local};
@@ -47,101 +47,13 @@ pub trait StatsLogSink {
     fn to_object(&self) -> Option<&dyn Any>;
 }
 
-/// File sink with rotation support. This writes one counter per line and does not include histogram values.
-pub struct StatFileWriter {
-    filename: PathBuf,
-    file: File,
-    log_entries: usize,
-}
-
-impl StatFileWriter {
-    pub fn new(filename: impl Into<PathBuf>) -> Result<Self> {
-        let filename = filename.into();
-        let file = File::create(filename.clone())?;
-        Ok(Self {
-            filename,
-            file,
-            log_entries: 0,
-        })
-    }
-}
-
-impl StatsLogSink for StatFileWriter {
-    fn begin(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn finalize(&mut self) {}
-
-    fn write_header(&mut self, header: &str, walltime: SystemTime) -> Result<()> {
-        let local = DateTime::<Local>::from(walltime);
-        let local_fmt = local.format("%Y.%m.%d %H:%M:%S");
-        writeln!(&mut self.file, "{header},{local_fmt}")?;
-        Ok(())
-    }
-
-    fn write_counter_entry(
-        &mut self,
-        time: SystemTime,
-        entry_type: &str,
-        detail: &str,
-        dir: &str,
-        value: u64,
-    ) -> Result<()> {
-        let now = DateTime::<Local>::from(time).format("%H:%M:%S");
-        writeln!(&mut self.file, "{now},{entry_type},{detail},{dir},{value}")?;
-        Ok(())
-    }
-
-    fn write_sampler_entry(
-        &mut self,
-        time: SystemTime,
-        sample: &str,
-        values: Vec<i64>,
-        _expected_min_max: (i64, i64),
-    ) -> Result<()> {
-        let time: chrono::DateTime<Local> = time.into();
-        write!(&mut self.file, "{},{sample}", time.format("%H:%M:%S"))?;
-
-        for value in values {
-            write!(&mut self.file, ",{}", value)?;
-        }
-
-        writeln!(&mut self.file, "")?;
-
-        Ok(())
-    }
-
-    fn rotate(&mut self) -> Result<()> {
-        self.file = File::create(self.filename.clone())?;
-        self.log_entries = 0;
-        Ok(())
-    }
-
-    fn entries(&self) -> usize {
-        self.log_entries
-    }
-
-    fn inc_entries(&mut self) {
-        self.log_entries += 1;
-    }
-
-    fn to_string(&self) -> String {
-        String::new()
-    }
-
-    fn to_object(&self) -> Option<&dyn Any> {
-        None
-    }
-}
-
-pub struct StatsJsonWriterV2 {
+pub struct StatsJsonWriter {
     tree: serde_json::Map<String, serde_json::Value>,
     entries: Vec<serde_json::Value>,
     log_entries: usize,
 }
 
-impl StatsJsonWriterV2 {
+impl StatsJsonWriter {
     pub fn new() -> Self {
         Self {
             tree: Default::default(),
@@ -160,13 +72,13 @@ impl StatsJsonWriterV2 {
     }
 }
 
-impl Default for StatsJsonWriterV2 {
+impl Default for StatsJsonWriter {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl StatsLogSink for StatsJsonWriterV2 {
+impl StatsLogSink for StatsJsonWriter {
     fn begin(&mut self) -> Result<()> {
         self.tree.clear();
         Ok(())

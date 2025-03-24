@@ -1,5 +1,5 @@
 use super::{OnlineReps, OnlineWeightSampler};
-use crate::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Runnable};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
