@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
-use test_helpers::{setup_rpc_client_and_server, System, assert_timely_eq2};
+use test_helpers::{assert_timely_eq2, setup_rpc_client_and_server, System};
 
 #[test]
 fn search_receivable() {
@@ -8,13 +8,13 @@ fn search_receivable() {
     let node = system.make_node();
 
     let server = setup_rpc_client_and_server(node.clone(), true);
-    
+
     // Get the list of wallet IDs already created
-    let all_wallet_ids = node.wallets.wallet_ids();    
+    let all_wallet_ids = node.wallets.wallet_ids();
     let wallet_id = all_wallet_ids[0];
-    
+
     node.insert_into_wallet(&DEV_GENESIS_KEY);
-    
+
     // Get initial balance before any operations
     let initial_balance = node.balance(&DEV_GENESIS_ACCOUNT);
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -30,7 +30,7 @@ fn search_receivable() {
     // Verify that balance was reduced
     assert_timely_eq2(
         || node.balance(&DEV_GENESIS_ACCOUNT),
-        initial_balance - send_amount
+        initial_balance - send_amount,
     );
 
     // Call search_receivable with the default wallet ID
