@@ -1161,11 +1161,11 @@ pub trait WalletsExt {
     fn ensure_wallet_is_unlocked(&self, wallet_id: WalletId, password: &str) -> bool;
 
     fn initialize2(&self);
-    fn try_receive(&self, confirmed: &Vec<(SavedBlock, BlockHash)>);
+    fn try_receive(&self, confirmed: &[(SavedBlock, BlockHash)]);
 }
 
 impl WalletsExt for Arc<Wallets> {
-    fn try_receive(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+    fn try_receive(&self, confirmed: &[(SavedBlock, BlockHash)]) {
         for (block, _) in confirmed {
             // TODO: Is it neccessary to call this for all blocks?
             if block.is_send() {
@@ -1447,7 +1447,7 @@ impl WalletsExt for Arc<Wallets> {
         id: Option<String>,
     ) -> Result<SavedBlock, WalletsError> {
         let guard = self.mutex.lock().unwrap();
-        let wallet = Wallets::get_wallet(&guard, &wallet_id)?;
+        let wallet = Wallets::get_wallet(&guard, wallet_id)?;
         self.send_action(wallet, source, destination, amount, work, generate_work, id)
             .map_err(|_| WalletsError::Generic)
     }
@@ -1538,7 +1538,7 @@ impl WalletsExt for Arc<Wallets> {
         let block = block?;
 
         let details = BlockDetails::new(epoch, false, false, false);
-        self.action_complete(Arc::clone(&wallet), block, source, generate_work, &details)
+        self.action_complete(Arc::clone(wallet), block, source, generate_work, &details)
             .ok()
             .map(|b| b.into())
     }
@@ -1552,7 +1552,7 @@ impl WalletsExt for Arc<Wallets> {
         generate_work: bool,
     ) -> Option<Block> {
         let guard = self.mutex.lock().unwrap();
-        let wallet = Wallets::get_wallet(&guard, &wallet_id).ok()?;
+        let wallet = Wallets::get_wallet(&guard, wallet_id).ok()?;
         self.change_action(wallet, source, representative, work, generate_work)
     }
 

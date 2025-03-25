@@ -120,13 +120,11 @@ impl ConfirmationOptions {
         if let Some(serde_json::Value::String(type_text)) = message_content.get("confirmation_type")
         {
             let confirmation_types = self.confirmation_types;
-            if type_text == "active_quorum" && (confirmation_types & Self::TYPE_ACTIVE_QUORUM) > 0 {
-                should_filter_conf_type = false;
-            } else if type_text == "active_confirmation_height"
-                && (confirmation_types & Self::TYPE_ACTIVE_CONFIRMATION_HEIGHT) > 0
+            if (type_text == "active_quorum" && (confirmation_types & Self::TYPE_ACTIVE_QUORUM) > 0)
+                || (type_text == "active_confirmation_height"
+                    && (confirmation_types & Self::TYPE_ACTIVE_CONFIRMATION_HEIGHT) > 0)
+                || (type_text == "inactive" && (confirmation_types & Self::TYPE_INACTIVE) > 0)
             {
-                should_filter_conf_type = false;
-            } else if type_text == "inactive" && (confirmation_types & Self::TYPE_INACTIVE) > 0 {
                 should_filter_conf_type = false;
             }
         }
