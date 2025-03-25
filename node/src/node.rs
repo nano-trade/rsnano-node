@@ -571,7 +571,6 @@ impl Node {
 
         let aec_ticker = AecTicker {
             active_elections: active_elections.clone(),
-            stats: stats.clone(),
             message_flooder: message_flooder.clone(),
             network_params: network_params.clone(),
             online_reps: online_reps.clone(),
@@ -1132,7 +1131,6 @@ impl Node {
             vote_processor: vote_processor.clone(),
             block_processor: block_processor.clone(),
             confirming_set: confirming_set.clone(),
-            stats: stats.clone(),
             online_reps: online_reps.clone(),
             history: history.clone(),
             active_elections: active_elections.clone(),

@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_network::Network;
-use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{config::NetworkParams, representatives::OnlineReps, transport::MessageFlooder};
 
@@ -14,7 +13,6 @@ use super::{
 /// Every 300ms tries to transitions election state and send votes + blocks
 pub struct AecTicker {
     pub(crate) active_elections: Arc<ActiveElections>,
-    pub(crate) stats: Arc<Stats>,
     pub(crate) message_flooder: MessageFlooder,
     pub(crate) network_params: NetworkParams,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
@@ -26,8 +24,6 @@ pub struct AecTicker {
 
 impl Runnable for AecTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        self.stats.inc(StatType::Active, DetailType::Loop);
-
         self.active_elections.transition_time();
 
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();

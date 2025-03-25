@@ -9,7 +9,7 @@ use rsnano_core::{
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
-use rsnano_stats::{Direction, StatsCollection, StatsSource};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use crate::consensus::{
     AddForkResult, ConfirmedElection, Election, ElectionBehavior, ElectionResult, VoteSummary,
@@ -37,6 +37,9 @@ pub struct ActiveElectionsContainer {
     max_elections: usize,
     vote_counter: VoteCounter,
     stopped_counter: StoppedCounter,
+    ticked: u64,
+    cooldown_count: u64,
+    recover_count: u64,
 }
 
 impl ActiveElectionsContainer {
@@ -55,6 +58,9 @@ impl ActiveElectionsContainer {
             max_elections: config.max_elections,
             vote_counter: VoteCounter::new(),
             stopped_counter: StoppedCounter::new(),
+            ticked: 0,
+            cooldown_count: 0,
+            recover_count: 0,
         }
     }
 
@@ -167,8 +173,14 @@ impl ActiveElectionsContainer {
         let was_cooling_down_before = self.cooldown.is_cooling_down();
         self.cooldown.set_cooldown(cool_down, reason);
         let cooling_down = self.cooldown.is_cooling_down();
+
+        if cooling_down && !was_cooling_down_before {
+            self.cooldown_count += 1;
+        }
+
         let recovered = !cooling_down && was_cooling_down_before;
         if recovered {
+            self.recover_count += 1;
             Some(AecEvent::VacancyUpdated)
         } else {
             None
@@ -197,6 +209,7 @@ impl ActiveElectionsContainer {
     }
 
     pub fn transition_time(&mut self, now: Timestamp) {
+        self.ticked += 1;
         for entry in self.roots.iter_mut() {
             entry.election.transition_time(now);
         }
@@ -512,6 +525,9 @@ impl ActiveElectionsContainer {
 
 impl StatsSource for ActiveElectionsContainer {
     fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert("active_elections", "loop", self.ticked);
+        result.insert("active_elections", "cooldown", self.cooldown_count);
+        result.insert("active_elections", "recovered", self.recover_count);
         self.vote_counter.collect_stats(result);
         self.stopped_counter.collect_stats(result);
     }

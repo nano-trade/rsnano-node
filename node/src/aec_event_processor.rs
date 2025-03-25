@@ -8,7 +8,6 @@ use rsnano_ledger::{Ledger, LedgerSet};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::ChannelId;
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -38,7 +37,6 @@ pub(crate) struct AecEventProcessor {
     pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
-    pub(crate) stats: Arc<Stats>,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
     pub(crate) history: Arc<LocalVoteHistory>,
     pub(crate) active_elections: Arc<ActiveElections>,
@@ -59,15 +57,6 @@ impl AecEventProcessor {
                 self.active_elections
                     .set_cooldown(current_cooldown, AecCooldownReason::AecEventQueueFull);
                 self.vote_processor.set_cooldown(current_cooldown);
-
-                if current_cooldown {
-                    self.stats
-                        .inc(StatType::ActiveElections, DetailType::Cooldown);
-                } else {
-                    self.stats
-                        .inc(StatType::ActiveElections, DetailType::Recovered);
-                }
-
                 previous_cooldown_state = current_cooldown;
             }
 
