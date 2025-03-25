@@ -1,4 +1,4 @@
-use rsnano_stats::{Direction, StatsCollection, StatsSource};
+use rsnano_stats::{StatsCollection, StatsSource};
 use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_core::VoteSource;
@@ -92,9 +92,9 @@ mod tests {
 
         counter.collect_stats(&mut stats);
 
-        assert_eq!(stats.get("election", "vote", Direction::In), 3);
-        assert_eq!(stats.get("election_vote", "live", Direction::In), 2);
-        assert_eq!(stats.get("election_vote", "rebroadcast", Direction::In), 1);
-        assert_eq!(stats.get("election_vote", "cache", Direction::In), 0);
+        assert_eq!(stats.get("election", "vote"), 3);
+        assert_eq!(stats.get("election_vote", "live"), 2);
+        assert_eq!(stats.get("election_vote", "rebroadcast"), 1);
+        assert_eq!(stats.get("election_vote", "cache"), 0);
     }
 }

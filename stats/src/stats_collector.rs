@@ -28,7 +28,11 @@ impl StatsCollection {
         Self(Default::default())
     }
 
-    pub fn get(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
+    pub fn get(&self, stat: &'static str, detail: &'static str) -> u64 {
+        Self::get_dir(&self, stat, detail, Direction::In)
+    }
+
+    pub fn get_dir(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
         let key = StatsKey { stat, detail, dir };
         self.0.get(&key).cloned().unwrap_or_default()
     }
@@ -114,7 +118,7 @@ mod tests {
         collector.collect();
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 0);
-        assert_eq!(result.get("a", "b", Direction::In), 0);
+        assert_eq!(result.get_dir("a", "b", Direction::In), 0);
     }
 
     #[test]
@@ -125,8 +129,8 @@ mod tests {
         collector.collect();
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result.get("a", "b", Direction::In), 1);
-        assert_eq!(result.get("c", "d", Direction::Out), 0);
+        assert_eq!(result.get_dir("a", "b", Direction::In), 1);
+        assert_eq!(result.get_dir("c", "d", Direction::Out), 0);
     }
 
     #[test]
@@ -138,8 +142,8 @@ mod tests {
         collector.collect();
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 2);
-        assert_eq!(result.get("a", "b", Direction::In), 1);
-        assert_eq!(result.get("c", "d", Direction::Out), 1);
+        assert_eq!(result.get_dir("a", "b", Direction::In), 1);
+        assert_eq!(result.get_dir("c", "d", Direction::Out), 1);
     }
 
     #[test]
@@ -153,7 +157,7 @@ mod tests {
 
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result.get("a", "b", Direction::In), 2);
+        assert_eq!(result.get_dir("a", "b", Direction::In), 2);
     }
 
     struct StubStatsSource {

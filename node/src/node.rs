@@ -1477,7 +1477,10 @@ impl Node {
     }
 
     pub fn get_stat(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
-        self.stats_collection.lock().unwrap().get(stat, detail, dir)
+        self.stats_collection
+            .lock()
+            .unwrap()
+            .get_dir(stat, detail, dir)
     }
 
     /// Note: Start must not be called from an async thread, because it blocks!
