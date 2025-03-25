@@ -9,7 +9,7 @@ use crate::{
 use anyhow::Result;
 use std::time::Duration;
 
-#[derive(FromPrimitive, Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, EnumCount)]
 pub enum VoteSource {
     Live,
     Rebroadcast,

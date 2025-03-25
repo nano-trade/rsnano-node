@@ -1,9 +1,10 @@
 use super::Account;
 use crate::serialize_32_byte_string;
 use crate::u256_struct;
-use blake2::digest::Update;
-use blake2::digest::VariableOutput;
-use blake2::Blake2bVar;
+use blake2::{
+    digest::{Update, VariableOutput},
+    VarBlake2b,
+};
 use rand::Rng;
 
 u256_struct!(BlockHash);
@@ -28,13 +29,13 @@ impl From<Account> for BlockHash {
 }
 
 pub struct BlockHashBuilder {
-    blake: Blake2bVar,
+    blake: VarBlake2b,
 }
 
 impl Default for BlockHashBuilder {
     fn default() -> Self {
         Self {
-            blake: Blake2bVar::new(32).unwrap(),
+            blake: VarBlake2b::new(32).unwrap(),
         }
     }
 }
@@ -50,9 +51,10 @@ impl BlockHashBuilder {
     }
 
     pub fn build(self) -> BlockHash {
-        let mut hash_bytes = [0u8; 32];
-        self.blake.finalize_variable(&mut hash_bytes).unwrap();
-        BlockHash::from_bytes(hash_bytes)
+        let mut result = BlockHash::zero();
+        self.blake
+            .finalize_variable(|bytes| result = BlockHash::from_bytes(bytes.try_into().unwrap()));
+        result
     }
 }
 

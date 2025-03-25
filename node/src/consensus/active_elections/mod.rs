@@ -2,6 +2,7 @@ mod active_elections_container;
 mod cooldown_controller;
 mod recently_confirmed_cache;
 mod root_container;
+mod vote_counter;
 
 pub use active_elections_container::*;
 pub use cooldown_controller::AecCooldownReason;

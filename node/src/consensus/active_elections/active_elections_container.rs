@@ -17,6 +17,7 @@ use crate::consensus::{
 use super::{
     cooldown_controller::{AecCooldownReason, CooldownController},
     recently_confirmed_cache::RecentlyConfirmedCache,
+    vote_counter::VoteCounter,
     ActiveElectionsConfig, AecEvent, Entry, ErasedCallback, RootContainer, VoteRouter,
 };
 
@@ -32,6 +33,7 @@ pub struct ActiveElectionsContainer {
     pub(super) recently_confirmed: RecentlyConfirmedCache,
     cooldown: CooldownController,
     max_elections: usize,
+    vote_counter: VoteCounter,
 }
 
 impl ActiveElectionsContainer {
@@ -48,6 +50,7 @@ impl ActiveElectionsContainer {
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             cooldown: CooldownController::new(),
             max_elections: config.max_elections,
+            vote_counter: VoteCounter::new(),
         }
     }
 
