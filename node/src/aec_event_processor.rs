@@ -56,6 +56,7 @@ impl AecEventProcessor {
             let current_cooldown = self.receiver.should_cool_down();
 
             if current_cooldown != previous_cooldown_state {
+                let queue_len = self.receiver.len();
                 self.active_elections
                     .set_cooldown(current_cooldown, AecCooldownReason::AecEventQueueFull);
                 self.vote_processor.set_cooldown(current_cooldown);

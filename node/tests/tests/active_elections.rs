@@ -234,11 +234,7 @@ fn inactive_votes_cache_basic() {
         1,
     );
     node.process_active(send.clone());
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.block_confirmed(&send.hash()),
-        true,
-    );
+    assert_timely2(|| node.block_confirmed(&send.hash()));
     assert_eq!(
         1,
         node.stats

@@ -1,17 +1,18 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::cmp::max;
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError};
 use std::sync::Arc;
 
 /// BackpressureChannel is a wrapper around mpsc::channel that tracks the size of the queue
 pub struct BackpressureSender<T> {
     sender: Sender<T>,
-    queue_size: Arc<AtomicUsize>,
+    queue_size: Arc<AtomicI32>,
 }
 
 /// BackpressureReceiver is the receiving end of the BackpressureChannel
 pub struct BackpressureReceiver<T> {
     receiver: Receiver<T>,
-    queue_size: Arc<AtomicUsize>,
+    queue_size: Arc<AtomicI32>,
     soft_limit: usize,
     is_cooling_down: AtomicBool,
 }
@@ -20,7 +21,7 @@ pub fn backpressure_channel<T>(
     soft_limit: usize,
 ) -> (BackpressureSender<T>, BackpressureReceiver<T>) {
     let (sender, receiver) = channel();
-    let queue_size = Arc::new(AtomicUsize::new(0));
+    let queue_size = Arc::new(AtomicI32::new(0));
 
     let tx = BackpressureSender {
         sender,
@@ -49,7 +50,8 @@ impl<T> BackpressureSender<T> {
 
     /// Get the current size of the channel
     pub fn len(&self) -> usize {
-        self.queue_size.load(Ordering::Relaxed)
+        let len = self.queue_size.load(Ordering::Relaxed);
+        max(len, 0) as usize
     }
 
     /// Check if the channel is empty
@@ -83,7 +85,8 @@ impl<T> BackpressureReceiver<T> {
 
     /// Get the current size of the channel
     pub fn len(&self) -> usize {
-        self.queue_size.load(Ordering::Relaxed)
+        let len = self.queue_size.load(Ordering::Relaxed);
+        max(len, 0) as usize
     }
 
     /// Check if the channel is empty
