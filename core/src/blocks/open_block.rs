@@ -158,7 +158,7 @@ impl BlockBase for OpenBlock {
             source: self.hashables.source,
             representative: self.hashables.representative.into(),
             account: self.hashables.account,
-            work: self.work.into(),
+            work: self.work,
             signature: self.signature.clone(),
         })
     }
@@ -239,7 +239,7 @@ impl From<JsonOpenBlock> for OpenBlock {
         let hash = hashables.hash();
 
         Self {
-            work: value.work.into(),
+            work: value.work,
             signature: value.signature,
             hashables,
             hash,

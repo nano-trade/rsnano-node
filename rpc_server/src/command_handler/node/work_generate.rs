@@ -88,7 +88,7 @@ impl RpcCommandHandler {
 
         Ok(WorkGenerateDto {
             hash: args.hash,
-            work: work.into(),
+            work,
             difficulty: result_difficulty.into(),
             multiplier: Some(result_multiplier.into()),
         })

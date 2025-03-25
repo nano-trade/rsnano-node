@@ -152,7 +152,7 @@ impl BlockBase for ChangeBlock {
         JsonBlock::Change(JsonChangeBlock {
             previous: self.hashables.previous,
             representative: self.hashables.representative.into(),
-            work: self.work.into(),
+            work: self.work,
             signature: self.signature.clone(),
         })
     }
@@ -227,7 +227,7 @@ impl From<JsonChangeBlock> for ChangeBlock {
         let hash = hashables.hash();
 
         Self {
-            work: value.work.into(),
+            work: value.work,
             signature: value.signature,
             hashables,
             hash,

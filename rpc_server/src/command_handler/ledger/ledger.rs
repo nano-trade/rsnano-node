@@ -62,7 +62,7 @@ impl RpcCommandHandler {
                 }
             }
 
-            ledger.sort_by(|a, b| b.cmp(&a));
+            ledger.sort_by(|a, b| b.cmp(a));
 
             for (_, account) in ledger {
                 if let Some(info) = any.get_account(&account) {

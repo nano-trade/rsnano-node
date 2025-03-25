@@ -19,17 +19,13 @@ pub(crate) struct PeersArgs {
 impl PeersArgs {
     pub(crate) fn peers(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
-
         let env = Arc::new(LmdbEnv::new(&path)?);
-
         let peer_store = LmdbPeerStore::new(env.clone())?;
-
         let mut txn = env.tx_begin_write();
 
         peer_store.clear(&mut txn);
 
-        println!("{}", "Peers were cleared from the database");
-
+        println!("Peers were cleared from the database");
         Ok(())
     }
 }

@@ -19,17 +19,13 @@ pub(crate) struct OnlineWeightArgs {
 impl OnlineWeightArgs {
     pub(crate) fn online_weight(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
-
         let env = Arc::new(LmdbEnv::new(&path)?);
-
         let online_weight_store = LmdbOnlineWeightStore::new(env.clone())?;
-
         let mut txn = env.tx_begin_write();
 
         online_weight_store.clear(&mut txn);
 
-        println!("{}", "Online weight records were cleared from the database");
-
+        println!("Online weight records were cleared from the database");
         Ok(())
     }
 }

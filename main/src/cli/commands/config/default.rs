@@ -74,7 +74,7 @@ fn with_comments(toml_string: &String, comment_values: bool) -> String {
                 if comment_values {
                     line = format!("# {}", line.trim());
                 } else {
-                    line = format!("{}", line.trim());
+                    line = line.trim().to_string();
                 }
                 ss_processed.push_str(&line);
             }

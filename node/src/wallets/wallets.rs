@@ -1553,7 +1553,7 @@ impl WalletsExt for Arc<Wallets> {
     ) -> Option<Block> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Wallets::get_wallet(&guard, &wallet_id).ok()?;
-        self.change_action(&wallet, source, representative, work, generate_work)
+        self.change_action(wallet, source, representative, work, generate_work)
     }
 
     fn receive_action(

@@ -79,7 +79,7 @@ impl System {
         }
     }
 
-    pub fn build_node<'a>(&'a mut self) -> TestNodeBuilder<'a> {
+    pub fn build_node(&mut self) -> TestNodeBuilder<'_> {
         TestNodeBuilder {
             system: self,
             config: None,
@@ -214,6 +214,12 @@ impl System {
     }
 }
 
+impl Default for System {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for System {
     fn drop(&mut self) {
         self.stop();
@@ -228,7 +234,7 @@ pub struct TestNodeBuilder<'a> {
     event_sink: Option<SyncSender<NodeEvent>>,
 }
 
-impl<'a> TestNodeBuilder<'a> {
+impl TestNodeBuilder<'_> {
     pub fn config(mut self, cfg: NodeConfig) -> Self {
         self.config = Some(cfg);
         self
@@ -250,7 +256,7 @@ impl<'a> TestNodeBuilder<'a> {
     }
 
     pub fn finish(self) -> Arc<Node> {
-        let config = self.config.unwrap_or_else(|| System::default_config());
+        let config = self.config.unwrap_or_else(System::default_config);
         let flags = self.flags.unwrap_or_default();
         self.system
             .make_node_with(config, flags, self.disconnected, self.event_sink)
@@ -267,10 +273,7 @@ pub fn get_available_port() -> u16 {
 }
 
 fn is_port_available(port: u16) -> bool {
-    match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
 pub fn assert_never(duration: Duration, mut check: impl FnMut() -> bool) {
@@ -447,7 +450,7 @@ pub fn setup_chain(
         let throwaway = PrivateKey::new();
         balance = balance - Amount::raw(1);
         let send: Block = StateBlockArgs {
-            key: &target,
+            key: target,
             previous: latest,
             representative: target.public_key(),
             balance,
@@ -642,10 +645,10 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
     let any = node.ledger.any();
 
     let previous = any
-        .account_head(&*DEV_GENESIS_ACCOUNT)
+        .account_head(&DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
+    let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -667,10 +670,10 @@ pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) ->
     let any = node.ledger.any();
 
     let previous = any
-        .account_head(&*DEV_GENESIS_ACCOUNT)
+        .account_head(&DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
+    let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,
@@ -691,10 +694,10 @@ pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> 
     let any = node.ledger.any();
 
     let previous = any
-        .account_head(&*DEV_GENESIS_ACCOUNT)
+        .account_head(&DEV_GENESIS_ACCOUNT)
         .unwrap_or(*DEV_GENESIS_HASH);
 
-    let balance = any.account_balance(&*DEV_GENESIS_ACCOUNT);
+    let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
 
     let send: Block = StateBlockArgs {
         key: &DEV_GENESIS_KEY,

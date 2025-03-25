@@ -86,7 +86,7 @@ impl RpcCommandHandler {
                         }
 
                         for hash in dest_hashes.iter().rev().take(destinations) {
-                            if let Some(b) = any.get_block(&hash) {
+                            if let Some(b) = any.get_block(hash) {
                                 republish_bundle.push(b.into());
                                 blocks.push(*hash);
                             }

@@ -13,7 +13,7 @@ pub(super) struct ConfirmationMessageFactory<'a> {
     pub election: &'a ConfirmedElection,
 }
 
-impl<'a> ConfirmationMessageFactory<'a> {
+impl ConfirmationMessageFactory<'_> {
     pub fn create_message(&self) -> OutgoingMessageEnvelope {
         OutgoingMessageEnvelope::new(
             Topic::Confirmation,

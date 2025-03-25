@@ -12,7 +12,7 @@ impl RpcCommandHandler {
 
         for account in accounts {
             let work = self.node.wallets.work_get2(&args.wallet, &account.into())?;
-            works.insert(account, work.into());
+            works.insert(account, work);
         }
 
         Ok(AccountsWithWorkResponse::new(works))

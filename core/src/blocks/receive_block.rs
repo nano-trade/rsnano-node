@@ -151,7 +151,7 @@ impl BlockBase for ReceiveBlock {
         JsonBlock::Receive(JsonReceiveBlock {
             previous: self.hashables.previous,
             source: self.hashables.source,
-            work: self.work.into(),
+            work: self.work,
             signature: self.signature.clone(),
         })
     }
@@ -224,7 +224,7 @@ impl From<JsonReceiveBlock> for ReceiveBlock {
         let hash = hashables.hash();
 
         Self {
-            work: value.work.into(),
+            work: value.work,
             signature: value.signature,
             hashables,
             hash,

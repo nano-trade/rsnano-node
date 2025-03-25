@@ -194,19 +194,19 @@ impl NodeEventHandler for NodeEventProcessor {
         match event {
             NodeEvent::ElectionStarted(hash) => {
                 if self.server.any_subscriber(Topic::StartedElection) {
-                    self.server.broadcast(&started_election(&hash));
+                    self.server.broadcast(&started_election(hash));
                 }
             }
             NodeEvent::ElectionStopped(hash) => {
                 if self.server.any_subscriber(Topic::StoppedElection) {
-                    self.server.broadcast(&stopped_election(&hash));
+                    self.server.broadcast(&stopped_election(hash));
                 }
             }
             NodeEvent::BlockConfirmed(block, election) => {
                 let amount = self
                     .ledger
                     .any()
-                    .block_amount_for(&block)
+                    .block_amount_for(block)
                     .unwrap_or_default();
 
                 self.server.broadcast_confirmation(block, &amount, election);

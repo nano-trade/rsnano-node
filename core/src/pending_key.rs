@@ -6,7 +6,7 @@ use primitive_types::U512;
 
 /// This struct represents the data written into the pending (receivable) database table key
 /// the receiving account and hash of the send block identify a pending db table entry
-#[derive(Default, PartialEq, Eq, Debug, Clone, Hash, Ord, Copy)]
+#[derive(Default, PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord, Copy)]
 pub struct PendingKey {
     pub receiving_account: Account,
     pub send_block_hash: BlockHash,
@@ -76,16 +76,6 @@ impl From<U512> for PendingKey {
             Account::from_slice(&buffer[..32]).unwrap(),
             BlockHash::from_slice(&buffer[32..]).unwrap(),
         )
-    }
-}
-
-impl PartialOrd for PendingKey {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.receiving_account == other.receiving_account {
-            self.send_block_hash.partial_cmp(&other.send_block_hash)
-        } else {
-            self.receiving_account.partial_cmp(&other.receiving_account)
-        }
     }
 }
 

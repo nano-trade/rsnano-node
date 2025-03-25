@@ -36,14 +36,14 @@ impl WebsocketSessionEntry {
     }
 
     pub fn blocking_write(&self, envelope: &OutgoingMessageEnvelope) -> anyhow::Result<()> {
-        if !self.should_filter(&envelope) {
+        if !self.should_filter(envelope) {
             self.send_queue_tx.blocking_send(envelope.clone())?;
         }
         Ok(())
     }
 
     pub async fn write(&self, envelope: &OutgoingMessageEnvelope) -> anyhow::Result<()> {
-        if !self.should_filter(&envelope) {
+        if !self.should_filter(envelope) {
             self.send_queue_tx.send(envelope.clone()).await?
         }
         Ok(())

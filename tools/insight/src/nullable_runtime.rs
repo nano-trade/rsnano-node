@@ -123,7 +123,8 @@ impl StubRuntime {
     }
 
     async fn run_nulled_spawn(&self) {
-        if let Some(f) = self.spawns.lock().unwrap().take() {
+        let f = self.spawns.lock().unwrap().take();
+        if let Some(f) = f {
             f.await;
         }
     }

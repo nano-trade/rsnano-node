@@ -73,7 +73,7 @@ impl WebsocketListener {
     }
 
     async fn run(&self) {
-        let endpoint = self.endpoint.lock().unwrap().clone();
+        let endpoint = *self.endpoint.lock().unwrap();
         let listener = match TcpListener::bind(endpoint).await {
             Ok(s) => s,
             Err(e) => {

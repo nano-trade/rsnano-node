@@ -26,7 +26,7 @@ impl RpcCommandHandler {
         let destination = args.destination.unwrap_or_default();
         let source = args.source.unwrap_or_default();
         let amount = args.balance.unwrap_or_default();
-        let work: WorkNonce = args.work.unwrap_or(0.into()).into();
+        let work: WorkNonce = args.work.unwrap_or(0.into());
 
         let mut previous = args.previous.unwrap_or(BlockHash::zero());
         let mut balance = args.balance.unwrap_or(Amount::zero());
@@ -74,10 +74,10 @@ impl RpcCommandHandler {
         else if args.previous.is_some()
             && args.balance.is_some()
             && args.block_type == BlockTypeDto::Send
+            && any.block_exists(&previous)
+            && any.block_balance(&previous) != Some(balance)
         {
-            if any.block_exists(&previous) && any.block_balance(&previous) != Some(balance) {
-                bail!("Balance mismatch for previous block");
-            }
+            bail!("Balance mismatch for previous block");
         }
 
         // Check for incorrect account key
@@ -197,14 +197,15 @@ impl RpcCommandHandler {
                 difficulty
             };
 
-            let work = match self.node.distributed_work.make_blocking(
-                root.into(),
-                difficulty,
-                Some(account),
-            ) {
-                Some(work) => work,
-                None => bail!("Work generation cancellation or failure"),
-            };
+            let work =
+                match self
+                    .node
+                    .distributed_work
+                    .make_blocking(root, difficulty, Some(account))
+                {
+                    Some(work) => work,
+                    None => bail!("Work generation cancellation or failure"),
+                };
             block.set_work(work);
         }
 

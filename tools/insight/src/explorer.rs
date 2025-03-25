@@ -43,6 +43,7 @@ impl Explorer {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ExplorerState {
     Empty,
     NotFound,

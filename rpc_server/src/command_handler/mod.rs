@@ -229,10 +229,7 @@ fn requires_control(command: &RpcCommand) -> bool {
         | RpcCommand::WorkPeerAdd(_)
         | RpcCommand::WorkPeers
         | RpcCommand::WorkPeersClear => true,
-        RpcCommand::Stats(s) => match s.stats_type {
-            StatsType::Objects => true,
-            _ => false,
-        },
+        RpcCommand::Stats(s) => matches!(s.stats_type, StatsType::Objects),
         RpcCommand::Process(args) => args.force == Some(true.into()),
         _ => false,
     }

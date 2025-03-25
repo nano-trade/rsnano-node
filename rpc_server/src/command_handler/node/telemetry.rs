@@ -30,7 +30,7 @@ impl RpcCommandHandler {
                 let all_telemetries = self.node.telemetry.get_all_telemetries();
                 for (addr, data) in all_telemetries {
                     let mut metric = TelemetryDto::from(data);
-                    metric.address = Some(addr.ip().clone());
+                    metric.address = Some(*addr.ip());
                     metric.port = Some(addr.port().into());
                     responses.push(metric);
                 }

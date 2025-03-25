@@ -85,16 +85,13 @@ impl HttpCallbacks {
 
 impl NodeEventHandler for HttpCallbacks {
     fn handle(&mut self, event: &NodeEvent) {
-        match event {
-            NodeEvent::BlockConfirmed(block, status) => {
-                let amount = self
-                    .ledger
-                    .any()
-                    .block_amount_for(&block)
-                    .unwrap_or_default();
-                self.execute(status, block, amount)
-            }
-            _ => {}
+        if let NodeEvent::BlockConfirmed(block, status) = event {
+            let amount = self
+                .ledger
+                .any()
+                .block_amount_for(block)
+                .unwrap_or_default();
+            self.execute(status, block, amount)
         }
     }
 }

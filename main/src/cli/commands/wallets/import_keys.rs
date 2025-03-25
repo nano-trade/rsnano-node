@@ -53,13 +53,11 @@ impl ImportKeysArgs {
                 eprintln!("Invalid password for wallet {}. New wallet should have empty (default) password or passwords for new wallet & json file should match", wallet_id);
                 return Err(anyhow!("Invalid arguments"));
             }
+        } else if !self.force {
+            eprintln!("Wallet doesn't exist");
+            return Err(anyhow!("Invalid arguments"));
         } else {
-            if !self.force {
-                eprintln!("Wallet doesn't exist");
-                return Err(anyhow!("Invalid arguments"));
-            } else {
-                node.wallets.import(wallet_id, &contents)?
-            }
+            node.wallets.import(wallet_id, &contents)?
         }
 
         Ok(())

@@ -33,10 +33,12 @@ pub(crate) struct MessageFilter {
 }
 
 impl MessageFilter {
+    #[allow(dead_code)]
     pub fn all() -> Self {
         Default::default()
     }
 
+    #[allow(dead_code)]
     pub fn channel(channel_id: ChannelId) -> Self {
         Self {
             channel_id: Some(channel_id),
@@ -200,6 +202,7 @@ impl MessageCollection {
         self.filtered.clear();
     }
 
+    #[cfg(test)]
     pub fn current_filter(&self) -> &MessageFilter {
         &self.filter
     }

@@ -50,7 +50,7 @@ impl RpcCommandHandler {
                         key.send_block_hash,
                         SourceInfo {
                             amount: info.amount,
-                            source: source.then(|| info.source),
+                            source: source.then_some(info.source),
                             min_version: min_version.then(|| info.epoch.epoch_number().into()),
                         },
                     );

@@ -89,11 +89,9 @@ impl<'a> AccountHistoryHelper<'a> {
 
             if self.offset > 0 {
                 self.offset -= 1;
-            } else {
-                if let Some(entry) = self.entry_for(&block, &any) {
-                    history.push(entry);
-                    self.count -= 1;
-                }
+            } else if let Some(entry) = self.entry_for(&block, &any) {
+                history.push(entry);
+                self.count -= 1;
             }
 
             next_block = self.go_to_next_block(&any, &block);
@@ -217,42 +215,38 @@ impl<'a> AccountHistoryHelper<'a> {
                         entry.amount = Some(previous_balance - b.balance());
                         Some(entry)
                     }
-                } else {
-                    if b.link().is_zero() {
-                        if self.output_raw && self.accounts_to_filter.is_empty() {
-                            entry.subtype = Some(BlockSubTypeDto::Change);
-                            Some(entry)
-                        } else {
-                            None
-                        }
-                    } else if balance == previous_balance && self.ledger.is_epoch_link(&b.link()) {
-                        if self.output_raw && self.accounts_to_filter.is_empty() {
-                            entry.subtype = Some(BlockSubTypeDto::Epoch);
-                            entry.account = self.ledger.epoch_signer(&b.link());
-                            Some(entry)
-                        } else {
-                            None
-                        }
+                } else if b.link().is_zero() {
+                    if self.output_raw && self.accounts_to_filter.is_empty() {
+                        entry.subtype = Some(BlockSubTypeDto::Change);
+                        Some(entry)
                     } else {
-                        let source_account_opt = any.block_account(&b.link().into());
-                        let source_account = source_account_opt.unwrap_or_default();
+                        None
+                    }
+                } else if balance == previous_balance && self.ledger.is_epoch_link(&b.link()) {
+                    if self.output_raw && self.accounts_to_filter.is_empty() {
+                        entry.subtype = Some(BlockSubTypeDto::Epoch);
+                        entry.account = self.ledger.epoch_signer(&b.link());
+                        Some(entry)
+                    } else {
+                        None
+                    }
+                } else {
+                    let source_account_opt = any.block_account(&b.link().into());
+                    let source_account = source_account_opt.unwrap_or_default();
 
-                        if source_account_opt.is_some()
-                            && self.should_ignore_account(&source_account)
-                        {
-                            None
+                    if source_account_opt.is_some() && self.should_ignore_account(&source_account) {
+                        None
+                    } else {
+                        if self.output_raw {
+                            entry.subtype = Some(BlockSubTypeDto::Receive);
                         } else {
-                            if self.output_raw {
-                                entry.subtype = Some(BlockSubTypeDto::Receive);
-                            } else {
-                                entry.block_type = Some(BlockTypeDto::Receive);
-                            }
-                            if source_account_opt.is_some() {
-                                entry.account = Some(source_account);
-                            }
-                            entry.amount = Some(balance - previous_balance);
-                            Some(entry)
+                            entry.block_type = Some(BlockTypeDto::Receive);
                         }
+                        if source_account_opt.is_some() {
+                            entry.account = Some(source_account);
+                        }
+                        entry.amount = Some(balance - previous_balance);
+                        Some(entry)
                     }
                 }
             }
@@ -270,7 +264,7 @@ impl<'a> AccountHistoryHelper<'a> {
         entry.hash = block.hash();
         entry.confirmed = any.confirmed().block_exists_or_pruned(&block.hash()).into();
         if self.output_raw {
-            entry.work = Some(block.work().into());
+            entry.work = Some(block.work());
             entry.signature = Some(block.signature().clone());
         }
         if self.include_linked_account {

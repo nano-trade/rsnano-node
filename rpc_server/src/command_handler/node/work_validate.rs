@@ -24,7 +24,7 @@ impl RpcCommandHandler {
             .node
             .network_params
             .work
-            .difficulty(&args.hash.into(), args.work.unwrap_or_default().into());
+            .difficulty(&args.hash.into(), args.work.unwrap_or_default());
 
         let valid = if args.difficulty.is_some() {
             if result_difficulty >= difficulty {

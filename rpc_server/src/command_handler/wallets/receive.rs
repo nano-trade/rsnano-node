@@ -27,12 +27,12 @@ impl RpcCommandHandler {
                 (Root::from(args.account), pending_info.epoch)
             };
             let details = BlockDetails::new(epoch, false, true, false);
-            if self.node.network_params.work.difficulty(&head, work.into())
+            if self.node.network_params.work.difficulty(&head, work)
                 < self.node.network_params.work.threshold(&details)
             {
                 bail!("Invalid work")
             }
-            work.into()
+            work
         } else {
             if !self.node.distributed_work.work_generation_enabled() {
                 bail!("Work generation is disabled");

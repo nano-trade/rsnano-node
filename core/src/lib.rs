@@ -439,7 +439,7 @@ impl<'de> serde::Deserialize<'de> for WorkNonce {
 
 struct WorkNonceVisitor {}
 
-impl<'de> Visitor<'de> for WorkNonceVisitor {
+impl Visitor<'_> for WorkNonceVisitor {
     type Value = WorkNonce;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

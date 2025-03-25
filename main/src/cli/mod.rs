@@ -50,7 +50,7 @@ pub(crate) fn get_path(path_str: &Option<String>, network_str: &Option<String>) 
         return PathBuf::from_str(path).unwrap();
     }
     if let Some(network) = network_str {
-        let network = Networks::from_str(&network).unwrap();
+        let network = Networks::from_str(network).unwrap();
         NetworkConstants::set_active_network(network);
     }
     let network = NetworkConstants::active_network();
@@ -83,6 +83,7 @@ pub(crate) struct CliInfrastructure {
 }
 
 impl CliInfrastructure {
+    #[allow(dead_code)]
     pub fn new_null() -> Self {
         Self {
             key_factory: PrivateKeyFactory::new_null(),

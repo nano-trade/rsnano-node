@@ -52,7 +52,7 @@ impl ResponseBuilder {
 
     fn should_include(&self, rep_key: &PublicKey) -> bool {
         if let Some(filter) = &self.filter {
-            filter.contains(&rep_key)
+            filter.contains(rep_key)
         } else {
             true
         }

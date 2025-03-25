@@ -17,7 +17,7 @@ impl RpcCommandHandler {
                 self.node
                     .wallets
                     .deterministic_insert2(wallet, generate_work)
-                    .map(|key| Account::from(key))
+                    .map(Account::from)
             })
             .collect();
 

@@ -102,10 +102,8 @@ impl ConfirmationOptions {
         }
         result.check_filter_empty();
 
-        if result.include_linked_account {
-            if !result.include_block {
-                warn!("The option \"include_linked_account\" requires \"include_block\" to be set to true, as linked accounts are only retrieved when block content is included")
-            }
+        if result.include_linked_account && !result.include_block {
+            warn!("The option \"include_linked_account\" requires \"include_block\" to be set to true, as linked accounts are only retrieved when block content is included")
         }
 
         result
@@ -143,8 +141,7 @@ impl ConfirmationOptions {
                 };
                 if self.all_local_accounts {
                     let source = Account::decode_account(source_text).unwrap_or_default();
-                    let destination =
-                        Account::decode_account(&destination_text).unwrap_or_default();
+                    let destination = Account::decode_account(destination_text).unwrap_or_default();
                     if wallets.exists(&source.into()) || wallets.exists(&destination.into()) {
                         should_filter_account = false;
                     }

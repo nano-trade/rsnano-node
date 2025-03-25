@@ -45,6 +45,7 @@ impl NodeRunner {
         runner
     }
 
+    #[allow(dead_code)]
     pub fn new_null_with(node: Arc<Node>) -> Self {
         let runner = Self::new(NodeCallbackFactory::new_null());
         *runner.node.lock().unwrap() = Some(node);

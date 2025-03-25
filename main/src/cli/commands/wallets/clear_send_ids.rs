@@ -18,7 +18,7 @@ impl ClearSendIdsArgs {
     pub(crate) fn clear_send_ids(&self) -> Result<()> {
         let node = build_node(&self.data_path, &self.network)?;
         node.wallets.clear_send_ids();
-        println!("{}", "Send IDs deleted");
+        println!("Send IDs deleted");
         Ok(())
     }
 }

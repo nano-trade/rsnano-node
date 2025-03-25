@@ -8,7 +8,7 @@ impl RpcCommandHandler {
         // Retrieving hash
         let mut hash = args.hash.unwrap_or_default();
         // Retrieving block
-        let block = args.block.map(|b| Block::from(b));
+        let block = args.block.map(Block::from);
         if let Some(b) = &block {
             hash = b.hash();
         }

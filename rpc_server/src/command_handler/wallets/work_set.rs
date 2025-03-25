@@ -5,7 +5,7 @@ impl RpcCommandHandler {
     pub(crate) fn work_set(&self, args: WorkSetArgs) -> anyhow::Result<SuccessResponse> {
         self.node
             .wallets
-            .work_set(&args.wallet, &args.account.into(), args.work.into())?;
+            .work_set(&args.wallet, &args.account.into(), args.work)?;
         Ok(SuccessResponse::new())
     }
 }

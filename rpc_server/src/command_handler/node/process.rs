@@ -75,7 +75,7 @@ impl RpcCommandHandler {
                 BlockStatus::Fork => {
                     if args.force.unwrap_or_default().inner() {
                         self.node.active.erase(&block.qualified_root());
-                        self.node.block_processor.force(block.into());
+                        self.node.block_processor.force(block);
                         Ok(serde_json::to_value(HashRpcMessage::new(hash))?)
                     } else {
                         Err(anyhow!("Fork"))
@@ -98,17 +98,13 @@ impl RpcCommandHandler {
                 }
                 BlockStatus::InsufficientWork => Err(anyhow!("Block work is insufficient")),
             }
+        } else if block.block_type() == BlockType::State {
+            self.node
+                .block_processor
+                .add(block, BlockSource::Local, ChannelId::LOOPBACK);
+            Ok(serde_json::to_value(StartedResponse::new(true))?)
         } else {
-            if block.block_type() == BlockType::State {
-                self.node.block_processor.add(
-                    block.into(),
-                    BlockSource::Local,
-                    ChannelId::LOOPBACK,
-                );
-                Ok(serde_json::to_value(StartedResponse::new(true))?)
-            } else {
-                Err(anyhow!("Must be a state block"))
-            }
+            Err(anyhow!("Must be a state block"))
         }
     }
 }

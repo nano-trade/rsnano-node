@@ -177,7 +177,7 @@ impl BlockBase for StateBlock {
             link: self.hashables.link,
             link_as_account: Some(self.hashables.link.into()),
             signature: self.signature.clone(),
-            work: self.work.into(),
+            work: self.work,
         })
     }
 }
@@ -229,7 +229,7 @@ pub struct StateBlockArgs<'a> {
     pub work: WorkNonce,
 }
 
-impl<'a> StateBlockArgs<'a> {
+impl StateBlockArgs<'_> {
     pub fn new_test_instance() -> Self {
         Self {
             key: &TEST_KEY,
@@ -309,7 +309,7 @@ impl From<JsonStateBlock> for StateBlock {
         let hash = hashables.hash();
 
         Self {
-            work: value.work.into(),
+            work: value.work,
             signature: value.signature,
             hashables,
             hash,

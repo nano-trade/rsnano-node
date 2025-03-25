@@ -7,6 +7,6 @@ impl RpcCommandHandler {
             .node
             .wallets
             .work_get2(&args.wallet, &args.account.into())?;
-        Ok(WorkResponse::new(work.into()))
+        Ok(WorkResponse::new(work))
     }
 }

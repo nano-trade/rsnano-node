@@ -175,7 +175,7 @@ impl BlockBase for SendBlock {
             previous: self.hashables.previous,
             destination: self.hashables.destination,
             balance: self.hashables.balance.into(),
-            work: self.work.into(),
+            work: self.work,
             signature: self.signature.clone(),
         })
     }
@@ -193,7 +193,7 @@ impl From<JsonSendBlock> for SendBlock {
 
         Self {
             hashables,
-            work: value.work.into(),
+            work: value.work,
             signature: value.signature,
             hash,
         }
@@ -342,7 +342,7 @@ impl<'de> serde::Deserialize<'de> for AmountHex {
 
 struct AmountHexVisitor {}
 
-impl<'de> Visitor<'de> for AmountHexVisitor {
+impl Visitor<'_> for AmountHexVisitor {
     type Value = AmountHex;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
