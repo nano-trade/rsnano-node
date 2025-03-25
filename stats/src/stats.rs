@@ -381,7 +381,7 @@ impl StatsSource for Stats {
     fn collect_stats(&self, result: &mut StatsCollection) {
         let guard = self.mutables.read().unwrap();
         for (key, entry) in &guard.counters {
-            result.insert(
+            result.insert_dir(
                 key.stat_type.as_str(),
                 key.detail.as_str(),
                 key.dir,

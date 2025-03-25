@@ -32,12 +32,11 @@ impl VoteCounter {
 
 impl StatsSource for VoteCounter {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        result.insert("election", "vote", Direction::In, self.votes);
+        result.insert("election", "vote", self.votes);
         for source in VoteSource::iter() {
             result.insert(
                 "election_vote",
                 source.as_str(),
-                Direction::In,
                 self.by_source[source as usize],
             );
         }

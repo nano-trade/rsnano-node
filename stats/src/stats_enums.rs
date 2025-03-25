@@ -67,7 +67,6 @@ pub enum StatType {
     Active,
     ActiveElections,
     ActiveElectionsStarted,
-    ActiveElectionsStopped,
     ActiveElectionsConfirmed,
     ActiveElectionsDropped,
     ActiveElectionsTimeout,
@@ -436,7 +435,6 @@ pub enum DetailType {
 
     // active_elections
     Started,
-    Stopped,
     ConfirmDependent,
 
     // unchecked

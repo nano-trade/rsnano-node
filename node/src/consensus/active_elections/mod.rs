@@ -2,6 +2,7 @@ mod active_elections_container;
 mod cooldown_controller;
 mod recently_confirmed_cache;
 mod root_container;
+mod stopped_counter;
 mod vote_counter;
 
 pub use active_elections_container::*;
@@ -185,26 +186,9 @@ impl ActiveElections {
 
     fn add_stats(&self, entry: &Entry) {
         let election = &entry.election;
-        let is_confirmed = election.is_confirmed();
-        let state = election.state();
-        let behavior = election.behavior();
         let start = election.start();
         let root = election.qualified_root().clone();
 
-        self.stats
-            .inc(StatType::ActiveElections, DetailType::Stopped);
-
-        self.stats.inc(
-            StatType::ActiveElections,
-            if is_confirmed {
-                DetailType::Confirmed
-            } else {
-                DetailType::Unconfirmed
-            },
-        );
-        self.stats
-            .inc(StatType::ActiveElectionsStopped, state.into());
-        self.stats.inc(state.into(), behavior.into());
         // Track election duration
         self.stats.sample(
             Sample::ActiveElectionDuration,

@@ -33,7 +33,11 @@ impl StatsCollection {
         self.0.get(&key).cloned().unwrap_or_default()
     }
 
-    pub fn insert(
+    pub fn insert(&mut self, stat: &'static str, detail: &'static str, value: impl Into<u64>) {
+        self.insert_dir(stat, detail, Direction::In, value);
+    }
+
+    pub fn insert_dir(
         &mut self,
         stat: &'static str,
         detail: &'static str,
@@ -152,9 +156,6 @@ mod tests {
         assert_eq!(result.get("a", "b", Direction::In), 2);
     }
 
-    const TEST_KEY1: StatsKey = StatsKey::new("a", "b", Direction::In);
-    const TEST_KEY2: StatsKey = StatsKey::new("c", "d", Direction::Out);
-
     struct StubStatsSource {
         stat: &'static str,
         detail: &'static str,
@@ -175,7 +176,7 @@ mod tests {
 
     impl StatsSource for StubStatsSource {
         fn collect_stats(&self, result: &mut StatsCollection) {
-            result.insert(
+            result.insert_dir(
                 self.stat,
                 self.detail,
                 self.dir,

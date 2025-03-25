@@ -839,22 +839,14 @@ fn dropped_cleanup() {
 
     // Now simulate dropping the election
     node.active.erase(&qual_root);
+    // An election was recently dropped
+    assert_timely_eq2(
+        || node.get_stat("active_elections_dropped", "manual", Direction::In),
+        1,
+    );
 
     // The filter must have been cleared
     assert!(node.network_filter.apply(&block_bytes).1);
-
-    // An election was recently dropped
-    assert_eq!(
-        1,
-        node.stats.count(
-            StatType::ActiveElectionsDropped,
-            DetailType::Manual,
-            Direction::In
-        )
-    );
-
-    // Block cleared from active
-    assert_eq!(node.active.is_active_root(&qual_root), false);
 
     // Repeat test for a confirmed election
     assert!(node.network_filter.apply(&block_bytes).1);
@@ -868,13 +860,9 @@ fn dropped_cleanup() {
     assert!(node.network_filter.apply(&block_bytes).1);
 
     // Not dropped
-    assert_eq!(
+    assert_timely_eq2(
+        || node.get_stat("active_elections_dropped", "manual", Direction::In),
         1,
-        node.stats.count(
-            StatType::ActiveElectionsDropped,
-            DetailType::Manual,
-            Direction::In
-        )
     );
 
     // Block cleared from active

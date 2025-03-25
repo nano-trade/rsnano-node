@@ -10,6 +10,7 @@ use rsnano_core::{
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
+use strum_macros::{EnumCount, EnumIter};
 
 use super::{block_tallies::BlockTallies, ConfirmedElection, ElectionResult, ElectionState};
 
@@ -449,7 +450,7 @@ impl VoteSummary {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumIter)]
 pub enum ElectionBehavior {
     Manual,
     Priority,
@@ -466,6 +467,17 @@ pub enum ElectionBehavior {
      * - more frequent confirmation requests
      */
     Optimistic,
+}
+
+impl ElectionBehavior {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ElectionBehavior::Manual => "manual",
+            ElectionBehavior::Priority => "priority",
+            ElectionBehavior::Hinted => "hinted",
+            ElectionBehavior::Optimistic => "optimistic",
+        }
+    }
 }
 
 impl From<ElectionBehavior> for DetailType {

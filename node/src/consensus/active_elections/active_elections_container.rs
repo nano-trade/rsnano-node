@@ -9,7 +9,7 @@ use rsnano_core::{
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
-use rsnano_stats::{StatsCollection, StatsSource};
+use rsnano_stats::{Direction, StatsCollection, StatsSource};
 
 use crate::consensus::{
     AddForkResult, ConfirmedElection, Election, ElectionBehavior, ElectionResult, VoteSummary,
@@ -18,6 +18,7 @@ use crate::consensus::{
 use super::{
     cooldown_controller::{AecCooldownReason, CooldownController},
     recently_confirmed_cache::RecentlyConfirmedCache,
+    stopped_counter::StoppedCounter,
     vote_counter::VoteCounter,
     ActiveElectionsConfig, AecEvent, Entry, ErasedCallback, RootContainer, VoteRouter,
 };
@@ -35,6 +36,7 @@ pub struct ActiveElectionsContainer {
     cooldown: CooldownController,
     max_elections: usize,
     vote_counter: VoteCounter,
+    stopped_counter: StoppedCounter,
 }
 
 impl ActiveElectionsContainer {
@@ -52,6 +54,7 @@ impl ActiveElectionsContainer {
             cooldown: CooldownController::new(),
             max_elections: config.max_elections,
             vote_counter: VoteCounter::new(),
+            stopped_counter: StoppedCounter::new(),
         }
     }
 
@@ -255,6 +258,8 @@ impl ActiveElectionsContainer {
 
         // Keep track of election count by election type
         *self.count_by_behavior_mut(election.behavior()) -= 1;
+
+        self.stopped_counter.stopped(&entry.election);
         self.vote_router.disconnect_election(&election);
         let winner_hash = election.winner().hash();
         if election.is_confirmed() {
@@ -508,6 +513,7 @@ impl ActiveElectionsContainer {
 impl StatsSource for ActiveElectionsContainer {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.vote_counter.collect_stats(result);
+        self.stopped_counter.collect_stats(result);
     }
 }
 

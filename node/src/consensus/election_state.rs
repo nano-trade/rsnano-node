@@ -1,6 +1,7 @@
 use rsnano_stats::{DetailType, StatType};
+use strum_macros::{EnumCount, EnumIter};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumIter)]
 pub enum ElectionState {
     Passive,   // only listening for incoming votes
     Active,    // actively request confirmations
@@ -23,6 +24,17 @@ impl ElectionState {
                 | ElectionState::ExpiredConfirmed
                 | ElectionState::ExpiredUnconfirmed
         )
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ElectionState::Passive => "passive",
+            ElectionState::Active => "active",
+            ElectionState::Confirmed => "confirmed",
+            ElectionState::ExpiredConfirmed => "expired_confirmed",
+            ElectionState::ExpiredUnconfirmed => "expired_unconfirmed",
+            ElectionState::Cancelled => "cancelled",
+        }
     }
 }
 
