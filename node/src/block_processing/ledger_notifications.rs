@@ -25,18 +25,6 @@ impl LedgerNotifications {
         (notifications, notifier)
     }
 
-    #[allow(dead_code)]
-    pub fn on_block_processed(
-        &self,
-        observer: Box<dyn Fn(BlockStatus, &BlockContext) + Send + Sync>,
-    ) {
-        self.callbacks
-            .write()
-            .unwrap()
-            .block_processed
-            .push(observer);
-    }
-
     /// All processed blocks including forks, rejected etc
     pub fn on_blocks_processed(
         &self,
@@ -64,7 +52,6 @@ impl LedgerNotifications {
 
 #[derive(Default)]
 struct Callbacks {
-    block_processed: Vec<Box<dyn Fn(BlockStatus, &BlockContext) + Send + Sync>>,
     batch_processed: Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockContext>)]) + Send + Sync>>,
     rollback_observers: Vec<Box<dyn Fn(&[SavedBlock], QualifiedRoot) + Send + Sync>>,
 }
@@ -79,11 +66,6 @@ pub(crate) struct LedgerNotifier {
 impl LedgerNotifier {
     pub fn notify_batch_processed(&self, blocks: &[(BlockStatus, Arc<BlockContext>)]) {
         let guard = self.callbacks.read().unwrap();
-        for observer in guard.block_processed.iter() {
-            for (status, context) in blocks {
-                observer(*status, context);
-            }
-        }
         for observer in guard.batch_processed.iter() {
             observer(&blocks);
         }
