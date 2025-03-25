@@ -9,6 +9,7 @@ use rsnano_core::{
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use crate::consensus::{
     AddForkResult, ConfirmedElection, Election, ElectionBehavior, ElectionResult, VoteSummary,
@@ -362,6 +363,7 @@ impl ActiveElectionsContainer {
 
     pub fn apply_votes(
         &mut self,
+        voter: PublicKey,
         votes: impl IntoIterator<Item = VoteSummary>,
         source: VoteSource,
         rep_weights: &HashMap<PublicKey, Amount>,
@@ -371,6 +373,7 @@ impl ActiveElectionsContainer {
     ) -> (HashMap<BlockHash, VoteCode>, Vec<AecEvent>) {
         let mut results = HashMap::new();
         let mut events = Vec::new();
+        let mut vote_counted = false;
 
         for vote_summary in votes {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
@@ -426,7 +429,12 @@ impl ActiveElectionsContainer {
                             vote_summary.hash,
                         );
 
-                        events.push(AecEvent::VoteCounted(vote_summary.voter, source));
+                        self.vote_counter.count(source);
+                        if !vote_counted {
+                            // send vote counted event only once!
+                            vote_counted = true;
+                            events.push(AecEvent::VoteCounted(voter, source));
+                        }
 
                         // CONFIRM IF QUORUM:
                         if !election.is_confirmed() {
@@ -494,6 +502,12 @@ impl ActiveElectionsContainer {
         if let Some(entry) = self.roots.get_mut(root) {
             entry.election.cancel();
         }
+    }
+}
+
+impl StatsSource for ActiveElectionsContainer {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.vote_counter.collect_stats(result);
     }
 }
 

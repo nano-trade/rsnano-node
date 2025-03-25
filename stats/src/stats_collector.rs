@@ -28,11 +28,19 @@ impl StatsCollection {
         Self(Default::default())
     }
 
-    pub fn get(&self, key: &StatsKey) -> u64 {
-        self.0.get(key).cloned().unwrap_or_default()
+    pub fn get(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
+        let key = StatsKey { stat, detail, dir };
+        self.0.get(&key).cloned().unwrap_or_default()
     }
 
-    pub fn insert(&mut self, key: StatsKey, value: impl Into<u64>) {
+    pub fn insert(
+        &mut self,
+        stat: &'static str,
+        detail: &'static str,
+        dir: Direction,
+        value: impl Into<u64>,
+    ) {
+        let key = StatsKey { stat, detail, dir };
         self.0.insert(key, value.into());
     }
 
@@ -52,7 +60,7 @@ impl Default for StatsCollection {
 }
 
 pub trait StatsSource {
-    fn collect(&self, result: &mut StatsCollection);
+    fn collect_stats(&self, result: &mut StatsCollection);
 }
 
 pub struct StatsCollector {
@@ -76,7 +84,7 @@ impl StatsCollector {
 
     pub fn collect(&mut self) {
         for source in &self.sources {
-            source.collect(&mut self.tmp_stats);
+            source.collect_stats(&mut self.tmp_stats);
         }
         let mut guard = self.stats.lock().unwrap();
         std::mem::swap(&mut *guard, &mut self.tmp_stats);
@@ -102,68 +110,77 @@ mod tests {
         collector.collect();
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 0);
-        assert_eq!(result.get(&TEST_KEY1), 0);
+        assert_eq!(result.get("a", "b", Direction::In), 0);
     }
 
     #[test]
     fn collect_from_one_source() {
         let stats = Arc::new(Mutex::new(StatsCollection::new()));
         let mut collector = StatsCollector::new(stats.clone());
-        collector.add_source(Arc::new(StubStatsSource::new(TEST_KEY1)));
+        collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
         collector.collect();
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result.get(&TEST_KEY1), 1);
-        assert_eq!(result.get(&TEST_KEY2), 0);
+        assert_eq!(result.get("a", "b", Direction::In), 1);
+        assert_eq!(result.get("c", "d", Direction::Out), 0);
     }
 
     #[test]
     fn collect_from_multiple_source() {
         let stats = Arc::new(Mutex::new(StatsCollection::new()));
         let mut collector = StatsCollector::new(stats.clone());
-        collector.add_source(Arc::new(StubStatsSource::new(TEST_KEY1)));
-        collector.add_source(Arc::new(StubStatsSource::new(TEST_KEY2)));
+        collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
+        collector.add_source(Arc::new(StubStatsSource::new("c", "d", Direction::Out)));
         collector.collect();
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 2);
-        assert_eq!(result.get(&TEST_KEY1), 1);
-        assert_eq!(result.get(&TEST_KEY2), 1);
+        assert_eq!(result.get("a", "b", Direction::In), 1);
+        assert_eq!(result.get("c", "d", Direction::Out), 1);
     }
 
     #[test]
     fn collect_twice() {
         let stats = Arc::new(Mutex::new(StatsCollection::new()));
         let mut collector = StatsCollector::new(stats.clone());
-        collector.add_source(Arc::new(StubStatsSource::new(TEST_KEY1)));
+        collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
 
         collector.collect();
         collector.collect();
 
         let result = stats.lock().unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result.get(&TEST_KEY1), 2);
+        assert_eq!(result.get("a", "b", Direction::In), 2);
     }
 
     const TEST_KEY1: StatsKey = StatsKey::new("a", "b", Direction::In);
     const TEST_KEY2: StatsKey = StatsKey::new("c", "d", Direction::Out);
 
     struct StubStatsSource {
-        key: StatsKey,
+        stat: &'static str,
+        detail: &'static str,
+        dir: Direction,
         value: AtomicU64,
     }
 
     impl StubStatsSource {
-        fn new(key: StatsKey) -> Self {
+        fn new(stat: &'static str, detail: &'static str, dir: Direction) -> Self {
             Self {
-                key,
+                stat,
+                detail,
+                dir,
                 value: AtomicU64::new(1),
             }
         }
     }
 
     impl StatsSource for StubStatsSource {
-        fn collect(&self, result: &mut StatsCollection) {
-            result.insert(self.key, self.value.fetch_add(1, Ordering::Relaxed));
+        fn collect_stats(&self, result: &mut StatsCollection) {
+            result.insert(
+                self.stat,
+                self.detail,
+                self.dir,
+                self.value.fetch_add(1, Ordering::Relaxed),
+            );
         }
     }
 }

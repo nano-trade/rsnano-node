@@ -23,7 +23,7 @@ use rsnano_core::{
     utils::BackpressureSender, Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock,
     Vote, VoteCode, VoteSource,
 };
-use rsnano_stats::{DetailType, Sample, StatType, Stats};
+use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{AddForkResult, ConfirmedElection, ElectionBehavior, VoteRouter, VoteSummary};
 
@@ -353,6 +353,7 @@ impl ActiveElections {
 
     pub fn apply_votes(
         &self,
+        voter: PublicKey,
         votes: impl IntoIterator<Item = VoteSummary>,
         source: VoteSource,
         online_weight: Amount,
@@ -362,6 +363,7 @@ impl ActiveElections {
             let mut container = self.container.write().unwrap();
             let rep_weights = self.rep_weights.read();
             container.apply_votes(
+                voter,
                 votes,
                 source,
                 &rep_weights,
@@ -400,6 +402,12 @@ impl ActiveElections {
 impl Drop for ActiveElections {
     fn drop(&mut self) {
         self.stop()
+    }
+}
+
+impl StatsSource for ActiveElections {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.container.read().unwrap().collect_stats(result);
     }
 }
 

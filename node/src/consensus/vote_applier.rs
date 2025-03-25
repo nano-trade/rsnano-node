@@ -133,9 +133,13 @@ impl VoteApplier {
                 weight: voter_weight,
             });
 
-        let results =
-            self.active_elections
-                .apply_votes(vote_summaries, source, online_weight, quorum_delta);
+        let results = self.active_elections.apply_votes(
+            vote.voter,
+            vote_summaries,
+            source,
+            online_weight,
+            quorum_delta,
+        );
 
         self.notify_vote_processed(vote, voter_weight, source, channel, &results);
         results

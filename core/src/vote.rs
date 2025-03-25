@@ -9,11 +9,21 @@ use crate::{
 use anyhow::Result;
 use std::time::Duration;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, EnumCount)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, EnumCount, EnumIter)]
 pub enum VoteSource {
     Live,
     Rebroadcast,
     Cache,
+}
+
+impl VoteSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            VoteSource::Live => "live",
+            VoteSource::Rebroadcast => "rebroadcast",
+            VoteSource::Cache => "cache",
+        }
+    }
 }
 
 #[derive(FromPrimitive, Clone, Copy, PartialEq, Eq, Debug)]

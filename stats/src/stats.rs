@@ -378,11 +378,15 @@ impl SamplerEntry {
 }
 
 impl StatsSource for Stats {
-    fn collect(&self, result: &mut StatsCollection) {
+    fn collect_stats(&self, result: &mut StatsCollection) {
         let guard = self.mutables.read().unwrap();
         for (key, entry) in &guard.counters {
-            let stats_key = StatsKey::new(key.stat_type.as_str(), key.detail.as_str(), key.dir);
-            result.insert(stats_key, entry.0.load(Ordering::Relaxed));
+            result.insert(
+                key.stat_type.as_str(),
+                key.detail.as_str(),
+                key.dir,
+                entry.0.load(Ordering::Relaxed),
+            );
         }
     }
 }

@@ -56,7 +56,6 @@ impl AecEventProcessor {
             let current_cooldown = self.receiver.should_cool_down();
 
             if current_cooldown != previous_cooldown_state {
-                let queue_len = self.receiver.len();
                 self.active_elections
                     .set_cooldown(current_cooldown, AecCooldownReason::AecEventQueueFull);
                 self.vote_processor.set_cooldown(current_cooldown);
@@ -127,8 +126,6 @@ impl AecEventProcessor {
                             .vote_observed(voter, self.clock.now());
                     }
 
-                    self.stats.inc(StatType::Election, DetailType::Vote);
-                    self.stats.inc(StatType::ElectionVote, source.into());
                     tracing::trace!(account = %voter, ?source, "vote processed");
                 }
                 AecEvent::VoteProcessed(vote, voter_weight, source, channel, results) => {

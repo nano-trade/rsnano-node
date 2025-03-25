@@ -228,18 +228,10 @@ fn inactive_votes_cache_basic() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send.hash()]));
     node.vote_processor_queue
         .vote(vote, None, VoteSource::Live, None);
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.vote_cache.lock().unwrap().size(),
-        1,
-    );
+    assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 1);
     node.process_active(send.clone());
     assert_timely2(|| node.block_confirmed(&send.hash()));
-    assert_eq!(
-        1,
-        node.stats
-            .count(StatType::ElectionVote, DetailType::Cache, Direction::In)
-    )
+    assert_timely_eq2(|| node.get_stat("election_vote", "cache", Direction::In), 1);
 }
 
 // This test case confirms that a non final vote cannot cause an election to become confirmed
@@ -276,13 +268,7 @@ fn non_final() {
             .is_some()
     });
 
-    assert_timely_eq2(
-        || {
-            node.stats
-                .count(StatType::ElectionVote, DetailType::Cache, Direction::In)
-        },
-        1,
-    );
+    assert_timely_eq2(|| node.get_stat("election_vote", "cache", Direction::In), 1);
 
     let quorum_delta = node.online_reps.lock().unwrap().quorum_delta();
     assert_timely_eq2(
@@ -332,11 +318,7 @@ fn inactive_votes_cache_fork() {
     node.process_active(send1.clone());
 
     assert_timely_eq2(|| node.block_confirmed(&send1.hash()), true);
-    assert_eq!(
-        1,
-        node.stats
-            .count(StatType::ElectionVote, DetailType::Cache, Direction::In)
-    )
+    assert_timely_eq2(|| node.get_stat("election_vote", "cache", Direction::In), 1)
 }
 
 #[test]
@@ -381,11 +363,7 @@ fn inactive_votes_cache_existing_vote() {
         1,
     );
 
-    assert_eq!(
-        1,
-        node.stats
-            .count(StatType::Election, DetailType::Vote, Direction::In)
-    );
+    assert_timely_eq2(|| node.get_stat("election", "vote", Direction::In), 1);
 
     let last_vote1 = node
         .active
@@ -416,11 +394,7 @@ fn inactive_votes_cache_existing_vote() {
     assert_eq!(election.vote_count(), 1);
     let last_vote2 = election.votes().get(&key.public_key()).unwrap().clone();
     assert_eq!(send.hash(), last_vote2.hash);
-    assert_eq!(
-        0,
-        node.stats
-            .count(StatType::ElectionVote, DetailType::Cache, Direction::In)
-    );
+    assert_eq!(0, node.get_stat("election_vote", "cache", Direction::In));
 }
 
 #[test]
@@ -476,11 +450,7 @@ fn inactive_votes_cache_multiple_votes() {
         },
         2,
     );
-    assert_eq!(
-        2,
-        node.stats
-            .count(StatType::ElectionVote, DetailType::Cache, Direction::In)
-    );
+    assert_timely_eq2(|| node.get_stat("election_vote", "cache", Direction::In), 2);
 }
 
 #[test]

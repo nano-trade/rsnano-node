@@ -25,7 +25,7 @@ use rsnano_network::{
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
-use rsnano_stats::{Stats, StatsCollection, StatsCollector};
+use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
@@ -529,6 +529,7 @@ impl Node {
         );
         active_elections.set_event_sink(aec_sender.clone());
         let active_elections = Arc::new(active_elections);
+        stats_collector.add_source(active_elections.clone());
 
         let block_voter = Arc::new(BlockVoter::new(
             stats.clone(),
@@ -1475,6 +1476,10 @@ impl Node {
         delay: Duration,
     ) {
         self.block_flooder.flood_block_many(blocks, callback, delay);
+    }
+
+    pub fn get_stat(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
+        self.stats_collection.lock().unwrap().get(stat, detail, dir)
     }
 
     /// Note: Start must not be called from an async thread, because it blocks!
