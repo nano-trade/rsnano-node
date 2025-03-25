@@ -1,14 +1,30 @@
+use std::time::SystemTime;
+
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::utils::ContainerInfo;
 use rsnano_rpc_messages::{StatsArgs, StatsType, SuccessResponse};
-use rsnano_stats::StatsJsonWriter;
+use rsnano_stats::{StatsJsonWriter, StatsLogSink};
 
 impl RpcCommandHandler {
     pub(crate) fn stats(&self, args: StatsArgs) -> anyhow::Result<serde_json::Value> {
-        let mut sink = StatsJsonWriter::new();
         match args.stats_type {
             StatsType::Counters => {
-                self.node.stats.log_counters(&mut sink).unwrap();
+                let mut sink = StatsJsonWriter::new();
+                let now = SystemTime::now();
+                sink.write_header("counters", now)?;
+                {
+                    let stats = self.node.stats_collection.lock().unwrap();
+                    for (key, value) in stats.iter() {
+                        sink.write_counter_entry(
+                            now,
+                            key.stat,
+                            key.detail,
+                            key.dir.as_str(),
+                            *value,
+                        )?;
+                    }
+                }
+                sink.finalize();
                 sink.add(
                     "stat_duration_seconds",
                     self.node.stats.last_reset().as_secs(),
@@ -16,6 +32,7 @@ impl RpcCommandHandler {
                 Ok(sink.finish())
             }
             StatsType::Samples => {
+                let mut sink = StatsJsonWriter::new();
                 self.node.stats.log_samples(&mut sink).unwrap();
                 sink.add(
                     "stat_duration_seconds",

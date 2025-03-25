@@ -148,6 +148,7 @@ pub struct Node {
     pub active_elections_driver: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
     stats_collector: TimerThread<StatsCollector>,
+    pub stats_collection: Arc<Mutex<StatsCollection>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -227,8 +228,9 @@ impl Node {
         let node_id = node_id_key_file.initialize(&application_path).unwrap();
 
         let stats_collection = Arc::new(Mutex::new(StatsCollection::new()));
-        let mut stats_collector = StatsCollector::new(stats_collection);
+        let mut stats_collector = StatsCollector::new(stats_collection.clone());
         let stats = Arc::new(Stats::new(Default::default()));
+        stats_collector.add_source(stats.clone());
 
         let store = if is_nulled {
             Arc::new(LmdbStore::new_null())
@@ -1268,6 +1270,7 @@ impl Node {
             active_elections_driver: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
             stats_collector: TimerThread::new("Stats", stats_collector),
+            stats_collection,
         }
     }
 
