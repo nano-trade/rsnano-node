@@ -265,7 +265,7 @@ impl ConfirmingSetThread {
 
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
-        while !self.stopped.load(Ordering::SeqCst) {            
+        while !self.stopped.load(Ordering::SeqCst) {
             self.stats.inc(StatType::ConfirmingSet, DetailType::Loop);
             let evicted = guard.cleanup();
 
@@ -278,7 +278,7 @@ impl ConfirmingSetThread {
                     }
                 }
                 guard = self.mutex.lock().unwrap();
-            }            
+            }
 
             if !guard.set.is_empty() {
                 let batch = guard.next_batch(self.config.batch_size);
@@ -296,7 +296,9 @@ impl ConfirmingSetThread {
                 drop(guard);
 
                 self.run_batch(batch);
-                self.notify(CementingEvent::Recovered);
+                if recovered {
+                    self.notify(CementingEvent::Recovered);
+                }
 
                 guard = self.mutex.lock().unwrap();
             } else {

@@ -1174,11 +1174,17 @@ impl Node {
         std::thread::Builder::new()
             .name("Confset ev proc".to_owned())
             .spawn(move || {
+                let mut previous_cooldown_state = false;
                 while let Ok(e) = rx_confirming.recv() {
-                    active_l.set_cooldown(
-                        rx_confirming.should_cool_down(),
-                        AecCooldownReason::ConfirmingSetEventQueueFull,
-                    );
+                    let cool_down = rx_confirming.should_cool_down();
+                    if cool_down != previous_cooldown_state {
+                        active_l.set_cooldown(
+                            cool_down,
+                            AecCooldownReason::ConfirmingSetEventQueueFull,
+                        );
+                        previous_cooldown_state = cool_down;
+                    }
+
                     match e {
                         CementingEvent::CementingFailed(block_hash) => {
                             // Do some cleanup due to this block never being processed by confirmation height processor

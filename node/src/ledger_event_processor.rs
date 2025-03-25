@@ -1,4 +1,4 @@
-use std::sync::{mpsc::Receiver, Arc};
+use std::sync::Arc;
 
 use rsnano_core::utils::BackpressureReceiver;
 use rsnano_ledger::LedgerEvent;
@@ -28,13 +28,11 @@ impl LedgerEventProcessor {
 
         while let Ok(event) = self.receiver.recv() {
             // Check if we need to cool down the processing to avoid overwhelming the system
-            let current_cooldown = self.receiver.should_cool_down();
+            let should_cool_down = self.receiver.should_cool_down();
 
-            self.confirming_set.set_cooldown(current_cooldown);
-
-            // Log only when the state changes
-            if current_cooldown != previous_cooldown_state {
-                if current_cooldown {
+            if should_cool_down != previous_cooldown_state {
+                self.confirming_set.set_cooldown(should_cool_down);
+                if should_cool_down {
                     self.stats
                         .inc(StatType::ConfirmingSet, DetailType::Cooldown);
                 } else {
@@ -42,7 +40,7 @@ impl LedgerEventProcessor {
                         .inc(StatType::ConfirmingSet, DetailType::Recovered);
                 }
 
-                previous_cooldown_state = current_cooldown;
+                previous_cooldown_state = should_cool_down;
             }
 
             match event {

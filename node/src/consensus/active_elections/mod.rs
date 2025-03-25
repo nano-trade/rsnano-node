@@ -112,6 +112,7 @@ impl ActiveElections {
     }
 
     pub fn set_cooldown(&self, cool_down: bool, reason: AecCooldownReason) {
+        tracing::warn!(cool_down, ?reason, "AEC cooldown");
         let ev = self
             .container
             .write()

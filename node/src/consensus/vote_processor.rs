@@ -92,7 +92,11 @@ impl VoteProcessor {
     pub fn run(&self) {
         loop {
             if self.cool_down.load(Ordering::Relaxed) {
-                std::thread::sleep(Duration::from_millis(50));
+                if self.queue.stopped() {
+                    return;
+                }
+
+                std::thread::sleep(Duration::from_millis(25));
                 continue;
             }
 

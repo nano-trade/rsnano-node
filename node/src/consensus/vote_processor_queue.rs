@@ -142,6 +142,10 @@ impl VoteProcessorQueue {
         self.condition.notify_all();
     }
 
+    pub fn stopped(&self) -> bool {
+        self.data.lock().unwrap().stopped
+    }
+
     pub fn info(&self) -> FairQueueInfo<RepTier> {
         self.data
             .lock()

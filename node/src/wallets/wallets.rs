@@ -623,7 +623,7 @@ impl Wallets {
         tx: &dyn Transaction,
         wallet: &Arc<Wallet>,
         source: Account,
-        account: Account,
+        destination: Account,
         amount: Amount,
         mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
@@ -651,7 +651,7 @@ impl Wallets {
             previous: info.head,
             representative: info.representative,
             balance: balance - amount,
-            link: account.into(),
+            link: destination.into(),
             work,
         }
         .into();
@@ -665,7 +665,7 @@ impl Wallets {
         id: &str,
         wallet: &Arc<Wallet>,
         source: Account,
-        account: Account,
+        destination: Account,
         amount: Amount,
         mut work: WorkNonce,
     ) -> anyhow::Result<PreparedSend> {
@@ -709,7 +709,7 @@ impl Wallets {
                 previous: info.head,
                 representative: info.representative,
                 balance: balance - amount,
-                link: account.into(),
+                link: destination.into(),
                 work,
             }
             .into();
@@ -1440,7 +1440,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet_id: &WalletId,
         source: Account,
-        account: Account,
+        destination: Account,
         amount: Amount,
         work: WorkNonce,
         generate_work: bool,
@@ -1448,7 +1448,7 @@ impl WalletsExt for Arc<Wallets> {
     ) -> Result<SavedBlock, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Wallets::get_wallet(&guard, &wallet_id)?;
-        self.send_action(wallet, source, account, amount, work, generate_work, id)
+        self.send_action(wallet, source, destination, amount, work, generate_work, id)
             .map_err(|_| WalletsError::Generic)
     }
 
@@ -1456,7 +1456,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: &Arc<Wallet>,
         source: Account,
-        account: Account,
+        destination: Account,
         amount: Amount,
         work: WorkNonce,
         generate_work: bool,
@@ -1465,11 +1465,11 @@ impl WalletsExt for Arc<Wallets> {
         let result = match id {
             Some(id) => {
                 let mut tx = self.env.tx_begin_write();
-                self.prepare_send_with_id(&mut tx, &id, wallet, source, account, amount, work)?
+                self.prepare_send_with_id(&mut tx, &id, wallet, source, destination, amount, work)?
             }
             None => {
                 let tx = self.env.tx_begin_read();
-                self.prepare_send(&tx, wallet, source, account, amount, work)?
+                self.prepare_send(&tx, wallet, source, destination, amount, work)?
             }
         };
 
