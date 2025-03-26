@@ -80,13 +80,62 @@ macro_rules! rpc_number {
 
 //serde_json forwards visit_u8, etc to visit_u64, visit_f32 to visit_f64
 //this is because serde_json handles integers as u64, and floating points as f64
-rpc_number!(RpcU8, u8, RpcU8Visitor, derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord), visit_u64, u64);
-rpc_number!(RpcU16, u16, RpcU16Visitor, derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord), visit_u64, u64);
-rpc_number!(RpcU32, u32, RpcU32Visitor, derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord), visit_u64, u64);
-rpc_number!(RpcU64, u64, RpcU64Visitor, derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord), visit_u64, u64);
-rpc_number!(RpcF32, f32, RpcF32Visitor, derive(Copy, Clone, PartialEq, Default, PartialOrd), visit_f64, f64);
-rpc_number!(RpcF64, f64, RpcF64Visitor, derive(Copy, Clone, PartialEq, Default, PartialOrd), visit_f64, f64);
-rpc_number!(RpcUsize, usize, RpcUsizeVisitor, derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord), visit_u64, u64);
+rpc_number!(
+    RpcU8,
+    u8,
+    RpcU8Visitor,
+    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
+    visit_u64,
+    u64
+);
+rpc_number!(
+    RpcU16,
+    u16,
+    RpcU16Visitor,
+    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
+    visit_u64,
+    u64
+);
+rpc_number!(
+    RpcU32,
+    u32,
+    RpcU32Visitor,
+    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
+    visit_u64,
+    u64
+);
+rpc_number!(
+    RpcU64,
+    u64,
+    RpcU64Visitor,
+    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
+    visit_u64,
+    u64
+);
+rpc_number!(
+    RpcF32,
+    f32,
+    RpcF32Visitor,
+    derive(Copy, Clone, PartialEq, Default, PartialOrd),
+    visit_f64,
+    f64
+);
+rpc_number!(
+    RpcF64,
+    f64,
+    RpcF64Visitor,
+    derive(Copy, Clone, PartialEq, Default, PartialOrd),
+    visit_f64,
+    f64
+);
+rpc_number!(
+    RpcUsize,
+    usize,
+    RpcUsizeVisitor,
+    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
+    visit_u64,
+    u64
+);
 
 impl From<RpcU64> for usize {
     fn from(value: RpcU64) -> Self {
