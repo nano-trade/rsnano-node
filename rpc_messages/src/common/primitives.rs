@@ -266,6 +266,8 @@ pub fn unwrap_bool_or_true(i: Option<RpcBool>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use serde::de::DeserializeOwned;
+
     use super::*;
 
     #[test]
@@ -278,75 +280,93 @@ mod tests {
 
     #[test]
     fn u8_deserialize() {
-        assert_eq!(
-            serde_json::from_str::<RpcU8>("\"123\"").unwrap(),
-            123.into()
-        );
-        assert_eq!(serde_json::from_str::<RpcU8>("123").unwrap(), 123.into());
+        assert_deserialize::<RpcU8>("\"123\"", 123);
+        assert_deserialize::<RpcU8>("123", 123);
+        assert_deserialize_fails::<RpcU8>("123.0");
+        assert_deserialize_fails::<RpcU8>("");
+        assert_deserialize_fails::<RpcU8>("a");
+        assert_deserialize_fails::<RpcU8>("true");
+        assert_deserialize_fails::<RpcU8>("256");
+        assert_deserialize_fails::<RpcU8>("-1");
     }
 
     #[test]
     fn u16_serialize() {
         let value = RpcU16::from(123);
         assert_eq!(format!("{:?}", value), "123");
+
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, "\"123\"");
     }
 
     #[test]
     fn u16_deserialize() {
-        let a: RpcU16 = serde_json::from_str("\"123\"").unwrap();
-        let b: RpcU16 = serde_json::from_str("123").unwrap();
-        assert_eq!(a, 123.into());
-        assert_eq!(b, 123.into());
+        assert_deserialize::<RpcU16>("\"123\"", 123);
+        assert_deserialize::<RpcU16>("123", 123);
+        assert_deserialize_fails::<RpcU16>("123.0");
+        assert_deserialize_fails::<RpcU16>("");
+        assert_deserialize_fails::<RpcU16>("a");
+        assert_deserialize_fails::<RpcU16>("true");
+        assert_deserialize_fails::<RpcU16>("66000");
+        assert_deserialize_fails::<RpcU16>("-1");
     }
 
     #[test]
     fn u32_serialize() {
         let value = RpcU32::from(123);
         assert_eq!(format!("{:?}", value), "123");
+
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, "\"123\"");
     }
 
     #[test]
     fn u32_deserialize() {
-        let a: RpcU32 = serde_json::from_str("\"123\"").unwrap();
-        let b: RpcU32 = serde_json::from_str("123").unwrap();
-        assert_eq!(a, 123.into());
-        assert_eq!(b, 123.into());
+        assert_deserialize::<RpcU32>("\"123\"", 123);
+        assert_deserialize::<RpcU32>("123", 123);
+        assert_deserialize_fails::<RpcU32>("123.0");
+        assert_deserialize_fails::<RpcU32>("");
+        assert_deserialize_fails::<RpcU32>("a");
+        assert_deserialize_fails::<RpcU32>("true");
+        assert_deserialize_fails::<RpcU32>("4000000000000000");
+        assert_deserialize_fails::<RpcU32>("-1");
     }
 
     #[test]
     fn u64_serialize() {
         let value = RpcU64::from(123);
         assert_eq!(format!("{:?}", value), "123");
+
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, "\"123\"");
     }
 
     #[test]
     fn u64_deserialize() {
-        let a: RpcU64 = serde_json::from_str("\"123\"").unwrap();
-        let b: RpcU64 = serde_json::from_str("123").unwrap();
-        assert_eq!(a, 123.into());
-        assert_eq!(b, 123.into());
+        assert_deserialize::<RpcU64>("\"123\"", 123);
+        assert_deserialize::<RpcU64>("123", 123);
+        assert_deserialize_fails::<RpcU64>("123.0");
+        assert_deserialize_fails::<RpcU64>("");
+        assert_deserialize_fails::<RpcU64>("a");
+        assert_deserialize_fails::<RpcU64>("true");
     }
 
     #[test]
     fn f64_serialize() {
         let value = RpcF64::from(1.23);
         assert_eq!(format!("{:?}", value), "1.23");
+
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, "\"1.23\"");
     }
 
     #[test]
     fn f64_deserialize() {
-        let a: RpcF64 = serde_json::from_str("\"1.23\"").unwrap();
-        let b: RpcF64 = serde_json::from_str("1.23").unwrap();
-        assert_eq!(a, 1.23.into());
-        assert_eq!(b, 1.23.into());
+        assert_deserialize::<RpcF64>("\"1.23\"", 1.23);
+        assert_deserialize::<RpcF64>("1.23", 1.23);
+        assert_deserialize_fails::<RpcF64>("");
+        assert_deserialize_fails::<RpcF64>("1");
+        assert_deserialize_fails::<RpcF64>("a");
     }
 
     #[test]
@@ -363,18 +383,17 @@ mod tests {
 
     #[test]
     fn bool_number_deserialize() {
-        let a: RpcBoolNumber = serde_json::from_str("\"1\"").unwrap();
-        let b: RpcBoolNumber = serde_json::from_str("\"0\"").unwrap();
-        let c: RpcBoolNumber = serde_json::from_str("\"true\"").unwrap();
-        let d: RpcBoolNumber = serde_json::from_str("\"false\"").unwrap();
-        let e: RpcBoolNumber = serde_json::from_str("true").unwrap();
-        let f: RpcBoolNumber = serde_json::from_str("false").unwrap();
-        assert_eq!(a, true.into());
-        assert_eq!(b, false.into());
-        assert_eq!(c, true.into());
-        assert_eq!(d, false.into());
-        assert_eq!(e, true.into());
-        assert_eq!(f, false.into());
+        assert_deserialize::<RpcBoolNumber>("\"1\"", true);
+        assert_deserialize::<RpcBoolNumber>("\"0\"", false);
+        assert_deserialize::<RpcBoolNumber>("\"true\"", true);
+        assert_deserialize::<RpcBoolNumber>("\"false\"", false);
+
+        assert_deserialize::<RpcBoolNumber>("true", true);
+        assert_deserialize::<RpcBoolNumber>("false", false);
+
+        assert_deserialize_fails::<RpcBoolNumber>("\"x\"");
+        assert_deserialize_fails::<RpcBoolNumber>("x");
+        assert_deserialize_fails::<RpcBoolNumber>("2");
     }
 
     #[test]
@@ -383,6 +402,7 @@ mod tests {
         let false_value = RpcBool::from(false);
         assert_eq!(format!("{:?}", true_value), "true");
         assert_eq!(format!("{:?}", false_value), "false");
+
         let json = serde_json::to_string(&true_value).unwrap();
         assert_eq!(json, "\"true\"");
         let json = serde_json::to_string(&false_value).unwrap();
@@ -391,17 +411,31 @@ mod tests {
 
     #[test]
     fn bool_deserialize() {
-        let a: RpcBool = serde_json::from_str("\"1\"").unwrap();
-        let b: RpcBool = serde_json::from_str("\"0\"").unwrap();
-        let c: RpcBool = serde_json::from_str("\"true\"").unwrap();
-        let d: RpcBool = serde_json::from_str("\"false\"").unwrap();
-        let e: RpcBool = serde_json::from_str("true").unwrap();
-        let f: RpcBool = serde_json::from_str("false").unwrap();
-        assert_eq!(a, true.into());
-        assert_eq!(b, false.into());
-        assert_eq!(c, true.into());
-        assert_eq!(d, false.into());
-        assert_eq!(e, true.into());
-        assert_eq!(f, false.into());
+        assert_deserialize::<RpcBool>("\"1\"", true);
+        assert_deserialize::<RpcBool>("\"0\"", false);
+
+        assert_deserialize::<RpcBool>("\"true\"", true);
+        assert_deserialize::<RpcBool>("\"false\"", false);
+
+        assert_deserialize::<RpcBool>("true", true);
+        assert_deserialize::<RpcBool>("false", false);
+
+        assert_deserialize_fails::<RpcBool>("\"x\"");
+        assert_deserialize_fails::<RpcBool>("x");
+        assert_deserialize_fails::<RpcBool>("2");
+        assert_deserialize_fails::<RpcBool>("");
+    }
+
+    fn assert_deserialize<T: DeserializeOwned + Debug + PartialEq>(
+        input: &str,
+        expected: impl Into<T>,
+    ) {
+        let deserialized: T = serde_json::from_str(input).unwrap();
+        assert_eq!(deserialized, expected.into());
+    }
+
+    fn assert_deserialize_fails<T: DeserializeOwned>(input: &str) {
+        let deserialized = serde_json::from_str::<T>(input);
+        assert!(deserialized.is_err());
     }
 }
