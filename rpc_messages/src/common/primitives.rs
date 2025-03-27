@@ -3,7 +3,35 @@ use std::fmt::Debug;
 
 #[macro_export]
 macro_rules! rpc_number {
-    ($name:ident, $type:ty, $visitor:ident, $derive:meta, $name_visitor:ident, $visitor_type:ty) => {
+    ($name:ident, $type:ty, $visitor:ident) => {
+        rpc_number_impl!(
+            $name,
+            $type,
+            $visitor,
+            visit_u64,
+            u64,
+            derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord)
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! rpc_float {
+    ($name:ident, $type:ty, $visitor:ident) => {
+        rpc_number_impl!(
+            $name,
+            $type,
+            $visitor,
+            visit_f64,
+            f64,
+            derive(Copy, Clone, PartialEq, Default, PartialOrd)
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! rpc_number_impl {
+    ($name:ident, $type:ty, $visitor:ident, $name_visitor:ident, $visitor_type:ty, $derive:meta) => {
         #[$derive]
         pub struct $name($type);
 
@@ -27,7 +55,13 @@ macro_rules! rpc_number {
 
         impl std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.fmt(f)
+                std::fmt::Debug::fmt(&self.0, f)
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Display::fmt(&self.0, f)
             }
         }
 
@@ -58,6 +92,7 @@ macro_rules! rpc_number {
                 formatter.write_str(stringify!($type))
             }
 
+
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
@@ -72,7 +107,8 @@ macro_rules! rpc_number {
             where
                 E: serde::de::Error,
             {
-                Ok($name(v as $type))
+                let val: $type = v.try_into().map_err(|_| serde::de::Error::custom(stringify!("expected " $type)))?;
+                Ok(val.into())
             }
         }
     };
@@ -80,62 +116,11 @@ macro_rules! rpc_number {
 
 //serde_json forwards visit_u8, etc to visit_u64, visit_f32 to visit_f64
 //this is because serde_json handles integers as u64, and floating points as f64
-rpc_number!(
-    RpcU8,
-    u8,
-    RpcU8Visitor,
-    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
-    visit_u64,
-    u64
-);
-rpc_number!(
-    RpcU16,
-    u16,
-    RpcU16Visitor,
-    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
-    visit_u64,
-    u64
-);
-rpc_number!(
-    RpcU32,
-    u32,
-    RpcU32Visitor,
-    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
-    visit_u64,
-    u64
-);
-rpc_number!(
-    RpcU64,
-    u64,
-    RpcU64Visitor,
-    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
-    visit_u64,
-    u64
-);
-rpc_number!(
-    RpcF32,
-    f32,
-    RpcF32Visitor,
-    derive(Copy, Clone, PartialEq, Default, PartialOrd),
-    visit_f64,
-    f64
-);
-rpc_number!(
-    RpcF64,
-    f64,
-    RpcF64Visitor,
-    derive(Copy, Clone, PartialEq, Default, PartialOrd),
-    visit_f64,
-    f64
-);
-rpc_number!(
-    RpcUsize,
-    usize,
-    RpcUsizeVisitor,
-    derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord),
-    visit_u64,
-    u64
-);
+rpc_number!(RpcU8, u8, RpcU8Visitor);
+rpc_number!(RpcU16, u16, RpcU16Visitor);
+rpc_number!(RpcU32, u32, RpcU32Visitor);
+rpc_number!(RpcU64, u64, RpcU64Visitor);
+rpc_float!(RpcF64, f64, RpcF64Visitor);
 
 impl From<RpcU64> for usize {
     fn from(value: RpcU64) -> Self {
@@ -293,10 +278,11 @@ mod tests {
 
     #[test]
     fn u8_deserialize() {
-        let a: RpcU8 = serde_json::from_str("\"123\"").unwrap();
-        let b: RpcU8 = serde_json::from_str("123").unwrap();
-        assert_eq!(a, 123.into());
-        assert_eq!(b, 123.into());
+        assert_eq!(
+            serde_json::from_str::<RpcU8>("\"123\"").unwrap(),
+            123.into()
+        );
+        assert_eq!(serde_json::from_str::<RpcU8>("123").unwrap(), 123.into());
     }
 
     #[test]
@@ -348,40 +334,8 @@ mod tests {
     }
 
     #[test]
-    fn usize_serialize() {
-        let value = RpcUsize::from(123);
-        assert_eq!(format!("{:?}", value), "123");
-        let json = serde_json::to_string(&value).unwrap();
-        assert_eq!(json, "\"123\"");
-    }
-
-    #[test]
-    fn usize_deserialize() {
-        let a: RpcUsize = serde_json::from_str("\"123\"").unwrap();
-        let b: RpcUsize = serde_json::from_str("123").unwrap();
-        assert_eq!(a, 123.into());
-        assert_eq!(b, 123.into());
-    }
-
-    #[test]
-    fn f32_serialize() {
-        let value = RpcF32::from(1.23);
-        assert_eq!(format!("{:?}", value), "1.23");
-        let json = serde_json::to_string(&value).unwrap();
-        assert_eq!(json, "\"1.23\"");
-    }
-
-    #[test]
-    fn f32_deserialize() {
-        let a: RpcF32 = serde_json::from_str("\"1.23\"").unwrap();
-        let b: RpcF32 = serde_json::from_str("1.23").unwrap();
-        assert_eq!(a, 1.23.into());
-        assert_eq!(b, 1.23.into());
-    }
-
-    #[test]
     fn f64_serialize() {
-        let value = RpcF32::from(1.23);
+        let value = RpcF64::from(1.23);
         assert_eq!(format!("{:?}", value), "1.23");
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, "\"1.23\"");

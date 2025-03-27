@@ -12,7 +12,7 @@ impl RpcCommandHandler {
         &self,
         args: WalletReceivableArgs,
     ) -> anyhow::Result<AccountsReceivableResponse> {
-        let count = args.count.unwrap_or(usize::MAX.into()).inner();
+        let count = args.count.unwrap_or(u32::MAX.into()).inner();
         let threshold = args.threshold.unwrap_or_default();
         let source = args.source.unwrap_or_default().inner();
         let min_version = args.min_version.unwrap_or_default().inner();
@@ -32,7 +32,7 @@ impl RpcCommandHandler {
 
             for (key, info) in any
                 .account_receivable_upper_bound(account, BlockHash::zero())
-                .take(count)
+                .take(count as usize)
             {
                 if include_only_confirmed
                     && !any.confirmed().block_exists_or_pruned(&key.send_block_hash)

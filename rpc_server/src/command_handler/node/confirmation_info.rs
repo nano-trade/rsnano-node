@@ -59,7 +59,7 @@ impl RpcCommandHandler {
 
         Ok(ConfirmationInfoDto {
             announcements: (announcements as u32).into(),
-            voters: voters.into(),
+            voters: (voters as u32).into(),
             last_winner,
             total_tally,
             final_tally,

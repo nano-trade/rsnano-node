@@ -1,13 +1,13 @@
 use rsnano_core::{Amount, WalletId};
 use serde::{Deserialize, Serialize};
 
-use crate::{RpcBool, RpcUsize};
+use crate::{RpcBool, RpcU32};
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
 pub struct WalletReceivableArgs {
     pub wallet: WalletId,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub count: Option<RpcUsize>,
+    pub count: Option<RpcU32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threshold: Option<Amount>,
     #[serde(skip_serializing_if = "Option::is_none")]

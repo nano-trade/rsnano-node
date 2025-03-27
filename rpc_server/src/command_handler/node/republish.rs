@@ -3,13 +3,13 @@ use anyhow::anyhow;
 use rsnano_core::{Block, BlockHash, PendingKey};
 use rsnano_ledger::AnySet;
 use rsnano_rpc_messages::{BlockHashesResponse, RepublishArgs};
-use std::time::Duration;
+use std::{time::Duration, usize};
 
 impl RpcCommandHandler {
     pub(crate) fn republish(&self, args: RepublishArgs) -> anyhow::Result<BlockHashesResponse> {
-        let count = args.count.unwrap_or(1024.into()).inner();
-        let sources = args.sources.unwrap_or_default().inner();
-        let destinations = args.destinations.unwrap_or_default().inner();
+        let count = args.count.unwrap_or(1024.into()).inner() as usize;
+        let sources = args.sources.unwrap_or_default().inner() as usize;
+        let destinations = args.destinations.unwrap_or_default().inner() as usize;
         let mut hash = args.hash;
         let mut blocks = Vec::new();
         let any = self.node.ledger.any();

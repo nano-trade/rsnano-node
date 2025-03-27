@@ -3,7 +3,7 @@ use rsnano_core::QualifiedRoot;
 use rsnano_core::{Account, Amount, BlockHash, JsonBlock};
 use serde::{Deserialize, Serialize};
 
-use crate::{RpcBool, RpcU32, RpcUsize};
+use crate::{RpcBool, RpcU32};
 
 impl From<QualifiedRoot> for ConfirmationInfoArgs {
     fn from(value: QualifiedRoot) -> Self {
@@ -53,7 +53,7 @@ impl ConfirmationInfoArgsBuilder {
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct ConfirmationInfoDto {
     pub announcements: RpcU32,
-    pub voters: RpcUsize,
+    pub voters: RpcU32,
     pub last_winner: BlockHash,
     pub total_tally: Amount,
     pub final_tally: Amount,

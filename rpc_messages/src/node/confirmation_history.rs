@@ -1,4 +1,4 @@
-use crate::{RpcU32, RpcU64, RpcUsize};
+use crate::{RpcU32, RpcU64};
 use rsnano_core::{Amount, BlockHash};
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ pub struct ConfirmationEntry {
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct ConfirmationStats {
-    pub count: RpcUsize,
+    pub count: RpcU32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub average: Option<RpcU64>,
 }
