@@ -4,7 +4,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, SyncSender},
-        Arc, Mutex, RwLock,
+        Arc, Mutex, MutexGuard, RwLock,
     },
     time::Duration,
 };
@@ -147,8 +147,7 @@ pub struct Node {
     tokio_runner: TokioRunner,
     pub active_elections_driver: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
-    stats_collector: TimerThread<StatsCollector>,
-    pub stats_collection: Arc<Mutex<StatsCollection>>,
+    pub stats_collector: StatsCollector,
 }
 
 pub(crate) struct NodeArgs {
@@ -227,8 +226,7 @@ impl Node {
         let application_path = args.data_path;
         let node_id = node_id_key_file.initialize(&application_path).unwrap();
 
-        let stats_collection = Arc::new(Mutex::new(StatsCollection::new()));
-        let mut stats_collector = StatsCollector::new(stats_collection.clone());
+        let mut stats_collector = StatsCollector::new();
         let stats = Arc::new(Stats::new(Default::default()));
         stats_collector.add_source(stats.clone());
 
@@ -1268,8 +1266,7 @@ impl Node {
             tokio_runner,
             active_elections_driver: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
-            stats_collector: TimerThread::new("Stats", stats_collector),
-            stats_collection,
+            stats_collector,
         }
     }
 
@@ -1477,10 +1474,11 @@ impl Node {
     }
 
     pub fn get_stat(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
-        self.stats_collection
-            .lock()
-            .unwrap()
-            .get_dir(stat, detail, dir)
+        self.stats_collector.collect().get_dir(stat, detail, dir)
+    }
+
+    pub fn stats(&self) -> MutexGuard<StatsCollection> {
+        self.stats_collector.collect()
     }
 
     /// Note: Start must not be called from an async thread, because it blocks!
@@ -1576,13 +1574,6 @@ impl Node {
             self.monitor.start_delayed(self.config.monitor.interval);
         }
         self.vote_rebroadcaster.start();
-
-        let stats_interval = if self.network_params.network.is_dev_network() {
-            Duration::from_millis(100)
-        } else {
-            Duration::from_secs(1)
-        };
-        self.stats_collector.start(stats_interval);
     }
 
     pub fn stop(&mut self) {
@@ -1597,7 +1588,6 @@ impl Node {
         }
         info!("Node stopping...");
 
-        self.stats_collector.stop();
         self.tcp_listener.stop();
         self.ledger.stop();
         self.ledger_notification_thread.stop();

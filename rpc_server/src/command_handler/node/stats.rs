@@ -13,7 +13,7 @@ impl RpcCommandHandler {
                 let now = SystemTime::now();
                 sink.write_header("counters", now)?;
                 {
-                    let stats = self.node.stats_collection.lock().unwrap();
+                    let stats = self.node.stats();
                     for (key, value) in stats.iter() {
                         sink.write_counter_entry(
                             now,

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
     u64,
 };
 
@@ -72,17 +72,15 @@ pub trait StatsSource {
 }
 
 pub struct StatsCollector {
-    stats: Arc<Mutex<StatsCollection>>,
+    stats: Mutex<StatsCollection>,
     sources: Vec<Arc<dyn StatsSource + Send + Sync>>,
-    tmp_stats: StatsCollection,
 }
 
 impl StatsCollector {
-    pub fn new(stats: Arc<Mutex<StatsCollection>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            stats,
+            stats: Mutex::new(StatsCollection::new()),
             sources: Vec::new(),
-            tmp_stats: StatsCollection::new(),
         }
     }
 
@@ -90,18 +88,12 @@ impl StatsCollector {
         self.sources.push(source);
     }
 
-    pub fn collect(&mut self) {
+    pub fn collect(&self) -> MutexGuard<StatsCollection> {
+        let mut stats = self.stats.lock().unwrap();
         for source in &self.sources {
-            source.collect_stats(&mut self.tmp_stats);
+            source.collect_stats(&mut stats);
         }
-        let mut guard = self.stats.lock().unwrap();
-        std::mem::swap(&mut *guard, &mut self.tmp_stats);
-    }
-}
-
-impl Runnable for StatsCollector {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
-        self.collect();
+        stats
     }
 }
 
@@ -113,21 +105,17 @@ mod tests {
 
     #[test]
     fn collect_nothing() {
-        let stats = Arc::new(Mutex::new(StatsCollection::new()));
-        let mut collector = StatsCollector::new(stats.clone());
-        collector.collect();
-        let result = stats.lock().unwrap();
+        let collector = StatsCollector::new();
+        let result = collector.collect();
         assert_eq!(result.len(), 0);
         assert_eq!(result.get_dir("a", "b", Direction::In), 0);
     }
 
     #[test]
     fn collect_from_one_source() {
-        let stats = Arc::new(Mutex::new(StatsCollection::new()));
-        let mut collector = StatsCollector::new(stats.clone());
+        let mut collector = StatsCollector::new();
         collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
-        collector.collect();
-        let result = stats.lock().unwrap();
+        let result = collector.collect();
         assert_eq!(result.len(), 1);
         assert_eq!(result.get_dir("a", "b", Direction::In), 1);
         assert_eq!(result.get_dir("c", "d", Direction::Out), 0);
@@ -135,12 +123,10 @@ mod tests {
 
     #[test]
     fn collect_from_multiple_source() {
-        let stats = Arc::new(Mutex::new(StatsCollection::new()));
-        let mut collector = StatsCollector::new(stats.clone());
+        let mut collector = StatsCollector::new();
         collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
         collector.add_source(Arc::new(StubStatsSource::new("c", "d", Direction::Out)));
-        collector.collect();
-        let result = stats.lock().unwrap();
+        let result = collector.collect();
         assert_eq!(result.len(), 2);
         assert_eq!(result.get_dir("a", "b", Direction::In), 1);
         assert_eq!(result.get_dir("c", "d", Direction::Out), 1);
@@ -148,14 +134,12 @@ mod tests {
 
     #[test]
     fn collect_twice() {
-        let stats = Arc::new(Mutex::new(StatsCollection::new()));
-        let mut collector = StatsCollector::new(stats.clone());
+        let mut collector = StatsCollector::new();
         collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
 
-        collector.collect();
-        collector.collect();
+        drop(collector.collect());
+        let result = collector.collect();
 
-        let result = stats.lock().unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result.get_dir("a", "b", Direction::In), 2);
     }

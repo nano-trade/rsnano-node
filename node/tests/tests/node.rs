@@ -1,10 +1,4 @@
-use std::{
-    cmp::max,
-    collections::HashMap,
-    sync::{mpsc::sync_channel, Arc},
-    thread::sleep,
-    time::Duration,
-};
+use std::{cmp::max, collections::HashMap, sync::Arc, thread::sleep, time::Duration};
 
 use rsnano_core::{
     utils::{backpressure_channel, UnixMillisTimestamp},
