@@ -120,6 +120,12 @@ impl PriorityContainer {
         }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (Priority, &Account)> {
+        self.by_priority
+            .iter()
+            .flat_map(|(prio, accs)| accs.iter().map(|a| (prio.0, a)))
+    }
+
     pub fn next_priority(
         &self,
         cutoff: Timestamp,

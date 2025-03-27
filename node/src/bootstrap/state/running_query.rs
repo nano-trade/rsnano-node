@@ -8,7 +8,7 @@ use std::time::Duration;
 use super::VerifyResult;
 
 #[derive(Default, PartialEq, Eq, Debug, Clone, Copy)]
-pub(crate) enum QueryType {
+pub enum QueryType {
     #[default]
     Invalid,
     BlocksByHash,
@@ -30,7 +30,7 @@ impl From<QueryType> for DetailType {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-pub(crate) enum QuerySource {
+pub enum QuerySource {
     Priority,
     Dependencies,
     Frontiers,

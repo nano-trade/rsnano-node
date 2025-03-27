@@ -8,4 +8,5 @@ pub(crate) use candidate_accounts::{
     PriorityUpResult,
 };
 
-pub(crate) use priority::Priority;
+pub use blocking_container::BlockingEntry;
+pub use priority::Priority;

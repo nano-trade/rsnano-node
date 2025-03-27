@@ -1,4 +1,5 @@
 mod app;
+mod bootstrap;
 mod channels;
 mod explorer;
 mod frontier_scan;

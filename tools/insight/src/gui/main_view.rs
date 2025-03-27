@@ -3,7 +3,7 @@ use eframe::egui::{
 };
 
 use super::{
-    bootstrap::{view_bootstrap, BootstrapViewModel},
+    bootstrap::{view_bootstrap, BlockedViewModel, BootstrapViewModel, PriorityViewModel},
     formatted_number, view_frontier_scan, view_ledger_stats, view_message_recorder_controls,
     view_message_tab, view_node_runner, view_peers, view_queue_group, view_search_bar, view_tabs,
     BlockViewModel, ChannelsViewModel, ExplorerView, FrontierScanViewModel, MessageStatsView,
@@ -177,9 +177,40 @@ impl AppViewModel {
     }
 
     pub fn bootstrap(&self) -> BootstrapViewModel {
+        let priorities = self
+            .app
+            .bootstrap
+            .priorities
+            .iter()
+            .map(|(prio, account)| PriorityViewModel {
+                account: account.encode_account(),
+                priority: format!("{:2}", prio.as_f64()),
+            })
+            .collect();
+
+        let blocked = self
+            .app
+            .bootstrap
+            .blocked
+            .iter()
+            .map(|i| {
+                let mut model = BlockedViewModel {
+                    account: i.account.encode_account(),
+                    dependency: i.dependency.to_string(),
+                    dependency_account: i.dependency_account.encode_account(),
+                };
+                model.account.truncate(20);
+                model.dependency.truncate(20);
+                model.dependency_account.truncate(20);
+                model
+            })
+            .collect();
+
         BootstrapViewModel {
-            priority_accounts: formatted_number(123),
-            blocked_accounts: formatted_number(42),
+            priority_accounts: formatted_number(self.app.bootstrap.priority_accounts),
+            blocked_accounts: formatted_number(self.app.bootstrap.blocked_accounts),
+            priorities,
+            blocked,
         }
     }
 

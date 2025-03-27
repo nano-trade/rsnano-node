@@ -46,7 +46,7 @@ pub(crate) enum PriorityDownResult {
 
 /// This struct tracks accounts which are candidates for the next bootstrap request or which are
 /// blocked
-pub(crate) struct CandidateAccounts {
+pub struct CandidateAccounts {
     config: CandidateAccountsConfig,
     priorities: PriorityContainer,
     blocking: BlockingContainer,
@@ -331,6 +331,14 @@ impl CandidateAccounts {
     #[allow(dead_code)]
     pub fn blocked_len(&self) -> usize {
         self.blocking.len()
+    }
+
+    pub fn iter_priorities(&self) -> impl Iterator<Item = (Priority, &Account)> {
+        self.priorities.iter()
+    }
+
+    pub fn iter_blocked(&self) -> impl Iterator<Item = &BlockingEntry> {
+        self.blocking.iter_by_insertion_order()
     }
 
     pub fn priority_half_full(&self) -> bool {

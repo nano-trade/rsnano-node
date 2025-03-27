@@ -9,15 +9,15 @@ use rsnano_nullable_clock::Timestamp;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-pub(crate) struct BootstrapState {
+pub struct BootstrapState {
     pub candidate_accounts: CandidateAccounts,
-    pub scoring: PeerScoring,
-    pub running_queries: RunningQueryContainer,
+    pub(crate) scoring: PeerScoring,
+    pub(crate) running_queries: RunningQueryContainer,
     pub frontier_scan: FrontierScan,
     pub counters: BootstrapCounters,
-    pub frontier_ack_processor_busy: bool,
+    pub(crate) frontier_ack_processor_busy: bool,
     pub last_outdated_accounts: VecDeque<Account>,
-    pub stopped: bool,
+    pub(crate) stopped: bool,
 }
 
 impl BootstrapState {
@@ -126,7 +126,7 @@ pub struct BootstrapCounters {
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
-pub(crate) struct OutdatedAccounts {
+pub struct OutdatedAccounts {
     pub accounts: Vec<Account>,
     /// Accounts that exist but are outdated
     pub outdated: usize,

@@ -6,7 +6,7 @@ use std::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct BlockingEntry {
+pub struct BlockingEntry {
     pub account: Account,
     pub dependency: BlockHash,
     /// Account that contains the dependency block, fetched via a background dependency walker
@@ -102,6 +102,12 @@ impl BlockingContainer {
             .range(start..)
             .flat_map(|(_, accs)| accs)
             .map(|acc| self.by_account.get(acc).unwrap())
+    }
+
+    pub fn iter_by_insertion_order(&self) -> impl Iterator<Item = &BlockingEntry> {
+        self.sequenced
+            .iter()
+            .map(|account| self.by_account.get(account).unwrap())
     }
 
     pub fn get(&self, account: &Account) -> Option<&BlockingEntry> {

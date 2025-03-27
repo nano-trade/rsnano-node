@@ -6,8 +6,8 @@ mod running_query;
 mod running_query_container;
 
 pub use bootstrap_state::BootstrapCounters;
-pub(crate) use bootstrap_state::{BootstrapState, OutdatedAccounts};
-pub(crate) use candidate_accounts::*;
+pub use bootstrap_state::{BootstrapState, OutdatedAccounts};
+pub use candidate_accounts::*;
 pub(crate) use frontier_scan::FrontierScan;
 pub use frontier_scan::{FrontierHeadInfo, FrontierScanConfig};
 pub(crate) use peer_scoring::PeerScoring;

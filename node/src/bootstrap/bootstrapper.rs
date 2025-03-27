@@ -1,6 +1,5 @@
 use std::{
-    collections::VecDeque,
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::Duration,
 };
@@ -19,7 +18,7 @@ use super::{
     cleanup::BootstrapCleanup,
     requesters::Requesters,
     response_processor::{ProcessError, ResponseProcessor},
-    state::{BootstrapCounters, BootstrapState, CandidateAccountsConfig, FrontierHeadInfo},
+    state::{BootstrapState, CandidateAccountsConfig},
     FrontierScanConfig,
 };
 use crate::{
@@ -163,18 +162,8 @@ impl Bootstrapper {
         }
     }
 
-    pub fn frontier_heads(&self) -> Vec<FrontierHeadInfo> {
-        self.state.lock().unwrap().frontier_scan.heads()
-    }
-
-    /// Returns the last found outdated accounts by the frontier scan
-    /// The last entry is the newest found
-    pub fn last_outdated_accounts(&self) -> VecDeque<Account> {
-        self.state.lock().unwrap().last_outdated_accounts.clone()
-    }
-
-    pub fn counters(&self) -> BootstrapCounters {
-        self.state.lock().unwrap().counters.clone()
+    pub fn state(&self) -> MutexGuard<BootstrapState> {
+        self.state.lock().unwrap()
     }
 
     pub fn prioritized(&self, account: &Account) -> bool {

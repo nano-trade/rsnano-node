@@ -5,7 +5,7 @@ mod cleanup;
 mod requesters;
 mod response_processor;
 
-pub(crate) mod state;
+pub mod state;
 use state::QueryType;
 pub use state::{BootstrapCounters, FrontierHeadInfo, FrontierScanConfig};
 use std::sync::Arc;
@@ -27,7 +27,7 @@ pub(self) enum PollResult<T> {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub(crate) struct AscPullQuerySpec {
+pub struct AscPullQuerySpec {
     pub channel: Arc<Channel>,
     pub req_type: AscPullReqType,
     pub account: Account,
