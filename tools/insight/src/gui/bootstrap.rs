@@ -1,4 +1,4 @@
-use eframe::egui::{self, CentralPanel, Label, ScrollArea, TextEdit};
+use eframe::egui::{self, CentralPanel, ScrollArea, TextEdit};
 use egui_extras::{Size, StripBuilder};
 use rsnano_core::Account;
 
@@ -54,8 +54,17 @@ pub(crate) fn view_bootstrap(ctx: &egui::Context, model: BootstrapViewModel, app
 
                     strip.cell(|ui| {
                         ui.horizontal(|ui| {
-                            ui.heading("Blocked accounts: ");
-                            ui.heading(model.blocked_accounts);
+                            ui.heading(format!("Blocked accounts: {}", model.blocked_accounts));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(format!("known senders: {}", model.known_dependencies));
+                            ui.add_space(50.0);
+                            ui.label(format!(
+                                "unique senders: {}",
+                                model.unique_blocking_accounts
+                            ));
+                            ui.add_space(50.0);
+                            ui.label(format!("reinsertable: {}", model.reinsertable));
                         });
 
                         ui.horizontal(|ui| {
@@ -109,6 +118,9 @@ pub(crate) fn view_bootstrap(ctx: &egui::Context, model: BootstrapViewModel, app
 pub(crate) struct BootstrapViewModel {
     pub priority_accounts: String,
     pub blocked_accounts: String,
+    pub unique_blocking_accounts: usize,
+    pub known_dependencies: usize,
+    pub reinsertable: usize,
     pub priorities: Vec<PriorityViewModel>,
     pub blocked: Vec<BlockedViewModel>,
     pub search: String,

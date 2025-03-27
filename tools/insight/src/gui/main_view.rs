@@ -211,6 +211,9 @@ impl AppViewModel {
         BootstrapViewModel {
             priority_accounts: formatted_number(self.app.bootstrap.priority_accounts),
             blocked_accounts: formatted_number(self.app.bootstrap.blocked_accounts),
+            unique_blocking_accounts: self.app.bootstrap.unique_blocking_accounts,
+            known_dependencies: self.app.bootstrap.known_dependencies,
+            reinsertable: self.app.bootstrap.reinsertable,
             priorities,
             blocked,
             search: self.app.bootstrap.search.clone(),

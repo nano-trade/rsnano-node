@@ -11,7 +11,7 @@ use super::state::{BootstrapState, RunningQuery};
 pub(super) struct BootstrapCleanup {
     clock: Arc<SteadyClock>,
     stats: Arc<Stats>,
-    sync_dependencies_interval: Instant,
+    last_dependency_sync: Instant,
 }
 
 impl BootstrapCleanup {
@@ -19,7 +19,7 @@ impl BootstrapCleanup {
         Self {
             clock,
             stats,
-            sync_dependencies_interval: Instant::now(),
+            last_dependency_sync: Instant::now(),
         }
     }
 
@@ -55,11 +55,11 @@ impl BootstrapCleanup {
     }
 
     fn reinsert_known_dependencies(&mut self, state: &mut BootstrapState) {
-        if self.sync_dependencies_interval.elapsed() < Duration::from_secs(60) {
+        if self.last_dependency_sync.elapsed() < Duration::from_secs(20) {
             return;
         }
 
-        self.sync_dependencies_interval = Instant::now();
+        self.last_dependency_sync = Instant::now();
         self.stats
             .inc(StatType::Bootstrap, DetailType::SyncDependencies);
 

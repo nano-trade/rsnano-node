@@ -107,15 +107,15 @@ impl CandidateAccounts {
         }
 
         let change_result = self.priorities.modify(account, |entry| {
-            let priority = entry.priority / Self::PRIORITY_DIVIDE;
+            let new_priority = entry.priority / Self::PRIORITY_DIVIDE;
             if entry.fails >= CandidateAccounts::MAX_FAILS
                 || entry.fails as f64 >= entry.priority.as_f64()
-                || priority <= Self::PRIORITY_CUTOFF
+                || new_priority <= Self::PRIORITY_CUTOFF
             {
                 false // delete entry
             } else {
                 entry.fails += 1;
-                entry.priority = priority;
+                entry.priority = new_priority;
                 true // keep
             }
         });
@@ -295,9 +295,9 @@ impl CandidateAccounts {
         let mut inserted = 0;
 
         // Sample all accounts with a known dependency account (> account 0)
-        let begin = Account::zero().inc().unwrap();
+        let begin = Account::from(1);
         for entry in self.blocking.iter_start_dep_account(begin) {
-            if self.priorities.len() >= self.config.priorities_max {
+            if self.priority_full() {
                 break;
             }
 
@@ -323,14 +323,27 @@ impl CandidateAccounts {
         self.priorities.contains(account)
     }
 
-    #[allow(dead_code)]
     pub fn priority_len(&self) -> usize {
         self.priorities.len()
     }
 
-    #[allow(dead_code)]
     pub fn blocked_len(&self) -> usize {
         self.blocking.len()
+    }
+
+    pub fn unique_blocking_accounts(&self) -> usize {
+        self.blocking.unique_blocking_accounts()
+    }
+
+    pub fn known_dependencies(&self) -> usize {
+        self.blocking.known_dependencies()
+    }
+
+    pub fn blocking_reinsertable(&self) -> usize {
+        self.blocking
+            .reinsertable()
+            .filter(|acc| !self.priorities.contains(acc))
+            .count()
     }
 
     pub fn iter_priorities(&self) -> impl Iterator<Item = (Priority, &Account)> {
@@ -339,6 +352,10 @@ impl CandidateAccounts {
 
     pub fn iter_blocked(&self) -> impl Iterator<Item = &BlockingEntry> {
         self.blocking.iter_by_insertion_order()
+    }
+
+    pub fn priority_full(&self) -> bool {
+        self.priorities.len() >= self.config.priorities_max
     }
 
     pub fn priority_half_full(&self) -> bool {

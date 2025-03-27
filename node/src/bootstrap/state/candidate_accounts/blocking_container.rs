@@ -45,6 +45,21 @@ impl BlockingContainer {
         self.sequenced.len()
     }
 
+    pub(crate) fn known_dependencies(&self) -> usize {
+        self.by_dependency_account
+            .range(Account::from(1)..)
+            .map(|(_, accs)| accs.len())
+            .sum()
+    }
+
+    pub(crate) fn unique_blocking_accounts(&self) -> usize {
+        let mut known = self.by_dependency_account.len();
+        if self.by_dependency_account.contains_key(&Account::zero()) {
+            known -= 1;
+        }
+        known
+    }
+
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -78,6 +93,18 @@ impl BlockingContainer {
 
     pub fn contains(&self, account: &Account) -> bool {
         self.by_account.contains_key(account)
+    }
+
+    pub fn reinsertable(&self) -> impl Iterator<Item = &Account> {
+        self.by_dependency_account
+            .range(Account::from(1)..)
+            .filter_map(|(acc, _)| {
+                if !self.by_account.contains_key(acc) {
+                    Some(acc)
+                } else {
+                    None
+                }
+            })
     }
 
     pub fn count_by_dependency_account(&self, dep_account: &Account) -> usize {

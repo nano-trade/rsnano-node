@@ -16,8 +16,16 @@ mod rate_calculator;
 
 use eframe::egui;
 use gui::MainView;
+use tracing_subscriber::EnvFilter;
 
 fn main() -> eframe::Result {
+    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
+    let filter = EnvFilter::builder().parse_lossy(dirs);
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(filter)
+        .with_ansi(true)
+        .init();
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1024.0, 768.0]),
         ..Default::default()
