@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError};
 use std::sync::Arc;
 

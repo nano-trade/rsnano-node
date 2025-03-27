@@ -9,7 +9,6 @@ use rsnano_core::{
 };
 use rsnano_network::NetworkConfig;
 use rsnano_nullable_http_client::Url;
-use rsnano_stats::StatsConfig;
 use rsnano_store_lmdb::LmdbConfig;
 use rsnano_work::OpenClConfig;
 

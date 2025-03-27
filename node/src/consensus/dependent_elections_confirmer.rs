@@ -1,4 +1,4 @@
-use std::sync::{mpsc::SyncSender, Arc};
+use std::sync::Arc;
 
 use rsnano_core::{utils::BackpressureSender, BlockHash, MaybeSavedBlock, SavedBlock};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};

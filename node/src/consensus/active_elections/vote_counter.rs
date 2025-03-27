@@ -16,10 +16,12 @@ impl VoteCounter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn votes(&self) -> u64 {
         self.votes
     }
 
+    #[allow(dead_code)]
     pub fn votes_by(&self, source: VoteSource) -> u64 {
         self.by_source[source as usize]
     }

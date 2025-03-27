@@ -4,8 +4,6 @@ use std::{
     u64,
 };
 
-use rsnano_core::utils::{CancellationToken, Runnable};
-
 use crate::Direction;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]

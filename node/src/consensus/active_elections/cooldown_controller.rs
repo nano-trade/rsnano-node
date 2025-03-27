@@ -26,10 +26,6 @@ impl CooldownController {
         self.cool_down
     }
 
-    pub fn is_source_cooling_down(&self, source: AecCooldownReason) -> bool {
-        self.source_states[source as usize]
-    }
-
     pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) {
         // Update the specific source state
         let index = reason as usize;

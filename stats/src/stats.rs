@@ -14,7 +14,7 @@ use tracing::debug;
 use rsnano_core::utils::get_env_bool;
 
 use crate::{
-    DetailType, Direction, Sample, StatType, StatsCollection, StatsConfig, StatsKey, StatsLogSink,
+    DetailType, Direction, Sample, StatType, StatsCollection, StatsConfig, StatsLogSink,
     StatsSource,
 };
 
