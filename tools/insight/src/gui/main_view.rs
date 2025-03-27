@@ -68,7 +68,7 @@ impl eframe::App for MainView {
             NavItem::Peers => view_peers(ctx, self.model.channels()),
             NavItem::Messages => view_message_tab(ctx, &mut self.model),
             NavItem::Queues => view_queues(ctx, self.model.queue_groups()),
-            NavItem::Bootstrap => view_bootstrap(ctx, self.model.bootstrap()),
+            NavItem::Bootstrap => view_bootstrap(ctx, self.model.bootstrap(), &mut self.model.app),
             NavItem::FrontierScan => {
                 view_frontier_scan(ctx, self.model.frontier_scan(), &mut self.model.app)
             }
@@ -184,7 +184,7 @@ impl AppViewModel {
             .iter()
             .map(|(prio, account)| PriorityViewModel {
                 account: account.encode_account(),
-                priority: format!("{:2}", prio.as_f64()),
+                priority: format!("{:.2}", prio.as_f64()),
             })
             .collect();
 
@@ -198,10 +198,12 @@ impl AppViewModel {
                     account: i.account.encode_account(),
                     dependency: i.dependency.to_string(),
                     dependency_account: i.dependency_account.encode_account(),
+                    account_val: i.account,
+                    dependency_account_val: i.dependency_account,
                 };
-                model.account.truncate(20);
-                model.dependency.truncate(20);
-                model.dependency_account.truncate(20);
+                truncate_text(&mut model.account, 20);
+                truncate_text(&mut model.dependency, 20);
+                truncate_text(&mut model.dependency_account, 20);
                 model
             })
             .collect();
@@ -211,6 +213,7 @@ impl AppViewModel {
             blocked_accounts: formatted_number(self.app.bootstrap.blocked_accounts),
             priorities,
             blocked,
+            search: self.app.bootstrap.search.clone(),
         }
     }
 
@@ -224,5 +227,11 @@ impl AppViewModel {
 
     pub fn frontier_scan(&self) -> FrontierScanViewModel {
         FrontierScanViewModel::new(&self.app.frontier_scan)
+    }
+}
+
+fn truncate_text(s: &mut String, len: usize) {
+    if s.len() > len {
+        s.replace_range(len.., "...");
     }
 }
