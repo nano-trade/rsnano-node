@@ -3,9 +3,10 @@ use eframe::egui::{
 };
 
 use super::{
-    view_frontier_scan, view_ledger_stats, view_message_recorder_controls, view_message_tab,
-    view_node_runner, view_peers, view_queue_group, view_search_bar, view_tabs, BlockViewModel,
-    ChannelsViewModel, ExplorerView, FrontierScanViewModel, MessageStatsView,
+    bootstrap::{view_bootstrap, BootstrapViewModel},
+    formatted_number, view_frontier_scan, view_ledger_stats, view_message_recorder_controls,
+    view_message_tab, view_node_runner, view_peers, view_queue_group, view_search_bar, view_tabs,
+    BlockViewModel, ChannelsViewModel, ExplorerView, FrontierScanViewModel, MessageStatsView,
     MessageStatsViewModel, MessageTableViewModel, QueueGroupViewModel, TabViewModel,
 };
 use crate::{app::InsightApp, explorer::ExplorerState, gui::QueueViewModel, navigator::NavItem};
@@ -67,7 +68,8 @@ impl eframe::App for MainView {
             NavItem::Peers => view_peers(ctx, self.model.channels()),
             NavItem::Messages => view_message_tab(ctx, &mut self.model),
             NavItem::Queues => view_queues(ctx, self.model.queue_groups()),
-            NavItem::Bootstrap => {
+            NavItem::Bootstrap => view_bootstrap(ctx, self.model.bootstrap()),
+            NavItem::FrontierScan => {
                 view_frontier_scan(ctx, self.model.frontier_scan(), &mut self.model.app)
             }
             NavItem::Explorer => ExplorerView::new(&self.model.explorer()).show(ctx),
@@ -96,6 +98,10 @@ pub(crate) struct AppViewModel {
 impl AppViewModel {
     pub(crate) fn new() -> Self {
         let app = InsightApp::new();
+        Self::for_app(app)
+    }
+
+    pub(crate) fn for_app(app: InsightApp) -> Self {
         let message_table = MessageTableViewModel::new(app.messages.clone());
 
         Self {
@@ -168,6 +174,13 @@ impl AppViewModel {
                 )],
             },
         ]
+    }
+
+    pub fn bootstrap(&self) -> BootstrapViewModel {
+        BootstrapViewModel {
+            priority_accounts: formatted_number(123),
+            blocked_accounts: formatted_number(42),
+        }
     }
 
     pub fn explorer(&self) -> BlockViewModel {
