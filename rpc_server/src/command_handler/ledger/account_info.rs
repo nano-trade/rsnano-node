@@ -12,7 +12,7 @@ impl RpcCommandHandler {
         let include_confirmed = unwrap_bool_or_false(args.include_confirmed);
         let info = self.load_account(&any, &args.account)?;
 
-        let conf_info = any.confirmed().get_conf_info(&args.account).unwrap();
+        let conf_info = any.confirmed().get_conf_info(&args.account).unwrap_or_default();
 
         let mut account_info = AccountInfoResponse {
             frontier: info.head,

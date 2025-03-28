@@ -12,6 +12,16 @@ pub(crate) fn view_bootstrap(ctx: &egui::Context, model: BootstrapViewModel, app
                     .hint_text("filter account...")
                     .desired_width(500.0),
             );
+            ui.horizontal(|ui| {
+                ui.add(
+                    TextEdit::singleline(&mut app.bootstrap.add_account)
+                        .hint_text("account...")
+                        .desired_width(400.0),
+                );
+                if ui.button("add account").clicked() {
+                    app.add_priority_account();
+                }
+            });
             StripBuilder::new(ui)
                 .sizes(Size::remainder(), 2)
                 .horizontal(|mut strip| {

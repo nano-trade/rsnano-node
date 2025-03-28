@@ -1,17 +1,26 @@
-use eframe::egui::{self, CentralPanel, Grid};
+use eframe::egui::{self, CentralPanel, Grid, TextEdit};
 use rsnano_core::DetailedBlock;
+
+use crate::app::InsightApp;
 
 pub(crate) struct ExplorerView<'a> {
     model: &'a BlockViewModel,
+    app: &'a mut InsightApp,
 }
 
 impl<'a> ExplorerView<'a> {
-    pub(crate) fn new(model: &'a BlockViewModel) -> Self {
-        Self { model }
+    pub(crate) fn new(model: &'a BlockViewModel, app: &'a mut InsightApp) -> Self {
+        Self { model, app }
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
         CentralPanel::default().show(ctx, |ui| {
+            ui.horizontal(|ui|{
+                ui.add(TextEdit::singleline(&mut self.app.rollback_hash).desired_width(400.0).hint_text("hash..."));
+                if ui.button("roll back block!").clicked(){
+                    self.app.roll_back();
+                }
+            });
             ui.heading(format!("Block {}", self.model.hash));
             ui.add_space(20.0);
             Grid::new("block_grid").num_columns(2).show(ui, |ui| {

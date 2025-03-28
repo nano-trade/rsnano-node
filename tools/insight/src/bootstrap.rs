@@ -11,6 +11,7 @@ pub(crate) struct BootstrapInfo {
     pub priorities: Vec<(Priority, Account)>,
     pub blocked: Vec<BlockingEntry>,
     pub search: String,
+    pub add_account: String,
 }
 
 impl BootstrapInfo {
