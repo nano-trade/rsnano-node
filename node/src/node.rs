@@ -782,14 +782,6 @@ impl Node {
             }
         }));
 
-        // Remove rolled back blocks from the backlog
-        let backlog_w = Arc::downgrade(&bounded_backlog);
-        ledger_notifications.on_blocks_rolled_back(move |blocks, _rollback_root| {
-            if let Some(backlog) = backlog_w.upgrade() {
-                backlog.erase_hashes(blocks.iter().map(|b| b.hash()));
-            }
-        });
-
         let bootstrapper = Arc::new(Bootstrapper::new(
             block_processor.clone(),
             ledger.clone(),

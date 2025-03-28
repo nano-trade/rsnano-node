@@ -58,17 +58,14 @@ impl LedgerEventProcessor {
                 }
                 LedgerEvent::BlocksRolledBack(rolled_back) => {
                     // Unblock rolled back accounts as the dependency is no longer valid
-                    self.bootstrapper.unblock_batch(
-                        rolled_back
-                            .iter()
-                            .flat_map(|i| i.rolled_back.iter().map(|b| b.account())),
-                    );
+                    self.bootstrapper
+                        .unblock_batch(rolled_back.affected_accounts());
 
-                    self.local_block_broadcaster.rolled_back(
-                        rolled_back
-                            .iter()
-                            .flat_map(|i| i.rolled_back.iter().map(|b| b.hash())),
-                    );
+                    self.bounded_backlog
+                        .erase_hashes(rolled_back.rolled_back_hashes());
+
+                    self.local_block_broadcaster
+                        .rolled_back(rolled_back.rolled_back_hashes());
                 }
             }
         }

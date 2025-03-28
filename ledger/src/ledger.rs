@@ -24,6 +24,7 @@ use rsnano_work::WorkThresholds;
 use std::{
     collections::{HashMap, VecDeque},
     net::SocketAddrV6,
+    ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, RwLock,
@@ -105,7 +106,7 @@ impl From<BlockStatus> for DetailType {
 pub enum LedgerEvent {
     /// The confirmed block + it's confirmation root
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
-    BlocksRolledBack(Vec<RollbackResult>),
+    BlocksRolledBack(RollbackResults),
 }
 
 pub struct Ledger {
@@ -508,12 +509,12 @@ impl Ledger {
         targets: &[BlockHash],
         max_rollbacks: usize,
         can_roll_back: impl Fn(&BlockHash) -> bool,
-    ) -> Vec<RollbackResult> {
+    ) -> RollbackResults {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
         let mut rolled_back_count = 0;
-        let mut results = Vec::new();
+        let mut results = RollbackResults::new();
         {
             let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
 
@@ -899,10 +900,51 @@ pub trait CementingObserver {
     fn cementing_failed(&mut self, hash: &BlockHash);
 }
 
+#[derive(Clone, Default)]
+pub struct RollbackResults(Vec<RollbackResult>);
+
+impl Deref for RollbackResults {
+    type Target = Vec<RollbackResult>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for RollbackResults {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl RollbackResults {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn affected_accounts(&self) -> impl Iterator<Item = Account> + use<'_> {
+        self.iter().flat_map(|i| i.affected_accounts())
+    }
+
+    pub fn rolled_back_hashes(&self) -> impl Iterator<Item = BlockHash> + use<'_> {
+        self.iter().flat_map(|i| i.rolled_back_hashes())
+    }
+}
+
 #[derive(Clone)]
 pub struct RollbackResult {
     pub target_hash: BlockHash,
     pub target_root: QualifiedRoot,
     pub rolled_back: Vec<SavedBlock>,
     pub error: Option<RollbackError>,
+}
+
+impl RollbackResult {
+    pub fn affected_accounts(&self) -> impl Iterator<Item = Account> + use<'_> {
+        self.rolled_back.iter().map(|b| b.account())
+    }
+
+    pub fn rolled_back_hashes(&self) -> impl Iterator<Item = BlockHash> + use<'_> {
+        self.rolled_back.iter().map(|b| b.hash())
+    }
 }
