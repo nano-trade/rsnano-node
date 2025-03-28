@@ -4,13 +4,13 @@ use rsnano_core::{
     utils::{BackpressureReceiver, MemoryStream},
     VoteCode, VoteSource,
 };
-use rsnano_ledger::{Ledger, LedgerSet};
+use rsnano_ledger::{BlockSource, Ledger, LedgerSet};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::ChannelId;
 use rsnano_nullable_clock::SteadyClock;
 
 use crate::{
-    block_processing::{BlockProcessor, BlockSource},
+    block_processing::BlockProcessor,
     cementation::ConfirmingSet,
     consensus::{
         election_schedulers::ElectionSchedulers, ActiveElections, AecCooldownReason, AecEvent,

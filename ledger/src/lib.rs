@@ -4,6 +4,9 @@ extern crate anyhow;
 #[macro_use]
 extern crate num_derive;
 
+#[macro_use]
+extern crate strum_macros;
+
 mod block_cementer;
 mod block_insertion;
 mod block_rollback;
@@ -35,4 +38,34 @@ pub use ledger_sets::*;
 pub use rep_weight_cache::*;
 pub use rep_weights_updater::*;
 pub(crate) use representative_block_finder::RepresentativeBlockFinder;
+use rsnano_stats::DetailType;
 pub use rsnano_store_lmdb::{WriteGuard, WriteQueue, Writer};
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, Hash)]
+pub enum BlockSource {
+    Unknown = 0,
+    Live,
+    LiveOriginator,
+    Bootstrap,
+    BootstrapLegacy,
+    Unchecked,
+    Local,
+    Forced,
+    Election,
+}
+
+impl From<BlockSource> for DetailType {
+    fn from(value: BlockSource) -> Self {
+        match value {
+            BlockSource::Unknown => DetailType::Unknown,
+            BlockSource::Live => DetailType::Live,
+            BlockSource::LiveOriginator => DetailType::LiveOriginator,
+            BlockSource::Bootstrap => DetailType::Bootstrap,
+            BlockSource::BootstrapLegacy => DetailType::BootstrapLegacy,
+            BlockSource::Unchecked => DetailType::Unchecked,
+            BlockSource::Local => DetailType::Local,
+            BlockSource::Forced => DetailType::Forced,
+            BlockSource::Election => DetailType::Election,
+        }
+    }
+}

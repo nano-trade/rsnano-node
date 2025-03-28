@@ -20,7 +20,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
 };
-use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, BlockSource, ConfirmedSet, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
@@ -31,7 +31,7 @@ use rsnano_work::{WorkPool, WorkThresholds};
 
 use super::{Wallet, WalletActionThread, WalletRepresentatives};
 use crate::{
-    block_processing::{BlockProcessor, BlockSource},
+    block_processing::BlockProcessor,
     cementation::{ConfirmingSet, ConfirmingSetConfig},
     config::{NetworkConstants, NetworkParams, NodeConfig},
     representatives::OnlineReps,

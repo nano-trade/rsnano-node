@@ -13,14 +13,12 @@ use rsnano_core::{
     utils::{ContainerInfo, FairQueue, FairQueueInfo},
     Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
 };
-use rsnano_ledger::{BlockStatus, Ledger};
+use rsnano_ledger::{BlockSource, BlockStatus, Ledger};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_work::WorkThresholds;
 
-use super::{
-    BlockContext, BlockProcessorCallback, BlockSource, LedgerNotificationQueue, UncheckedMap,
-};
+use super::{BlockContext, BlockProcessorCallback, LedgerNotificationQueue, UncheckedMap};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
@@ -649,7 +647,8 @@ impl DeadChannelCleanupStep for BlockProcessorCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
         let mut guard = self.0.mutex.lock().unwrap();
         for channel_id in dead_channel_ids {
-            for source in BlockSource::iter() {
+            let iter = BlockSource::iter();
+            for source in iter {
                 guard.add_queue.remove(&(source, *channel_id))
             }
         }

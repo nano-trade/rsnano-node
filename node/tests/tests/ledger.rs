@@ -1,13 +1,16 @@
+use std::{sync::Arc, time::Duration};
+
 use rsnano_core::{
     Account, Amount, Block, BlockHash, Epoch, PrivateKey, QualifiedRoot, Signature, StateBlockArgs,
     Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockSource, BlockStatus, LedgerSet,
+    DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::ChannelId;
-use rsnano_node::{block_processing::BlockSource, config::NodeConfig};
-use std::{sync::Arc, time::Duration};
+use rsnano_node::config::NodeConfig;
+
 use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, start_elections, System};
 
 mod votes {

@@ -4,8 +4,8 @@ use std::{
 };
 
 use rsnano_core::utils::FairQueueInfo;
+use rsnano_ledger::BlockSource;
 use rsnano_node::{
-    block_processing::BlockSource,
     cementation::ConfirmingSetInfo,
     consensus::{ActiveElectionsInfo, RepTier},
 };

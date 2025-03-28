@@ -17,7 +17,7 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
     VoteCode, WorkNonce,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, RepWeightCache};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -35,7 +35,7 @@ use rsnano_work::WorkPool;
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockSource, BoundedBacklog,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog,
         LedgerNotificationThread, LedgerNotifications, LocalBlockBroadcaster,
         LocalBlockBroadcasterExt, UncheckedMap,
     },

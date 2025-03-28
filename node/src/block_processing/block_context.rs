@@ -1,40 +1,9 @@
 use rsnano_core::{Block, SavedBlock};
-use rsnano_ledger::BlockStatus;
-use rsnano_stats::DetailType;
+use rsnano_ledger::{BlockSource, BlockStatus};
 use std::{
     sync::{Arc, Condvar, Mutex},
     time::Instant,
 };
-use strum_macros::EnumIter;
-
-#[derive(FromPrimitive, Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, Hash)]
-pub enum BlockSource {
-    Unknown = 0,
-    Live,
-    LiveOriginator,
-    Bootstrap,
-    BootstrapLegacy,
-    Unchecked,
-    Local,
-    Forced,
-    Election,
-}
-
-impl From<BlockSource> for DetailType {
-    fn from(value: BlockSource) -> Self {
-        match value {
-            BlockSource::Unknown => DetailType::Unknown,
-            BlockSource::Live => DetailType::Live,
-            BlockSource::LiveOriginator => DetailType::LiveOriginator,
-            BlockSource::Bootstrap => DetailType::Bootstrap,
-            BlockSource::BootstrapLegacy => DetailType::BootstrapLegacy,
-            BlockSource::Unchecked => DetailType::Unchecked,
-            BlockSource::Local => DetailType::Local,
-            BlockSource::Forced => DetailType::Forced,
-            BlockSource::Election => DetailType::Election,
-        }
-    }
-}
 
 pub type BlockProcessorCallback = Box<dyn Fn(BlockStatus) + Send + Sync>;
 

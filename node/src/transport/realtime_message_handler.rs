@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use rsnano_ledger::BlockSource;
 use tracing::trace;
 
 use rsnano_core::VoteSource;
@@ -11,7 +12,7 @@ use rsnano_network::{Channel, Network};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::{BlockProcessor, BlockSource},
+    block_processing::BlockProcessor,
     bootstrap::{BootstrapResponder, Bootstrapper},
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,

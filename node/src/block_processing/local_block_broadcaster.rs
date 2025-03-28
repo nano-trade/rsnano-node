@@ -10,12 +10,12 @@ use std::{
 use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
-use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
+use rsnano_ledger::{BlockSource, BlockStatus, ConfirmedSet, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use super::{BlockContext, BlockSource, LedgerNotifications};
+use super::{BlockContext, LedgerNotifications};
 use crate::{cementation::ConfirmingSet, transport::MessageFlooder};
 
 #[derive(Clone, Debug, PartialEq)]

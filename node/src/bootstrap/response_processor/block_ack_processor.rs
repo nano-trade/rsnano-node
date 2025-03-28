@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
 
+use rsnano_ledger::BlockSource;
 use rsnano_messages::BlocksAckPayload;
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::{BlockProcessor, BlockSource},
+    block_processing::BlockProcessor,
     bootstrap::state::{BootstrapState, PriorityDownResult, RunningQuery, VerifyResult},
 };
 

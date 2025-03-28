@@ -1,10 +1,11 @@
-use crate::command_handler::RpcCommandHandler;
 use anyhow::{anyhow, bail};
+
 use rsnano_core::{Block, BlockBase, BlockType};
-use rsnano_ledger::{BlockStatus, LedgerSet};
+use rsnano_ledger::{BlockSource, BlockStatus, LedgerSet};
 use rsnano_network::ChannelId;
-use rsnano_node::block_processing::BlockSource;
 use rsnano_rpc_messages::{BlockSubTypeDto, HashRpcMessage, ProcessArgs, StartedResponse};
+
+use crate::command_handler::RpcCommandHandler;
 
 impl RpcCommandHandler {
     pub(crate) fn process(&self, args: ProcessArgs) -> anyhow::Result<serde_json::Value> {
