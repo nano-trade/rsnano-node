@@ -1160,6 +1160,7 @@ impl Node {
             dependent_elections_confirmer,
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
+            bootstrapper: bootstrapper.clone(),
         };
 
         std::thread::Builder::new()

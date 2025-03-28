@@ -6,6 +6,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
     block_processing::{BoundedBacklog, LocalBlockBroadcaster},
+    bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     config::NodeFlags,
     consensus::{election_schedulers::ElectionSchedulers, DependentElectionsConfirmer},
@@ -20,6 +21,7 @@ pub(crate) struct LedgerEventProcessor {
     pub stats: Arc<Stats>,
     pub flags: NodeFlags,
     pub(crate) dependent_elections_confirmer: DependentElectionsConfirmer,
+    pub(crate) bootstrapper: Arc<Bootstrapper>,
 }
 
 impl LedgerEventProcessor {
@@ -55,6 +57,13 @@ impl LedgerEventProcessor {
                         .confirmed(confirmed.iter().map(|i| i.1));
                 }
                 LedgerEvent::BlocksRolledBack(rolled_back) => {
+                    // Unblock rolled back accounts as the dependency is no longer valid
+                    self.bootstrapper.unblock_batch(
+                        rolled_back
+                            .iter()
+                            .flat_map(|i| i.rolled_back.iter().map(|b| b.account())),
+                    );
+
                     self.local_block_broadcaster.rolled_back(
                         rolled_back
                             .iter()

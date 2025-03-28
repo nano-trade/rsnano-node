@@ -233,6 +233,13 @@ impl Bootstrapper {
         self.state_changed.notify_all();
     }
 
+    pub fn unblock_batch(&self, accounts: impl IntoIterator<Item = Account>) {
+        let mut guard = self.state.lock().unwrap();
+        for account in accounts {
+            guard.candidate_accounts.unblock(account, None);
+        }
+    }
+
     pub fn container_info(&self) -> ContainerInfo {
         self.state.lock().unwrap().container_info()
     }
@@ -259,18 +266,6 @@ impl BootstrapExt for Arc<Bootstrapper> {
                 self_l.blocks_processed(batch);
             }
         }));
-
-        // Unblock rolled back accounts as the dependency is no longer valid
-        let self_w = Arc::downgrade(self);
-        notifications.on_blocks_rolled_back(move |blocks, _rollback_root| {
-            let Some(self_l) = self_w.upgrade() else {
-                return;
-            };
-            let mut guard = self_l.state.lock().unwrap();
-            for block in blocks {
-                guard.candidate_accounts.unblock(block.account(), None);
-            }
-        });
 
         let inserted = self
             .state
