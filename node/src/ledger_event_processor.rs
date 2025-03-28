@@ -51,6 +51,9 @@ impl LedgerEventProcessor {
             }
 
             match event {
+                LedgerEvent::BlocksProcessed(results) => {
+                    // TODO
+                }
                 LedgerEvent::BlocksConfirmed(confirmed) => {
                     self.dependent_elections_confirmer
                         .confirm_dependent_elections(&confirmed);

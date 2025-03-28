@@ -666,30 +666,6 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
     send
 }
 
-pub fn process_block_local(node: Arc<Node>, account: Account, amount: Amount) -> Block {
-    let any = node.ledger.any();
-
-    let previous = any
-        .account_head(&DEV_GENESIS_ACCOUNT)
-        .unwrap_or(*DEV_GENESIS_HASH);
-
-    let balance = any.account_balance(&DEV_GENESIS_ACCOUNT);
-
-    let send: Block = StateBlockArgs {
-        key: &DEV_GENESIS_KEY,
-        previous,
-        representative: *DEV_GENESIS_PUB_KEY,
-        balance: balance - amount,
-        link: account.into(),
-        work: node.work_generate_dev(previous),
-    }
-    .into();
-
-    node.process_local(send.clone()).unwrap();
-
-    send
-}
-
 pub fn process_send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
     let any = node.ledger.any();
 
@@ -738,11 +714,7 @@ pub fn process_open_block(node: Arc<Node>, keys: PrivateKey) -> Block {
     open
 }
 
-pub fn upgrade_epoch(
-    node: Arc<Node>,
-    //pool: &mut WorkPoolImpl,
-    epoch: Epoch,
-) -> Block {
+pub fn upgrade_epoch(node: Arc<Node>, epoch: Epoch) -> Block {
     let any = node.ledger.any();
     let account = *DEV_GENESIS_ACCOUNT;
     let latest = any.account_head(&account).unwrap();

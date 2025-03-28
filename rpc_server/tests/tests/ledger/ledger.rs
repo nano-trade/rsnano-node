@@ -10,13 +10,12 @@ fn setup_test_environment(node: Arc<Node>) -> (PrivateKey, Block, Block) {
     let rep_weight = Amount::MAX - Amount::raw(100);
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
+
     let send = lattice.genesis().send(&keys, rep_weight);
-    let status = node.process_local(send.clone()).unwrap();
-    assert_eq!(status, BlockStatus::Progress);
+    node.process(send.clone());
 
     let open = lattice.account(&keys).receive(&send);
-    let status = node.process_local(open.clone()).unwrap();
-    assert_eq!(status, BlockStatus::Progress);
+    node.process(open.clone());
 
     (keys, send, open)
 }
@@ -102,8 +101,7 @@ fn test_ledger_pending() {
     }
     .into();
 
-    let status = node.process_local(send2_block).unwrap();
-    assert_eq!(status, BlockStatus::Progress);
+    node.process(send2_block);
 
     let args = LedgerArgs::builder()
         .count(2)

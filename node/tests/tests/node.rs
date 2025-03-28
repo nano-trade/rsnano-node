@@ -169,24 +169,16 @@ fn deferred_dependent_elections() {
     node1.process_local(open.clone().into()).unwrap();
     node1.process_local(send2.clone().into()).unwrap();
 
-    assert_timely(std::time::Duration::from_secs(5), || {
-        node1.block_exists(&open.hash())
-    });
-    assert_timely(std::time::Duration::from_secs(5), || {
-        node1.block_exists(&send2.hash())
-    });
+    assert_timely2(|| node1.block_exists(&open.hash()));
+    assert_timely2(|| node1.block_exists(&send2.hash()));
 
-    assert_never(std::time::Duration::from_millis(500), || {
+    assert_never(Duration::from_millis(500), || {
         node1.active.is_active_root(&open.qualified_root())
             || node1.active.is_active_root(&send2.qualified_root())
     });
 
-    assert_timely(std::time::Duration::from_secs(5), || {
-        node2.block_exists(&open.hash())
-    });
-    assert_timely(std::time::Duration::from_secs(5), || {
-        node2.block_exists(&send2.hash())
-    });
+    assert_timely2(|| node2.block_exists(&open.hash()));
+    assert_timely2(|| node2.block_exists(&send2.hash()));
 
     node1.process_local(open.clone().into()).unwrap();
 
@@ -2581,17 +2573,8 @@ fn unconfirmed_send() {
         )
         .unwrap();
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.block_confirmed(&send1.hash()),
-        "send1 not confirmed on node1",
-    );
-
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node2.block_confirmed(&send1.hash()),
-        "send1 not confirmed on node2",
-    );
+    assert_timely2(|| node1.block_confirmed(&send1.hash()));
+    assert_timely2(|| node2.block_confirmed(&send1.hash()));
 
     // wait until receive1 (auto-receive created by wallet) is cemented
     assert_timely_eq2(
@@ -2642,32 +2625,12 @@ fn unconfirmed_send() {
             None,
         )
         .unwrap();
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node2.block_confirmed(&send2.hash()),
-        "send2 not confirmed on node2",
-    );
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.block_confirmed(&send2.hash()),
-        "send2 not confirmed on node1",
-    );
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node2.block_confirmed(&send3.hash()),
-        "send3 not confirmed on node2",
-    );
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.block_confirmed(&send3.hash()),
-        "send3 not confirmed on node1",
-    );
-    assert_timely_eq(Duration::from_secs(5), || node2.ledger.confirmed_count(), 7);
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node1.balance(&DEV_GENESIS_ACCOUNT),
-        Amount::MAX,
-    );
+    assert_timely2(|| node2.block_confirmed(&send2.hash()));
+    assert_timely2(|| node1.block_confirmed(&send2.hash()));
+    assert_timely2(|| node2.block_confirmed(&send3.hash()));
+    assert_timely2(|| node1.block_confirmed(&send3.hash()));
+    assert_timely_eq2(|| node2.ledger.confirmed_count(), 7);
+    assert_timely_eq2(|| node1.balance(&DEV_GENESIS_ACCOUNT), Amount::MAX);
 }
 
 #[test]

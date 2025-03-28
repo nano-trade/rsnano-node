@@ -979,7 +979,7 @@ fn conflicting_block_vote_existing_election() {
         node.process_local(send.clone()).unwrap(),
         BlockStatus::Progress
     );
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
+    assert_timely_eq2(|| node.active.len(), 1);
 
     // Vote for conflicting block, but the block does not yet exist in the ledger
     node.vote_processor_queue

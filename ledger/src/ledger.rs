@@ -105,6 +105,7 @@ impl From<BlockStatus> for DetailType {
 
 pub enum LedgerEvent {
     /// The confirmed block + it's confirmation root
+    BlocksProcessed(Vec<(BlockStatus, Option<SavedBlock>)>),
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
     BlocksRolledBack(RollbackResults),
 }
@@ -598,32 +599,46 @@ impl Ledger {
     ) -> BatchProcessResult {
         let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
         let mut processed = Vec::new();
-        let mut rolled_back = Vec::new();
+        let mut processed_batch = Vec::new();
+        let mut rolled_back = RollbackResults::new();
 
         for (block, force) in batch.into_iter() {
-            tx.refresh_if_needed();
+            if tx.is_refresh_needed() {
+                drop(tx);
+                if !rolled_back.is_empty() {
+                    self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+                    rolled_back = RollbackResults::new();
+                }
+                self.notify(LedgerEvent::BlocksProcessed(processed_batch));
+                processed_batch = Vec::new();
+                tx = self.store.tx_begin_write(Writer::BlockProcessor);
+            }
 
             if force {
                 let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
                 if !rolled_back_blocks.is_empty() {
-                    rolled_back.push((rolled_back_blocks, block.qualified_root()));
+                    rolled_back.push(RollbackResult {
+                        target_hash: block.hash(),
+                        target_root: block.qualified_root(),
+                        rolled_back: rolled_back_blocks,
+                        error: None,
+                    });
                 }
             }
 
             match self.process(&mut tx, block) {
                 Ok(saved_block) => {
-                    processed.push((BlockStatus::Progress, Some(saved_block)));
+                    processed.push((BlockStatus::Progress, Some(saved_block.clone())));
+                    processed_batch.push((BlockStatus::Progress, Some(saved_block)));
                 }
                 Err(status) => {
                     processed.push((status, None));
+                    processed_batch.push((status, None));
                 }
             }
         }
 
-        BatchProcessResult {
-            processed,
-            rolled_back,
-        }
+        BatchProcessResult { processed }
     }
 
     pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockStatus> {
@@ -892,7 +907,6 @@ impl Ledger {
 
 pub struct BatchProcessResult {
     pub processed: Vec<(BlockStatus, Option<SavedBlock>)>,
-    pub rolled_back: Vec<(Vec<SavedBlock>, QualifiedRoot)>,
 }
 
 pub trait CementingObserver {
