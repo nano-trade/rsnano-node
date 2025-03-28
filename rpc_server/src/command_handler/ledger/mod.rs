@@ -12,6 +12,7 @@ mod block_account;
 mod block_confirm;
 mod block_count;
 mod block_info;
+mod block_rollback;
 mod blocks;
 mod blocks_info;
 mod chain;

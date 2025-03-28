@@ -46,6 +46,7 @@ pub enum RpcCommand {
     AvailableSupply,
     BlockAccount(HashRpcMessage),
     BlockConfirm(HashRpcMessage),
+    BlockRollback(HashRpcMessage),
     DatabaseTxnTracker(()), // TODO
     ConfirmationHistory(ConfirmationHistoryArgs),
     BlockCount,

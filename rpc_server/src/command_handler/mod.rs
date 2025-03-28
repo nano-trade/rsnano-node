@@ -67,6 +67,7 @@ impl RpcCommandHandler {
             RpcCommand::BlockConfirm(args) => to_value(self.block_confirm(args)?),
             RpcCommand::BlockAccount(args) => to_value(self.block_account(args)?),
             RpcCommand::BlockCount => to_value(self.block_count()),
+            RpcCommand::BlockRollback(args) => to_value(self.block_rollback(args)),
             RpcCommand::Receive(args) => to_value(self.receive(args)?),
             RpcCommand::BlockCreate(args) => to_value(self.block_create(args)?),
             RpcCommand::BlockHash(args) => to_value(block_hash(args)),
@@ -195,6 +196,7 @@ fn requires_control(command: &RpcCommand) -> bool {
         | RpcCommand::AccountRepresentativeSet(_)
         | RpcCommand::AccountsCreate(_)
         | RpcCommand::BlockCreate(_)
+        | RpcCommand::BlockRollback(_)
         | RpcCommand::BootstrapLazy(_)
         | RpcCommand::DatabaseTxnTracker(_)
         | RpcCommand::Keepalive(_)
