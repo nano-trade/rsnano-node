@@ -55,7 +55,7 @@ impl BootstrapCleanup {
     }
 
     fn reinsert_known_dependencies(&mut self, state: &mut BootstrapState) {
-        if self.last_dependency_sync.elapsed() < Duration::from_secs(20) {
+        if self.last_dependency_sync.elapsed() < Duration::from_secs(30) {
             return;
         }
 

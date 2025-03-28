@@ -110,7 +110,7 @@ impl PullStart {
             PullStart::account(account)
         } else {
             match pull_type {
-                PullType::Optimistic => PullStart::block(head, head),
+                PullType::Optimistic => PullStart::block(head),
                 PullType::Safe => PullStart::safe(account, confirmed_frontier),
             }
         }
@@ -120,7 +120,7 @@ impl PullStart {
         if confirmed_frontier.is_zero() {
             PullStart::account(account)
         } else {
-            PullStart::block(confirmed_frontier, confirmed_frontier)
+            PullStart::block(confirmed_frontier)
         }
     }
 
@@ -132,11 +132,11 @@ impl PullStart {
         }
     }
 
-    fn block(start: BlockHash, hash: BlockHash) -> Self {
+    fn block(start: BlockHash) -> Self {
         Self {
             start: start.into(),
             start_type: HashType::Block,
-            hash,
+            hash: start,
         }
     }
 }
