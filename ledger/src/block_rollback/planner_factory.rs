@@ -27,7 +27,7 @@ impl<'a> RollbackPlannerFactory<'a> {
             head_block: self.head_block.clone(),
             account,
             current_account_info: self.load_account(&account),
-            previous_representative: self.get_previous_representative()?,
+            previous_representative: self.get_previous_representative(),
             previous: self.load_previous_block()?,
             linked_account: self.load_linked_account(),
             pending_receive: self.load_pending_receive(),
@@ -87,14 +87,10 @@ impl<'a> RollbackPlannerFactory<'a> {
         self.any.get_account(account).unwrap_or_default()
     }
 
-    fn get_previous_representative(&self) -> Result<Option<PublicKey>, RollbackError> {
+    fn get_previous_representative(&self) -> Option<PublicKey> {
         let previous = self.head_block.previous();
         let rep_block_hash = if !previous.is_zero() {
-            let rep_hash = self.any.representative_block_hash(&previous);
-            if rep_hash.is_zero() {
-                return Err(RollbackError::RepresentativeBlockMissing);
-            }
-            rep_hash
+            self.any.representative_block_hash(&previous)
         } else {
             BlockHash::zero()
         };
@@ -107,7 +103,7 @@ impl<'a> RollbackPlannerFactory<'a> {
         } else {
             None
         };
-        Ok(previous_rep)
+        previous_rep
     }
 
     fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {

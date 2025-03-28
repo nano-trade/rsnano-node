@@ -444,11 +444,19 @@ impl BlockProcessorLoopImpl {
             self.ledger
                 .rollback_batch(&request.targets, request.max_rollbacks, &*can_roll_back);
 
-        for (rolled_back, root) in result.processed {
-            self.notifier.notify_rollback(rolled_back, root);
+        let mut processed_hashes = Vec::new();
+        for (hash, root, rolled_back, _error) in result {
+            if !rolled_back.is_empty() {
+                for h in &rolled_back {
+                    processed_hashes.push(h.hash());
+                }
+                self.notifier.notify_rollback(rolled_back, root);
+            } else {
+                processed_hashes.push(hash);
+            }
         }
 
-        *request.result.rolled_back.lock().unwrap() = Some(result.processed_hashes);
+        *request.result.rolled_back.lock().unwrap() = Some(processed_hashes);
         request.result.done.notify_all();
     }
 

@@ -30,7 +30,7 @@ use std::{
     },
     time::SystemTime,
 };
-use tracing::{debug, error};
+use tracing::debug;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
@@ -107,7 +107,14 @@ pub enum LedgerEvent {
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
 
     /// The rolled back blocks + their rollback root
-    BlocksRolledBack(Vec<(Vec<SavedBlock>, QualifiedRoot)>),
+    BlocksRolledBack(
+        Vec<(
+            BlockHash,
+            QualifiedRoot,
+            Vec<SavedBlock>,
+            Option<RollbackError>,
+        )>,
+    ),
 }
 
 pub struct Ledger {
@@ -500,25 +507,9 @@ impl Ledger {
     }
     ///
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
-    pub fn rollback(
-        &self,
-        block: &BlockHash,
-    ) -> Result<Vec<SavedBlock>, (RollbackError, Vec<SavedBlock>)> {
-        let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
-        self.rollback_with_tx(&mut tx, block)
-        // self.rollback_batch(&[block], usize::MAX, |_| true);
-    }
-
-    fn rollback_with_tx(
-        &self,
-        tx: &mut LmdbWriteTransaction,
-        block: &BlockHash,
-    ) -> Result<Vec<SavedBlock>, (RollbackError, Vec<SavedBlock>)> {
-        let mut performer = BlockRollbackPerformer::new(self, tx);
-        match performer.roll_back(block) {
-            Ok(()) => Ok(performer.rolled_back),
-            Err(e) => Err((e, performer.rolled_back)),
-        }
+    pub fn rollback(&self, block: &BlockHash) -> Result<(), RollbackError> {
+        let result = self.rollback_batch(&[*block], usize::MAX, |_| true);
+        result[0].3.map_or(Ok(()), |e| Err(e))
     }
 
     pub fn rollback_batch(
@@ -526,13 +517,17 @@ impl Ledger {
         targets: &[BlockHash],
         max_rollbacks: usize,
         can_roll_back: impl Fn(&BlockHash) -> bool,
-    ) -> BatchRollbackResult {
+    ) -> Vec<(
+        BlockHash,
+        QualifiedRoot,
+        Vec<SavedBlock>,
+        Option<RollbackError>,
+    )> {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
         let mut rolled_back_count = 0;
         let mut processed = Vec::new();
-        let mut processed_hashes = Vec::new();
         {
             let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
 
@@ -541,6 +536,12 @@ impl Ledger {
                 if !can_roll_back(hash) {
                     self.stats
                         .inc(StatType::BoundedBacklog, DetailType::RollbackSkipped);
+                    processed.push((
+                        *hash,
+                        QualifiedRoot::ZERO,
+                        Vec::new(),
+                        Some(RollbackError::Rejected),
+                    ));
                     continue;
                 }
 
@@ -552,24 +553,17 @@ impl Ledger {
                         block.account().encode_account()
                     );
 
-                    let rollback_list = match self.rollback_with_tx(&mut tx, &block.hash()) {
-                        Ok(rollback_list) => {
-                            self.stats
-                                .inc(StatType::BoundedBacklog, DetailType::Rollback);
-                            rollback_list
-                        }
-                        Err((_, rollback_list)) => {
-                            self.stats
-                                .inc(StatType::BoundedBacklog, DetailType::RollbackFailed);
-                            rollback_list
-                        }
-                    };
+                    let (rollback_list, error) = self.rollback_with_tx(&mut tx, &block.hash());
+                    if error.is_none() {
+                        self.stats
+                            .inc(StatType::BoundedBacklog, DetailType::Rollback);
+                    } else {
+                        self.stats
+                            .inc(StatType::BoundedBacklog, DetailType::RollbackFailed);
+                    }
 
                     rolled_back_count += rollback_list.len();
-                    for b in &rollback_list {
-                        processed_hashes.push(b.hash());
-                    }
-                    processed.push((rollback_list, block.qualified_root()));
+                    processed.push((*hash, block.qualified_root(), rollback_list, error));
 
                     // Return early if we reached the maximum number of rollbacks
                     if rolled_back_count >= max_rollbacks {
@@ -579,17 +573,30 @@ impl Ledger {
                     self.stats
                         .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
                     rolled_back_count += 1;
-                    processed_hashes.push(*hash);
+                    processed.push((
+                        *hash,
+                        QualifiedRoot::ZERO,
+                        Vec::new(),
+                        Some(RollbackError::BlockNotFound),
+                    ));
                 }
             }
         }
 
         // TODO: don't clone processed
         self.notify(LedgerEvent::BlocksRolledBack(processed.clone()));
+        processed
+    }
 
-        BatchRollbackResult {
-            processed,
-            processed_hashes,
+    fn rollback_with_tx(
+        &self,
+        tx: &mut LmdbWriteTransaction,
+        block: &BlockHash,
+    ) -> (Vec<SavedBlock>, Option<RollbackError>) {
+        let mut performer = BlockRollbackPerformer::new(self, tx);
+        match performer.roll_back(block) {
+            Ok(()) => (performer.rolled_back, None),
+            Err(e) => (performer.rolled_back, Some(e)),
         }
     }
 
@@ -661,20 +668,16 @@ impl Ledger {
             if successor != hash {
                 // Replace our block with the winner and roll back any dependent blocks
                 debug!("Rolling back: {} and replacing with: {}", successor, hash);
-                rollback_list = match self.rollback_with_tx(tx, &successor) {
-                    Ok(rollback_list) => {
+                let (list, error) = self.rollback_with_tx(tx, &successor);
+                rollback_list = list;
+                match error {
+                    None => {
                         self.stats.inc(StatType::Ledger, DetailType::Rollback);
                         debug!("Blocks rolled back: {}", rollback_list.len());
-                        rollback_list
                     }
-                    Err((e, rollback_list)) => {
+                    Some(e) => {
                         self.stats.inc(StatType::Ledger, DetailType::RollbackFailed);
-                        error!(
-                            ?e,
-                            "Failed to roll back: {} because it or a successor was confirmed",
-                            successor
-                        );
-                        rollback_list
+                        debug!(error = ?e, "Failed to roll back");
                     }
                 };
             }
@@ -893,11 +896,6 @@ impl Ledger {
             sender.send(event).unwrap();
         }
     }
-}
-
-pub struct BatchRollbackResult {
-    pub processed: Vec<(Vec<SavedBlock>, QualifiedRoot)>,
-    pub processed_hashes: Vec<BlockHash>,
 }
 
 pub struct BatchProcessResult {

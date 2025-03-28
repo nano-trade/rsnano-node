@@ -88,7 +88,7 @@ impl<'a> BlockRollbackPerformer<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RollbackError {
     /// The block to roll back wasn't found
     BlockNotFound,
@@ -98,4 +98,6 @@ pub enum RollbackError {
 
     PreviousBlockMissing,
     RepresentativeBlockMissing,
+    /// Some other component rejected the rollback
+    Rejected,
 }

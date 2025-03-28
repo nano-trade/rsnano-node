@@ -23,7 +23,9 @@ pub struct QualifiedRoot {
 }
 
 impl QualifiedRoot {
-    pub fn new(root: Root, previous: BlockHash) -> Self {
+    pub const ZERO: Self = QualifiedRoot::new(Root::zero(), BlockHash::zero());
+
+    pub const fn new(root: Root, previous: BlockHash) -> Self {
         Self { root, previous }
     }
 

@@ -1,5 +1,5 @@
 use rsnano_core::{
-    utils::UnixTimestamp, Account, AccountInfo, Amount, BlockHash, BlockSubType,
+    utils::UnixTimestamp, Account, AccountInfo, Amount, BlockHash, BlockSubType, BlockType,
     ConfirmationHeightInfo, Epoch, Epochs, PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
 
@@ -49,6 +49,16 @@ impl<'a> RollbackPlanner<'a> {
             if let Some(step) = self.roll_back_destination_account_if_send_block_is_received() {
                 return Ok(step);
             }
+        }
+
+        if self.previous_representative.is_none()
+            && matches!(
+                self.head_block.block_type(),
+                BlockType::LegacyChange | BlockType::State
+            )
+            && !self.head_block.is_open()
+        {
+            return Err(RollbackError::RepresentativeBlockMissing);
         }
 
         let instructions = RollbackInstructions {

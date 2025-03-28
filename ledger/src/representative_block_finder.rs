@@ -2,7 +2,7 @@ use rsnano_core::{Block, BlockHash};
 use rsnano_store_lmdb::{LmdbStore, Transaction};
 
 /// Goes back in the block history until it finds a block with representative information
-pub struct RepresentativeBlockFinder<'a> {
+pub(crate) struct RepresentativeBlockFinder<'a> {
     txn: &'a dyn Transaction,
     store: &'a LmdbStore,
 }
