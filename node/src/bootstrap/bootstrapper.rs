@@ -7,7 +7,7 @@ use std::{
 use tracing::warn;
 
 use rsnano_core::{utils::ContainerInfo, Account};
-use rsnano_ledger::{BlockStatus, Ledger, ProcessedResult};
+use rsnano_ledger::{Ledger, ProcessedResult};
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
 use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DeadChannelCleanupStep, Network};
 use rsnano_nullable_clock::SteadyClock;
@@ -21,10 +21,7 @@ use super::{
     state::{BootstrapState, CandidateAccountsConfig},
     FrontierScanConfig,
 };
-use crate::{
-    block_processing::{BlockContext, BlockProcessor, LedgerNotifications},
-    transport::MessageSender,
-};
+use crate::{block_processing::BlockProcessor, transport::MessageSender};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapConfig {

@@ -15,7 +15,6 @@ use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use super::{BlockContext, LedgerNotifications};
 use crate::{cementation::ConfirmingSet, transport::MessageFlooder};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -62,7 +61,6 @@ impl Default for LocalBlockBroadcasterConfig {
 /// Tracks local blocks for more aggressive propagation
 pub struct LocalBlockBroadcaster {
     config: LocalBlockBroadcasterConfig,
-    notifications: LedgerNotifications,
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
@@ -77,7 +75,6 @@ pub struct LocalBlockBroadcaster {
 impl LocalBlockBroadcaster {
     pub(crate) fn new(
         config: LocalBlockBroadcasterConfig,
-        notifications: LedgerNotifications,
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
@@ -90,7 +87,6 @@ impl LocalBlockBroadcaster {
                 config.broadcast_rate_burst_ratio,
             ),
             config,
-            notifications,
             stats,
             ledger,
             confirming_set,

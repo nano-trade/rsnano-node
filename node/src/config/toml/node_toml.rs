@@ -66,7 +66,6 @@ pub struct NodeToml {
     pub backlog_scan: Option<BacklogScanToml>,
     pub bounded_backlog: Option<BoundedBacklogToml>,
     pub tcp: Option<TcpToml>,
-    pub max_ledger_notifications: Option<usize>,
     pub network: Option<NetworkToml>,
 }
 
@@ -349,10 +348,6 @@ impl NodeConfig {
             self.tcp.merge_toml(toml);
         }
 
-        if let Some(i) = toml.max_ledger_notifications {
-            self.max_ledger_notifications = i;
-        }
-
         if let Some(network) = &toml.network {
             if let Some(i) = network.peer_reachout {
                 self.network.peer_reachout = Duration::from_millis(i as u64);
@@ -473,7 +468,6 @@ impl From<&NodeConfig> for NodeToml {
             backlog_scan: Some((&config.backlog_scan).into()),
             bounded_backlog: Some(config.into()),
             tcp: Some((&config.tcp).into()),
-            max_ledger_notifications: Some(config.max_ledger_notifications),
             network: Some(config.into()),
         }
     }

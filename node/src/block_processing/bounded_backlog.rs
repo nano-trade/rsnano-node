@@ -251,14 +251,17 @@ impl BoundedBacklogImpl {
                 .unwrap()
                 .0;
 
-            if guard.stopped {
-                return;
-            }
-
             // Wait until all notification about the previous rollbacks are processed
-            if self.block_processor.wait() {
+            while self.block_processor.is_cooling_down() && !guard.stopped {
+                drop(guard);
                 self.stats
                     .inc(StatType::BoundedBacklog, DetailType::Cooldown);
+                std::thread::sleep(Duration::from_millis(50));
+                guard = self.mutex.lock().unwrap();
+            }
+
+            if guard.stopped {
+                return;
             }
 
             self.stats.inc(StatType::BoundedBacklog, DetailType::Loop);

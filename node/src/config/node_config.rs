@@ -108,7 +108,6 @@ pub struct NodeConfig {
     pub bounded_backlog: BoundedBacklogConfig,
     pub network_duplicate_filter_size: usize,
     pub network_duplicate_filter_cutoff: u64,
-    pub max_ledger_notifications: usize,
     pub network: NetworkConfig,
 
     /// Maximum confirmation history size
@@ -331,7 +330,6 @@ impl NodeConfig {
             bounded_backlog: Default::default(),
             network_duplicate_filter_size: 1024 * 1024,
             network_duplicate_filter_cutoff: 60,
-            max_ledger_notifications: 8,
             network: NetworkConfig {
                 listening_port: peering_port.unwrap_or_default(),
                 ..NetworkConfig::default_for(network)

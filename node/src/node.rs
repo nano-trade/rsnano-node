@@ -37,8 +37,7 @@ use rsnano_work::WorkPool;
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog,
-        LedgerNotificationThread, LedgerNotifications, LocalBlockBroadcaster,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog, LocalBlockBroadcaster,
         LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{
@@ -143,8 +142,6 @@ pub struct Node {
     wallet_backup: WalletBackup,
     receivable_search: ReceivableSearch,
     block_flooder: BlockFlooder,
-    ledger_notification_thread: LedgerNotificationThread,
-    pub ledger_notifications: LedgerNotifications,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
     pub active_elections_driver: TimerThread<AecTicker>,
@@ -435,15 +432,11 @@ impl Node {
             stats.clone(),
         )));
 
-        let (ledger_notification_thread, ledger_notification_queue, ledger_notifications) =
-            LedgerNotificationThread::new(config.max_ledger_notifications);
-
         let block_processor = Arc::new(BlockProcessor::new(
             global_config.into(),
             ledger.clone(),
             unchecked.clone(),
             stats.clone(),
-            ledger_notification_queue,
         ));
         dead_channel_cleanup.add_step(BlockProcessorCleanup::new(
             block_processor.processor_loop.clone(),
@@ -755,7 +748,6 @@ impl Node {
 
         let local_block_broadcaster = Arc::new(LocalBlockBroadcaster::new(
             config.local_block_broadcaster.clone(),
-            ledger_notifications.clone(),
             stats.clone(),
             ledger.clone(),
             confirming_set.clone(),
@@ -1091,6 +1083,7 @@ impl Node {
             vote_history: history.clone(),
             active_elections: active_elections.clone(),
             fork_adder,
+            block_processor: block_processor.clone(),
         };
 
         std::thread::Builder::new()
@@ -1191,8 +1184,6 @@ impl Node {
             wallet_backup,
             receivable_search,
             block_flooder,
-            ledger_notification_thread,
-            ledger_notifications,
             vote_rebroadcaster,
             tokio_runner,
             active_elections_driver: TimerThread::new("Request loop", aec_ticker),
@@ -1495,7 +1486,6 @@ impl Node {
         };
         self.peer_cache_updater
             .start_delayed(peer_cache_update_interval);
-        self.ledger_notification_thread.start();
 
         if !self.config.network.peer_reachout.is_zero() {
             self.peer_cache_connector
@@ -1521,7 +1511,6 @@ impl Node {
 
         self.tcp_listener.stop();
         self.ledger.stop();
-        self.ledger_notification_thread.stop();
         self.online_weight_calculation.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();

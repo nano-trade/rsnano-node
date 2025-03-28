@@ -5,7 +5,7 @@ use rsnano_ledger::LedgerEvent;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
-    block_processing::{BoundedBacklog, LocalBlockBroadcaster},
+    block_processing::{BlockProcessor, BoundedBacklog, LocalBlockBroadcaster},
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     config::NodeFlags,
@@ -30,6 +30,7 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) vote_history: Arc<LocalVoteHistory>,
     pub(crate) active_elections: Arc<ActiveElections>,
     pub(crate) fork_adder: ElectionForkAdder,
+    pub(crate) block_processor: Arc<BlockProcessor>,
 }
 
 impl LedgerEventProcessor {
@@ -42,6 +43,8 @@ impl LedgerEventProcessor {
 
             if should_cool_down != previous_cooldown_state {
                 self.confirming_set.set_cooldown(should_cool_down);
+                self.block_processor.set_cooldown(should_cool_down);
+
                 if should_cool_down {
                     self.stats
                         .inc(StatType::ConfirmingSet, DetailType::Cooldown);

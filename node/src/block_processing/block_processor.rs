@@ -18,7 +18,7 @@ use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_work::WorkThresholds;
 
-use super::{BlockContext, BlockProcessorCallback, LedgerNotificationQueue, UncheckedMap};
+use super::{BlockContext, BlockProcessorCallback, UncheckedMap};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
@@ -74,7 +74,6 @@ impl BlockProcessor {
         ledger: Arc<Ledger>,
         unchecked_map: Arc<UncheckedMap>,
         stats: Arc<Stats>,
-        notifier: Arc<LedgerNotificationQueue>,
     ) -> Self {
         let config_l = config.clone();
         let max_size_query = move |origin: &(BlockSource, ChannelId)| match origin.0 {
@@ -101,13 +100,13 @@ impl BlockProcessor {
                     rollback_queue: VecDeque::new(),
                     last_log: None,
                     stopped: false,
+                    cool_down: false,
                 }),
                 condition: Condvar::new(),
                 ledger,
                 unchecked: unchecked_map,
                 config,
                 stats,
-                notifier,
                 can_roll_back: RwLock::new(Box::new(|_| true)),
             }),
             thread: Mutex::new(None),
@@ -115,13 +114,11 @@ impl BlockProcessor {
     }
 
     pub fn new_test_instance(ledger: Arc<Ledger>) -> Self {
-        let (queue, _, _) = LedgerNotificationQueue::new(8);
         BlockProcessor::new(
             BlockProcessorConfig::new_for(Networks::NanoDevNetwork),
             ledger,
             Arc::new(UncheckedMap::default()),
             Arc::new(Stats::default()),
-            Arc::new(queue),
         )
     }
 
@@ -159,6 +156,10 @@ impl BlockProcessor {
             *req.result.rolled_back.lock().unwrap() = Some(Vec::new());
             req.result.done.notify_all();
         }
+    }
+
+    pub fn set_cooldown(&self, cool_down: bool) {
+        self.processor_loop.mutex.lock().unwrap().cool_down = cool_down;
     }
 
     pub fn total_queue_len(&self) -> usize {
@@ -209,8 +210,8 @@ impl BlockProcessor {
         self.processor_loop.force(block);
     }
 
-    pub fn wait(&self) -> bool {
-        self.processor_loop.notifier.wait()
+    pub fn is_cooling_down(&self) -> bool {
+        self.processor_loop.mutex.lock().unwrap().cool_down
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
@@ -236,7 +237,6 @@ pub(crate) struct BlockProcessorLoopImpl {
     unchecked: Arc<UncheckedMap>,
     config: BlockProcessorConfig,
     stats: Arc<Stats>,
-    notifier: Arc<LedgerNotificationQueue>,
     can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
@@ -249,14 +249,15 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
             if !guard.add_queue.is_empty() || !guard.rollback_queue.is_empty() {
-                drop(guard);
-                // It's possible that ledger processing happens faster than the
-                // notifications can be processed by other components, cooldown here
-                if self.notifier.wait() {
+                while guard.cool_down && !guard.stopped {
+                    drop(guard);
+                    // It's possible that ledger processing happens faster than the
+                    // notifications can be processed by other components, cooldown here
                     self.stats
                         .inc(StatType::BlockProcessor, DetailType::Cooldown);
+                    std::thread::sleep(Duration::from_millis(50));
+                    guard = self.mutex.lock().unwrap();
                 }
-                guard = self.mutex.lock().unwrap();
                 if guard.stopped {
                     return;
                 }
@@ -573,8 +574,6 @@ impl BlockProcessorLoopImpl {
             }
             context.set_result(*res);
         }
-
-        self.notifier.notify_batch_processed(result);
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
@@ -603,6 +602,7 @@ struct BlockProcessorImpl {
     rollback_queue: VecDeque<RollbackRequest>,
     last_log: Option<Instant>,
     stopped: bool,
+    cool_down: bool,
 }
 
 impl BlockProcessorImpl {
@@ -684,9 +684,7 @@ mod tests {
         let ledger = Arc::new(Ledger::new_null());
         let unchecked = Arc::new(UncheckedMap::default());
         let stats = Arc::new(Stats::default());
-        let (notifier, _, _) = LedgerNotificationQueue::new(8);
-        let block_processor =
-            BlockProcessor::new(config, ledger, unchecked, stats.clone(), notifier.into());
+        let block_processor = BlockProcessor::new(config, ledger, unchecked, stats.clone());
 
         let mut block = Block::new_test_instance();
         block.set_work(3.into());
