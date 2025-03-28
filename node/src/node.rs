@@ -447,13 +447,6 @@ impl Node {
             block_processor.processor_loop.clone(),
         ));
 
-        let confirming_set_w = Arc::downgrade(&confirming_set);
-        ledger_notifications.on_blocks_processed(Box::new(move |batch| {
-            if let Some(confirming) = confirming_set_w.upgrade() {
-                confirming.requeue_blocks(batch)
-            }
-        }));
-
         let distributed_work = Arc::new(DistributedWorkFactory::new(work.clone(), runtime.clone()));
 
         let mut wallets_path = application_path.clone();

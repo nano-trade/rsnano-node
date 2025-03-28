@@ -12,7 +12,7 @@ use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo},
     BlockHash, SavedBlock,
 };
-use rsnano_ledger::{BlockStatus, CementingObserver, Ledger};
+use rsnano_ledger::{BlockStatus, CementingObserver, Ledger, ProcessedResult};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ordered_entries::OrderedEntries;
@@ -147,12 +147,12 @@ impl ConfirmingSet {
     }
 
     /// Requeue blocks that failed to cement immediately due to missing ledger blocks
-    pub fn requeue_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+    pub fn requeue_blocks(&self, batch: &[ProcessedResult]) {
         let mut should_notify = false;
         {
             let mut guard = self.thread.mutex.lock().unwrap();
-            for (_, context) in batch {
-                if let Some(entry) = guard.deferred.remove(&context.block.hash()) {
+            for result in batch {
+                if let Some(entry) = guard.deferred.remove(&result.block.hash()) {
                     self.thread
                         .stats
                         .inc(StatType::ConfirmingSet, DetailType::Requeued);
