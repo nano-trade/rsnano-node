@@ -283,7 +283,7 @@ impl Node {
         .expect("Could not initialize ledger");
 
         let (ledger_tx, ledger_rx) = backpressure_channel(1024);
-        ledger.set_event_sink(ledger_tx);
+        ledger.set_observer(ledger_tx);
 
         let ledger = Arc::new(ledger);
         info!("Block count:    {}", ledger.block_count());

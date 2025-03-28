@@ -23,6 +23,7 @@ mod vote_verifier;
 mod ledger_tests;
 
 pub(crate) use block_rollback::BlockRollbackPerformer;
+pub use block_rollback::RollbackError;
 pub use dependent_blocks_finder::*;
 pub use generate_cache_flags::GenerateCacheFlags;
 pub use ledger::*;

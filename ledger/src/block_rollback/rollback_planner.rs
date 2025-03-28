@@ -3,6 +3,8 @@ use rsnano_core::{
     ConfirmationHeightInfo, Epoch, Epochs, PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
 
+use super::rollback_performer::RollbackError;
+
 pub(crate) enum RollbackStep {
     RollBackBlock(RollbackInstructions),
     /// the given dependent block has to be rolled back first
@@ -39,12 +41,12 @@ pub(crate) struct RollbackPlanner<'a> {
 }
 
 impl<'a> RollbackPlanner<'a> {
-    pub(crate) fn roll_back_head_block(&self) -> anyhow::Result<RollbackStep> {
+    pub(crate) fn roll_back_head_block(&self) -> Result<RollbackStep, RollbackError> {
         self.ensure_block_is_not_confirmed()?;
         let block_sub_type = self.block_sub_type();
 
         if block_sub_type == BlockSubType::Send {
-            if let Some(step) = self.roll_back_destination_account_if_send_block_is_received()? {
+            if let Some(step) = self.roll_back_destination_account_if_send_block_is_received() {
                 return Ok(step);
             }
         }
@@ -65,28 +67,26 @@ impl<'a> RollbackPlanner<'a> {
         Ok(RollbackStep::RollBackBlock(instructions))
     }
 
-    fn ensure_block_is_not_confirmed(&self) -> anyhow::Result<()> {
+    fn ensure_block_is_not_confirmed(&self) -> Result<(), RollbackError> {
         if self.head_block.height() <= self.confirmation_height.height {
-            bail!("Only unconfirmed blocks can be rolled back")
+            Err(RollbackError::BlockConfirmed)
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 
-    fn roll_back_destination_account_if_send_block_is_received(
-        &self,
-    ) -> anyhow::Result<Option<RollbackStep>> {
+    fn roll_back_destination_account_if_send_block_is_received(&self) -> Option<RollbackStep> {
         if self.pending_receive.is_some() {
-            return Ok(None);
+            return None;
         }
 
         let latest_destination_block = self
             .latest_block_for_destination
-            .ok_or_else(|| anyhow!("no latest block for destination"))?;
+            .expect("no latest block for destination");
 
-        Ok(Some(RollbackStep::RequestDependencyRollback(
+        Some(RollbackStep::RequestDependencyRollback(
             latest_destination_block,
-        )))
+        ))
     }
 
     fn add_pending(&self) -> Option<(PendingKey, PendingInfo)> {

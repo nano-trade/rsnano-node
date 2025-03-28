@@ -4,7 +4,7 @@ use crate::{
     vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, Writer,
+    RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, UnixTimestamp},
@@ -105,6 +105,9 @@ impl From<BlockStatus> for DetailType {
 pub enum LedgerEvent {
     /// The confirmed block + it's confirmation root
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
+
+    /// The rolled back blocks + their rollback root
+    BlocksRolledBack(Vec<(Vec<SavedBlock>, QualifiedRoot)>),
 }
 
 pub struct Ledger {
@@ -114,7 +117,7 @@ pub struct Ledger {
     pub constants: LedgerConstants,
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
-    event_sender: RwLock<Option<BackpressureSender<LedgerEvent>>>,
+    observer: RwLock<Option<BackpressureSender<LedgerEvent>>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -250,7 +253,7 @@ impl Ledger {
             constants,
             pruning: AtomicBool::new(false),
             stats,
-            event_sender: RwLock::new(None),
+            observer: RwLock::new(None),
         };
 
         ledger.initialize(&GenerateCacheFlags::new())?;
@@ -258,8 +261,8 @@ impl Ledger {
         Ok(ledger)
     }
 
-    pub fn set_event_sink(&mut self, sink: BackpressureSender<LedgerEvent>) {
-        *self.event_sender.write().unwrap() = Some(sink);
+    pub fn set_observer(&mut self, sink: BackpressureSender<LedgerEvent>) {
+        *self.observer.write().unwrap() = Some(sink);
     }
 
     fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
@@ -500,16 +503,17 @@ impl Ledger {
     pub fn rollback(
         &self,
         block: &BlockHash,
-    ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
+    ) -> Result<Vec<SavedBlock>, (RollbackError, Vec<SavedBlock>)> {
         let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
         self.rollback_with_tx(&mut tx, block)
+        // self.rollback_batch(&[block], usize::MAX, |_| true);
     }
 
     fn rollback_with_tx(
         &self,
         tx: &mut LmdbWriteTransaction,
         block: &BlockHash,
-    ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
+    ) -> Result<Vec<SavedBlock>, (RollbackError, Vec<SavedBlock>)> {
         let mut performer = BlockRollbackPerformer::new(self, tx);
         match performer.roll_back(block) {
             Ok(()) => Ok(performer.rolled_back),
@@ -579,6 +583,9 @@ impl Ledger {
                 }
             }
         }
+
+        // TODO: don't clone processed
+        self.notify(LedgerEvent::BlocksRolledBack(processed.clone()));
 
         BatchRollbackResult {
             processed,
@@ -715,7 +722,7 @@ impl Ledger {
         batch: impl IntoIterator<Item = &'a BlockHash>,
         stopped: &AtomicBool,
         max_blocks: usize,
-        observer: &mut O,
+        cementing_observer: &mut O,
     ) where
         O: CementingObserver,
     {
@@ -740,11 +747,7 @@ impl Ledger {
                         blocks_confirmed = 0;
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
-                        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                            sender
-                                .send(LedgerEvent::BlocksConfirmed(confirmed))
-                                .unwrap();
-                        }
+                        self.notify(LedgerEvent::BlocksConfirmed(confirmed));
                         confirmed = Vec::new();
                         tx.renew();
                     }
@@ -775,7 +778,7 @@ impl Ledger {
                     } else {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
-                        observer.already_confirmed(confirmation_root);
+                        cementing_observer.already_confirmed(confirmation_root);
                     }
 
                     success = {
@@ -806,17 +809,13 @@ impl Ledger {
 
                     // Requeue failed blocks for processing later
                     // Add them to the deferred set while still holding the exclusive database write transaction to avoid block processor races
-                    observer.cementing_failed(confirmation_root);
+                    cementing_observer.cementing_failed(confirmation_root);
                 }
             }
         }
 
         if !confirmed.is_empty() {
-            if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
-                sender
-                    .send(LedgerEvent::BlocksConfirmed(confirmed))
-                    .unwrap();
-            }
+            self.notify(LedgerEvent::BlocksConfirmed(confirmed));
         }
     }
 
@@ -880,13 +879,19 @@ impl Ledger {
     }
 
     pub fn stop(&self) {
-        drop(self.event_sender.write().unwrap().take())
+        drop(self.observer.write().unwrap().take())
     }
 
     pub fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
             .node("rep_weights", self.rep_weights.container_info())
             .finish()
+    }
+
+    fn notify(&self, event: LedgerEvent) {
+        if let Some(sender) = self.observer.read().unwrap().as_ref() {
+            sender.send(event).unwrap();
+        }
     }
 }
 

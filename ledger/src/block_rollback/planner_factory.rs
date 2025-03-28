@@ -1,4 +1,4 @@
-use super::rollback_planner::RollbackPlanner;
+use super::{rollback_performer::RollbackError, rollback_planner::RollbackPlanner};
 use crate::{AnySet, ConfirmedSet, Ledger};
 use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
@@ -20,8 +20,8 @@ impl<'a> RollbackPlannerFactory<'a> {
         }
     }
 
-    pub(crate) fn create_planner(&self) -> anyhow::Result<RollbackPlanner<'a>> {
-        let account = self.get_account(self.head_block)?;
+    pub(crate) fn create_planner(&self) -> Result<RollbackPlanner<'a>, RollbackError> {
+        let account = self.get_account(self.head_block);
         let planner = RollbackPlanner {
             epochs: &self.ledger.constants.epochs,
             head_block: self.head_block.clone(),
@@ -56,13 +56,18 @@ impl<'a> RollbackPlannerFactory<'a> {
             .unwrap_or_default()
     }
 
-    fn load_previous_block(&self) -> anyhow::Result<Option<SavedBlock>> {
+    fn load_previous_block(&self) -> Result<Option<SavedBlock>, RollbackError> {
         let previous = self.head_block.previous();
-        Ok(if previous.is_zero() {
-            None
+        if previous.is_zero() {
+            Ok(None)
         } else {
-            Some(self.load_block(&previous)?)
-        })
+            let previous = self.any.get_block(&previous);
+            if previous.is_none() {
+                Err(RollbackError::PreviousBlockMissing)
+            } else {
+                Ok(previous)
+            }
+        }
     }
 
     fn account_confirmation_height(&self) -> ConfirmationHeightInfo {
@@ -72,36 +77,42 @@ impl<'a> RollbackPlannerFactory<'a> {
             .unwrap_or_default()
     }
 
-    fn get_account(&self, block: &Block) -> anyhow::Result<Account> {
+    fn get_account(&self, block: &Block) -> Account {
         self.any
             .block_account(&block.hash())
-            .ok_or_else(|| anyhow!("account not found"))
+            .expect("account not found")
     }
 
     fn load_account(&self, account: &Account) -> AccountInfo {
         self.any.get_account(account).unwrap_or_default()
     }
 
-    fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {
-        self.any
-            .get_block(block_hash)
-            .ok_or_else(|| anyhow!("block not found"))
-    }
-
-    fn get_previous_representative(&self) -> anyhow::Result<Option<PublicKey>> {
+    fn get_previous_representative(&self) -> Result<Option<PublicKey>, RollbackError> {
         let previous = self.head_block.previous();
         let rep_block_hash = if !previous.is_zero() {
-            self.any.representative_block_hash(&previous)
+            let rep_hash = self.any.representative_block_hash(&previous);
+            if rep_hash.is_zero() {
+                return Err(RollbackError::RepresentativeBlockMissing);
+            }
+            rep_hash
         } else {
             BlockHash::zero()
         };
 
         let previous_rep = if !rep_block_hash.is_zero() {
-            let rep_block = self.load_block(&rep_block_hash)?;
+            let rep_block = self
+                .load_block(&rep_block_hash)
+                .expect("Could not load representative block!");
             Some(rep_block.representative_field().unwrap_or_default())
         } else {
             None
         };
         Ok(previous_rep)
+    }
+
+    fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {
+        self.any
+            .get_block(block_hash)
+            .ok_or_else(|| anyhow!("block not found"))
     }
 }

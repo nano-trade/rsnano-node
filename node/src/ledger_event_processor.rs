@@ -53,6 +53,9 @@ impl LedgerEventProcessor {
                     self.bounded_backlog.remove(&confirmed);
                     self.local_block_broadcaster.remove(&confirmed);
                 }
+                LedgerEvent::BlocksRolledBack(rolled_back) => {
+                    // TODO
+                }
             }
         }
     }

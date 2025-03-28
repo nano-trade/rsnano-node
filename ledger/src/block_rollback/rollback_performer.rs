@@ -23,26 +23,8 @@ impl<'a> BlockRollbackPerformer<'a> {
         }
     }
 
-    pub(crate) fn roll_back(&mut self, block_hash: &BlockHash) -> anyhow::Result<()> {
+    pub(crate) fn roll_back(&mut self, block_hash: &BlockHash) -> Result<(), RollbackError> {
         self.roll_back_block_and_successors(block_hash)?;
-        Ok(())
-    }
-
-    fn roll_back_block_and_successors(&mut self, block_hash: &BlockHash) -> anyhow::Result<()> {
-        let block = self.load_block(block_hash)?;
-        while self.any().block_exists(block_hash) {
-            let head_block = self.load_account_head(&block)?;
-            self.roll_back_head_block(head_block)?;
-        }
-        Ok(())
-    }
-
-    fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), anyhow::Error> {
-        let any = self.any();
-        let planner =
-            RollbackPlannerFactory::new(self.ledger, &any, &head_block).create_planner()?;
-        let step = planner.roll_back_head_block()?;
-        self.execute(step, head_block)?;
         Ok(())
     }
 
@@ -54,7 +36,16 @@ impl<'a> BlockRollbackPerformer<'a> {
         }
     }
 
-    fn execute(&mut self, step: RollbackStep, head_block: SavedBlock) -> Result<(), anyhow::Error> {
+    fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), RollbackError> {
+        let any = self.any();
+        let planner =
+            RollbackPlannerFactory::new(self.ledger, &any, &head_block).create_planner()?;
+        let step = planner.roll_back_head_block()?;
+        self.execute(step, head_block)?;
+        Ok(())
+    }
+
+    fn execute(&mut self, step: RollbackStep, head_block: SavedBlock) -> Result<(), RollbackError> {
         match step {
             RollbackStep::RollBackBlock(instructions) => {
                 RollbackInstructionsExecutor::new(self.ledger, self.txn, &instructions).execute();
@@ -67,18 +58,44 @@ impl<'a> BlockRollbackPerformer<'a> {
         }
     }
 
-    fn load_account_head(&self, block: &SavedBlock) -> anyhow::Result<SavedBlock> {
+    fn roll_back_block_and_successors(
+        &mut self,
+        block_hash: &BlockHash,
+    ) -> Result<(), RollbackError> {
+        let block = self.load_block(block_hash)?;
+        while self.any().block_exists(block_hash) {
+            let head_block = self.load_account_head(&block)?;
+            self.roll_back_head_block(head_block)?;
+        }
+        Ok(())
+    }
+
+    fn load_account_head(&self, block: &SavedBlock) -> Result<SavedBlock, RollbackError> {
         let account_info = self.get_account_info(block);
         self.load_block(&account_info.head)
     }
 
     fn get_account_info(&self, block: &SavedBlock) -> AccountInfo {
-        self.any().get_account(&block.account()).unwrap()
+        self.any()
+            .get_account(&block.account())
+            .expect("account not found")
     }
 
-    fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {
+    fn load_block(&self, block_hash: &BlockHash) -> Result<SavedBlock, RollbackError> {
         self.any()
             .get_block(block_hash)
-            .ok_or_else(|| anyhow!("block not found"))
+            .ok_or(RollbackError::BlockNotFound)
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum RollbackError {
+    /// The block to roll back wasn't found
+    BlockNotFound,
+
+    /// A confirmed block must not be rolled back!
+    BlockConfirmed,
+
+    PreviousBlockMissing,
+    RepresentativeBlockMissing,
 }

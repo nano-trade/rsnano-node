@@ -79,13 +79,13 @@ impl LedgerNotifier {
     }
 }
 
-pub(crate) enum Event {
+pub(crate) enum LedgerEvent2 {
     BatchProcessed(Vec<(BlockStatus, Arc<BlockContext>)>),
     RolledBack(Vec<SavedBlock>, QualifiedRoot),
 }
 
 pub(crate) struct LedgerNotificationQueue {
-    events: Arc<Mutex<VecDeque<Event>>>,
+    events: Arc<Mutex<VecDeque<LedgerEvent2>>>,
     changed: Condvar,
     stopped: AtomicBool,
     max_size: usize,
@@ -103,7 +103,7 @@ impl LedgerNotificationQueue {
         (queue, notifications, notifier)
     }
 
-    pub fn pop(&self) -> Option<Event> {
+    pub fn pop(&self) -> Option<LedgerEvent2> {
         let mut guard = self.events.lock().unwrap();
         if guard.is_empty() {
             guard = self
@@ -125,8 +125,9 @@ impl LedgerNotificationQueue {
     /// Returns if waiting happened
     pub fn wait(&self) -> bool {
         let guard = self.events.lock().unwrap();
-        let predicate =
-            |i: &VecDeque<Event>| i.len() >= self.max_size && !self.stopped.load(Ordering::SeqCst);
+        let predicate = |i: &VecDeque<LedgerEvent2>| {
+            i.len() >= self.max_size && !self.stopped.load(Ordering::SeqCst)
+        };
 
         if predicate(&guard) {
             return false;
@@ -141,14 +142,14 @@ impl LedgerNotificationQueue {
     }
 
     pub fn notify_batch_processed(&self, blocks: Vec<(BlockStatus, Arc<BlockContext>)>) {
-        self.push_event(Event::BatchProcessed(blocks));
+        self.push_event(LedgerEvent2::BatchProcessed(blocks));
     }
 
     pub fn notify_rollback(&self, rolled_back: Vec<SavedBlock>, root: QualifiedRoot) {
-        self.push_event(Event::RolledBack(rolled_back, root));
+        self.push_event(LedgerEvent2::RolledBack(rolled_back, root));
     }
 
-    fn push_event(&self, event: Event) {
+    fn push_event(&self, event: LedgerEvent2) {
         if self.stopped.load(Ordering::SeqCst) {
             return;
         }
@@ -190,8 +191,8 @@ impl LedgerNotificationProcessor {
         };
 
         match event {
-            Event::BatchProcessed(batch) => self.notifier.notify_batch_processed(&batch),
-            Event::RolledBack(rolled_back, root) => {
+            LedgerEvent2::BatchProcessed(batch) => self.notifier.notify_batch_processed(&batch),
+            LedgerEvent2::RolledBack(rolled_back, root) => {
                 self.notifier.notify_rollback(&rolled_back, root)
             }
         }

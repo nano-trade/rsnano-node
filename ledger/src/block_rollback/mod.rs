@@ -6,3 +6,4 @@ mod rollback_planner;
 mod tests;
 
 pub(crate) use rollback_performer::BlockRollbackPerformer;
+pub use rollback_performer::RollbackError;
