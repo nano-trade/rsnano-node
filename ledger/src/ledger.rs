@@ -926,8 +926,12 @@ impl RollbackResults {
         self.iter().flat_map(|i| i.affected_accounts())
     }
 
-    pub fn rolled_back_hashes(&self) -> impl Iterator<Item = BlockHash> + use<'_> {
-        self.iter().flat_map(|i| i.rolled_back_hashes())
+    pub fn hashes(&self) -> impl Iterator<Item = BlockHash> + use<'_> {
+        self.iter().flat_map(|i| i.hashes())
+    }
+
+    pub fn roots(&self) -> impl Iterator<Item = Root> + use<'_> {
+        self.iter().flat_map(|i| i.roots())
     }
 }
 
@@ -944,7 +948,11 @@ impl RollbackResult {
         self.rolled_back.iter().map(|b| b.account())
     }
 
-    pub fn rolled_back_hashes(&self) -> impl Iterator<Item = BlockHash> + use<'_> {
+    pub fn hashes(&self) -> impl Iterator<Item = BlockHash> + use<'_> {
         self.rolled_back.iter().map(|b| b.hash())
+    }
+
+    pub fn roots(&self) -> impl Iterator<Item = Root> + use<'_> {
+        self.rolled_back.iter().map(|b| b.root())
     }
 }

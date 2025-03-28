@@ -943,20 +943,13 @@ impl Node {
                 }));
         }
 
-        let history_w = Arc::downgrade(&history);
         let active_w = Arc::downgrade(&active_elections);
         ledger_notifications.on_blocks_rolled_back(move |blocks, rollback_root| {
-            let Some(history) = history_w.upgrade() else {
-                return;
-            };
             let Some(active) = active_w.upgrade() else {
                 return;
             };
 
             for block in blocks {
-                // Do some cleanup of rolled back blocks
-                history.erase(&block.root());
-
                 // Stop all rolled back active transactions except initial
                 if block.qualified_root() != rollback_root {
                     active.erase(&block.qualified_root());
@@ -1153,6 +1146,7 @@ impl Node {
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
             bootstrapper: bootstrapper.clone(),
+            vote_history: history.clone(),
         };
 
         std::thread::Builder::new()

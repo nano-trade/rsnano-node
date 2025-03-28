@@ -1,4 +1,4 @@
-use rsnano_core::{utils::ContainerInfo, BlockHash, Networks, Root, Vote};
+use rsnano_core::{utils::ContainerInfo, BlockHash, Networks, QualifiedRoot, Root, Vote};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,
@@ -102,6 +102,17 @@ impl LocalVoteHistory {
                 .entry(root.to_owned())
                 .or_default()
                 .insert(id);
+        }
+    }
+
+    pub fn erase_batch(&self, roots: impl IntoIterator<Item = Root>) {
+        let mut guard = self.data.lock().unwrap();
+        for root in roots {
+            if let Some(removed) = guard.history_by_root.remove(&root) {
+                for &id in &removed {
+                    guard.history.remove(&id);
+                }
+            }
         }
     }
 

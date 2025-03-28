@@ -9,7 +9,9 @@ use crate::{
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     config::NodeFlags,
-    consensus::{election_schedulers::ElectionSchedulers, DependentElectionsConfirmer},
+    consensus::{
+        election_schedulers::ElectionSchedulers, DependentElectionsConfirmer, LocalVoteHistory,
+    },
 };
 
 pub(crate) struct LedgerEventProcessor {
@@ -22,6 +24,7 @@ pub(crate) struct LedgerEventProcessor {
     pub flags: NodeFlags,
     pub(crate) dependent_elections_confirmer: DependentElectionsConfirmer,
     pub(crate) bootstrapper: Arc<Bootstrapper>,
+    pub(crate) vote_history: Arc<LocalVoteHistory>,
 }
 
 impl LedgerEventProcessor {
@@ -58,14 +61,15 @@ impl LedgerEventProcessor {
                 }
                 LedgerEvent::BlocksRolledBack(rolled_back) => {
                     // Unblock rolled back accounts as the dependency is no longer valid
+                    self.bounded_backlog.erase_hashes(rolled_back.hashes());
+
+                    self.vote_history.erase_batch(rolled_back.roots());
+
                     self.bootstrapper
                         .unblock_batch(rolled_back.affected_accounts());
 
-                    self.bounded_backlog
-                        .erase_hashes(rolled_back.rolled_back_hashes());
-
                     self.local_block_broadcaster
-                        .rolled_back(rolled_back.rolled_back_hashes());
+                        .rolled_back(rolled_back.hashes());
                 }
             }
         }
