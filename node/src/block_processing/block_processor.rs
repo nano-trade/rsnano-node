@@ -280,15 +280,7 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
                     );
                 }
 
-                let mut processed = self.process_batch(guard);
-                // Set results for futures when not holding the lock
-                for (result, context) in processed.iter_mut() {
-                    if let Some(cb) = &context.callback {
-                        cb(*result);
-                    }
-                    context.set_result(*result);
-                }
-                self.notifier.notify_batch_processed(processed);
+                self.process_batch(guard);
 
                 guard = self.mutex.lock().unwrap();
             } else {
@@ -459,10 +451,7 @@ impl BlockProcessorLoopImpl {
         request.result.done.notify_all();
     }
 
-    fn process_batch(
-        &self,
-        mut guard: MutexGuard<BlockProcessorImpl>,
-    ) -> Vec<(BlockStatus, Arc<BlockContext>)> {
+    fn process_batch(&self, mut guard: MutexGuard<BlockProcessorImpl>) {
         let mut batch = self.next_batch(&mut guard, self.config.batch_size);
         drop(guard);
         let timer = Instant::now();
@@ -482,7 +471,7 @@ impl BlockProcessorLoopImpl {
         }
 
         assert_eq!(result.processed.len(), batch.len());
-        let result: Vec<(BlockStatus, Arc<BlockContext>)> = result
+        let mut result: Vec<(BlockStatus, Arc<BlockContext>)> = result
             .processed
             .drain(..)
             .zip(batch.drain(..))
@@ -581,7 +570,15 @@ impl BlockProcessorLoopImpl {
             }
         }
 
-        result
+        // Set results for futures when not holding the lock
+        for (res, context) in result.iter_mut() {
+            if let Some(cb) = &context.callback {
+                cb(*res);
+            }
+            context.set_result(*res);
+        }
+
+        self.notifier.notify_batch_processed(result);
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {

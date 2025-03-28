@@ -758,10 +758,7 @@ pub fn upgrade_epoch(
     }
     .into();
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node.process_local(epoch_block.clone()).unwrap()
-    );
+    node.process(epoch_block.clone());
 
     epoch_block
 }

@@ -15,7 +15,7 @@ use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use super::{BlockSource, LedgerNotifications};
+use super::{BlockContext, BlockSource, LedgerNotifications};
 use crate::{cementation::ConfirmingSet, transport::MessageFlooder};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -283,6 +283,40 @@ impl LocalBlockBroadcaster {
             }
         }
     }
+
+    pub fn blocks_processed(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+        if !self.enabled {
+            return;
+        }
+
+        let mut should_notify = false;
+        for (result, context) in batch {
+            // Only rebroadcast local blocks that were successfully processed (no forks or gaps)
+            if *result == BlockStatus::Progress && context.source == BlockSource::Local {
+                let mut guard = self.mutex.lock().unwrap();
+                guard.local_blocks.push_back(LocalEntry {
+                    block: Arc::new(context.block.clone()),
+                    last_broadcast: None,
+                    next_broadcast: Instant::now(),
+                    rebroadcasts: 0,
+                });
+                self.stats
+                    .inc(StatType::LocalBlockBroadcaster, DetailType::Insert);
+
+                // Erase oldest blocks if the queue gets too big
+                while guard.local_blocks.len() > self.config.max_size {
+                    self.stats
+                        .inc(StatType::LocalBlockBroadcaster, DetailType::EraseOldest);
+                    guard.local_blocks.pop_front();
+                }
+
+                should_notify = true;
+            }
+        }
+        if should_notify {
+            self.condition.notify_all();
+        }
+    }
 }
 
 impl Drop for LocalBlockBroadcaster {
@@ -309,35 +343,7 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
                 let Some(self_l) = self_w.upgrade() else {
                     return;
                 };
-                let mut should_notify = false;
-                for (result, context) in batch {
-                    // Only rebroadcast local blocks that were successfully processed (no forks or gaps)
-                    if *result == BlockStatus::Progress && context.source == BlockSource::Local {
-                        let mut guard = self_l.mutex.lock().unwrap();
-                        guard.local_blocks.push_back(LocalEntry {
-                            block: Arc::new(context.block.clone()),
-                            last_broadcast: None,
-                            next_broadcast: Instant::now(),
-                            rebroadcasts: 0,
-                        });
-                        self_l
-                            .stats
-                            .inc(StatType::LocalBlockBroadcaster, DetailType::Insert);
-
-                        // Erase oldest blocks if the queue gets too big
-                        while guard.local_blocks.len() > self_l.config.max_size {
-                            self_l
-                                .stats
-                                .inc(StatType::LocalBlockBroadcaster, DetailType::EraseOldest);
-                            guard.local_blocks.pop_front();
-                        }
-
-                        should_notify = true;
-                    }
-                }
-                if should_notify {
-                    self_l.condition.notify_all();
-                }
+                self_l.blocks_processed(batch);
             }));
     }
 
