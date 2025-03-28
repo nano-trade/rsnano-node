@@ -7,7 +7,7 @@ use std::{
 use tracing::warn;
 
 use rsnano_core::{utils::ContainerInfo, Account};
-use rsnano_ledger::{BlockStatus, Ledger};
+use rsnano_ledger::{BlockStatus, Ledger, ProcessedResult};
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
 use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DeadChannelCleanupStep, Network};
 use rsnano_nullable_clock::SteadyClock;
@@ -147,6 +147,21 @@ impl Bootstrapper {
         }
     }
 
+    pub fn initialize(&self, genesis_account: &Account) {
+        let inserted = self
+            .state
+            .lock()
+            .unwrap()
+            .candidate_accounts
+            .priority_set_initial(genesis_account);
+
+        if inserted {
+            self.priority_inserted()
+        } else {
+            self.priority_insertion_failed()
+        };
+    }
+
     pub fn stop(&self) {
         {
             let mut guard = self.state.lock().unwrap();
@@ -228,7 +243,7 @@ impl Bootstrapper {
             .inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
     }
 
-    fn blocks_processed(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+    pub fn inspect_blocks(&self, batch: &[ProcessedResult]) {
         self.block_inspector.inspect(batch);
         self.state_changed.notify_all();
     }
@@ -253,34 +268,10 @@ impl Drop for Bootstrapper {
 }
 
 pub trait BootstrapExt {
-    fn initialize(&self, genesis_account: &Account, notifications: &LedgerNotifications);
     fn start(&self);
 }
 
 impl BootstrapExt for Arc<Bootstrapper> {
-    fn initialize(&self, genesis_account: &Account, notifications: &LedgerNotifications) {
-        let self_w = Arc::downgrade(self);
-        // Inspect all processed blocks
-        notifications.on_blocks_processed(Box::new(move |batch| {
-            if let Some(self_l) = self_w.upgrade() {
-                self_l.blocks_processed(batch);
-            }
-        }));
-
-        let inserted = self
-            .state
-            .lock()
-            .unwrap()
-            .candidate_accounts
-            .priority_set_initial(genesis_account);
-
-        if inserted {
-            self.priority_inserted()
-        } else {
-            self.priority_insertion_failed()
-        };
-    }
-
     fn start(&self) {
         debug_assert!(self.threads.lock().unwrap().is_none());
 

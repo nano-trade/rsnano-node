@@ -1,12 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
-use rsnano_ledger::{AnySet, BlockSource, BlockStatus, Ledger};
+use rsnano_ledger::{AnySet, BlockSource, BlockStatus, Ledger, ProcessedResult};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::state::{BootstrapState, PriorityUpResult};
-use crate::block_processing::BlockContext;
 
 /// Inspects a processed block and adjusts the bootstrap state accordingly
 pub(super) struct BlockInspector {
@@ -31,21 +30,12 @@ impl BlockInspector {
         }
     }
 
-    pub fn inspect(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+    pub fn inspect(&self, batch: &[ProcessedResult]) {
         let mut state = self.state.lock().unwrap();
         let any = self.ledger.any();
-        for (result, context) in batch {
-            let saved_block = context.saved_block.lock().unwrap().clone();
-            let account = self.get_account(&any, &context.block, &saved_block);
-
-            self.inspect_block(
-                &mut state,
-                *result,
-                &context.block,
-                saved_block,
-                context.source,
-                &account,
-            );
+        for result in batch {
+            let account = self.get_account(&any, &result.block, &result.saved_block);
+            self.inspect_block(&mut state, result, &account);
         }
     }
 
@@ -69,19 +59,16 @@ impl BlockInspector {
     fn inspect_block(
         &self,
         state: &mut BootstrapState,
-        status: BlockStatus,
-        block: &Block,
-        saved_block: Option<SavedBlock>,
-        source: BlockSource,
+        result: &ProcessedResult,
         account: &Account,
     ) {
-        let hash = block.hash();
+        let hash = result.block.hash();
 
-        match status {
+        match result.status {
             BlockStatus::Progress => {
                 // Progress blocks from live traffic don't need further bootstrapping
-                if source != BlockSource::Live {
-                    let saved_block = saved_block.unwrap();
+                if result.source != BlockSource::Live {
+                    let saved_block = result.saved_block.clone().unwrap();
                     let account = saved_block.account();
                     // If we've inserted any block in to an account, unmark it as blocked
                     if state.candidate_accounts.unblock(account, None) {
@@ -140,8 +127,8 @@ impl BlockInspector {
             }
             BlockStatus::GapSource => {
                 // Prevent malicious live traffic from filling up the blocked set
-                if source == BlockSource::Bootstrap {
-                    let source = block.source_or_link();
+                if result.source == BlockSource::Bootstrap {
+                    let source = result.block.source_or_link();
 
                     if !account.is_zero() && !source.is_zero() {
                         // Mark account as blocked because it is missing the source block
@@ -165,12 +152,12 @@ impl BlockInspector {
             }
             BlockStatus::GapPrevious => {
                 // Prevent live traffic from evicting accounts from the priority list
-                if source == BlockSource::Live
+                if result.source == BlockSource::Live
                     && !state.candidate_accounts.priority_half_full()
                     && !state.candidate_accounts.blocked_half_full()
                 {
-                    if block.block_type() == BlockType::State {
-                        let account = block.account_field().unwrap();
+                    if result.block.block_type() == BlockType::State {
+                        let account = result.block.account_field().unwrap();
                         if state.candidate_accounts.priority_set_initial(&account) {
                             self.stats
                                 .inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);

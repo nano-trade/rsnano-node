@@ -791,10 +791,7 @@ impl Node {
             global_config.node_config.bootstrap.clone(),
             steady_clock.clone(),
         ));
-        bootstrapper.initialize(
-            &network_params.ledger.genesis_account,
-            &ledger_notifications,
-        );
+        bootstrapper.initialize(&network_params.ledger.genesis_account);
         dead_channel_cleanup.add_step(BootstrapperCleanup(bootstrapper.clone()));
 
         let local_block_broadcaster = Arc::new(LocalBlockBroadcaster::new(

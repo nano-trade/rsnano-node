@@ -52,6 +52,7 @@ impl LedgerEventProcessor {
 
             match event {
                 LedgerEvent::BlocksProcessed(results) => {
+                    self.bootstrapper.inspect_blocks(&results);
                     self.local_block_broadcaster.blocks_processed(&results);
                 }
                 LedgerEvent::BlocksConfirmed(confirmed) => {
