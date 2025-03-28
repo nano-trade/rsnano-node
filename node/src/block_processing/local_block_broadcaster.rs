@@ -10,7 +10,7 @@ use std::{
 use tracing::debug;
 
 use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
-use rsnano_ledger::{BlockSource, BlockStatus, ConfirmedSet, Ledger};
+use rsnano_ledger::{BlockSource, BlockStatus, ConfirmedSet, Ledger, ProcessedResult};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
@@ -284,18 +284,18 @@ impl LocalBlockBroadcaster {
         }
     }
 
-    pub fn blocks_processed(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+    pub fn blocks_processed(&self, batch: &[ProcessedResult]) {
         if !self.enabled {
             return;
         }
 
         let mut should_notify = false;
-        for (result, context) in batch {
+        for result in batch {
             // Only rebroadcast local blocks that were successfully processed (no forks or gaps)
-            if *result == BlockStatus::Progress && context.source == BlockSource::Local {
+            if result.status == BlockStatus::Progress && result.source == BlockSource::Local {
                 let mut guard = self.mutex.lock().unwrap();
                 guard.local_blocks.push_back(LocalEntry {
-                    block: Arc::new(context.block.clone()),
+                    block: Arc::new(result.block.clone()),
                     last_broadcast: None,
                     next_broadcast: Instant::now(),
                     rebroadcasts: 0,
@@ -327,26 +327,10 @@ impl Drop for LocalBlockBroadcaster {
 }
 
 pub trait LocalBlockBroadcasterExt {
-    fn initialize(&self);
     fn start(&self);
 }
 
 impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
-    fn initialize(&self) {
-        if !self.enabled {
-            return;
-        }
-
-        let self_w = Arc::downgrade(self);
-        self.notifications
-            .on_blocks_processed(Box::new(move |batch| {
-                let Some(self_l) = self_w.upgrade() else {
-                    return;
-                };
-                self_l.blocks_processed(batch);
-            }));
-    }
-
     fn start(&self) {
         if !self.enabled {
             return;

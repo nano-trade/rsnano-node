@@ -454,11 +454,9 @@ impl BlockProcessorLoopImpl {
         drop(guard);
         let timer = Instant::now();
 
-        let mut result = self.ledger.process_batch(
-            batch
-                .iter()
-                .map(|c| (&c.block, c.source == BlockSource::Forced)),
-        );
+        let mut result = self
+            .ledger
+            .process_batch(batch.iter().map(|c| (&c.block, c.source)));
 
         if result.processed.len() > 0 && timer.elapsed() > Duration::from_millis(100) {
             debug!(

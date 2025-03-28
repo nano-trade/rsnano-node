@@ -806,7 +806,6 @@ impl Node {
             message_flooder.clone(),
             !flags.disable_block_processor_republishing,
         ));
-        local_block_broadcaster.initialize();
 
         let vote_cache_w = Arc::downgrade(&vote_cache);
         let active_w = Arc::downgrade(&active_elections);

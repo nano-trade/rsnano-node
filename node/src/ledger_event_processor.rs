@@ -52,7 +52,7 @@ impl LedgerEventProcessor {
 
             match event {
                 LedgerEvent::BlocksProcessed(results) => {
-                    // TODO
+                    self.local_block_broadcaster.blocks_processed(&results);
                 }
                 LedgerEvent::BlocksConfirmed(confirmed) => {
                     self.dependent_elections_confirmer

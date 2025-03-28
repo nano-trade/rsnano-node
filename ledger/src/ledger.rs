@@ -2,7 +2,7 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
-    AnySet, BlockRollbackPerformer, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
+    AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
     LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
     RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
@@ -105,7 +105,7 @@ impl From<BlockStatus> for DetailType {
 
 pub enum LedgerEvent {
     /// The confirmed block + it's confirmation root
-    BlocksProcessed(Vec<(BlockStatus, Option<SavedBlock>)>),
+    BlocksProcessed(Vec<ProcessedResult>),
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
     BlocksRolledBack(RollbackResults),
 }
@@ -595,47 +595,67 @@ impl Ledger {
 
     pub fn process_batch<'a>(
         &self,
-        batch: impl IntoIterator<Item = (&'a Block, bool)>,
+        batch: impl IntoIterator<Item = (&'a Block, BlockSource)>,
     ) -> BatchProcessResult {
-        let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
         let mut processed = Vec::new();
         let mut processed_batch = Vec::new();
         let mut rolled_back = RollbackResults::new();
 
-        for (block, force) in batch.into_iter() {
-            if tx.is_refresh_needed() {
-                drop(tx);
-                if !rolled_back.is_empty() {
-                    self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
-                    rolled_back = RollbackResults::new();
+        {
+            let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
+            for (block, source) in batch.into_iter() {
+                if tx.is_refresh_needed() {
+                    drop(tx);
+                    if !rolled_back.is_empty() {
+                        self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+                        rolled_back = RollbackResults::new();
+                    }
+                    self.notify(LedgerEvent::BlocksProcessed(processed_batch));
+                    processed_batch = Vec::new();
+                    tx = self.store.tx_begin_write(Writer::BlockProcessor);
                 }
-                self.notify(LedgerEvent::BlocksProcessed(processed_batch));
-                processed_batch = Vec::new();
-                tx = self.store.tx_begin_write(Writer::BlockProcessor);
-            }
 
-            if force {
-                let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
-                if !rolled_back_blocks.is_empty() {
-                    rolled_back.push(RollbackResult {
-                        target_hash: block.hash(),
-                        target_root: block.qualified_root(),
-                        rolled_back: rolled_back_blocks,
-                        error: None,
-                    });
+                if source == BlockSource::Forced {
+                    let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
+                    if !rolled_back_blocks.is_empty() {
+                        rolled_back.push(RollbackResult {
+                            target_hash: block.hash(),
+                            target_root: block.qualified_root(),
+                            rolled_back: rolled_back_blocks,
+                            error: None,
+                        });
+                    }
                 }
-            }
 
-            match self.process(&mut tx, block) {
-                Ok(saved_block) => {
-                    processed.push((BlockStatus::Progress, Some(saved_block.clone())));
-                    processed_batch.push((BlockStatus::Progress, Some(saved_block)));
-                }
-                Err(status) => {
-                    processed.push((status, None));
-                    processed_batch.push((status, None));
+                match self.process(&mut tx, block) {
+                    Ok(saved_block) => {
+                        processed.push((BlockStatus::Progress, Some(saved_block.clone())));
+                        processed_batch.push(ProcessedResult {
+                            block: block.clone(),
+                            source,
+                            status: BlockStatus::Progress,
+                            saved_block: Some(saved_block),
+                        });
+                    }
+                    Err(status) => {
+                        processed.push((status, None));
+                        processed_batch.push(ProcessedResult {
+                            block: block.clone(),
+                            source,
+                            status,
+                            saved_block: None,
+                        });
+                    }
                 }
             }
+        }
+
+        if !rolled_back.is_empty() {
+            self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+        }
+
+        if !processed_batch.is_empty() {
+            self.notify(LedgerEvent::BlocksProcessed(processed_batch));
         }
 
         BatchProcessResult { processed }
@@ -969,4 +989,12 @@ impl RollbackResult {
     pub fn roots(&self) -> impl Iterator<Item = Root> + use<'_> {
         self.rolled_back.iter().map(|b| b.root())
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct ProcessedResult {
+    pub block: Block,
+    pub source: BlockSource,
+    pub status: BlockStatus,
+    pub saved_block: Option<SavedBlock>,
 }

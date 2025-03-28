@@ -1511,22 +1511,14 @@ fn local_block_broadcast() {
     });
 
     // Wait until a broadcast is attempted
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node1.local_block_broadcaster.len(),
-        1,
-    );
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node1.stats.count(
-                StatType::LocalBlockBroadcaster,
-                DetailType::Broadcast,
-                Direction::Out,
-            ) >= 1
-        },
-        "no broadcast sent",
-    );
+    assert_timely_eq2(|| node1.local_block_broadcaster.len(), 1);
+    assert_timely2(|| {
+        node1.stats.count(
+            StatType::LocalBlockBroadcaster,
+            DetailType::Broadcast,
+            Direction::Out,
+        ) >= 1
+    });
 
     // The other node should not have received a block
     assert_never(Duration::from_millis(500), || {
@@ -1538,23 +1530,15 @@ fn local_block_broadcast() {
         .peer_connector
         .connect_to(node2.tcp_listener.local_address());
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            node1
-                .network
-                .read()
-                .unwrap()
-                .find_node_id(&node2.get_node_id())
-                .is_some()
-        },
-        "node2 not connected",
-    );
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || node2.block_exists(&send_hash),
-        "block not received",
-    )
+    assert_timely2(|| {
+        node1
+            .network
+            .read()
+            .unwrap()
+            .find_node_id(&node2.get_node_id())
+            .is_some()
+    });
+    assert_timely2(|| node2.block_exists(&send_hash))
 }
 
 #[test]
