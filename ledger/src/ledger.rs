@@ -105,16 +105,7 @@ impl From<BlockStatus> for DetailType {
 pub enum LedgerEvent {
     /// The confirmed block + it's confirmation root
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
-
-    /// The rolled back blocks + their rollback root
-    BlocksRolledBack(
-        Vec<(
-            BlockHash,
-            QualifiedRoot,
-            Vec<SavedBlock>,
-            Option<RollbackError>,
-        )>,
-    ),
+    BlocksRolledBack(Vec<RollbackResult>),
 }
 
 pub struct Ledger {
@@ -509,7 +500,7 @@ impl Ledger {
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
     pub fn rollback(&self, block: &BlockHash) -> Result<(), RollbackError> {
         let result = self.rollback_batch(&[*block], usize::MAX, |_| true);
-        result[0].3.map_or(Ok(()), |e| Err(e))
+        result[0].error.map_or(Ok(()), |e| Err(e))
     }
 
     pub fn rollback_batch(
@@ -517,12 +508,7 @@ impl Ledger {
         targets: &[BlockHash],
         max_rollbacks: usize,
         can_roll_back: impl Fn(&BlockHash) -> bool,
-    ) -> Vec<(
-        BlockHash,
-        QualifiedRoot,
-        Vec<SavedBlock>,
-        Option<RollbackError>,
-    )> {
+    ) -> Vec<RollbackResult> {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
@@ -536,12 +522,12 @@ impl Ledger {
                 if !can_roll_back(hash) {
                     self.stats
                         .inc(StatType::BoundedBacklog, DetailType::RollbackSkipped);
-                    processed.push((
-                        *hash,
-                        QualifiedRoot::ZERO,
-                        Vec::new(),
-                        Some(RollbackError::Rejected),
-                    ));
+                    processed.push(RollbackResult {
+                        target_hash: *hash,
+                        target_root: QualifiedRoot::ZERO,
+                        rolled_back: Vec::new(),
+                        error: Some(RollbackError::Rejected),
+                    });
                     continue;
                 }
 
@@ -563,7 +549,12 @@ impl Ledger {
                     }
 
                     rolled_back_count += rollback_list.len();
-                    processed.push((*hash, block.qualified_root(), rollback_list, error));
+                    processed.push(RollbackResult {
+                        target_hash: *hash,
+                        target_root: block.qualified_root(),
+                        rolled_back: rollback_list,
+                        error,
+                    });
 
                     // Return early if we reached the maximum number of rollbacks
                     if rolled_back_count >= max_rollbacks {
@@ -573,12 +564,12 @@ impl Ledger {
                     self.stats
                         .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
                     rolled_back_count += 1;
-                    processed.push((
-                        *hash,
-                        QualifiedRoot::ZERO,
-                        Vec::new(),
-                        Some(RollbackError::BlockNotFound),
-                    ));
+                    processed.push(RollbackResult {
+                        target_hash: *hash,
+                        target_root: QualifiedRoot::ZERO,
+                        rolled_back: Vec::new(),
+                        error: Some(RollbackError::BlockNotFound),
+                    });
                 }
             }
         }
@@ -906,4 +897,12 @@ pub struct BatchProcessResult {
 pub trait CementingObserver {
     fn already_confirmed(&mut self, hash: &BlockHash);
     fn cementing_failed(&mut self, hash: &BlockHash);
+}
+
+#[derive(Clone)]
+pub struct RollbackResult {
+    pub target_hash: BlockHash,
+    pub target_root: QualifiedRoot,
+    pub rolled_back: Vec<SavedBlock>,
+    pub error: Option<RollbackError>,
 }
