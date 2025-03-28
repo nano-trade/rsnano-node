@@ -739,14 +739,6 @@ impl Node {
             }
         });
 
-        // Track unconfirmed blocks
-        let backlog_w = Arc::downgrade(&bounded_backlog);
-        ledger_notifications.on_blocks_processed(Box::new(move |batch| {
-            if let Some(backlog) = backlog_w.upgrade() {
-                backlog.insert_batch(batch);
-            }
-        }));
-
         let bootstrapper = Arc::new(Bootstrapper::new(
             block_processor.clone(),
             ledger.clone(),

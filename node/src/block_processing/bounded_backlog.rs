@@ -8,7 +8,7 @@ use std::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet, ProcessedResult};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -121,12 +121,13 @@ impl BoundedBacklog {
         }
     }
 
-    pub fn insert_batch(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
+    /// Track unconfirmed blocks
+    pub fn insert_processed(&self, batch: &[ProcessedResult]) {
         let any = self.backlog_impl.ledger.any();
-        for (result, context) in batch {
-            if *result == BlockStatus::Progress {
-                if let Some(block) = context.saved_block.lock().unwrap().clone() {
-                    self.insert(&any, &block);
+        for result in batch {
+            if result.status == BlockStatus::Progress {
+                if let Some(block) = &result.saved_block {
+                    self.insert(&any, block);
                 }
             }
         }

@@ -59,6 +59,7 @@ impl LedgerEventProcessor {
                         .activate_accounts_with_fresh_blocks(&results);
 
                     self.confirming_set.requeue_blocks(&results);
+                    self.bounded_backlog.insert_processed(&results);
                     self.bootstrapper.inspect_blocks(&results);
                     self.local_block_broadcaster.blocks_processed(&results);
                 }
