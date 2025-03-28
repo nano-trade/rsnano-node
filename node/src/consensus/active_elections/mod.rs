@@ -7,7 +7,7 @@ mod vote_counter;
 
 pub use active_elections_container::*;
 pub use cooldown_controller::AecCooldownReason;
-use rsnano_ledger::RepWeightCache;
+use rsnano_ledger::{RepWeightCache, RollbackResults};
 use rsnano_network::Channel;
 
 use std::{
@@ -380,6 +380,18 @@ impl ActiveElections {
 
     pub fn cancel(&self, root: &QualifiedRoot) {
         self.container.write().unwrap().cancel(root);
+    }
+
+    pub fn rolled_back(&self, results: &RollbackResults) {
+        let mut container = self.container.write().unwrap();
+        for result in results.iter() {
+            for block in &result.rolled_back {
+                // Stop all rolled back active transactions except initial
+                if block.qualified_root() != result.target_root {
+                    container.erase(&block.qualified_root());
+                }
+            }
+        }
     }
 }
 

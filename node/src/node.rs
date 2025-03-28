@@ -943,20 +943,6 @@ impl Node {
                 }));
         }
 
-        let active_w = Arc::downgrade(&active_elections);
-        ledger_notifications.on_blocks_rolled_back(move |blocks, rollback_root| {
-            let Some(active) = active_w.upgrade() else {
-                return;
-            };
-
-            for block in blocks {
-                // Stop all rolled back active transactions except initial
-                if block.qualified_root() != rollback_root {
-                    active.erase(&block.qualified_root());
-                }
-            }
-        });
-
         // Requeue blocks that could not be immediately processed
         let block_processor_w = Arc::downgrade(&block_processor);
         unchecked.set_satisfied_observer(Box::new(move |info| {
@@ -1147,6 +1133,7 @@ impl Node {
             stats: stats.clone(),
             bootstrapper: bootstrapper.clone(),
             vote_history: history.clone(),
+            active_elections: active_elections.clone(),
         };
 
         std::thread::Builder::new()
