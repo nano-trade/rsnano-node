@@ -71,44 +71,53 @@ impl DaemonBuilder {
             parallelism
         );
 
-        let (ev_sender, ev_receiver) = sync_channel(128);
-        let mut node = self.node_builder.event_sink(ev_sender).finish()?;
-        let mut event_processor = CompositeNodeEventHandler::new(ev_receiver);
+        let websocket_enabled = daemon_config.node.websocket_config.enabled;
+        let http_callback_enabled = daemon_config.node.rpc_callback_url().is_some();
+        let mut websocket_server = None;
+        let mut node;
 
-        let websocket_server = if daemon_config.node.websocket_config.enabled {
-            Some(
-                create_websocket_server(
-                    daemon_config.node.websocket_config.clone(),
-                    &node,
-                    &mut event_processor,
+        if websocket_enabled || http_callback_enabled {
+            let (ev_sender, ev_receiver) = sync_channel(1024 * 2);
+            node = self.node_builder.event_sink(ev_sender).finish()?;
+            let mut event_processor = CompositeNodeEventHandler::new(ev_receiver);
+
+            websocket_server = if websocket_enabled {
+                Some(
+                    create_websocket_server(
+                        daemon_config.node.websocket_config.clone(),
+                        &node,
+                        &mut event_processor,
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            )
-        } else {
-            None
-        };
-
-        if let Some(ref websocket) = websocket_server {
-            websocket.start();
-        }
-
-        if let Some(callback_url) = daemon_config.node.rpc_callback_url() {
-            info!("HTTP callbacks enabled on {:?}", callback_url);
-            let http_callbacks = HttpCallbacks {
-                runtime: node.runtime.clone(),
-                stats: node.stats.clone(),
-                ledger: node.ledger.clone(),
-                callback_url,
+            } else {
+                None
             };
-            event_processor.add(http_callbacks);
-        }
 
-        std::thread::Builder::new()
-            .name("Node ev proc".to_owned())
-            .spawn(move || {
-                event_processor.run();
-            })
-            .unwrap();
+            if let Some(ref websocket) = websocket_server {
+                websocket.start();
+            }
+
+            if let Some(callback_url) = daemon_config.node.rpc_callback_url() {
+                info!("HTTP callbacks enabled on {:?}", callback_url);
+                let http_callbacks = HttpCallbacks {
+                    runtime: node.runtime.clone(),
+                    stats: node.stats.clone(),
+                    ledger: node.ledger.clone(),
+                    callback_url,
+                };
+                event_processor.add(http_callbacks);
+            }
+
+            std::thread::Builder::new()
+                .name("Node ev proc".to_owned())
+                .spawn(move || {
+                    event_processor.run();
+                })
+                .unwrap();
+        } else {
+            node = self.node_builder.finish()?;
+        }
 
         node.start();
         let mut node = Arc::new(node);

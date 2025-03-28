@@ -3,8 +3,7 @@ use rsnano_core::{Account, BlockHash, Vote, VoteCode};
 use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    block_processing::BlockContext, config::WebsocketConfig, CompositeNodeEventHandler, Node,
-    NodeEvent, NodeEventHandler,
+    config::WebsocketConfig, CompositeNodeEventHandler, Node, NodeEvent, NodeEventHandler,
 };
 use rsnano_websocket_messages::{new_block_arrived_message, OutgoingMessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};
@@ -51,23 +50,6 @@ pub fn create_websocket_server(
                 }
             }
         }));
-
-    // Announce new blocks via websocket
-    let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    node.ledger_notifications.on_blocks_processed(Box::new(
-        move |blocks: &[(BlockStatus, Arc<BlockContext>)]| {
-            if let Some(server) = server_w.upgrade() {
-                if server.any_subscriber(Topic::NewUnconfirmedBlock) {
-                    for (result, context) in blocks {
-                        if *result == BlockStatus::Progress {
-                            let block = context.saved_block.lock().unwrap().clone().unwrap();
-                            server.broadcast(&new_block_arrived_message(&block));
-                        }
-                    }
-                }
-            }
-        },
-    ));
 
     Some(server)
 }
@@ -214,6 +196,16 @@ impl NodeEventHandler for NodeEventProcessor {
             NodeEvent::VoteProcessed(vote, vote_code) => {
                 if self.server.any_subscriber(Topic::Vote) {
                     self.server.broadcast(&vote_received(vote, *vote_code));
+                }
+            }
+            NodeEvent::BlocksProcessed(results) => {
+                if self.server.any_subscriber(Topic::NewUnconfirmedBlock) {
+                    for result in results {
+                        if result.status == BlockStatus::Progress {
+                            let block = result.saved_block.as_ref().unwrap();
+                            self.server.broadcast(&new_block_arrived_message(&block));
+                        }
+                    }
                 }
             }
         }

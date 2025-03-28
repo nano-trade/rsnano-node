@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{mpsc::SyncSender, Arc};
 
 use rsnano_core::utils::BackpressureReceiver;
 use rsnano_ledger::LedgerEvent;
@@ -13,9 +13,11 @@ use crate::{
         election_schedulers::ElectionSchedulers, ActiveElections, DependentElectionsConfirmer,
         ElectionForkAdder, LocalVoteHistory,
     },
+    NodeEvent,
 };
 
 pub(crate) struct LedgerEventProcessor {
+    pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
     pub receiver: BackpressureReceiver<LedgerEvent>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub election_schedulers: Arc<ElectionSchedulers>,
@@ -62,6 +64,9 @@ impl LedgerEventProcessor {
                     self.bounded_backlog.insert_processed(&results);
                     self.bootstrapper.inspect_blocks(&results);
                     self.local_block_broadcaster.blocks_processed(&results);
+                    if let Some(sender) = &self.node_event_sender {
+                        sender.send(NodeEvent::BlocksProcessed(results)).unwrap();
+                    }
                 }
                 LedgerEvent::BlocksConfirmed(confirmed) => {
                     self.dependent_elections_confirmer

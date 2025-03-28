@@ -17,7 +17,9 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
     VoteCode, WorkNonce,
 };
-use rsnano_ledger::{AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{
+    AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
+};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -1076,6 +1078,7 @@ impl Node {
         };
 
         let mut ledger_event_processor = LedgerEventProcessor {
+            node_event_sender: node_event_sender.clone(),
             receiver: ledger_rx,
             local_block_broadcaster: local_block_broadcaster.clone(),
             election_schedulers: election_schedulers.clone(),
@@ -1599,6 +1602,7 @@ pub enum NodeEvent {
     ElectionStopped(BlockHash),
     BlockConfirmed(SavedBlock, ConfirmedElection),
     VoteProcessed(Arc<Vote>, VoteCode),
+    BlocksProcessed(Vec<ProcessedResult>),
 }
 
 pub trait NodeEventHandler {
