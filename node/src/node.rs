@@ -578,11 +578,6 @@ impl Node {
             rep_weights: rep_weights.clone(),
         };
 
-        // Notify elections about alternative (forked) blocks
-        ledger_notifications.on_blocks_processed(Box::new(move |batch| {
-            fork_adder.handle_processed_blocks(batch);
-        }));
-
         let election_schedulers = Arc::new(ElectionSchedulers::new(
             config.clone(),
             network_params.network.clone(),
@@ -593,29 +588,6 @@ impl Node {
             confirming_set.clone(),
             online_reps.clone(),
         ));
-
-        let schedulers_w = Arc::downgrade(&election_schedulers);
-        let ledger_l = ledger.clone();
-        // Activate accounts with fresh blocks
-        ledger_notifications.on_blocks_processed(Box::new(move |batch| {
-            let Some(schedulers) = schedulers_w.upgrade() else {
-                return;
-            };
-
-            let any = ledger_l.any();
-            for (status, context) in batch {
-                if *status == BlockStatus::Progress {
-                    let account = context
-                        .saved_block
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .unwrap()
-                        .account();
-                    schedulers.activate(&any, &account);
-                }
-            }
-        }));
 
         let mut bootstrap_sender = MessageSender::new_with_buffer_size(
             stats.clone(),
@@ -1123,6 +1095,7 @@ impl Node {
             bootstrapper: bootstrapper.clone(),
             vote_history: history.clone(),
             active_elections: active_elections.clone(),
+            fork_adder,
         };
 
         std::thread::Builder::new()

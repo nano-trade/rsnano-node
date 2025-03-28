@@ -1,11 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Amount, Block, BlockHash};
-use rsnano_ledger::{BlockStatus, RepWeightCache};
+use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache};
 use rsnano_stats::{DetailType, StatType, Stats};
 use tracing::debug;
-
-use crate::block_processing::BlockContext;
 
 use super::{ActiveElections, VoteCache};
 
@@ -18,10 +16,10 @@ pub(crate) struct ElectionForkAdder {
 }
 
 impl ElectionForkAdder {
-    pub fn handle_processed_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
-        for (status, context) in batch {
-            if *status == BlockStatus::Fork {
-                self.handle_fork(&context.block);
+    pub fn handle_processed_blocks(&self, batch: &[ProcessedResult]) {
+        for result in batch {
+            if result.status == BlockStatus::Fork {
+                self.handle_fork(&result.block);
             }
         }
     }

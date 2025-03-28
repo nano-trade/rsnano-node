@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, Ledger};
+use rsnano_ledger::{AnySet, BlockStatus, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::Stats;
 
@@ -103,8 +103,14 @@ impl ElectionSchedulers {
             .activate_with_info(any, account, account_info, conf_info);
     }
 
-    pub fn activate(&self, any: &impl AnySet, account: &Account) -> bool {
-        self.priority.activate(any, account)
+    pub fn activate_accounts_with_fresh_blocks(&self, processed: &[ProcessedResult]) {
+        let any = self.ledger.any();
+        for result in processed {
+            if result.status == BlockStatus::Progress {
+                let account = result.saved_block.as_ref().unwrap().account();
+                self.priority.activate(&any, &account);
+            }
+        }
     }
 
     pub fn notify(&self) {
