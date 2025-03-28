@@ -14,8 +14,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
-    backlog_scan::UnconfirmedInfo,
-    BlockContext, BlockProcessor,
+    backlog_scan::UnconfirmedInfo, BlockProcessor,
 };
 use crate::consensus::Bucketing;
 

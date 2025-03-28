@@ -1,4 +1,4 @@
-use rsnano_core::{utils::ContainerInfo, BlockHash, Networks, QualifiedRoot, Root, Vote};
+use rsnano_core::{utils::ContainerInfo, BlockHash, Networks, Root, Vote};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,

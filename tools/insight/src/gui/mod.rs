@@ -1,6 +1,7 @@
 use num_format::{Locale, ToFormattedString};
 
 mod badge;
+mod block_processor;
 mod bootstrap;
 mod channels;
 mod explorer;

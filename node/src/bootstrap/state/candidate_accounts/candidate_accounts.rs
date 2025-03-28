@@ -29,7 +29,7 @@ impl Default for CandidateAccountsConfig {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum PriorityUpResult {
+pub enum PriorityUpResult {
     Inserted,
     Updated,
     InvalidAccount,
@@ -37,7 +37,7 @@ pub(crate) enum PriorityUpResult {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum PriorityDownResult {
+pub enum PriorityDownResult {
     Deprioritized,
     Erased,
     AccountNotFound,

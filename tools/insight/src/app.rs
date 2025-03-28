@@ -109,7 +109,7 @@ impl InsightApp {
                 let state = node.bootstrapper.state();
                 self.frontier_scan.update(&state, now);
                 self.bootstrap.update(&state);
-            }
+            }            
         }
 
         self.last_update = Some(now);

@@ -3,6 +3,7 @@ use eframe::egui::{
 };
 
 use super::{
+    block_processor::view_block_processor,
     bootstrap::{view_bootstrap, BlockedViewModel, BootstrapViewModel, PriorityViewModel},
     formatted_number, view_frontier_scan, view_ledger_stats, view_message_recorder_controls,
     view_message_tab, view_node_runner, view_peers, view_queue_group, view_search_bar, view_tabs,
@@ -12,12 +13,12 @@ use super::{
 use crate::{app::InsightApp, explorer::ExplorerState, gui::QueueViewModel, navigator::NavItem};
 
 pub(crate) struct MainView {
-    model: AppViewModel,
+    model: MainViewModel,
 }
 
 impl MainView {
     pub(crate) fn new() -> Self {
-        let model = AppViewModel::new();
+        let model = MainViewModel::new();
         Self { model }
     }
 }
@@ -68,6 +69,7 @@ impl eframe::App for MainView {
             NavItem::Peers => view_peers(ctx, self.model.channels()),
             NavItem::Messages => view_message_tab(ctx, &mut self.model),
             NavItem::Queues => view_queues(ctx, self.model.queue_groups()),
+            NavItem::BlockProcessor => view_block_processor(ctx),
             NavItem::Bootstrap => view_bootstrap(ctx, self.model.bootstrap(), &mut self.model.app),
             NavItem::FrontierScan => {
                 view_frontier_scan(ctx, self.model.frontier_scan(), &mut self.model.app)
@@ -89,13 +91,13 @@ fn view_queues(ctx: &egui::Context, groups: Vec<QueueGroupViewModel>) {
     });
 }
 
-pub(crate) struct AppViewModel {
+pub(crate) struct MainViewModel {
     pub app: InsightApp,
     pub message_table: MessageTableViewModel,
     pub search_input: String,
 }
 
-impl AppViewModel {
+impl MainViewModel {
     pub(crate) fn new() -> Self {
         let app = InsightApp::new();
         Self::for_app(app)

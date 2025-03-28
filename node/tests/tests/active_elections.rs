@@ -270,7 +270,7 @@ fn non_final() {
 
     assert_timely_eq2(|| node.get_stat("election_vote", "cache", Direction::In), 1);
 
-    let quorum_delta = node.online_reps.lock().unwrap().quorum_delta();
+    let _quorum_delta = node.online_reps.lock().unwrap().quorum_delta();
     assert_timely_eq2(
         || {
             let active = node.active.read();

@@ -17,7 +17,7 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    AnySet, BlockStatus, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{

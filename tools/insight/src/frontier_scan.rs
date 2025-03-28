@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use rsnano_core::Account;
 use rsnano_node::bootstrap::{
-    state::BootstrapState, BootstrapCounters, Bootstrapper, FrontierHeadInfo,
+    state::BootstrapState, BootstrapCounters, FrontierHeadInfo,
 };
 use rsnano_nullable_clock::Timestamp;
 
