@@ -1,5 +1,4 @@
 use super::BlockContext;
-use rsnano_core::{QualifiedRoot, SavedBlock};
 use rsnano_ledger::BlockStatus;
 use std::{
     collections::VecDeque,
@@ -36,24 +35,11 @@ impl LedgerNotifications {
             .batch_processed
             .push(observer);
     }
-
-    /// Rolled back blocks <rolled back block, root of rollback>
-    pub fn on_blocks_rolled_back(
-        &self,
-        callback: impl Fn(&[SavedBlock], QualifiedRoot) + Send + Sync + 'static,
-    ) {
-        self.callbacks
-            .write()
-            .unwrap()
-            .rollback_observers
-            .push(Box::new(callback));
-    }
 }
 
 #[derive(Default)]
 struct Callbacks {
     batch_processed: Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockContext>)]) + Send + Sync>>,
-    rollback_observers: Vec<Box<dyn Fn(&[SavedBlock], QualifiedRoot) + Send + Sync>>,
 }
 
 /// publishes ledger notifications
@@ -70,18 +56,10 @@ impl LedgerNotifier {
             observer(&blocks);
         }
     }
-
-    pub fn notify_rollback(&self, rolled_back: &[SavedBlock], root: QualifiedRoot) {
-        let guard = self.callbacks.read().unwrap();
-        for callback in guard.rollback_observers.iter() {
-            callback(rolled_back, root.clone());
-        }
-    }
 }
 
 pub(crate) enum LedgerEvent2 {
     BatchProcessed(Vec<(BlockStatus, Arc<BlockContext>)>),
-    RolledBack(Vec<SavedBlock>, QualifiedRoot),
 }
 
 pub(crate) struct LedgerNotificationQueue {
@@ -145,10 +123,6 @@ impl LedgerNotificationQueue {
         self.push_event(LedgerEvent2::BatchProcessed(blocks));
     }
 
-    pub fn notify_rollback(&self, rolled_back: Vec<SavedBlock>, root: QualifiedRoot) {
-        self.push_event(LedgerEvent2::RolledBack(rolled_back, root));
-    }
-
     fn push_event(&self, event: LedgerEvent2) {
         if self.stopped.load(Ordering::SeqCst) {
             return;
@@ -192,9 +166,6 @@ impl LedgerNotificationProcessor {
 
         match event {
             LedgerEvent2::BatchProcessed(batch) => self.notifier.notify_batch_processed(&batch),
-            LedgerEvent2::RolledBack(rolled_back, root) => {
-                self.notifier.notify_rollback(&rolled_back, root)
-            }
         }
 
         true
@@ -277,13 +248,6 @@ mod tests {
 
         assert_eq!(queue.len(), 1);
         assert_eq!(notified.load(Ordering::SeqCst), false);
-    }
-
-    #[test]
-    fn enqueue_rolled_back() {
-        let (queue, _, _) = LedgerNotificationQueue::new(8);
-        queue.notify_rollback(vec![], QualifiedRoot::new_test_instance());
-        assert_eq!(queue.len(), 1);
     }
 
     #[test]

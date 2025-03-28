@@ -450,8 +450,6 @@ impl BlockProcessorLoopImpl {
                 for h in &result.rolled_back {
                     processed_hashes.push(h.hash());
                 }
-                self.notifier
-                    .notify_rollback(result.rolled_back, result.target_root);
             } else {
                 processed_hashes.push(result.target_hash);
             }
@@ -481,11 +479,6 @@ impl BlockProcessorLoopImpl {
                 result.processed.len(),
                 timer.elapsed().as_millis(),
             );
-        }
-
-        for (rolled_back, root) in result.rolled_back {
-            // Notify observers of the rolled back blocks on a background thread while not holding the ledger write lock
-            self.notifier.notify_rollback(rolled_back, root);
         }
 
         assert_eq!(result.processed.len(), batch.len());
