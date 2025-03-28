@@ -51,10 +51,15 @@ impl LedgerEventProcessor {
                         self.election_schedulers.activate_successors(&confirmed);
                     }
                     self.bounded_backlog.remove(&confirmed);
-                    self.local_block_broadcaster.remove(&confirmed);
+                    self.local_block_broadcaster
+                        .confirmed(confirmed.iter().map(|i| i.1));
                 }
                 LedgerEvent::BlocksRolledBack(rolled_back) => {
-                    // TODO
+                    self.local_block_broadcaster.rolled_back(
+                        rolled_back
+                            .iter()
+                            .flat_map(|i| i.rolled_back.iter().map(|b| b.hash())),
+                    );
                 }
             }
         }

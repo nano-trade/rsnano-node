@@ -9,7 +9,7 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks, SavedBlock};
+use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
 use rsnano_ledger::{BlockStatus, ConfirmedSet, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
@@ -261,12 +261,25 @@ impl LocalBlockBroadcaster {
         publisher.flood_prs_and_some_non_prs(&message, TrafficType::BlockBroadcastInitial, 1.0);
     }
 
-    pub fn remove(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+    pub fn confirmed(&self, confirmed: impl IntoIterator<Item = BlockHash>) {
         let mut guard = self.mutex.lock().unwrap();
-        for (block, _) in confirmed {
-            if guard.local_blocks.remove(&block.hash()) {
+        for block in confirmed {
+            if guard.local_blocks.remove(&block) {
                 self.stats
                     .inc(StatType::LocalBlockBroadcaster, DetailType::Cemented);
+            }
+        }
+    }
+
+    pub fn rolled_back(&self, blocks: impl IntoIterator<Item = BlockHash>) {
+        let mut guard = self.mutex.lock().unwrap();
+        for block in blocks {
+            if guard.local_blocks.remove(&block) {
+                self.stats.inc_dir(
+                    StatType::LocalBlockBroadcaster,
+                    DetailType::Rollback,
+                    Direction::In,
+                );
             }
         }
     }
@@ -326,25 +339,6 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
                     self_l.condition.notify_all();
                 }
             }));
-
-        let self_w = Arc::downgrade(self);
-        self.notifications
-            .on_blocks_rolled_back(move |blocks, _rollback_root| {
-                let Some(self_l) = self_w.upgrade() else {
-                    return;
-                };
-
-                let mut guard = self_l.mutex.lock().unwrap();
-                for block in blocks {
-                    if guard.local_blocks.remove(&block.hash()) {
-                        self_l.stats.inc_dir(
-                            StatType::LocalBlockBroadcaster,
-                            DetailType::Rollback,
-                            Direction::In,
-                        );
-                    }
-                }
-            });
     }
 
     fn start(&self) {

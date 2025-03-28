@@ -513,7 +513,7 @@ impl Ledger {
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
         let mut rolled_back_count = 0;
-        let mut processed = Vec::new();
+        let mut results = Vec::new();
         {
             let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
 
@@ -522,7 +522,7 @@ impl Ledger {
                 if !can_roll_back(hash) {
                     self.stats
                         .inc(StatType::BoundedBacklog, DetailType::RollbackSkipped);
-                    processed.push(RollbackResult {
+                    results.push(RollbackResult {
                         target_hash: *hash,
                         target_root: QualifiedRoot::ZERO,
                         rolled_back: Vec::new(),
@@ -549,7 +549,7 @@ impl Ledger {
                     }
 
                     rolled_back_count += rollback_list.len();
-                    processed.push(RollbackResult {
+                    results.push(RollbackResult {
                         target_hash: *hash,
                         target_root: block.qualified_root(),
                         rolled_back: rollback_list,
@@ -564,7 +564,7 @@ impl Ledger {
                     self.stats
                         .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
                     rolled_back_count += 1;
-                    processed.push(RollbackResult {
+                    results.push(RollbackResult {
                         target_hash: *hash,
                         target_root: QualifiedRoot::ZERO,
                         rolled_back: Vec::new(),
@@ -575,8 +575,8 @@ impl Ledger {
         }
 
         // TODO: don't clone processed
-        self.notify(LedgerEvent::BlocksRolledBack(processed.clone()));
-        processed
+        self.notify(LedgerEvent::BlocksRolledBack(results.clone()));
+        results
     }
 
     fn rollback_with_tx(
