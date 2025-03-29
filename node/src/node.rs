@@ -1257,7 +1257,7 @@ impl Node {
                 self.vote_rebroadcaster.container_info(),
             )
             .node("recently_cemented", recently_cemented)
-            .leaf("fork_cache", fork_cache_len, 0)
+            .node("fork_cache", [("fork_cache", fork_cache_len, 0)].into())
             .finish()
     }
 
