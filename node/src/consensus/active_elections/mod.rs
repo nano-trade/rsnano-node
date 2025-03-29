@@ -7,12 +7,12 @@ mod vote_counter;
 
 pub use active_elections_container::*;
 pub use cooldown_controller::AecCooldownReason;
-use rsnano_ledger::{RepWeightCache, RollbackResults};
+use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache, RollbackResults};
 use rsnano_network::Channel;
 
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock, RwLockReadGuard},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
     time::{Duration, SystemTime},
 };
 
@@ -26,7 +26,10 @@ use rsnano_core::{
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
-use super::{AddForkResult, ConfirmedElection, ElectionBehavior, VoteRouter, VoteSummary};
+use super::{
+    AddForkResult, ConfirmedElection, ElectionBehavior, ForkCache, VoteCache, VoteRouter,
+    VoteSummary,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -76,6 +79,8 @@ pub struct ActiveElections {
     clock: Arc<SteadyClock>,
     rep_weights: Arc<RepWeightCache>,
     event_sender: RwLock<Option<BackpressureSender<AecEvent>>>,
+    fork_cache: Arc<RwLock<ForkCache>>,
+    vote_cache: Arc<Mutex<VoteCache>>,
 }
 
 impl ActiveElections {
@@ -83,6 +88,8 @@ impl ActiveElections {
         config: ActiveElectionsConfig,
         stats: Arc<Stats>,
         rep_weights: Arc<RepWeightCache>,
+        fork_cache: Arc<RwLock<ForkCache>>,
+        vote_cache: Arc<Mutex<VoteCache>>,
         base_latency: Duration,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -91,6 +98,8 @@ impl ActiveElections {
             container: RwLock::new(ActiveElectionsContainer::new(config, base_latency)),
             max_elections,
             rep_weights,
+            fork_cache,
+            vote_cache,
             stats,
             clock,
             event_sender: RwLock::new(None),
@@ -209,6 +218,7 @@ impl ActiveElections {
         erased_callback: Option<ErasedCallback>,
     ) -> bool {
         let hash = block.hash();
+        let root = block.qualified_root();
 
         let inserted = self.container.write().unwrap().insert(
             block,
@@ -225,6 +235,11 @@ impl ActiveElections {
 
             debug!(behavior = ?election_behavior, block = %hash, "Started new election");
             self.notify(AecEvent::ElectionStarted(hash));
+        }
+
+        let fork_cache = self.fork_cache.read().unwrap();
+        for fork in fork_cache.get_forks(&root) {
+            self.handle_fork(fork);
         }
 
         inserted
@@ -392,6 +407,34 @@ impl ActiveElections {
                 }
             }
         }
+    }
+
+    pub fn handle_processed_blocks(&self, batch: &[ProcessedResult]) {
+        for result in batch {
+            if result.status == BlockStatus::Fork {
+                self.handle_fork(&result.block);
+            }
+        }
+    }
+
+    fn handle_fork(&self, fork: &Block) {
+        let fork_tally = self.get_cached_tally(&fork.hash());
+        let added = self.try_add_fork(fork, fork_tally);
+        if added {
+            self.stats
+                .inc(StatType::Active, DetailType::ElectionBlockConflict);
+            debug!("Block was added to an existing election: {}", fork.hash());
+        }
+    }
+
+    fn get_cached_tally(&self, hash: &BlockHash) -> Amount {
+        let votes = self.vote_cache.lock().unwrap().find(hash);
+        let mut tally = Amount::zero();
+        let weights = self.rep_weights.read();
+        for vote in votes {
+            tally += weights.get(&vote.voter).cloned().unwrap_or_default();
+        }
+        tally
     }
 }
 

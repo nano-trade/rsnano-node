@@ -11,7 +11,7 @@ use crate::{
     config::NodeFlags,
     consensus::{
         election_schedulers::ElectionSchedulers, ActiveElections, DependentElectionsConfirmer,
-        ElectionForkAdder, LocalVoteHistory,
+        ForkCacheUpdater, LocalVoteHistory,
     },
     NodeEvent,
 };
@@ -29,8 +29,8 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) bootstrapper: Arc<Bootstrapper>,
     pub(crate) vote_history: Arc<LocalVoteHistory>,
     pub(crate) active_elections: Arc<ActiveElections>,
-    pub(crate) fork_adder: ElectionForkAdder,
     pub(crate) block_processor: Arc<BlockProcessor>,
+    pub(crate) fork_cache_updater: ForkCacheUpdater,
 }
 
 impl LedgerEventProcessor {
@@ -59,7 +59,7 @@ impl LedgerEventProcessor {
             match event {
                 LedgerEvent::BlocksProcessed(results) => {
                     // Notify elections about alternative (forked) blocks
-                    self.fork_adder.handle_processed_blocks(&results);
+                    self.active_elections.handle_processed_blocks(&results);
                     self.election_schedulers
                         .activate_accounts_with_fresh_blocks(&results);
 
@@ -67,6 +67,7 @@ impl LedgerEventProcessor {
                     self.bounded_backlog.insert_processed(&results);
                     self.bootstrapper.inspect_blocks(&results);
                     self.local_block_broadcaster.blocks_processed(&results);
+                    self.fork_cache_updater.update(&results);
                     if let Some(sender) = &self.node_event_sender {
                         sender.send(NodeEvent::BlocksProcessed(results)).unwrap();
                     }

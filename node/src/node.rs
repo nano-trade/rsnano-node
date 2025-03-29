@@ -49,9 +49,9 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, AecCooldownReason, AecTicker, BlockVoter, BootstrapElectionActivator,
-        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ElectionForkAdder,
-        LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ForkCache,
+        ForkCacheUpdater, LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup,
+        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
         VoteRebroadcaster, WinnerBlockBroadcaster,
     },
@@ -432,6 +432,8 @@ impl Node {
             stats.clone(),
         )));
 
+        let fork_cache = Arc::new(RwLock::new(ForkCache::default()));
+
         let block_processor = Arc::new(BlockProcessor::new(
             global_config.into(),
             ledger.clone(),
@@ -510,6 +512,8 @@ impl Node {
             config.active_elections.clone(),
             stats.clone(),
             ledger.rep_weights.clone(),
+            fork_cache.clone(),
+            vote_cache.clone(),
             base_latency,
             steady_clock.clone(),
         );
@@ -564,13 +568,6 @@ impl Node {
             block_voter: block_voter.clone(),
             winner_block_broadcaster,
             confirm_req_sender,
-        };
-
-        let fork_adder = ElectionForkAdder {
-            active_elections: active_elections.clone(),
-            vote_cache: vote_cache.clone(),
-            stats: stats.clone(),
-            rep_weights: rep_weights.clone(),
         };
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(
@@ -1069,6 +1066,8 @@ impl Node {
             event_sender: aec_sender.clone(),
         };
 
+        let fork_cache_updater = ForkCacheUpdater::new(fork_cache);
+
         let mut ledger_event_processor = LedgerEventProcessor {
             node_event_sender: node_event_sender.clone(),
             receiver: ledger_rx,
@@ -1082,8 +1081,8 @@ impl Node {
             bootstrapper: bootstrapper.clone(),
             vote_history: history.clone(),
             active_elections: active_elections.clone(),
-            fork_adder,
             block_processor: block_processor.clone(),
+            fork_cache_updater,
         };
 
         std::thread::Builder::new()
