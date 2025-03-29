@@ -147,6 +147,7 @@ pub struct Node {
     pub active_elections_driver: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
     pub stats_collector: StatsCollector,
+    fork_cache: Arc<RwLock<ForkCache>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1066,7 +1067,7 @@ impl Node {
             event_sender: aec_sender.clone(),
         };
 
-        let fork_cache_updater = ForkCacheUpdater::new(fork_cache);
+        let fork_cache_updater = ForkCacheUpdater::new(fork_cache.clone());
 
         let mut ledger_event_processor = LedgerEventProcessor {
             node_event_sender: node_event_sender.clone(),
@@ -1188,6 +1189,7 @@ impl Node {
             active_elections_driver: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
             stats_collector,
+            fork_cache,
         }
     }
 
@@ -1209,6 +1211,7 @@ impl Node {
         .into();
 
         let active = self.active.read().container_info();
+        let fork_cache_len = self.fork_cache.read().unwrap().len();
 
         ContainerInfo::builder()
             .node("work", self.work.container_info())
@@ -1254,6 +1257,7 @@ impl Node {
                 self.vote_rebroadcaster.container_info(),
             )
             .node("recently_cemented", recently_cemented)
+            .leaf("fork_cache", fork_cache_len, 0)
             .finish()
     }
 
