@@ -36,9 +36,14 @@ impl ForkCache {
     pub fn add(&mut self, fork: Block) {
         let forks = self.forks.entry(fork.qualified_root()).or_default();
 
+        if forks.iter().any(|f| f.hash() == fork.hash()) {
+            return;
+        }
+
         if forks.is_empty() {
             self.sequential.push_back(fork.qualified_root());
         }
+
         forks.push_back(fork);
 
         if forks.len() > Self::MAX_FORKS_PER_ROOT {
@@ -120,6 +125,18 @@ mod tests {
 
         assert_eq!(cache.len(), 1);
         assert_forks(&cache, &fork1.qualified_root(), &[fork1, fork2]);
+    }
+
+    #[test]
+    fn ignore_duplicate_forks() {
+        let mut cache = ForkCache::default();
+
+        let fork = create_block(BlockHash::from(1), Amount::from(2));
+
+        cache.add(fork.clone());
+        cache.add(fork.clone());
+
+        assert_forks(&cache, &fork.qualified_root(), &[fork]);
     }
 
     #[test]
