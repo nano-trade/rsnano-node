@@ -15,6 +15,7 @@ mod election_fork_adder;
 mod election_result;
 pub mod election_schedulers;
 mod election_state;
+mod fork_cache;
 mod ordered_blocks;
 mod rebroadcast;
 mod rep_tiers;
