@@ -235,11 +235,11 @@ impl ActiveElections {
 
             debug!(behavior = ?election_behavior, block = %hash, "Started new election");
             self.notify(AecEvent::ElectionStarted(hash));
-        }
 
-        let fork_cache = self.fork_cache.read().unwrap();
-        for fork in fork_cache.get_forks(&root) {
-            self.handle_fork(fork);
+            let fork_cache = self.fork_cache.read().unwrap();
+            for fork in fork_cache.get_forks(&root) {
+                self.handle_fork(fork);
+            }
         }
 
         inserted
