@@ -29,6 +29,7 @@ impl ForkCache {
         self.forks.len()
     }
 
+    #[allow(dead_code)]
     pub fn max_len(&self) -> usize {
         self.max_len
     }
@@ -56,6 +57,7 @@ impl ForkCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn contains(&self, root: &QualifiedRoot) -> bool {
         self.forks.contains_key(root)
     }
@@ -68,6 +70,31 @@ impl ForkCache {
 impl Default for ForkCache {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+struct Entry {
+    blocks: [Block; ForkCache::MAX_FORKS_PER_ROOT],
+    count: usize,
+}
+
+impl Entry {
+    fn new(block: Block) -> Self {
+        let dummy = Block::new_test_instance();
+        Self {
+            blocks: [block, dummy.clone(), dummy.clone(), dummy.clone(), dummy],
+            count: 1,
+        }
+    }
+
+    fn add(&mut self, block: Block) {
+        if self.count < ForkCache::MAX_FORKS_PER_ROOT {
+            self.blocks[self.count] = block;
+            self.count += 1;
+        } else {
+            self.blocks.rotate_left(1);
+            self.blocks[ForkCache::MAX_FORKS_PER_ROOT - 1] = block;
+        }
     }
 }
 
