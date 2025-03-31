@@ -1,3 +1,4 @@
+use super::ContainerInfo;
 use std::cmp::max;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError};
@@ -115,6 +116,20 @@ impl<T> Clone for BackpressureSender<T> {
             sender: self.sender.clone(),
             queue_size: Arc::clone(&self.queue_size),
         }
+    }
+}
+
+pub struct BackpressureQueueInfo<T> {
+    sender: BackpressureSender<T>,
+}
+
+impl<T> BackpressureQueueInfo<T> {
+    pub fn new(sender: BackpressureSender<T>) -> Self {
+        Self { sender }
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        [("queue_len", self.sender.len(), 0)].into()
     }
 }
 
