@@ -1,4 +1,5 @@
 use serde_json::json;
+use std::ops::Deref;
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ContainerSize {
@@ -73,6 +74,14 @@ impl ContainerInfo {
     }
 }
 
+impl Deref for ContainerInfo {
+    type Target = Vec<ContainerInfoEntry>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 pub struct ContainerInfosBuilder(Vec<ContainerInfoEntry>);
 
 impl ContainerInfosBuilder {
@@ -106,5 +115,102 @@ impl<const N: usize> From<[(&'static str, usize, usize); N]> for ContainerInfo {
             builder = builder.leaf(name, count, element_size);
         }
         builder.finish()
+    }
+}
+
+#[derive(Default)]
+pub struct ContainerInfoFactory(Vec<FactoryEntry>);
+
+struct FactoryEntry {
+    name: String,
+    get_size: Box<dyn Fn() -> usize + Send + Sync>,
+}
+
+impl ContainerInfoFactory {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn add(
+        &mut self,
+        name: impl Into<String>,
+        get_size: impl Fn() -> usize + Send + Sync + 'static,
+    ) {
+        self.0.push(FactoryEntry {
+            name: name.into(),
+            get_size: Box::new(get_size),
+        });
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        let mut builder = ContainerInfo::builder();
+        for entry in &self.0 {
+            builder = builder.leaf(entry.name.clone(), (entry.get_size)(), 0);
+        }
+        builder.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_container_info_factory() {
+        let factory = ContainerInfoFactory::new();
+        let info = factory.container_info();
+        assert!(info.is_empty());
+    }
+
+    #[test]
+    fn add_one() {
+        let mut factory = ContainerInfoFactory::new();
+        factory.add("foo", || 123);
+        let info = factory.container_info();
+        assert_eq!(
+            *info,
+            [ContainerInfoEntry::Leaf(Leaf {
+                name: "foo".to_string(),
+                info: ContainerSize {
+                    count: 123,
+                    element_size: 0
+                }
+            })]
+        );
+    }
+
+    #[test]
+    fn add_multiple() {
+        let mut factory = ContainerInfoFactory::new();
+        factory.add("foo", || 123);
+        factory.add("bar", || 456);
+        factory.add("test", || 0);
+        let info = factory.container_info();
+        assert_eq!(
+            *info,
+            [
+                ContainerInfoEntry::Leaf(Leaf {
+                    name: "foo".to_string(),
+                    info: ContainerSize {
+                        count: 123,
+                        element_size: 0
+                    }
+                }),
+                ContainerInfoEntry::Leaf(Leaf {
+                    name: "bar".to_string(),
+                    info: ContainerSize {
+                        count: 456,
+                        element_size: 0
+                    }
+                }),
+                ContainerInfoEntry::Leaf(Leaf {
+                    name: "test".to_string(),
+                    info: ContainerSize {
+                        count: 0,
+                        element_size: 0
+                    }
+                })
+            ]
+        );
     }
 }

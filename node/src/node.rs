@@ -13,13 +13,12 @@ use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
-    utils::{backpressure_channel, BackpressureQueueInfo, ContainerInfo, Peer},
+    utils::{backpressure_channel, ContainerInfo, ContainerInfoFactory, Peer},
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
     VoteCode, WorkNonce,
 };
 use rsnano_ledger::{
-    AnySet, BlockSource, BlockStatus, Ledger, LedgerEvent, LedgerSet, ProcessedResult,
-    RepWeightCache,
+    AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
 };
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
@@ -45,18 +44,17 @@ use crate::{
         BootstrapExt, BootstrapResponder, BootstrapResponderCleanup, Bootstrapper,
         BootstrapperCleanup,
     },
-    cementation::{ConfirmingSet, ConfirmingSetEvent},
+    cementation::ConfirmingSet,
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     confirming_set_event_processor::ConfirmingSetEventProcessor,
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsStats, AecEvent, AecTicker, BlockVoter,
-        BootstrapElectionActivator, ConfirmReqSender, ConfirmedElection,
-        DependentElectionsConfirmer, ForkCache, ForkCacheStats, ForkCacheUpdater, LocalVoteHistory,
-        LocalVotesRemover, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WinnerBlockBroadcaster,
+        ActiveElections, ActiveElectionsStats, AecTicker, BlockVoter, BootstrapElectionActivator,
+        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ForkCache,
+        ForkCacheStats, ForkCacheUpdater, LocalVoteHistory, LocalVotesRemover, RepTiers,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -152,9 +150,7 @@ pub struct Node {
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
     pub stats_collector: StatsCollector,
     fork_cache: Arc<RwLock<ForkCache>>,
-    ledger_ev_queue: BackpressureQueueInfo<LedgerEvent>,
-    conf_set_queue_info: BackpressureQueueInfo<ConfirmingSetEvent>,
-    aec_ev_queue_info: BackpressureQueueInfo<AecEvent>,
+    event_queues_info: ContainerInfoFactory,
 }
 
 pub(crate) struct NodeArgs {
@@ -289,8 +285,10 @@ impl Node {
         )
         .expect("Could not initialize ledger");
 
+        let mut event_queues_info = ContainerInfoFactory::new();
         let (ledger_tx, ledger_rx) = backpressure_channel(1024);
-        let ledger_ev_queue_info = BackpressureQueueInfo::new(ledger_tx.clone());
+        let ledger_tx_clone = ledger_tx.clone();
+        event_queues_info.add("ledger", move || ledger_tx_clone.len());
         ledger.set_observer(ledger_tx);
 
         let ledger = Arc::new(ledger);
@@ -434,7 +432,8 @@ impl Node {
             stats.clone(),
         ));
         let (tx_confirming, rx_confirming) = backpressure_channel(1024);
-        let conf_set_queue_info = BackpressureQueueInfo::new(tx_confirming.clone());
+        let tx_conf_clone = tx_confirming.clone();
+        event_queues_info.add("confirming_set", move || tx_conf_clone.len());
         confirming_set.set_event_sink(tx_confirming);
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
@@ -519,7 +518,9 @@ impl Node {
         };
 
         let (aec_sender, aec_receiver) = backpressure_channel(1024 * 5);
-        let aec_ev_queue_info = BackpressureQueueInfo::new(aec_sender.clone());
+        let aec_sender_clone = aec_sender.clone();
+        event_queues_info.add("aec", move || aec_sender_clone.len());
+
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
             stats.clone(),
@@ -1168,9 +1169,7 @@ impl Node {
             recently_cemented,
             stats_collector,
             fork_cache,
-            ledger_ev_queue: ledger_ev_queue_info,
-            conf_set_queue_info,
-            aec_ev_queue_info,
+            event_queues_info,
         }
     }
 
@@ -1239,12 +1238,7 @@ impl Node {
             )
             .node("recently_cemented", recently_cemented)
             .node("fork_cache", fork_cache)
-            .node("ledger_event_queue", self.ledger_ev_queue.container_info())
-            .node(
-                "conf_set_event_queue",
-                self.conf_set_queue_info.container_info(),
-            )
-            .node("aec_event_queue", self.aec_ev_queue_info.container_info())
+            .node("event_queues", self.event_queues_info.container_info())
             .finish()
     }
 
