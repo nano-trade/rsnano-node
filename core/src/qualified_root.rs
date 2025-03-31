@@ -3,20 +3,10 @@ use crate::{
     BlockHash, Root,
 };
 use primitive_types::U512;
+use serde::de::Unexpected;
 use std::hash::Hash;
 
-#[derive(
-    Default,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    Debug,
-    PartialOrd,
-    Ord,
-    serde::Serialize,
-    serde::Deserialize,
-)]
+#[derive(Default, Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct QualifiedRoot {
     pub root: Root,
     pub previous: BlockHash,
@@ -80,6 +70,46 @@ impl From<U512> for QualifiedRoot {
     }
 }
 
+impl serde::Serialize for QualifiedRoot {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!(
+            "{}{}",
+            self.root.encode_hex(),
+            self.previous.encode_hex()
+        ))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for QualifiedRoot {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(QualifiedRootVisitor {})
+    }
+}
+
+struct QualifiedRootVisitor {}
+
+impl<'de> serde::de::Visitor<'de> for QualifiedRootVisitor {
+    type Value = QualifiedRoot;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a qualified root")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        QualifiedRoot::decode_hex(v)
+            .map_err(|_| serde::de::Error::invalid_value(Unexpected::Str(v), &"a qualified root"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,5 +120,20 @@ mod tests {
         let decoded = QualifiedRoot::decode_hex(hex).unwrap();
         assert_eq!(decoded.root, Root::from(123));
         assert_eq!(decoded.previous, BlockHash::from(124));
+    }
+
+    #[test]
+    fn serialize_json() {
+        let root = QualifiedRoot::new(Root::from(0xaabbcc), BlockHash::from(0x112233));
+        let json = serde_json::to_string(&root).unwrap();
+        assert_eq!(json, "\"0000000000000000000000000000000000000000000000000000000000AABBCC0000000000000000000000000000000000000000000000000000000000112233\"");
+    }
+
+    #[test]
+    fn deserialize_json() {
+        let input =  "\"0000000000000000000000000000000000000000000000000000000000AABBCC0000000000000000000000000000000000000000000000000000000000112233\"";
+        let expected = QualifiedRoot::new(Root::from(0xaabbcc), BlockHash::from(0x112233));
+        let result: QualifiedRoot = serde_json::from_str(input).unwrap();
+        assert_eq!(result, expected);
     }
 }
