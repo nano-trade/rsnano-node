@@ -1,11 +1,11 @@
 use std::collections::{HashMap, VecDeque};
 
-use rsnano_core::{Block, QualifiedRoot};
+use rsnano_core::{Block, BlockHash, QualifiedRoot};
 
 pub(crate) struct ForkCache {
-    forks: HashMap<QualifiedRoot, VecDeque<Block>>,
+    forks: HashMap<QualifiedRoot, Entry>,
     sequential: VecDeque<QualifiedRoot>,
-    empty: VecDeque<Block>,
+    empty: Entry,
     max_len: usize,
 }
 
@@ -20,7 +20,7 @@ impl ForkCache {
         Self {
             forks: HashMap::new(),
             sequential: VecDeque::new(),
-            empty: VecDeque::new(),
+            empty: Entry::new(),
             max_len,
         }
     }
@@ -37,7 +37,7 @@ impl ForkCache {
     pub fn add(&mut self, fork: Block) {
         let forks = self.forks.entry(fork.qualified_root()).or_default();
 
-        if forks.iter().any(|f| f.hash() == fork.hash()) {
+        if forks.contains(&fork.hash()) {
             return;
         }
 
@@ -45,11 +45,7 @@ impl ForkCache {
             self.sequential.push_back(fork.qualified_root());
         }
 
-        forks.push_back(fork);
-
-        if forks.len() > Self::MAX_FORKS_PER_ROOT {
-            forks.pop_front();
-        }
+        forks.add(fork);
 
         if self.forks.len() > self.max_len {
             let root = self.sequential.pop_front().unwrap();
@@ -79,11 +75,17 @@ struct Entry {
 }
 
 impl Entry {
-    fn new(block: Block) -> Self {
+    fn new() -> Self {
         let dummy = Block::new_test_instance();
         Self {
-            blocks: [block, dummy.clone(), dummy.clone(), dummy.clone(), dummy],
-            count: 1,
+            blocks: [
+                dummy.clone(),
+                dummy.clone(),
+                dummy.clone(),
+                dummy.clone(),
+                dummy,
+            ],
+            count: 0,
         }
     }
 
@@ -95,6 +97,24 @@ impl Entry {
             self.blocks.rotate_left(1);
             self.blocks[ForkCache::MAX_FORKS_PER_ROOT - 1] = block;
         }
+    }
+
+    fn contains(&self, hash: &BlockHash) -> bool {
+        self.iter().any(|i| i.hash() == *hash)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &Block> {
+        self.blocks[..self.count].iter()
+    }
+}
+
+impl Default for Entry {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
