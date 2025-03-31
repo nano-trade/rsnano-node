@@ -70,7 +70,7 @@ impl NanoRpcClient {
     pub async fn confirmation_info(
         &self,
         args: impl Into<ConfirmationInfoArgs>,
-    ) -> Result<ConfirmationInfoDto> {
+    ) -> Result<ConfirmationInfoResponse> {
         let cmd = RpcCommand::ConfirmationInfo(args.into());
         self.request(&cmd).await
     }

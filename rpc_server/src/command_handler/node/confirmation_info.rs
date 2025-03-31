@@ -2,13 +2,15 @@ use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use indexmap::IndexMap;
 use rsnano_core::{Account, Amount};
-use rsnano_rpc_messages::{ConfirmationBlockInfoDto, ConfirmationInfoArgs, ConfirmationInfoDto};
+use rsnano_rpc_messages::{
+    ConfirmationBlockInfoDto, ConfirmationInfoArgs, ConfirmationInfoResponse,
+};
 
 impl RpcCommandHandler {
     pub(crate) fn confirmation_info(
         &self,
         args: ConfirmationInfoArgs,
-    ) -> anyhow::Result<ConfirmationInfoDto> {
+    ) -> anyhow::Result<ConfirmationInfoResponse> {
         let include_representatives = args.representatives.unwrap_or(false.into()).inner();
         let contents = args.contents.unwrap_or(true.into()).inner();
         let active = self.node.active.read();
@@ -57,7 +59,7 @@ impl RpcCommandHandler {
             blocks.insert(block.hash(), entry);
         }
 
-        Ok(ConfirmationInfoDto {
+        Ok(ConfirmationInfoResponse {
             announcements: (announcements as u32).into(),
             voters: (voters as u32).into(),
             last_winner,
