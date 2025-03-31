@@ -4,7 +4,8 @@ use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet, Writer};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
-    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, start_election, System,
+    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2,
+    start_election, System,
 };
 
 #[test]
@@ -117,7 +118,7 @@ fn confirmed_history() {
     );
 
     // Each block that's confirmed is in the recently_cemented history
-    assert_eq!(node.recently_cemented.lock().unwrap().len(), 2);
+    assert_timely_eq2(|| node.recently_cemented.lock().unwrap().len(), 2);
     assert_eq!(node.active.len(), 0);
 
     // Confirm the callback is not called under this circumstance
