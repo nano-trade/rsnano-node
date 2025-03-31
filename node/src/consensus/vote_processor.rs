@@ -67,7 +67,7 @@ impl VoteProcessor {
         }
     }
 
-    pub fn add_event_sink(&self, sink: BackpressureSender<AecEvent>) {
+    pub fn add_observer(&self, sink: BackpressureSender<AecEvent>) {
         self.vote_applier.add_event_sink(sink);
     }
 

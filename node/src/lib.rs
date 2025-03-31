@@ -12,6 +12,7 @@ pub mod block_processing;
 pub mod bootstrap;
 pub mod cementation;
 pub mod config;
+mod confirming_set_event_processor;
 pub mod consensus;
 mod ledger_event_processor;
 mod monitor;

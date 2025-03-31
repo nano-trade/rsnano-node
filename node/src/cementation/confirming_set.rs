@@ -53,8 +53,8 @@ impl Default for ConfirmingSetConfig {
     }
 }
 
-pub enum CementingEvent {
-    CementingFailed(BlockHash),
+pub enum ConfirmingSetEvent {
+    ConfirmationFailed(BlockHash),
     NearFull,
     Recovered,
 }
@@ -93,7 +93,7 @@ impl ConfirmingSet {
         }
     }
 
-    pub fn set_event_sink(&self, sink: BackpressureSender<CementingEvent>) {
+    pub fn set_event_sink(&self, sink: BackpressureSender<ConfirmingSetEvent>) {
         *self.thread.event_sender.write().unwrap() = Some(sink);
     }
 
@@ -206,7 +206,7 @@ struct ConfirmingSetThread {
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
     workers: ThreadPoolImpl,
-    event_sender: RwLock<Option<BackpressureSender<CementingEvent>>>,
+    event_sender: RwLock<Option<BackpressureSender<ConfirmingSetEvent>>>,
 }
 
 impl ConfirmingSetThread {
@@ -247,7 +247,7 @@ impl ConfirmingSetThread {
         }
 
         if near_full_warning {
-            self.notify(CementingEvent::NearFull);
+            self.notify(ConfirmingSetEvent::NearFull);
         }
     }
 
@@ -273,7 +273,9 @@ impl ConfirmingSetThread {
                 drop(guard);
                 {
                     for entry in evicted {
-                        self.notify(CementingEvent::CementingFailed(entry.confirmation_root));
+                        self.notify(ConfirmingSetEvent::ConfirmationFailed(
+                            entry.confirmation_root,
+                        ));
                     }
                 }
                 guard = self.mutex.lock().unwrap();
@@ -296,7 +298,7 @@ impl ConfirmingSetThread {
 
                 self.run_batch(batch);
                 if recovered {
-                    self.notify(CementingEvent::Recovered);
+                    self.notify(ConfirmingSetEvent::Recovered);
                 }
 
                 guard = self.mutex.lock().unwrap();
@@ -324,7 +326,7 @@ impl ConfirmingSetThread {
         self.mutex.lock().unwrap().current.clear();
     }
 
-    fn notify(&self, event: CementingEvent) {
+    fn notify(&self, event: ConfirmingSetEvent) {
         if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
             sender.send(event).unwrap();
         }

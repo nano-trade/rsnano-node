@@ -348,7 +348,7 @@ fn vote_by_hash_bundle() {
     // Set up an observer to track the maximum number of hashes in a vote
 
     let (tx, rx) = backpressure_channel(128);
-    node.vote_processor.add_event_sink(tx);
+    node.vote_processor.add_observer(tx);
 
     // Enqueue vote requests for all the blocks
     for block in &blocks {

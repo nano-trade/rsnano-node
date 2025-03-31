@@ -1,6 +1,5 @@
 use std::sync::{mpsc::SyncSender, Arc};
 
-use rsnano_core::utils::BackpressureReceiver;
 use rsnano_ledger::LedgerEvent;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -13,12 +12,12 @@ use crate::{
         election_schedulers::ElectionSchedulers, ActiveElections, DependentElectionsConfirmer,
         ForkCacheUpdater, LocalVoteHistory,
     },
+    utils::BackpressureEventProcessor,
     NodeEvent,
 };
 
 pub(crate) struct LedgerEventProcessor {
     pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
-    pub receiver: BackpressureReceiver<LedgerEvent>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub bounded_backlog: Arc<BoundedBacklog>,
@@ -33,69 +32,61 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) fork_cache_updater: ForkCacheUpdater,
 }
 
-impl LedgerEventProcessor {
-    pub fn run(&mut self) {
-        let mut previous_cooldown_state = false;
+impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
+    fn cool_down(&mut self) {
+        self.confirming_set.set_cooldown(true);
+        self.block_processor.set_cooldown(true);
+        self.stats
+            .inc(StatType::ConfirmingSet, DetailType::Cooldown);
+    }
 
-        while let Ok(event) = self.receiver.recv() {
-            // Check if we need to cool down the processing to avoid overwhelming the system
-            let should_cool_down = self.receiver.should_cool_down();
+    fn recovered(&mut self) {
+        self.confirming_set.set_cooldown(false);
+        self.block_processor.set_cooldown(false);
+        self.stats
+            .inc(StatType::ConfirmingSet, DetailType::Recovered);
+    }
 
-            if should_cool_down != previous_cooldown_state {
-                self.confirming_set.set_cooldown(should_cool_down);
-                self.block_processor.set_cooldown(should_cool_down);
+    fn process(&mut self, event: LedgerEvent) {
+        match event {
+            LedgerEvent::BlocksProcessed(results) => {
+                // Notify elections about alternative (forked) blocks
+                self.active_elections.handle_processed_blocks(&results);
+                self.election_schedulers
+                    .activate_accounts_with_fresh_blocks(&results);
 
-                if should_cool_down {
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::Cooldown);
-                } else {
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::Recovered);
+                self.confirming_set.requeue_blocks(&results);
+                self.bounded_backlog.insert_processed(&results);
+                self.bootstrapper.inspect_blocks(&results);
+                self.local_block_broadcaster.blocks_processed(&results);
+                self.fork_cache_updater.update(&results);
+                if let Some(sender) = &self.node_event_sender {
+                    sender.send(NodeEvent::BlocksProcessed(results)).unwrap();
                 }
-
-                previous_cooldown_state = should_cool_down;
             }
-
-            match event {
-                LedgerEvent::BlocksProcessed(results) => {
-                    // Notify elections about alternative (forked) blocks
-                    self.active_elections.handle_processed_blocks(&results);
-                    self.election_schedulers
-                        .activate_accounts_with_fresh_blocks(&results);
-
-                    self.confirming_set.requeue_blocks(&results);
-                    self.bounded_backlog.insert_processed(&results);
-                    self.bootstrapper.inspect_blocks(&results);
-                    self.local_block_broadcaster.blocks_processed(&results);
-                    self.fork_cache_updater.update(&results);
-                    if let Some(sender) = &self.node_event_sender {
-                        sender.send(NodeEvent::BlocksProcessed(results)).unwrap();
-                    }
+            LedgerEvent::BlocksConfirmed(confirmed) => {
+                self.dependent_elections_confirmer
+                    .confirm_dependent_elections(&confirmed);
+                if !self.flags.disable_activate_successors {
+                    self.election_schedulers.activate_successors(&confirmed);
                 }
-                LedgerEvent::BlocksConfirmed(confirmed) => {
-                    self.dependent_elections_confirmer
-                        .confirm_dependent_elections(&confirmed);
-                    if !self.flags.disable_activate_successors {
-                        self.election_schedulers.activate_successors(&confirmed);
-                    }
-                    self.bounded_backlog.remove(&confirmed);
-                    self.local_block_broadcaster
-                        .confirmed(confirmed.iter().map(|i| i.1));
-                }
-                LedgerEvent::BlocksRolledBack(rolled_back) => {
-                    self.active_elections.rolled_back(&rolled_back);
+                self.bounded_backlog.remove(&confirmed);
+                self.local_block_broadcaster
+                    .confirmed(confirmed.iter().map(|i| i.1));
+            }
+            LedgerEvent::BlocksRolledBack(rolled_back) => {
+                self.active_elections.rolled_back(&rolled_back);
 
-                    // Unblock rolled back accounts as the dependency is no longer valid
-                    self.bounded_backlog.erase_hashes(rolled_back.hashes());
+                // Unblock rolled back accounts as the dependency is no longer valid
+                self.bounded_backlog.erase_hashes(rolled_back.hashes());
 
-                    self.vote_history.erase_batch(rolled_back.roots());
+                self.vote_history.erase_batch(rolled_back.roots());
 
-                    self.bootstrapper
-                        .unblock_batch(rolled_back.affected_accounts());
+                self.bootstrapper
+                    .unblock_batch(rolled_back.affected_accounts());
 
-                    self.local_block_broadcaster
-                        .rolled_back(rolled_back.hashes());
-                }
+                self.local_block_broadcaster
+                    .rolled_back(rolled_back.hashes());
             }
         }
     }

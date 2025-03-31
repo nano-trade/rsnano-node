@@ -44,17 +44,17 @@ use crate::{
         BootstrapExt, BootstrapResponder, BootstrapResponderCleanup, Bootstrapper,
         BootstrapperCleanup,
     },
-    cementation::{CementingEvent, ConfirmingSet},
+    cementation::ConfirmingSet,
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
+    confirming_set_event_processor::ConfirmingSetEventProcessor,
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsStats, AecCooldownReason, AecTicker, BlockVoter,
-        BootstrapElectionActivator, ConfirmReqSender, ConfirmedElection,
-        DependentElectionsConfirmer, ForkCache, ForkCacheStats, ForkCacheUpdater, LocalVoteHistory,
-        LocalVotesRemover, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WinnerBlockBroadcaster,
+        ActiveElections, ActiveElectionsStats, AecTicker, BlockVoter, BootstrapElectionActivator,
+        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ForkCache,
+        ForkCacheStats, ForkCacheUpdater, LocalVoteHistory, LocalVotesRemover, RepTiers,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -1070,9 +1070,8 @@ impl Node {
 
         let fork_cache_updater = ForkCacheUpdater::new(fork_cache.clone());
 
-        let mut ledger_event_processor = LedgerEventProcessor {
+        let ledger_event_processor = LedgerEventProcessor {
             node_event_sender: node_event_sender.clone(),
-            receiver: ledger_rx,
             local_block_broadcaster: local_block_broadcaster.clone(),
             election_schedulers: election_schedulers.clone(),
             flags: flags.clone(),
@@ -1087,45 +1086,15 @@ impl Node {
             fork_cache_updater,
         };
 
-        std::thread::Builder::new()
-            .name("Ledger ev proc".to_owned())
-            .spawn(move || {
-                ledger_event_processor.run();
-            })
-            .unwrap();
+        spawn_backpressure_processor("Ledger ev proc", ledger_rx, ledger_event_processor);
 
-        let active_l = active_elections.clone();
-        std::thread::Builder::new()
-            .name("Confset ev proc".to_owned())
-            .spawn(move || {
-                let mut previous_cooldown_state = false;
-                while let Ok(e) = rx_confirming.recv() {
-                    let cool_down = rx_confirming.should_cool_down();
-                    if cool_down != previous_cooldown_state {
-                        active_l.set_cooldown(
-                            cool_down,
-                            AecCooldownReason::ConfirmingSetEventQueueFull,
-                        );
-                        previous_cooldown_state = cool_down;
-                    }
+        let confirming_set_ev_proc = ConfirmingSetEventProcessor {
+            active_elections: active_elections.clone(),
+        };
 
-                    match e {
-                        CementingEvent::CementingFailed(block_hash) => {
-                            // Do some cleanup due to this block never being processed by confirmation height processor
-                            active_l.remove_recently_confirmed(&block_hash);
-                        }
-                        CementingEvent::NearFull => {
-                            active_l.set_cooldown(true, AecCooldownReason::ConfirmingSetFull)
-                        }
-                        CementingEvent::Recovered => {
-                            active_l.set_cooldown(false, AecCooldownReason::ConfirmingSetFull)
-                        }
-                    }
-                }
-            })
-            .unwrap();
+        spawn_backpressure_processor("Confset ev proc", rx_confirming, confirming_set_ev_proc);
 
-        vote_processor.add_event_sink(aec_sender);
+        vote_processor.add_observer(aec_sender);
 
         Self {
             is_nulled,
