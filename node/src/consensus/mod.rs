@@ -43,7 +43,7 @@ pub(crate) use dependent_elections_confirmer::*;
 pub use election::*;
 pub use election_result::*;
 pub use election_state::*;
-pub(crate) use fork_cache::ForkCache;
+pub(crate) use fork_cache::*;
 pub(crate) use fork_cache_updater::*;
 pub(crate) use rebroadcast::*;
 pub use rep_tiers::*;

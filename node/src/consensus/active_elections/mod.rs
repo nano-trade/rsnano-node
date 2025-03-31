@@ -444,9 +444,11 @@ impl Drop for ActiveElections {
     }
 }
 
-impl StatsSource for ActiveElections {
+pub struct ActiveElectionsStats(pub Arc<ActiveElections>);
+
+impl StatsSource for ActiveElectionsStats {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        self.container.read().unwrap().collect_stats(result);
+        self.0.container.read().unwrap().collect_stats(result);
     }
 }
 

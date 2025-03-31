@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard},
     u64,
 };
 
@@ -71,7 +71,7 @@ pub trait StatsSource {
 
 pub struct StatsCollector {
     stats: Mutex<StatsCollection>,
-    sources: Vec<Arc<dyn StatsSource + Send + Sync>>,
+    sources: Vec<Box<dyn StatsSource + Send + Sync>>,
 }
 
 impl StatsCollector {
@@ -82,8 +82,8 @@ impl StatsCollector {
         }
     }
 
-    pub fn add_source(&mut self, source: Arc<dyn StatsSource + Send + Sync>) {
-        self.sources.push(source);
+    pub fn add_source(&mut self, source: impl StatsSource + Send + Sync + 'static) {
+        self.sources.push(Box::new(source));
     }
 
     pub fn collect(&self) -> MutexGuard<StatsCollection> {
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn collect_from_one_source() {
         let mut collector = StatsCollector::new();
-        collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
+        collector.add_source(StubStatsSource::new("a", "b", Direction::In));
         let result = collector.collect();
         assert_eq!(result.len(), 1);
         assert_eq!(result.get_dir("a", "b", Direction::In), 1);
@@ -122,8 +122,8 @@ mod tests {
     #[test]
     fn collect_from_multiple_source() {
         let mut collector = StatsCollector::new();
-        collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
-        collector.add_source(Arc::new(StubStatsSource::new("c", "d", Direction::Out)));
+        collector.add_source(StubStatsSource::new("a", "b", Direction::In));
+        collector.add_source(StubStatsSource::new("c", "d", Direction::Out));
         let result = collector.collect();
         assert_eq!(result.len(), 2);
         assert_eq!(result.get_dir("a", "b", Direction::In), 1);
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn collect_twice() {
         let mut collector = StatsCollector::new();
-        collector.add_source(Arc::new(StubStatsSource::new("a", "b", Direction::In)));
+        collector.add_source(StubStatsSource::new("a", "b", Direction::In));
 
         drop(collector.collect());
         let result = collector.collect();

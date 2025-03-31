@@ -27,7 +27,7 @@ use rsnano_network::{
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
-use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
+use rsnano_stats::{Direction, LegacyStatsSource, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
@@ -48,12 +48,13 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, AecCooldownReason, AecTicker, BlockVoter, BootstrapElectionActivator,
-        ConfirmReqSender, ConfirmedElection, DependentElectionsConfirmer, ForkCache,
-        ForkCacheUpdater, LocalVoteHistory, RepTiers, RequestAggregator, RequestAggregatorCleanup,
-        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WinnerBlockBroadcaster,
+        ActiveElections, ActiveElectionsStats, AecCooldownReason, AecTicker, BlockVoter,
+        BootstrapElectionActivator, ConfirmReqSender, ConfirmedElection,
+        DependentElectionsConfirmer, ForkCache, ForkCacheStats, ForkCacheUpdater, LocalVoteHistory,
+        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster,
+        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
+        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
+        WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -228,7 +229,7 @@ impl Node {
 
         let mut stats_collector = StatsCollector::new();
         let stats = Arc::new(Stats::new(Default::default()));
-        stats_collector.add_source(stats.clone());
+        stats_collector.add_source(LegacyStatsSource(stats.clone()));
 
         let store = if is_nulled {
             Arc::new(LmdbStore::new_null())
@@ -434,6 +435,7 @@ impl Node {
         )));
 
         let fork_cache = Arc::new(RwLock::new(ForkCache::default()));
+        stats_collector.add_source(ForkCacheStats(fork_cache.clone()));
 
         let block_processor = Arc::new(BlockProcessor::new(
             global_config.into(),
@@ -520,7 +522,7 @@ impl Node {
         );
         active_elections.set_event_sink(aec_sender.clone());
         let active_elections = Arc::new(active_elections);
-        stats_collector.add_source(active_elections.clone());
+        stats_collector.add_source(ActiveElectionsStats(active_elections.clone()));
 
         let block_voter = Arc::new(BlockVoter::new(
             stats.clone(),
@@ -1211,7 +1213,7 @@ impl Node {
         .into();
 
         let active = self.active.read().container_info();
-        let fork_cache_len = self.fork_cache.read().unwrap().len();
+        let fork_cache = self.fork_cache.read().unwrap().container_info();
 
         ContainerInfo::builder()
             .node("work", self.work.container_info())
@@ -1257,7 +1259,7 @@ impl Node {
                 self.vote_rebroadcaster.container_info(),
             )
             .node("recently_cemented", recently_cemented)
-            .node("fork_cache", [("fork_cache", fork_cache_len, 0)].into())
+            .node("fork_cache", fork_cache)
             .finish()
     }
 

@@ -1,12 +1,17 @@
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, RwLock},
+};
 
-use rsnano_core::{Block, BlockHash, QualifiedRoot};
+use rsnano_core::{utils::ContainerInfo, Block, BlockHash, QualifiedRoot};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 pub(crate) struct ForkCache {
     forks: HashMap<QualifiedRoot, Entry>,
     sequential: VecDeque<QualifiedRoot>,
     empty: Entry,
     max_len: usize,
+    inserted: u64,
 }
 
 impl ForkCache {
@@ -22,6 +27,7 @@ impl ForkCache {
             sequential: VecDeque::new(),
             empty: Entry::new(),
             max_len,
+            inserted: 0,
         }
     }
 
@@ -46,6 +52,7 @@ impl ForkCache {
         }
 
         forks.add(fork);
+        self.inserted += 1;
 
         if self.forks.len() > self.max_len {
             let root = self.sequential.pop_front().unwrap();
@@ -60,6 +67,10 @@ impl ForkCache {
 
     pub fn get_forks(&self, root: &QualifiedRoot) -> impl Iterator<Item = &Block> {
         self.forks.get(root).unwrap_or(&self.empty).iter()
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        [("fork_cache", self.len(), 0)].into()
     }
 }
 
@@ -115,6 +126,14 @@ impl Entry {
 impl Default for Entry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct ForkCacheStats(pub Arc<RwLock<ForkCache>>);
+
+impl StatsSource for ForkCacheStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert("fork_cache", "insert", self.0.read().unwrap().inserted);
     }
 }
 
@@ -229,6 +248,29 @@ mod tests {
         assert_eq!(cache.len(), 3);
         assert_eq!(cache.contains(&fork1.qualified_root()), false);
         assert_eq!(cache.contains(&fork4.qualified_root()), true);
+    }
+
+    #[test]
+    fn stats() {
+        let mut cache = ForkCache::with_max_len(3);
+        assert_eq!(cache.max_len(), 3);
+
+        let fork1 = create_block(BlockHash::from(1), Amount::from(1));
+        let fork2 = create_block(BlockHash::from(2), Amount::from(1));
+        let fork3 = create_block(BlockHash::from(3), Amount::from(1));
+        let fork4 = create_block(BlockHash::from(4), Amount::from(1));
+
+        cache.add(fork1.clone());
+        cache.add(fork2.clone());
+        cache.add(fork3.clone());
+        cache.add(fork4.clone());
+        cache.add(fork4.clone());
+        cache.add(fork4.clone());
+
+        let stats_wrapper = ForkCacheStats(Arc::new(RwLock::new(cache)));
+        let mut stats = StatsCollection::new();
+        stats_wrapper.collect_stats(&mut stats);
+        assert_eq!(stats.get("fork_cache", "insert"), 4);
     }
 
     fn create_block(previous: BlockHash, balance: Amount) -> Block {
