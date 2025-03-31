@@ -6,7 +6,8 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, LedgerSet, OwningAnySet, ProcessedResult};
 use rsnano_network::bandwidth_limiter::RateLimiter;
@@ -14,7 +15,8 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
-    backlog_scan::UnconfirmedInfo, BlockProcessor,
+    backlog_scan::UnconfirmedInfo,
+    BlockProcessor,
 };
 use crate::consensus::Bucketing;
 
@@ -210,14 +212,6 @@ impl BoundedBacklog {
         // Remove confirmed blocks from the backlog
         self.erase_hashes(confirmed.iter().map(|i| i.0.hash()));
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.backlog_impl.mutex.lock().unwrap();
-        ContainerInfo::builder()
-            .leaf("backlog", guard.index.len(), 0)
-            .node("index", guard.index.container_info())
-            .finish()
-    }
 }
 
 impl Drop for BoundedBacklog {
@@ -225,6 +219,16 @@ impl Drop for BoundedBacklog {
         // Thread must be stopped before destruction
         debug_assert!(self.thread.lock().unwrap().is_none());
         debug_assert!(self.scan_thread.lock().unwrap().is_none());
+    }
+}
+
+impl ContainerInfoProvider for BoundedBacklog {
+    fn container_info(&self) -> ContainerInfo {
+        let guard = self.backlog_impl.mutex.lock().unwrap();
+        ContainerInfo::builder()
+            .leaf("backlog", guard.index.len(), 0)
+            .node("index", guard.index.container_info())
+            .finish()
     }
 }
 

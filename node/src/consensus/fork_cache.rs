@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use rsnano_core::{utils::ContainerInfo, Block, BlockHash, QualifiedRoot};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Block, BlockHash, QualifiedRoot,
+};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 pub(crate) struct ForkCache {
@@ -68,15 +71,17 @@ impl ForkCache {
     pub fn get_forks(&self, root: &QualifiedRoot) -> impl Iterator<Item = &Block> {
         self.forks.get(root).unwrap_or(&self.empty).iter()
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        [("fork_cache", self.len(), 0)].into()
-    }
 }
 
 impl Default for ForkCache {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ContainerInfoProvider for ForkCache {
+    fn container_info(&self) -> ContainerInfo {
+        [("fork_cache", self.len(), 0)].into()
     }
 }
 

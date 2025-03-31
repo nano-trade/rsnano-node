@@ -6,7 +6,10 @@ use std::{
     },
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash, Vote, VoteCode};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    BlockHash, Vote, VoteCode,
+};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 pub(crate) struct VoteRebroadcastQueueBuilder {
@@ -136,11 +139,6 @@ impl VoteRebroadcastQueue {
         self.enqueued.notify_all();
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        let queue = self.queue.lock().unwrap();
-        [("queue", queue.len(), 0)].into()
-    }
-
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.queue.lock().unwrap().len()
@@ -150,6 +148,13 @@ impl VoteRebroadcastQueue {
 impl Default for VoteRebroadcastQueue {
     fn default() -> Self {
         Self::build().finish()
+    }
+}
+
+impl ContainerInfoProvider for VoteRebroadcastQueue {
+    fn container_info(&self) -> ContainerInfo {
+        let queue = self.queue.lock().unwrap();
+        [("queue", queue.len(), 0)].into()
     }
 }
 

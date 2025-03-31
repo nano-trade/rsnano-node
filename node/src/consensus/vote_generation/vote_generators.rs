@@ -1,6 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use rsnano_core::{utils::ContainerInfo, BlockHash, Networks, Root, SavedBlock};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    BlockHash, Networks, Root, SavedBlock,
+};
 use rsnano_ledger::Ledger;
 use rsnano_network::{Channel, ChannelId};
 use rsnano_nullable_clock::SteadyClock;
@@ -141,8 +144,10 @@ impl VoteGenerators {
     pub fn voting_enabled(&self) -> bool {
         self.wallets.voting_enabled()
     }
+}
 
-    pub(crate) fn container_info(&self) -> ContainerInfo {
+impl ContainerInfoProvider for VoteGenerators {
+    fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
             .node("non_final", self.non_final_vote_generator.container_info())
             .node("final", self.final_vote_generator.container_info())

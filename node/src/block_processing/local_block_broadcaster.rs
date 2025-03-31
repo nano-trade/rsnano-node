@@ -9,7 +9,10 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Block, BlockHash, Networks,
+};
 use rsnano_ledger::{BlockSource, BlockStatus, ConfirmedSet, Ledger, ProcessedResult};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
@@ -240,16 +243,6 @@ impl LocalBlockBroadcaster {
         data
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.mutex.lock().unwrap();
-        [(
-            "local",
-            guard.local_blocks.len(),
-            OrderedLocals::ELEMENT_SIZE,
-        )]
-        .into()
-    }
-
     /// Flood block to all PRs and a random selection of non-PRs
     pub fn flood_block_initial(&self, block: Block) {
         let message = Message::Publish(Publish::new_from_originator(block));
@@ -319,6 +312,18 @@ impl Drop for LocalBlockBroadcaster {
     fn drop(&mut self) {
         // Thread must be stopped before destruction
         debug_assert!(self.thread.lock().unwrap().is_none())
+    }
+}
+
+impl ContainerInfoProvider for LocalBlockBroadcaster {
+    fn container_info(&self) -> ContainerInfo {
+        let guard = self.mutex.lock().unwrap();
+        [(
+            "local",
+            guard.local_blocks.len(),
+            OrderedLocals::ELEMENT_SIZE,
+        )]
+        .into()
     }
 }
 

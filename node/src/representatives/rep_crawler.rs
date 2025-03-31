@@ -10,7 +10,10 @@ use std::{
 use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, info, warn};
 
-use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account, BlockHash, Root, Vote,
+};
 use rsnano_ledger::{AnySet, Ledger, LedgerSet};
 use rsnano_messages::{ConfirmReq, Message};
 use rsnano_network::{Channel, ChannelId, Network, TrafficType};
@@ -391,8 +394,17 @@ impl RepCrawler {
             self.network_params.network.rep_crawler_warmup_interval
         }
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl Drop for RepCrawler {
+    fn drop(&mut self) {
+        // Thread must be stopped before destruction
+        debug_assert!(self.thread.lock().unwrap().is_none())
+    }
+}
+
+impl ContainerInfoProvider for RepCrawler {
+    fn container_info(&self) -> ContainerInfo {
         let guard = self.rep_crawler_impl.lock().unwrap();
         [
             ("queries", guard.queries.len(), OrderedQueries::ELEMENT_SIZE),
@@ -404,13 +416,6 @@ impl RepCrawler {
             ("prioritized", guard.prioritized.len(), 0),
         ]
         .into()
-    }
-}
-
-impl Drop for RepCrawler {
-    fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none())
     }
 }
 

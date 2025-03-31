@@ -7,7 +7,10 @@ use std::{
     thread::JoinHandle,
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash, HashOrAccount, UncheckedInfo, UncheckedKey};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    BlockHash, HashOrAccount, UncheckedInfo, UncheckedKey,
+};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 pub struct UncheckedMap {
@@ -158,8 +161,10 @@ impl UncheckedMap {
     pub fn set_satisfied_observer(&self, callback: Box<dyn Fn(&UncheckedInfo) + Send>) {
         self.mutable.lock().unwrap().satisfied_callback = Some(callback);
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl ContainerInfoProvider for UncheckedMap {
+    fn container_info(&self) -> ContainerInfo {
         [
             ("entries", self.len(), Self::entries_size()),
             ("queries", self.buffer_count(), Self::buffer_entry_size()),

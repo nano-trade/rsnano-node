@@ -14,7 +14,8 @@ use std::{
 use mock_instant::thread_local::Instant;
 
 use rsnano_core::{
-    utils::ContainerInfo, Amount, BlockHash, DescTallyKey, PublicKey, Vote, VoteCode,
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Amount, BlockHash, DescTallyKey, PublicKey, Vote, VoteCode,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -185,8 +186,10 @@ impl VoteCache {
             self.cache.remove_by_hash(&hash);
         }
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl ContainerInfoProvider for VoteCache {
+    fn container_info(&self) -> ContainerInfo {
         [("cache", self.size(), size_of::<CacheEntry>())].into()
     }
 }

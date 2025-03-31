@@ -9,7 +9,10 @@ pub use cleanup::*;
 pub use peered_container::InsertResult;
 pub use peered_rep::PeeredRep;
 use primitive_types::U256;
-use rsnano_core::{utils::ContainerInfo, Amount, Networks, PublicKey};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Amount, Networks, PublicKey,
+};
 use rsnano_ledger::RepWeightCache;
 use rsnano_network::{Channel, ChannelId};
 use rsnano_nullable_clock::Timestamp;
@@ -264,8 +267,16 @@ impl OnlineReps {
     pub fn remove_peer(&mut self, channel_id: ChannelId) -> Vec<PublicKey> {
         self.peered_reps.remove(channel_id)
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl Default for OnlineReps {
+    fn default() -> Self {
+        Self::builder().finish()
+    }
+}
+
+impl ContainerInfoProvider for OnlineReps {
+    fn container_info(&self) -> ContainerInfo {
         [
             (
                 "online",
@@ -279,12 +290,6 @@ impl OnlineReps {
             ),
         ]
         .into()
-    }
-}
-
-impl Default for OnlineReps {
-    fn default() -> Self {
-        Self::builder().finish()
     }
 }
 

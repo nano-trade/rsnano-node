@@ -3,7 +3,6 @@ use std::{
     thread::JoinHandle,
 };
 
-use rsnano_core::utils::ContainerInfo;
 use rsnano_stats::Stats;
 
 use super::{rebroadcast_processor::RebroadcastProcessor, VoteRebroadcastQueue};
@@ -70,10 +69,6 @@ impl VoteRebroadcaster {
     pub fn on_vote_processed(&mut self, callback: impl Fn() + Send + Sync + 'static) {
         self.vote_processed_callback = Some(Box::new(callback));
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        self.queue.container_info()
-    }
 }
 
 impl Drop for VoteRebroadcaster {
@@ -103,12 +98,6 @@ mod tests {
         done.wait();
 
         assert_eq!(flood_tracker.output().len(), 1);
-    }
-
-    #[test]
-    fn container_info() {
-        let (rebroadcaster, queue, _) = create_fixture();
-        assert_eq!(rebroadcaster.container_info(), queue.container_info());
     }
 
     fn create_fixture() -> (

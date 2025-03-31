@@ -12,7 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    BlockHash,
+};
 use rsnano_messages::{Message, TelemetryAck, TelemetryData};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, Network, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
@@ -275,16 +278,6 @@ impl Telemetry {
         result
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.mutex.lock().unwrap();
-        [(
-            "telemetries",
-            guard.telemetries.len(),
-            OrderedTelemetries::ELEMENT_SIZE,
-        )]
-        .into()
-    }
-
     pub fn local_telemetry(&self) -> TelemetryData {
         self.telemetry_factory.get_telemetry()
     }
@@ -301,6 +294,18 @@ impl Drop for Telemetry {
     fn drop(&mut self) {
         // Thread must be stopped before destruction
         debug_assert!(self.thread.lock().unwrap().is_none());
+    }
+}
+
+impl ContainerInfoProvider for Telemetry {
+    fn container_info(&self) -> ContainerInfo {
+        let guard = self.mutex.lock().unwrap();
+        [(
+            "telemetries",
+            guard.telemetries.len(),
+            OrderedTelemetries::ELEMENT_SIZE,
+        )]
+        .into()
     }
 }
 

@@ -8,7 +8,10 @@ use crate::{
     NullDataReceiverFactory, NullNetworkObserver, TrafficType,
 };
 use rand::seq::SliceRandom;
-use rsnano_core::{utils::ContainerInfo, Networks, NodeId, ProtocolInfo};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Networks, NodeId, ProtocolInfo,
+};
 use rsnano_nullable_clock::Timestamp;
 use std::{
     cmp::max,
@@ -682,8 +685,16 @@ impl Network {
     pub fn is_stopped(&self) -> bool {
         self.stopped
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl Drop for Network {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+impl ContainerInfoProvider for Network {
+    fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
             .leaf("channels", self.channels.len(), size_of::<Arc<Channel>>())
             .leaf(
@@ -694,12 +705,6 @@ impl Network {
             .node("excluded_peers", self.excluded_peers.container_info())
             .node("bandwidth", self.bandwidth_limiter.container_info())
             .finish()
-    }
-}
-
-impl Drop for Network {
-    fn drop(&mut self) {
-        self.stop();
     }
 }
 

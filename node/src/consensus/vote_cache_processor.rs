@@ -4,7 +4,10 @@ use std::{
     thread::JoinHandle,
 };
 
-use rsnano_core::{utils::ContainerInfo, BlockHash, VoteSource};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    BlockHash, VoteSource,
+};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{VoteCache, VoteProcessorConfig, VoteProcessorQueue};
@@ -91,15 +94,17 @@ impl VoteCacheProcessor {
     pub fn len(&self) -> usize {
         self.state.lock().unwrap().triggered.len()
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        [("triggered", self.len(), std::mem::size_of::<BlockHash>())].into()
-    }
 }
 
 impl Drop for VoteCacheProcessor {
     fn drop(&mut self) {
         debug_assert!(self.state.lock().unwrap().thread.is_none())
+    }
+}
+
+impl ContainerInfoProvider for VoteCacheProcessor {
+    fn container_info(&self) -> ContainerInfo {
+        [("triggered", self.len(), std::mem::size_of::<BlockHash>())].into()
     }
 }
 

@@ -7,7 +7,7 @@ use crate::{
     RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
-    utils::{BackpressureSender, ContainerInfo, UnixTimestamp},
+    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
     PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
 };
@@ -913,16 +913,18 @@ impl Ledger {
         drop(self.observer.write().unwrap().take())
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        ContainerInfo::builder()
-            .node("rep_weights", self.rep_weights.container_info())
-            .finish()
-    }
-
     fn notify(&self, event: LedgerEvent) {
         if let Some(sender) = self.observer.read().unwrap().as_ref() {
             sender.send(event).unwrap();
         }
+    }
+}
+
+impl ContainerInfoProvider for Ledger {
+    fn container_info(&self) -> ContainerInfo {
+        ContainerInfo::builder()
+            .node("rep_weights", self.rep_weights.container_info())
+            .finish()
     }
 }
 

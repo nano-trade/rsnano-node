@@ -6,7 +6,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{get_cpu_count, ContainerInfo},
+    utils::{get_cpu_count, ContainerInfo, ContainerInfoProvider},
     Networks, Root, WorkNonce,
 };
 
@@ -242,10 +242,6 @@ impl WorkPool {
         self.work_thresholds.difficulty(root, work)
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        [("pending", self.size(), Self::pending_value_size())].into()
-    }
-
     pub fn generate_async(
         &self,
         root: Root,
@@ -289,6 +285,12 @@ impl WorkPool {
         );
 
         done_notifier.wait()
+    }
+}
+
+impl ContainerInfoProvider for WorkPool {
+    fn container_info(&self) -> ContainerInfo {
+        [("pending", self.size(), Self::pending_value_size())].into()
     }
 }
 

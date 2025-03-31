@@ -13,7 +13,9 @@ use bounded_vec_deque::BoundedVecDeque;
 use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
-    utils::{backpressure_channel, ContainerInfo, ContainerInfoFactory, Peer},
+    utils::{
+        backpressure_channel, ContainerInfo, ContainerInfoFactory, ContainerInfoProvider, Peer,
+    },
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
     VoteCode, WorkNonce,
 };
@@ -149,8 +151,7 @@ pub struct Node {
     pub active_elections_driver: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
     pub stats_collector: StatsCollector,
-    fork_cache: Arc<RwLock<ForkCache>>,
-    event_queues_info: ContainerInfoFactory,
+    container_info_factory: ContainerInfoFactory,
 }
 
 pub(crate) struct NodeArgs {
@@ -210,7 +211,7 @@ impl Node {
         let config = args.config;
         let flags = args.flags;
         let work = args.work;
-        let node_event_sender = args.event_sender;
+        let node_observer = args.event_sender;
         // Time relative to the start of the node. This makes time exlicit and enables us to
         // write time relevant unit tests with ease.
         let steady_clock = if is_nulled {
@@ -288,7 +289,7 @@ impl Node {
         let mut event_queues_info = ContainerInfoFactory::new();
         let (ledger_tx, ledger_rx) = backpressure_channel(1024);
         let ledger_tx_clone = ledger_tx.clone();
-        event_queues_info.add("ledger", move || ledger_tx_clone.len());
+        event_queues_info.add_leaf("ledger", move || ledger_tx_clone.len());
         ledger.set_observer(ledger_tx);
 
         let ledger = Arc::new(ledger);
@@ -436,7 +437,7 @@ impl Node {
         ));
         let (tx_confirming, rx_confirming) = backpressure_channel(1024);
         let tx_conf_clone = tx_confirming.clone();
-        event_queues_info.add("confirming_set", move || tx_conf_clone.len());
+        event_queues_info.add_leaf("confirming_set", move || tx_conf_clone.len());
         confirming_set.set_event_sink(tx_confirming);
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
@@ -522,7 +523,7 @@ impl Node {
 
         let (aec_sender, aec_receiver) = backpressure_channel(1024 * 5);
         let aec_sender_clone = aec_sender.clone();
-        event_queues_info.add("aec", move || aec_sender_clone.len());
+        event_queues_info.add_leaf("aec", move || aec_sender_clone.len());
 
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
@@ -1053,7 +1054,7 @@ impl Node {
 
         let aec_event_processor = AecEventProcessor {
             vote_cache_processor: vote_cache_processor.clone(),
-            node_observer: node_event_sender.clone(),
+            node_observer: node_observer.clone(),
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
@@ -1083,7 +1084,7 @@ impl Node {
         let fork_cache_updater = ForkCacheUpdater::new(fork_cache.clone());
 
         let ledger_event_processor = LedgerEventProcessor {
-            node_event_sender: node_event_sender.clone(),
+            node_event_sender: node_observer.clone(),
             local_block_broadcaster: local_block_broadcaster.clone(),
             election_schedulers: election_schedulers.clone(),
             flags: flags.clone(),
@@ -1107,6 +1108,35 @@ impl Node {
         spawn_backpressure_processor("Confset ev proc", rx_confirming, confirming_set_ev_proc);
 
         vote_processor.add_observer(aec_sender);
+
+        let mut container_info = ContainerInfoFactory::new();
+        container_info.add("work", work.clone());
+        container_info.add("ledger", ledger.clone());
+        container_info.add("active", active_elections.clone());
+        container_info.add("network", network.clone());
+        container_info.add("syn_cookies", syn_cookies.clone());
+        container_info.add("telemetry", telemetry.clone());
+        container_info.add("wallets", wallets.clone());
+        container_info.add("vote_processor", vote_processor_queue.clone());
+        container_info.add("vote_cache_processor", vote_cache_processor.clone());
+        container_info.add("rep_crawler", rep_crawler.clone());
+        container_info.add("block_processor", block_processor.clone());
+        container_info.add("online_reps", online_reps.clone());
+        container_info.add("history", vote_history.clone());
+        container_info.add("confirming_set", confirming_set.clone());
+        container_info.add("request_aggregator", request_aggregator.clone());
+        container_info.add("election_scheduler", election_schedulers.clone());
+        container_info.add("vote_cache", vote_cache.clone());
+        container_info.add("vote_generators", vote_generators.clone());
+        container_info.add("bootstrapper", bootstrapper.clone());
+        container_info.add("unchecked", unchecked.clone());
+        container_info.add("local_block_broadcaster", local_block_broadcaster.clone());
+        container_info.add("rep_tiers", rep_tiers.clone());
+        container_info.add("inbound_msg_queue", inbound_message_queue.clone());
+        container_info.add("bounded_backlog", bounded_backlog.clone());
+        container_info.add("vote_rebroadcaster", vote_rebroadcast_queue.clone());
+        container_info.add("fork_cache", fork_cache.clone());
+        container_info.add("event_queues", event_queues_info);
 
         Self {
             is_nulled,
@@ -1171,78 +1201,12 @@ impl Node {
             active_elections_driver: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
             stats_collector,
-            fork_cache,
-            event_queues_info,
+            container_info_factory: container_info,
         }
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let tcp_channels = self.network.read().unwrap().container_info();
-        let online_reps = self.online_reps.lock().unwrap().container_info();
-        let vote_cache = self.vote_cache.lock().unwrap().container_info();
-
-        let network = ContainerInfo::builder()
-            .node("tcp_channels", tcp_channels)
-            .node("syn_cookies", self.syn_cookies.container_info())
-            .finish();
-
-        let recently_cemented: ContainerInfo = [(
-            "cemented",
-            self.recently_cemented.lock().unwrap().len(),
-            size_of::<ConfirmedElection>(),
-        )]
-        .into();
-
-        let active = self.active.read().container_info();
-        let fork_cache = self.fork_cache.read().unwrap().container_info();
-
-        ContainerInfo::builder()
-            .node("work", self.work.container_info())
-            .node("ledger", self.ledger.container_info())
-            .node("active", active)
-            .node("network", network)
-            .node("telemetry", self.telemetry.container_info())
-            .node("wallets", self.wallets.container_info())
-            .node("vote_processor", self.vote_processor_queue.container_info())
-            .node(
-                "vote_cache_processor",
-                self.vote_cache_processor.container_info(),
-            )
-            .node("rep_crawler", self.rep_crawler.container_info())
-            .node("block_processor", self.block_processor.container_info())
-            .node("online_reps", online_reps)
-            .node("history", self.history.container_info())
-            .node("confirming_set", self.confirming_set.container_info())
-            .node(
-                "request_aggregator",
-                self.request_aggregator.container_info(),
-            )
-            .node(
-                "election_scheduler",
-                self.election_schedulers.container_info(),
-            )
-            .node("vote_cache", vote_cache)
-            .node("vote_generators", self.vote_generators.container_info())
-            .node("bootstrap_ascending", self.bootstrapper.container_info())
-            .node("unchecked", self.unchecked.container_info())
-            .node(
-                "local_block_broadcaster",
-                self.local_block_broadcaster.container_info(),
-            )
-            .node("rep_tiers", self.rep_tiers.container_info())
-            .node(
-                "message_processor",
-                self.inbound_message_queue.container_info(),
-            )
-            .node("bounded_backlog", self.bounded_backlog.container_info())
-            .node(
-                "vote_rebroadcaster",
-                self.vote_rebroadcaster.container_info(),
-            )
-            .node("recently_cemented", recently_cemented)
-            .node("fork_cache", fork_cache)
-            .node("event_queues", self.event_queues_info.container_info())
-            .finish()
+        self.container_info_factory.container_info()
     }
 
     pub fn is_stopped(&self) -> bool {

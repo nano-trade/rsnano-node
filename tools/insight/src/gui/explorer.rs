@@ -15,9 +15,13 @@ impl<'a> ExplorerView<'a> {
 
     pub fn show(&mut self, ctx: &egui::Context) {
         CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui|{
-                ui.add(TextEdit::singleline(&mut self.app.rollback_hash).desired_width(400.0).hint_text("hash..."));
-                if ui.button("roll back block!").clicked(){
+            ui.horizontal(|ui| {
+                ui.add(
+                    TextEdit::singleline(&mut self.app.rollback_hash)
+                        .desired_width(400.0)
+                        .hint_text("hash..."),
+                );
+                if ui.button("roll back block!").clicked() {
                     self.app.roll_back();
                 }
             });

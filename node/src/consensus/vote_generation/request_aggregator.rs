@@ -5,7 +5,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{ContainerInfo, FairQueue},
+    utils::{ContainerInfo, ContainerInfoProvider, FairQueue},
     BlockHash, Root,
 };
 use rsnano_ledger::{AnySet, Ledger};
@@ -163,18 +163,20 @@ impl RequestAggregator {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.state.lock().unwrap();
-        ContainerInfo::builder()
-            .node("queue", guard.queue.container_info())
-            .finish()
-    }
 }
 
 impl Drop for RequestAggregator {
     fn drop(&mut self) {
         debug_assert!(self.threads.lock().unwrap().is_empty())
+    }
+}
+
+impl ContainerInfoProvider for RequestAggregator {
+    fn container_info(&self) -> ContainerInfo {
+        let guard = self.state.lock().unwrap();
+        ContainerInfo::builder()
+            .node("queue", guard.queue.container_info())
+            .finish()
     }
 }
 

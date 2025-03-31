@@ -6,7 +6,10 @@ use std::{
 
 use tracing::warn;
 
-use rsnano_core::{utils::ContainerInfo, Account};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account,
+};
 use rsnano_ledger::{Ledger, ProcessedResult};
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
 use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DeadChannelCleanupStep, Network};
@@ -251,16 +254,18 @@ impl Bootstrapper {
             guard.candidate_accounts.unblock(account, None);
         }
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        self.state.lock().unwrap().container_info()
-    }
 }
 
 impl Drop for Bootstrapper {
     fn drop(&mut self) {
         // All threads must be stopped before destruction
         debug_assert!(self.threads.lock().unwrap().is_none());
+    }
+}
+
+impl ContainerInfoProvider for Bootstrapper {
+    fn container_info(&self) -> ContainerInfo {
+        self.state.lock().unwrap().container_info()
     }
 }
 

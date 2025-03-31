@@ -74,7 +74,9 @@ impl eframe::App for MainView {
             NavItem::FrontierScan => {
                 view_frontier_scan(ctx, self.model.frontier_scan(), &mut self.model.app)
             }
-            NavItem::Explorer => ExplorerView::new(&self.model.explorer(), &mut self.model.app).show(ctx),
+            NavItem::Explorer => {
+                ExplorerView::new(&self.model.explorer(), &mut self.model.app).show(ctx)
+            }
         }
 
         // Repaint to show the continuously increasing current block and message counters

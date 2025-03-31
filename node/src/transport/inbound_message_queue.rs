@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Condvar, Mutex},
 };
 
-use rsnano_core::utils::{ContainerInfo, FairQueue};
+use rsnano_core::utils::{ContainerInfo, ContainerInfoProvider, FairQueue};
 use rsnano_messages::Message;
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -102,18 +102,20 @@ impl InboundMessageQueue {
         }
         self.condition.notify_all();
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.state.lock().unwrap();
-        ContainerInfo::builder()
-            .node("queue", guard.queue.container_info())
-            .finish()
-    }
 }
 
 impl Default for InboundMessageQueue {
     fn default() -> Self {
         Self::new(64, Arc::new(Stats::default()))
+    }
+}
+
+impl ContainerInfoProvider for InboundMessageQueue {
+    fn container_info(&self) -> ContainerInfo {
+        let guard = self.state.lock().unwrap();
+        ContainerInfo::builder()
+            .node("queue", guard.queue.container_info())
+            .finish()
     }
 }
 

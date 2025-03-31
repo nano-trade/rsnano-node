@@ -7,7 +7,7 @@ use std::{
 use strum::IntoEnumIterator;
 
 use rsnano_core::{
-    utils::{ContainerInfo, FairQueue, FairQueueInfo},
+    utils::{ContainerInfo, ContainerInfoProvider, FairQueue, FairQueueInfo},
     BlockHash, Vote, VoteSource,
 };
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
@@ -153,8 +153,10 @@ impl VoteProcessorQueue {
             .queue
             .compacted_info(|(tier, _)| *tier)
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl ContainerInfoProvider for VoteProcessorQueue {
+    fn container_info(&self) -> ContainerInfo {
         let guard = self.data.lock().unwrap();
         ContainerInfo::builder()
             .leaf(

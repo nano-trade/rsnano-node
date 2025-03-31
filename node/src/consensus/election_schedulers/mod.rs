@@ -11,7 +11,8 @@ pub use priority_scheduler::*;
 use std::sync::{Arc, Mutex};
 
 use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -155,8 +156,10 @@ impl ElectionSchedulers {
         self.optimistic.stop();
         self.priority.stop();
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl ContainerInfoProvider for ElectionSchedulers {
+    fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
             .node("hinted", self.hinted.container_info())
             .node("manual", self.manual.container_info())

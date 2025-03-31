@@ -9,7 +9,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{BackpressureSender, ContainerInfo},
+    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
     BlockHash, SavedBlock,
 };
 use rsnano_ledger::{CementingObserver, Ledger, ProcessedResult};
@@ -175,8 +175,10 @@ impl ConfirmingSet {
         self.thread.mutex.lock().unwrap().cool_down = cool_down;
         self.thread.condition.notify_all();
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl ContainerInfoProvider for ConfirmingSet {
+    fn container_info(&self) -> ContainerInfo {
         let guard = self.thread.mutex.lock().unwrap();
         [
             ("set", guard.set.len(), 0),

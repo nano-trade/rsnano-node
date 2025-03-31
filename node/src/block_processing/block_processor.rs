@@ -10,7 +10,7 @@ use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
 use rsnano_core::{
-    utils::{ContainerInfo, FairQueue, FairQueueInfo},
+    utils::{ContainerInfo, ContainerInfoProvider, FairQueue, FairQueueInfo},
     Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockSource, BlockStatus, Ledger, LedgerSet};
@@ -234,16 +234,18 @@ impl BlockProcessor {
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
         self.processor_loop.info()
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        self.processor_loop.container_info()
-    }
 }
 
 impl Drop for BlockProcessor {
     fn drop(&mut self) {
         // Thread must be stopped before destruction
         debug_assert!(self.thread.lock().unwrap().is_none());
+    }
+}
+
+impl ContainerInfoProvider for BlockProcessor {
+    fn container_info(&self) -> ContainerInfo {
+        self.processor_loop.container_info()
     }
 }
 

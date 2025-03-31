@@ -7,7 +7,10 @@ use std::{
 
 use anyhow::Result;
 use rand::Rng;
-use rsnano_core::{utils::ContainerInfo, Account, Signature};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account, Signature,
+};
 use rsnano_messages::Cookie;
 
 /// Node ID cookies for node ID handshakes
@@ -117,8 +120,16 @@ impl SynCookies {
     pub fn cookies_per_ip_size() -> usize {
         std::mem::size_of::<usize>()
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl Default for SynCookies {
+    fn default() -> Self {
+        Self::new(10)
+    }
+}
+
+impl ContainerInfoProvider for SynCookies {
+    fn container_info(&self) -> ContainerInfo {
         [
             (
                 "syn_cookies",
@@ -134,13 +145,6 @@ impl SynCookies {
         .into()
     }
 }
-
-impl Default for SynCookies {
-    fn default() -> Self {
-        Self::new(10)
-    }
-}
-
 struct LockedSynCookies {
     cookies: HashMap<SocketAddrV6, SynCookieInfo>,
     cookies_per_ip: HashMap<Ipv6Addr, usize>,

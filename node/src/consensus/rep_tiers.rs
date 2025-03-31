@@ -9,7 +9,10 @@ use std::{
 use strum_macros::EnumIter;
 use tracing::debug;
 
-use rsnano_core::{utils::ContainerInfo, Account, PublicKey};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account, PublicKey,
+};
 use rsnano_ledger::RepWeightCache;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
@@ -111,8 +114,17 @@ impl RepTiers {
             RepTier::None
         }
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl Drop for RepTiers {
+    fn drop(&mut self) {
+        // Thread must be stopped before destruction
+        debug_assert!(self.thread.lock().unwrap().is_none());
+    }
+}
+
+impl ContainerInfoProvider for RepTiers {
+    fn container_info(&self) -> ContainerInfo {
         let tiers = self.rep_tiers_impl.tiers.lock().unwrap();
         [
             (
@@ -132,13 +144,6 @@ impl RepTiers {
             ),
         ]
         .into()
-    }
-}
-
-impl Drop for RepTiers {
-    fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none());
     }
 }
 

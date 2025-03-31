@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use rsnano_core::{
-    utils::{get_env_or_default_string, ContainerInfo},
+    utils::{get_env_or_default_string, ContainerInfo, ContainerInfoProvider},
     Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, Networks,
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
@@ -890,8 +890,16 @@ impl Wallets {
     pub fn wallet_count(&self) -> usize {
         self.mutex.lock().unwrap().len()
     }
+}
 
-    pub fn container_info(&self) -> ContainerInfo {
+impl Drop for Wallets {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+impl ContainerInfoProvider for Wallets {
+    fn container_info(&self) -> ContainerInfo {
         [
             (
                 "items",
@@ -901,12 +909,6 @@ impl Wallets {
             ("actions", self.wallet_actions.len(), size_of::<usize>() * 2),
         ]
         .into()
-    }
-}
-
-impl Drop for Wallets {
-    fn drop(&mut self) {
-        self.stop();
     }
 }
 

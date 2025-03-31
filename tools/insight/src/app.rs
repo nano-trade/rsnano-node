@@ -111,26 +111,30 @@ impl InsightApp {
                 let state = node.bootstrapper.state();
                 self.frontier_scan.update(&state, now);
                 self.bootstrap.update(&state);
-            }            
+            }
         }
 
         self.last_update = Some(now);
         true
     }
-    
+
     pub(crate) fn add_priority_account(&mut self) {
-        if let Ok(account) = Account::decode_account(&self.bootstrap.add_account){
+        if let Ok(account) = Account::decode_account(&self.bootstrap.add_account) {
             self.bootstrap.add_account.clear();
-            if let Some(node) = self.node_runner.node(){
-                node.bootstrapper.state().candidate_accounts.priority_set_initial(&account);
+            if let Some(node) = self.node_runner.node() {
+                node.bootstrapper
+                    .state()
+                    .candidate_accounts
+                    .priority_set_initial(&account);
             }
         }
     }
-    
+
     pub(crate) fn roll_back(&self) {
-        if let Ok(hash) = BlockHash::decode_hex(&self.rollback_hash){
-            if let Some(node) = self.node_runner.node(){
-                node.block_processor.roll_back_blocking(vec![hash], usize::MAX);
+        if let Ok(hash) = BlockHash::decode_hex(&self.rollback_hash) {
+            if let Some(node) = self.node_runner.node() {
+                node.block_processor
+                    .roll_back_blocking(vec![hash], usize::MAX);
             }
         }
     }

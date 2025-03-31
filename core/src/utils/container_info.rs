@@ -1,5 +1,8 @@
 use serde_json::json;
-use std::ops::Deref;
+use std::{
+    ops::Deref,
+    sync::{Arc, Mutex, RwLock},
+};
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ContainerSize {
@@ -118,12 +121,21 @@ impl<const N: usize> From<[(&'static str, usize, usize); N]> for ContainerInfo {
     }
 }
 
+pub trait ContainerInfoProvider {
+    fn container_info(&self) -> ContainerInfo;
+}
+
 #[derive(Default)]
 pub struct ContainerInfoFactory(Vec<FactoryEntry>);
 
 struct FactoryEntry {
     name: String,
-    get_size: Box<dyn Fn() -> usize + Send + Sync>,
+    factory: FactoryType,
+}
+
+enum FactoryType {
+    Leaf(Box<dyn Fn() -> usize + Send + Sync>),
+    Node(Box<dyn ContainerInfoProvider + Send + Sync>),
 }
 
 impl ContainerInfoFactory {
@@ -131,23 +143,70 @@ impl ContainerInfoFactory {
         Default::default()
     }
 
-    pub fn add(
+    pub fn add_leaf(
         &mut self,
         name: impl Into<String>,
         get_size: impl Fn() -> usize + Send + Sync + 'static,
     ) {
         self.0.push(FactoryEntry {
             name: name.into(),
-            get_size: Box::new(get_size),
+            factory: FactoryType::Leaf(Box::new(get_size)),
         });
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
+    pub fn add(
+        &mut self,
+        name: impl Into<String>,
+        node: impl ContainerInfoProvider + Send + Sync + 'static,
+    ) {
+        self.0.push(FactoryEntry {
+            name: name.into(),
+            factory: FactoryType::Node(Box::new(node)),
+        });
+    }
+}
+
+impl ContainerInfoProvider for ContainerInfoFactory {
+    fn container_info(&self) -> ContainerInfo {
         let mut builder = ContainerInfo::builder();
         for entry in &self.0 {
-            builder = builder.leaf(entry.name.clone(), (entry.get_size)(), 0);
+            match &entry.factory {
+                FactoryType::Leaf(f) => {
+                    builder = builder.leaf(entry.name.clone(), f(), 0);
+                }
+                FactoryType::Node(f) => {
+                    builder = builder.node(entry.name.clone(), f.container_info());
+                }
+            }
         }
         builder.finish()
+    }
+}
+
+impl<T> ContainerInfoProvider for Arc<T>
+where
+    T: ContainerInfoProvider,
+{
+    fn container_info(&self) -> ContainerInfo {
+        self.as_ref().container_info()
+    }
+}
+
+impl<T> ContainerInfoProvider for Arc<Mutex<T>>
+where
+    T: ContainerInfoProvider,
+{
+    fn container_info(&self) -> ContainerInfo {
+        self.lock().unwrap().container_info()
+    }
+}
+
+impl<T> ContainerInfoProvider for Arc<RwLock<T>>
+where
+    T: ContainerInfoProvider,
+{
+    fn container_info(&self) -> ContainerInfo {
+        self.read().unwrap().container_info()
     }
 }
 
@@ -165,7 +224,7 @@ mod tests {
     #[test]
     fn add_one() {
         let mut factory = ContainerInfoFactory::new();
-        factory.add("foo", || 123);
+        factory.add_leaf("foo", || 123);
         let info = factory.container_info();
         assert_eq!(
             *info,
@@ -182,9 +241,9 @@ mod tests {
     #[test]
     fn add_multiple() {
         let mut factory = ContainerInfoFactory::new();
-        factory.add("foo", || 123);
-        factory.add("bar", || 456);
-        factory.add("test", || 0);
+        factory.add_leaf("foo", || 123);
+        factory.add_leaf("bar", || 456);
+        factory.add_leaf("test", || 0);
         let info = factory.container_info();
         assert_eq!(
             *info,

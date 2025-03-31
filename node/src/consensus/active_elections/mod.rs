@@ -21,8 +21,8 @@ use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
 use rsnano_core::{
-    utils::BackpressureSender, Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock,
-    Vote, VoteCode, VoteSource,
+    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
 };
 use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
@@ -441,6 +441,12 @@ impl ActiveElections {
 impl Drop for ActiveElections {
     fn drop(&mut self) {
         self.stop()
+    }
+}
+
+impl ContainerInfoProvider for ActiveElections {
+    fn container_info(&self) -> ContainerInfo {
+        self.read().container_info()
     }
 }
 
