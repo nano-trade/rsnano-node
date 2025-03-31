@@ -1,19 +1,26 @@
 use super::{OnlineReps, OnlineWeightSampler};
 use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_nullable_clock::SteadyClock;
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
 pub struct OnlineWeightCalculation {
     sampler: OnlineWeightSampler,
     online_reps: Arc<Mutex<OnlineReps>>,
+    clock: Arc<SteadyClock>,
     first_run: bool,
 }
 
 impl OnlineWeightCalculation {
-    pub fn new(sampler: OnlineWeightSampler, online_reps: Arc<Mutex<OnlineReps>>) -> Self {
+    pub fn new(
+        sampler: OnlineWeightSampler,
+        online_reps: Arc<Mutex<OnlineReps>>,
+        clock: Arc<SteadyClock>,
+    ) -> Self {
         Self {
             sampler,
             online_reps,
+            clock,
             first_run: true,
         }
     }
@@ -26,7 +33,11 @@ impl Runnable for OnlineWeightCalculation {
             self.first_run = false;
             self.sampler.sanitize();
         } else {
-            let online_weight = self.online_reps.lock().unwrap().online_weight();
+            let online_weight = {
+                let mut online = self.online_reps.lock().unwrap();
+                online.trim(self.clock.now());
+                online.online_weight()
+            };
             self.sampler.add_sample(online_weight);
         }
         let result = self.sampler.calculate_trend();

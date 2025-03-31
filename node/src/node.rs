@@ -360,8 +360,11 @@ impl Node {
         let online_weight_sampler =
             OnlineWeightSampler::new(ledger.clone(), network_params.network.current_network);
 
-        let online_weight_calculation =
-            OnlineWeightCalculation::new(online_weight_sampler, online_reps.clone());
+        let online_weight_calculation = OnlineWeightCalculation::new(
+            online_weight_sampler,
+            online_reps.clone(),
+            steady_clock.clone(),
+        );
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let mut message_sender =

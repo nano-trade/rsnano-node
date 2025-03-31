@@ -220,14 +220,21 @@ impl OnlineReps {
         }
 
         let new_insert = self.online_reps.insert(rep_account, now);
+
+        if new_insert {
+            self.calculate_online_weight();
+        }
+        true
+    }
+
+    pub fn trim(&mut self, now: Timestamp) {
         let trimmed = self
             .online_reps
             .trim(now.checked_sub(self.weight_interval).unwrap_or_default());
 
-        if new_insert || trimmed {
+        if trimmed {
             self.calculate_online_weight();
         }
-        true
     }
 
     fn calculate_online_weight(&mut self) {
@@ -444,10 +451,12 @@ mod tests {
             .weight_interval(Duration::from_secs(30))
             .finish();
 
-        let now = SteadyClock::new_null().now();
-        online_reps.vote_observed(rep_a, now);
-        online_reps.vote_observed(rep_b, now + Duration::from_secs(10));
-        online_reps.vote_observed(rep_c, now + Duration::from_secs(31));
+        let start = SteadyClock::new_null().now();
+        online_reps.vote_observed(rep_a, start);
+        online_reps.vote_observed(rep_b, start + Duration::from_secs(10));
+        online_reps.vote_observed(rep_c, start + Duration::from_secs(31));
+
+        online_reps.trim(start + Duration::from_secs(31));
 
         assert_eq!(online_reps.online_weight(), Amount::nano(600_000));
     }
