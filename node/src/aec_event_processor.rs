@@ -108,10 +108,10 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 self.vote_rebroadcast_queue
                     .handle_processed_vote(&vote, &results);
 
-                self.try_update_online_reps(&vote, source, channel);
+                let result = aggregate_vote_results(&results);
+                self.try_update_online_reps(&vote, result, source, channel);
 
                 if let Some(tx) = &self.node_observer {
-                    let result = aggregate_vote_results(&results);
                     tx.send(NodeEvent::VoteProcessed(vote, result)).unwrap();
                 }
             }
@@ -141,16 +141,22 @@ impl AecEventProcessor {
     fn try_update_online_reps(
         &mut self,
         vote: &Arc<Vote>,
+        result: VoteCode,
         source: VoteSource,
         channel: Option<Arc<Channel>>,
     ) {
-        if source != VoteSource::Live {
-            // Ignore republished votes
-            return;
+        // Track rep weight voting on live elections
+        let mut should_observe = matches!(
+            result,
+            VoteCode::Vote | VoteCode::Replay | VoteCode::Ignored
+        );
+
+        // Ignore republished votes when rep crawling
+        if source == VoteSource::Live {
+            should_observe |= self.rep_crawler.process(vote, channel.as_ref());
         }
 
-        let active_in_rep_crawler = self.rep_crawler.process(vote, channel.as_ref());
-        if active_in_rep_crawler {
+        if should_observe {
             // Representative is defined as online if replying to live votes or rep_crawler queries
             self.online_reps
                 .lock()
