@@ -24,6 +24,7 @@ pub struct Election {
     qualified_root: QualifiedRoot,
     winner: MaybeSavedBlock,
     state: ElectionState,
+    // TODO: there can't be more than 10 blocks, so an array might be a lot faster
     candidate_blocks: HashMap<BlockHash, MaybeSavedBlock>,
     votes: HashMap<PublicKey, VoteSummary>,
     winner_tally: Amount,

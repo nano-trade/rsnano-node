@@ -89,20 +89,18 @@ impl VoteApplier {
                 .collect();
         }
 
-        if source != VoteSource::Cache {
-            let is_active = {
-                let active = self.active_elections.read();
-                vote.hashes.iter().any(|hash| active.is_active_hash(hash))
-            };
+        let is_active = {
+            let active = self.active_elections.read();
+            vote.hashes.iter().any(|hash| active.is_active_hash(hash))
+        };
 
-            if is_active {
-                // Representative is defined as online if replying to live votes or rep_crawler queries.
-                // The rep weights have to be updated before the votes are processed!
-                self.online_reps
-                    .lock()
-                    .unwrap()
-                    .vote_observed(vote.voter, self.clock.now());
-            }
+        if is_active {
+            // Representative is defined as online if replying to live votes or rep_crawler queries.
+            // The rep weights have to be updated before the votes are processed!
+            self.online_reps
+                .lock()
+                .unwrap()
+                .vote_observed(vote.voter, self.clock.now());
         }
 
         let (online_weight, quorum_delta) = {
