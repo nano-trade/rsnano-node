@@ -71,8 +71,12 @@ impl VoteProcessor {
         self.vote_applier.add_event_sink(sink);
     }
 
-    pub fn set_cooldown(&self, cool_down: bool) {
-        self.cool_down.store(cool_down, Ordering::Relaxed);
+    pub fn cool_down(&self) {
+        self.cool_down.store(true, Ordering::Relaxed);
+    }
+
+    pub fn recovered(&self) {
+        self.cool_down.store(false, Ordering::Relaxed);
     }
 
     pub fn stop(&self) {

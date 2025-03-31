@@ -1,8 +1,13 @@
+mod backpressure_event_processor;
 mod long_running_transaction_logger;
 mod processing_queue;
 mod thread_pool;
 mod timer;
 mod timer_thread;
+
+pub(crate) use backpressure_event_processor::{
+    spawn_backpressure_processor, BackpressureEventProcessor,
+};
 
 pub use crate::utils::timer::{NullTimer, Timer, TimerStrategy, TimerWrapper};
 use blake2::{

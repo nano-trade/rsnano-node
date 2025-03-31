@@ -51,10 +51,10 @@ use crate::{
         ActiveElections, ActiveElectionsStats, AecCooldownReason, AecTicker, BlockVoter,
         BootstrapElectionActivator, ConfirmReqSender, ConfirmedElection,
         DependentElectionsConfirmer, ForkCache, ForkCacheStats, ForkCacheUpdater, LocalVoteHistory,
-        RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster,
-        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
-        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
-        WinnerBlockBroadcaster,
+        LocalVotesRemover, RepTiers, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -77,7 +77,8 @@ use crate::{
         RealtimeMessageHandler, SynCookies,
     },
     utils::{
-        LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
+        spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
+        TimerThread, TxnTrackingConfig,
     },
     wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
     work::DistributedWorkFactory,
@@ -417,7 +418,7 @@ impl Node {
         ));
         dead_channel_cleanup.add_step(VoteProcessorQueueCleanup::new(vote_processor_queue.clone()));
 
-        let history = Arc::new(LocalVoteHistory::new(
+        let vote_history = Arc::new(LocalVoteHistory::new(
             network_params.network.current_network,
         ));
 
@@ -496,7 +497,7 @@ impl Node {
         let vote_generators = Arc::new(VoteGenerators::new(
             ledger.clone(),
             wallets.clone(),
-            history.clone(),
+            vote_history.clone(),
             stats.clone(),
             &config,
             &network_params,
@@ -1033,10 +1034,14 @@ impl Node {
             stats: stats.clone(),
         };
 
-        let mut aec_event_processor = AecEventProcessor {
-            receiver: aec_receiver,
+        let local_votes_remover = LocalVotesRemover {
+            active_elections: active_elections.clone(),
+            vote_history: vote_history.clone(),
+        };
+
+        let aec_event_processor = AecEventProcessor {
             vote_cache_processor: vote_cache_processor.clone(),
-            node_event_sender: node_event_sender.clone(),
+            node_observer: node_event_sender.clone(),
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
@@ -1048,19 +1053,13 @@ impl Node {
             block_processor: block_processor.clone(),
             confirming_set: confirming_set.clone(),
             online_reps: online_reps.clone(),
-            history: history.clone(),
             active_elections: active_elections.clone(),
             rep_crawler: rep_crawler.clone(),
             clock: steady_clock.clone(),
-            ledger: ledger.clone(),
+            local_votes_remover,
         };
 
-        std::thread::Builder::new()
-            .name("AEC ev proc".to_owned())
-            .spawn(move || {
-                aec_event_processor.run();
-            })
-            .unwrap();
+        spawn_backpressure_processor("AEC ev proc", aec_receiver, aec_event_processor);
 
         let dependent_elections_confirmer = DependentElectionsConfirmer {
             stats: stats.clone(),
@@ -1082,7 +1081,7 @@ impl Node {
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
             bootstrapper: bootstrapper.clone(),
-            vote_history: history.clone(),
+            vote_history: vote_history.clone(),
             active_elections: active_elections.clone(),
             block_processor: block_processor.clone(),
             fork_cache_updater,
@@ -1155,7 +1154,7 @@ impl Node {
             online_reps,
             rep_tiers,
             vote_processor_queue,
-            history,
+            history: vote_history,
             confirming_set,
             vote_cache,
             block_processor,
