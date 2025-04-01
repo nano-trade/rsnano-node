@@ -4064,7 +4064,7 @@ dependencies = [
 
 [[package]]
 name = "rsnano_node"
-version = "1.0.0-dev"
+version = "1.0.0-dev.1"
 dependencies = [
  "anyhow",
  "async-trait",
