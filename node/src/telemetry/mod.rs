@@ -283,16 +283,23 @@ impl Telemetry {
     }
 }
 
-pub const MAJOR_VERSION: u8 = 2; // TODO: get this from cmake
-pub const MINOR_VERSION: u8 = 0; // TODO: get this from cmake
-pub const PATCH_VERSION: u8 = 0; // TODO: get this from cmake
-pub const PRE_RELEASE_VERSION: u8 = 99; // TODO: get this from cmake
-pub const VERSION_STRING: &'static str = "2.0"; // TODO: get this from cmake
+build_info::build_info!(fn build_info);
 
-build_info::build_info!(fn nano_version);
+pub fn rsnano_version_string() -> String {
+    let version = &build_info().crate_info.version;
+    if version.pre.is_empty() {
+        format!("RsNano V{}.{}", version.major, version.minor)
+    } else {
+        let build: u32 = version.build.parse().unwrap_or(99);
+        format!(
+            "RsNano V{}.{}-{}.{}",
+            version.major, version.minor, version.pre, build
+        )
+    }
+}
 
-pub fn nano_build_info() -> String {
-    let info = nano_version();
+pub fn rsnano_build_info() -> String {
+    let info = build_info();
     format!(
         "built with {} ({}) at {} from {}",
         info.compiler,
@@ -303,6 +310,12 @@ pub fn nano_build_info() -> String {
             .map(|i| i.to_string())
             .unwrap_or_else(|| "unknown".to_string())
     )
+}
+
+pub use build_info::semver::Version;
+
+pub fn rsnano_version() -> Version {
+    build_info().crate_info.version.clone()
 }
 
 impl Drop for Telemetry {

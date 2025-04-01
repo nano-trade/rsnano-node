@@ -68,8 +68,8 @@ use crate::{
     },
     stats::adapters::NetworkStats,
     telemetry::{
-        nano_build_info, TelementryConfig, TelementryExt, Telemetry, TelemetryFactory,
-        VERSION_STRING,
+        rsnano_build_info, rsnano_version_string, TelementryConfig, TelementryExt, Telemetry,
+        TelemetryFactory,
     },
     tokio_runner::TokioRunner,
     transport::{
@@ -249,10 +249,10 @@ impl Node {
             .expect("Could not create LMDB store")
         };
 
+        info!("Version: {}", rsnano_version_string());
+        info!("{}", rsnano_build_info());
         info!("Network: {}", network_label);
-        info!("Version: {}", VERSION_STRING);
         info!("Data path: {:?}", application_path);
-        info!("{}", nano_build_info());
         info!("Database backend: {}", store.vendor());
         info!(
             "Work pool threads: {} ({})",

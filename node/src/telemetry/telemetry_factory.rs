@@ -11,7 +11,7 @@ use rsnano_nullable_clock::{SteadyClock, Timestamp};
 
 use crate::block_processing::UncheckedMap;
 
-use super::{MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION, PRE_RELEASE_VERSION};
+use super::rsnano_version;
 
 /// Creates the telemetry data for this node
 pub struct TelemetryFactory {
@@ -35,6 +35,8 @@ impl TelemetryFactory {
             bandwidth_cap = network.bandwidth_limit() as u64;
         }
 
+        let version = rsnano_version();
+
         let mut telemetry_data = TelemetryData {
             node_id: self.node_id_key.public_key().into(),
             block_count: self.ledger.block_count(),
@@ -46,10 +48,14 @@ impl TelemetryFactory {
             genesis_block: self.ledger.genesis_hash(),
             peer_count,
             account_count: self.ledger.account_count(),
-            major_version: MAJOR_VERSION,
-            minor_version: MINOR_VERSION,
-            patch_version: PATCH_VERSION,
-            pre_release_version: PRE_RELEASE_VERSION,
+            major_version: version.major as u8,
+            minor_version: version.minor as u8,
+            patch_version: version.patch as u8,
+            pre_release_version: if version.pre.is_empty() {
+                0
+            } else {
+                version.build.parse().unwrap_or(99)
+            },
             maker: TelemetryMaker::RsNano as u8,
             timestamp: SystemTime::now(),
             active_difficulty: self.ledger.work_thresholds().threshold_base(),

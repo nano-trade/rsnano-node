@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use generate_config::GenerateConfigArgs;
 use initialize::InitializeArgs;
-use rsnano_node::telemetry::{nano_build_info, VERSION_STRING};
+use rsnano_node::telemetry::{rsnano_build_info, rsnano_version_string};
 use run_daemon::RunDaemonArgs;
 
 pub(crate) mod generate_config;
@@ -46,7 +46,7 @@ impl NodeCommand {
     }
 
     fn print_version() {
-        println!("version {}", VERSION_STRING);
-        println!("{}", nano_build_info());
+        println!("{}", rsnano_version_string());
+        println!("{}", rsnano_build_info());
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "rsnano_node"
-version = "0.1.0"
+version = "1.0.0-dev"
 authors = ["Gustav Schauwecker <service@simpago.com>"]
 edition = "2021"
 
@@ -63,7 +63,7 @@ tokio-tungstenite = "0"
 futures-util = { version = "0", features = ["sink"] }
 tokio-util = "0"
 toml = "0"
-strum = "0"
+strum = "0.27.1"
 strum_macros = "0"
 build-info = "0.0.40"
 
