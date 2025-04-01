@@ -11,6 +11,7 @@ mod ledger;
 mod ledger_confirm;
 mod network;
 mod node;
+mod online_reps;
 mod optimistic_scheduler;
 mod peer_container;
 mod rep_crawler;
