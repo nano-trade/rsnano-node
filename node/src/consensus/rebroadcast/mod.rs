@@ -1,3 +1,4 @@
+mod history;
 mod queue;
 mod rebroadcast_processor;
 mod rebroadcaster;
