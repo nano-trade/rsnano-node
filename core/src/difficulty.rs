@@ -1,7 +1,7 @@
 use crate::{Root, WorkNonce};
 use blake2::{
     digest::{Update, VariableOutput},
-    VarBlake2b,
+    Blake2bVar,
 };
 use std::collections::HashMap;
 use std::mem::size_of;
@@ -62,12 +62,12 @@ impl DifficultyV1 {
 
 impl Difficulty for DifficultyV1 {
     fn get_difficulty(&self, root: &Root, work: WorkNonce) -> u64 {
-        let mut hasher = VarBlake2b::new(size_of::<u64>()).unwrap();
+        let mut hasher = Blake2bVar::new(size_of::<u64>()).unwrap();
         hasher.update(&work.0.to_le_bytes());
         hasher.update(root.as_bytes());
-        let mut result = 0;
-        hasher.finalize_variable(|bytes| result = u64::from_le_bytes(bytes.try_into().unwrap()));
-        result
+        let mut buffer = [0; 8];
+        hasher.finalize_variable(&mut buffer).unwrap();
+        u64::from_le_bytes(buffer)
     }
 
     fn clone(&self) -> Box<dyn Difficulty> {

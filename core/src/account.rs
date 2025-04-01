@@ -3,7 +3,7 @@ use crate::u256_struct;
 use anyhow::Result;
 use blake2::{
     digest::{Update, VariableOutput},
-    VarBlake2b,
+    Blake2bVar,
 };
 use primitive_types::U512;
 use serde::de::{Unexpected, Visitor};
@@ -29,10 +29,10 @@ impl Account {
     }
 
     fn account_checksum(&self) -> [u8; 5] {
-        let mut blake = VarBlake2b::new(5).unwrap();
+        let mut blake = Blake2bVar::new(5).unwrap();
         blake.update(&self.0);
         let mut check = [0u8; 5];
-        blake.finalize_variable(|bytes| check = bytes.try_into().unwrap());
+        blake.finalize_variable(&mut check).unwrap();
         check
     }
 

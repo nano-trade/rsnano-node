@@ -25,7 +25,7 @@ pub use account::Account;
 pub use amount::*;
 use blake2::{
     digest::{Update, VariableOutput},
-    VarBlake2b,
+    Blake2bVar,
 };
 pub use block_hash::{BlockHash, BlockHashBuilder};
 pub use hardened_constants::*;
@@ -270,13 +270,13 @@ impl utils::Deserialize for NoValue {
 }
 
 pub fn deterministic_key(seed: &RawKey, index: u32) -> RawKey {
-    let mut hasher = VarBlake2b::new(32).unwrap();
+    let mut hasher = Blake2bVar::new(32).unwrap();
     hasher.update(seed.as_bytes());
     hasher.update(&index.to_be_bytes());
 
-    let mut result = RawKey::zero();
-    hasher.finalize_variable(|bytes| result = RawKey::from_bytes(bytes.try_into().unwrap()));
-    result
+    let mut buffer = [0; 32];
+    hasher.finalize_variable(&mut buffer).unwrap();
+    RawKey::from_bytes(buffer)
 }
 
 /**

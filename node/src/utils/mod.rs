@@ -12,7 +12,7 @@ pub(crate) use backpressure_event_processor::{
 pub use crate::utils::timer::{NullTimer, Timer, TimerStrategy, TimerWrapper};
 use blake2::{
     digest::{Update, VariableOutput},
-    VarBlake2b,
+    Blake2bVar,
 };
 pub use long_running_transaction_logger::{LongRunningTransactionLogger, TxnTrackingConfig};
 pub use processing_queue::*;
@@ -85,13 +85,13 @@ impl ErrorCode {
 
 pub fn ip_address_hash_raw(address: &Ipv6Addr, port: u16) -> u64 {
     let address_bytes = address.octets();
-    let mut hasher = VarBlake2b::new(8).unwrap();
+    let mut hasher = Blake2bVar::new(8).unwrap();
     hasher.update(&HardenedConstants::get().random_128.to_be_bytes());
     if port != 0 {
         hasher.update(&port.to_ne_bytes());
     }
     hasher.update(&address_bytes);
-    let mut result = 0;
-    hasher.finalize_variable(|bytes| result = u64::from_ne_bytes(bytes.try_into().unwrap()));
-    result
+    let mut buffer = [0; 8];
+    hasher.finalize_variable(&mut buffer).unwrap();
+    u64::from_ne_bytes(buffer)
 }
