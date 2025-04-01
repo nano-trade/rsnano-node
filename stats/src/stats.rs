@@ -377,11 +377,9 @@ impl SamplerEntry {
     }
 }
 
-pub struct LegacyStatsSource(pub Arc<Stats>);
-
-impl StatsSource for LegacyStatsSource {
+impl StatsSource for Stats {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        let guard = self.0.mutables.read().unwrap();
+        let guard = self.mutables.read().unwrap();
         for (key, entry) in &guard.counters {
             result.insert_dir(
                 key.stat_type.as_str(),

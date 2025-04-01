@@ -46,20 +46,20 @@ impl OnlineContainer {
         new_insert
     }
 
-    pub fn trim(&mut self, upper_bound: Timestamp) -> bool {
-        let mut trimmed = false;
+    pub fn trim(&mut self, upper_bound: Timestamp) -> Vec<(PublicKey, Timestamp)> {
+        let mut trimmed = Vec::new();
 
         while let Some((time, _)) = self.by_time.first_key_value() {
-            if *time >= upper_bound {
+            let time = *time;
+            if time >= upper_bound {
                 break;
             }
 
             let (_, accounts) = self.by_time.pop_first().unwrap();
             for account in accounts {
                 self.by_account.remove(&account);
+                trimmed.push((account, time));
             }
-
-            trimmed = true;
         }
 
         trimmed
@@ -143,7 +143,7 @@ mod tests {
     fn trimming_empty_container_does_nothing() {
         let mut container = OnlineContainer::new();
         let now = Timestamp::new_test_instance();
-        assert_eq!(container.trim(now), false);
+        assert_eq!(container.trim(now).len(), 0);
     }
 
     #[test]
@@ -151,7 +151,7 @@ mod tests {
         let mut container = OnlineContainer::new();
         let now = Timestamp::new_test_instance();
         container.insert(PublicKey::from(1), now);
-        assert_eq!(container.trim(now), false);
+        assert_eq!(container.trim(now).len(), 0);
     }
 
     #[test]
@@ -159,7 +159,7 @@ mod tests {
         let mut container = OnlineContainer::new();
         let now = Timestamp::new_test_instance();
         container.insert(PublicKey::from(1), now);
-        assert_eq!(container.trim(now + Duration::from_millis(1)), true);
+        assert_eq!(container.trim(now + Duration::from_millis(1)).len(), 1);
         assert_eq!(container.len(), 0);
     }
 
@@ -173,7 +173,7 @@ mod tests {
         container.insert(PublicKey::from(3), now + Duration::from_secs(1));
         container.insert(PublicKey::from(4), now + Duration::from_secs(2));
 
-        assert_eq!(container.trim(now + Duration::from_millis(1500)), true);
+        assert_eq!(container.trim(now + Duration::from_millis(1500)).len(), 3);
         assert_eq!(container.len(), 1);
         assert_eq!(container.iter().next().unwrap(), &PublicKey::from(4));
         assert_eq!(container.by_time.len(), 1);

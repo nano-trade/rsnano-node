@@ -18,6 +18,8 @@ use rsnano_network::{Channel, ChannelId};
 use rsnano_nullable_clock::Timestamp;
 use std::{cmp::max, sync::Arc, time::Duration};
 
+use rsnano_stats::{StatsCollection, StatsSource};
+use tracing::debug;
 use {online_container::OnlineContainer, peered_container::PeeredContainer};
 
 const ONLINE_WEIGHT_QUORUM: u8 = 67;
@@ -34,6 +36,7 @@ pub struct OnlineReps {
     weight_interval: Duration,
     online_weight_minimum: Amount,
     representative_weight_minimum: Amount,
+    trim_counter: u64,
 }
 
 impl OnlineReps {
@@ -61,6 +64,7 @@ impl OnlineReps {
             weight_interval,
             online_weight_minimum,
             representative_weight_minimum,
+            trim_counter: 0,
         }
     }
 
@@ -231,11 +235,20 @@ impl OnlineReps {
     }
 
     pub fn trim(&mut self, now: Timestamp) {
+        self.trim_counter += 1;
         let trimmed = self
             .online_reps
             .trim(now.checked_sub(self.weight_interval).unwrap_or_default());
 
-        if trimmed {
+        for (rep_key, time) in &trimmed {
+            debug!(
+                "Removing representative: {}, last observed {}s ago",
+                rep_key.as_account().encode_account(),
+                time.elapsed(now).as_secs()
+            );
+        }
+
+        if !trimmed.is_empty() {
             self.calculate_online_weight();
         }
     }
@@ -290,6 +303,12 @@ impl ContainerInfoProvider for OnlineReps {
             ),
         ]
         .into()
+    }
+}
+
+impl StatsSource for OnlineReps {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert("online_reps", "rep_trim", self.trim_counter);
     }
 }
 

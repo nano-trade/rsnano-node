@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, RwLock},
-};
+use std::collections::{HashMap, VecDeque};
 
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
@@ -134,11 +131,9 @@ impl Default for Entry {
     }
 }
 
-pub struct ForkCacheStats(pub Arc<RwLock<ForkCache>>);
-
-impl StatsSource for ForkCacheStats {
+impl StatsSource for ForkCache {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        result.insert("fork_cache", "insert", self.0.read().unwrap().inserted);
+        result.insert("fork_cache", "insert", self.inserted);
     }
 }
 
@@ -272,9 +267,8 @@ mod tests {
         cache.add(fork4.clone());
         cache.add(fork4.clone());
 
-        let stats_wrapper = ForkCacheStats(Arc::new(RwLock::new(cache)));
         let mut stats = StatsCollection::new();
-        stats_wrapper.collect_stats(&mut stats);
+        cache.collect_stats(&mut stats);
         assert_eq!(stats.get("fork_cache", "insert"), 4);
     }
 

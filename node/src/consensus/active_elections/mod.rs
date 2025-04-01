@@ -450,11 +450,9 @@ impl ContainerInfoProvider for ActiveElections {
     }
 }
 
-pub struct ActiveElectionsStats(pub Arc<ActiveElections>);
-
-impl StatsSource for ActiveElectionsStats {
+impl StatsSource for ActiveElections {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        self.0.container.read().unwrap().collect_stats(result);
+        self.container.read().unwrap().collect_stats(result);
     }
 }
 

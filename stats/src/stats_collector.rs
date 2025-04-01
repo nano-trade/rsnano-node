@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock},
     u64,
 };
 
@@ -67,6 +67,33 @@ impl Default for StatsCollection {
 
 pub trait StatsSource {
     fn collect_stats(&self, result: &mut StatsCollection);
+}
+
+impl<T> StatsSource for Arc<T>
+where
+    T: StatsSource,
+{
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.as_ref().collect_stats(result)
+    }
+}
+
+impl<T> StatsSource for Arc<Mutex<T>>
+where
+    T: StatsSource,
+{
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.lock().unwrap().collect_stats(result)
+    }
+}
+
+impl<T> StatsSource for Arc<RwLock<T>>
+where
+    T: StatsSource,
+{
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.read().unwrap().collect_stats(result)
+    }
 }
 
 pub struct StatsCollector {
