@@ -1,5 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
-use rsnano_node::telemetry::{BUILD_INFO, VERSION_STRING};
+use rsnano_node::telemetry::{nano_build_info, VERSION_STRING};
 use rsnano_rpc_messages::VersionResponse;
 
 impl RpcCommandHandler {
@@ -18,7 +18,7 @@ impl RpcCommandHandler {
                 .as_str()
                 .to_owned(),
             network_identifier: self.node.network_params.ledger.genesis_block.hash(),
-            build_info: BUILD_INFO.to_owned(),
+            build_info: nano_build_info(),
         }
     }
 }

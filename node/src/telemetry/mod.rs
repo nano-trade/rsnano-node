@@ -287,8 +287,23 @@ pub const MAJOR_VERSION: u8 = 2; // TODO: get this from cmake
 pub const MINOR_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PATCH_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PRE_RELEASE_VERSION: u8 = 99; // TODO: get this from cmake
-pub const BUILD_INFO: &'static str = "TODO get buildinfo";
 pub const VERSION_STRING: &'static str = "2.0"; // TODO: get this from cmake
+
+build_info::build_info!(fn nano_version);
+
+pub fn nano_build_info() -> String {
+    let info = nano_version();
+    format!(
+        "built with {} ({}) at {} from {}",
+        info.compiler,
+        info.profile,
+        info.timestamp,
+        info.version_control
+            .as_ref()
+            .map(|i| i.to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    )
+}
 
 impl Drop for Telemetry {
     fn drop(&mut self) {

@@ -68,7 +68,8 @@ use crate::{
     },
     stats::adapters::NetworkStats,
     telemetry::{
-        TelementryConfig, TelementryExt, Telemetry, TelemetryFactory, BUILD_INFO, VERSION_STRING,
+        nano_build_info, TelementryConfig, TelementryExt, Telemetry, TelemetryFactory,
+        VERSION_STRING,
     },
     tokio_runner::TokioRunner,
     transport::{
@@ -251,7 +252,7 @@ impl Node {
         info!("Network: {}", network_label);
         info!("Version: {}", VERSION_STRING);
         info!("Data path: {:?}", application_path);
-        info!("Build information: {}", BUILD_INFO);
+        info!("{}", nano_build_info());
         info!("Database backend: {}", store.vendor());
         info!(
             "Work pool threads: {} ({})",

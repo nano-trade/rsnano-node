@@ -9,11 +9,6 @@ output_tracking = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dev-dependencies]
-mock_instant = "0"
-tracing-test = "0"
-test_helpers = { path = "../tools/test_helpers" }
-
 [dependencies]
 rsnano_core = { path = "../core" }
 rsnano_work = { path = "../work" }
@@ -70,3 +65,12 @@ tokio-util = "0"
 toml = "0"
 strum = "0"
 strum_macros = "0"
+build-info = "0.0.40"
+
+[dev-dependencies]
+mock_instant = "0"
+tracing-test = "0"
+test_helpers = { path = "../tools/test_helpers" }
+
+[build-dependencies]
+build-info-build = "0.0.40"
