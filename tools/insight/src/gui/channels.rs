@@ -4,6 +4,7 @@ use rsnano_network::ChannelDirection;
 
 use super::{formatted_number, view_rep_state};
 use crate::channels::{Channels, RepState};
+use rsnano_messages::TelemetryData;
 
 pub(crate) struct ChannelsView<'a> {
     model: ChannelsViewModel<'a>,
@@ -98,10 +99,7 @@ impl<'a> ChannelsViewModel<'a> {
                 3 => "RsNano",
                 _ => "unknown",
             };
-            result.version = format!(
-                "v{}.{}.{}",
-                telemetry.major_version, telemetry.minor_version, telemetry.patch_version
-            );
+            result.version = version_string(telemetry);
             result.bandwidth_cap = format!("{}mb/s", telemetry.bandwidth_cap / (1024 * 1024))
         }
 
@@ -118,6 +116,20 @@ impl<'a> ChannelsViewModel<'a> {
 
     pub(crate) fn heading(&self) -> String {
         format!("Channels ({})", self.0.len())
+    }
+}
+
+fn version_string(telemetry: &TelemetryData) -> String {
+    if telemetry.patch_version == 0 && telemetry.pre_release_version == 0 {
+        format!("v{}.{}", telemetry.major_version, telemetry.minor_version)
+    } else {
+        format!(
+            "v{}.{}.{}.{}",
+            telemetry.major_version,
+            telemetry.minor_version,
+            telemetry.patch_version,
+            telemetry.pre_release_version
+        )
     }
 }
 
