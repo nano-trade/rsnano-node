@@ -106,6 +106,7 @@ pub struct Network {
     bandwidth_limiter: Arc<BandwidthLimiter>,
     observer: Arc<dyn NetworkObserver>,
     data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
+    loopback: Arc<Channel>,
 }
 
 impl Network {
@@ -119,8 +120,9 @@ impl Network {
             excluded_peers: PeerExclusion::new(),
             bandwidth_limiter: Arc::new(BandwidthLimiter::new(config.limiter.clone())),
             observer: Arc::new(NullNetworkObserver::new()),
-            config,
             data_receiver_factory: Box::new(NullDataReceiverFactory::new()),
+            loopback: create_loopback_channel(&config),
+            config,
         }
     }
 
@@ -267,11 +269,20 @@ impl Network {
     }
 
     pub fn get(&self, channel_id: ChannelId) -> Option<&Arc<Channel>> {
-        self.channels.get(&channel_id)
+        if channel_id == ChannelId::LOOPBACK {
+            Some(self.loopback())
+        } else {
+            self.channels.get(&channel_id)
+        }
     }
 
     pub fn remove(&mut self, channel_id: ChannelId) {
         self.channels.remove(&channel_id);
+    }
+
+    /// Returns a special channel for sending messages to itself
+    pub fn loopback(&self) -> &Arc<Channel> {
+        &self.loopback
     }
 
     pub fn set_node_id(&self, channel_id: ChannelId, node_id: NodeId) {
@@ -591,6 +602,7 @@ impl Network {
                 channel.close();
             }
             self.channels.clear();
+            self.loopback.close();
             self.stopped = true;
             true
         }
@@ -685,6 +697,21 @@ impl Network {
     pub fn is_stopped(&self) -> bool {
         self.stopped
     }
+}
+
+fn create_loopback_channel(config: &NetworkConfig) -> Arc<Channel> {
+    let channel = Arc::new(Channel::new(
+        ChannelId::LOOPBACK,
+        SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0),
+        SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0),
+        ChannelDirection::Outbound,
+        config.protocol_info.version_using,
+        Timestamp::new_test_instance(),
+        Arc::new(BandwidthLimiter::default()),
+        Arc::new(NullNetworkObserver::new()),
+    ));
+    channel.set_mode(ChannelMode::Realtime);
+    channel
 }
 
 impl Drop for Network {
@@ -906,6 +933,43 @@ mod tests {
             channel.set_last_activity(now);
             network.purge(now, Duration::from_secs(1));
             assert_eq!(network.len(), 1);
+        }
+    }
+
+    mod loopback {
+        use super::*;
+
+        #[test]
+        fn has_loopback_channel() {
+            let network = Network::new_test_instance();
+            let loopback = network.loopback();
+            assert_eq!(
+                loopback.peer_addr(),
+                SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)
+            );
+            assert_eq!(
+                loopback.local_addr(),
+                SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)
+            );
+            assert_eq!(loopback.mode(), ChannelMode::Realtime);
+            assert!(loopback.is_alive());
+            // Loopback isn't part of the channels list
+            assert_eq!(network.len(), 0);
+        }
+
+        #[test]
+        fn can_be_retrieved_by_channel_id() {
+            let network = Network::new_test_instance();
+            let loopback = network.get(ChannelId::LOOPBACK).unwrap();
+            assert!(Arc::ptr_eq(loopback, network.loopback()));
+        }
+
+        #[test]
+        fn loopback_gets_stopped() {
+            let mut network = Network::new_test_instance();
+            network.stop();
+            let loopback = network.loopback();
+            assert_eq!(loopback.is_alive(), false);
         }
     }
 }

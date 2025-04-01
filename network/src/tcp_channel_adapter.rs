@@ -54,13 +54,13 @@ impl TcpChannelAdapter {
         channel: Arc<Channel>,
         stream: TcpStream,
         clock: Arc<SteadyClock>,
-        handle: &tokio::runtime::Handle,
+        runtime: &tokio::runtime::Handle,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
         let channel_adapter = Self::new(channel.clone(), Arc::downgrade(&stream), clock.clone());
 
         // process write queue:
-        handle.spawn(async move {
+        runtime.spawn(async move {
             loop {
                 let res = select! {
                     _ = channel.cancelled() =>{
@@ -112,7 +112,7 @@ impl TcpChannelAdapter {
 
         let channel = Arc::new(channel_adapter);
         let channel_l = channel.clone();
-        handle.spawn(async move { channel_l.ongoing_checkup().await });
+        runtime.spawn(async move { channel_l.ongoing_checkup().await });
         channel
     }
 
