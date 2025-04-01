@@ -74,10 +74,10 @@ use crate::{
     tokio_runner::TokioRunner,
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
-        BlockFlooder, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
-        LatestKeepalivesCleanup, MessageFlooder, MessageProcessor, MessageSender,
-        NanoDataReceiverFactory, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
-        RealtimeMessageHandler, SynCookies,
+        run_loopback_channel_adapter, BlockFlooder, InboundMessageQueue,
+        InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup, MessageFlooder,
+        MessageProcessor, MessageSender, NanoDataReceiverFactory, NetworkThreads,
+        PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
     },
     utils::{
         spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
@@ -229,7 +229,8 @@ impl Node {
         };
         let global_config = &global_config;
         let application_path = args.data_path;
-        let node_id = node_id_key_file.initialize(&application_path).unwrap();
+        let node_id_key = node_id_key_file.initialize(&application_path).unwrap();
+        let node_id = NodeId::from(&node_id_key);
 
         let mut stats_collector = StatsCollector::new();
         let stats = Arc::new(Stats::new(Default::default()));
@@ -260,7 +261,7 @@ impl Node {
             if work.has_opencl() { "OpenCL" } else { "CPU" }
         );
         info!("Work peers: {}", config.work_peers.len());
-        info!("Node ID: {}", NodeId::from(&node_id));
+        info!("Node ID: {}", node_id);
 
         let (max_blocks, bootstrap_weights) = if (network_params.network.is_live_network()
             || network_params.network.is_beta_network())
@@ -311,9 +312,25 @@ impl Node {
         let wallet_workers: Arc<dyn ThreadPool> =
             Arc::new(ThreadPoolImpl::create(1, "Wallet work"));
 
+        let mut inbound_message_queue =
+            InboundMessageQueue::new(config.message_processor.max_queue, stats.clone());
+        if let Some(cb) = args.callbacks.on_inbound {
+            inbound_message_queue.set_inbound_callback(cb);
+        }
+        if let Some(cb) = args.callbacks.on_inbound_dropped {
+            inbound_message_queue.set_inbound_dropped_callback(cb);
+        }
+        let inbound_message_queue = Arc::new(inbound_message_queue);
+
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
         let mut network = Network::new(config.network.clone());
         network.set_observer(network_observer.clone());
+        runtime.spawn(run_loopback_channel_adapter(
+            network.loopback().clone(),
+            node_id,
+            current_network,
+            inbound_message_queue.clone(),
+        ));
         let network = Arc::new(RwLock::new(network));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
@@ -325,16 +342,6 @@ impl Node {
         let mut network_filter = NetworkFilter::new(config.network_duplicate_filter_size);
         network_filter.age_cutoff = config.network_duplicate_filter_cutoff;
         let network_filter = Arc::new(network_filter);
-
-        let mut inbound_message_queue =
-            InboundMessageQueue::new(config.message_processor.max_queue, stats.clone());
-        if let Some(cb) = args.callbacks.on_inbound {
-            inbound_message_queue.set_inbound_callback(cb);
-        }
-        if let Some(cb) = args.callbacks.on_inbound_dropped {
-            inbound_message_queue.set_inbound_dropped_callback(cb);
-        }
-        let inbound_message_queue = Arc::new(inbound_message_queue);
 
         dead_channel_cleanup.add_step(InboundMessageQueueCleanup::new(
             inbound_message_queue.clone(),
@@ -386,7 +393,7 @@ impl Node {
         let telemetry_factory = TelemetryFactory {
             ledger: ledger.clone(),
             network: network.clone(),
-            node_id_key: node_id.clone(),
+            node_id_key: node_id_key.clone(),
             unchecked: unchecked.clone(),
             startup_time: steady_clock.now(),
             clock: steady_clock.clone(),
@@ -619,7 +626,7 @@ impl Node {
             Arc::new(network_params.clone()),
             stats.clone(),
             syn_cookies.clone(),
-            node_id.clone(),
+            node_id_key.clone(),
             latest_keepalives.clone(),
         ));
 
@@ -1145,7 +1152,7 @@ impl Node {
             peer_cache_updater: TimerThread::new("Peer history", peer_cache_updater),
             peer_cache_connector: TimerThread::new("Net reachout", peer_cache_connector),
             peer_connector,
-            node_id,
+            node_id: node_id_key,
             workers,
             wallet_workers,
             distributed_work,

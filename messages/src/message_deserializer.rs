@@ -11,7 +11,7 @@ use crate::{
 pub struct MessageDeserializer {
     buffer: VecDeque<u8>,
     current_header: Option<MessageHeader>,
-    network_filter: Arc<NetworkFilter>,
+    network_filter: Option<Arc<NetworkFilter>>,
     work_thresholds: WorkThresholds,
     protocol: ProtocolInfo,
 }
@@ -19,7 +19,7 @@ pub struct MessageDeserializer {
 impl MessageDeserializer {
     pub fn new(
         protocol: ProtocolInfo,
-        network_filter: Arc<NetworkFilter>,
+        network_filter: Option<Arc<NetworkFilter>>,
         work_thresholds: WorkThresholds,
     ) -> Self {
         Self {
@@ -127,15 +127,19 @@ impl MessageDeserializer {
         payload_bytes: &[u8],
     ) -> Result<u128, ParseMessageError> {
         if matches!(message_type, MessageType::Publish | MessageType::ConfirmAck) {
-            let (digest, existed) = self.network_filter.apply(payload_bytes);
-            if existed {
-                if message_type == MessageType::ConfirmAck {
-                    Err(ParseMessageError::DuplicateConfirmAckMessage)
+            if let Some(filter) = self.network_filter.as_ref() {
+                let (digest, existed) = filter.apply(payload_bytes);
+                if existed {
+                    if message_type == MessageType::ConfirmAck {
+                        Err(ParseMessageError::DuplicateConfirmAckMessage)
+                    } else {
+                        Err(ParseMessageError::DuplicatePublishMessage)
+                    }
                 } else {
-                    Err(ParseMessageError::DuplicatePublishMessage)
+                    Ok(digest)
                 }
             } else {
-                Ok(digest)
+                Ok(0)
             }
         } else {
             Ok(0)
@@ -355,7 +359,7 @@ mod tests {
         let filter = Arc::new(NetworkFilter::default());
         MessageDeserializer::new(
             ProtocolInfo::default(),
-            filter,
+            Some(filter),
             WorkThresholds::publish_dev().clone(),
         )
     }
