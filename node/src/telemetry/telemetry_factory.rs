@@ -11,7 +11,7 @@ use rsnano_nullable_clock::{SteadyClock, Timestamp};
 
 use crate::block_processing::UncheckedMap;
 
-use super::rsnano_version;
+use super::{get_pre_release_version, rsnano_version};
 
 /// Creates the telemetry data for this node
 pub struct TelemetryFactory {
@@ -51,11 +51,7 @@ impl TelemetryFactory {
             major_version: version.major as u8,
             minor_version: version.minor as u8,
             patch_version: version.patch as u8,
-            pre_release_version: if version.pre.is_empty() {
-                0
-            } else {
-                version.build.parse().unwrap_or(99)
-            },
+            pre_release_version: get_pre_release_version(&version),
             maker: TelemetryMaker::RsNano as u8,
             timestamp: SystemTime::now(),
             active_difficulty: self.ledger.work_thresholds().threshold_base(),

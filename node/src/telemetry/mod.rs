@@ -290,10 +290,9 @@ pub fn rsnano_version_string() -> String {
     if version.pre.is_empty() {
         format!("RsNano V{}.{}", version.major, version.minor)
     } else {
-        let build: u32 = version.build.parse().unwrap_or(99);
         format!(
-            "RsNano V{}.{}-{}.{}",
-            version.major, version.minor, version.pre, build
+            "RsNano V{}.{}-{}",
+            version.major, version.minor, version.pre
         )
     }
 }
@@ -316,6 +315,18 @@ pub use build_info::semver::Version;
 
 pub fn rsnano_version() -> Version {
     build_info().crate_info.version.clone()
+}
+
+pub fn get_pre_release_version(v: &Version) -> u8 {
+    if v.pre.is_empty() {
+        0
+    } else {
+        v.pre
+            .split('.')
+            .nth(1)
+            .and_then(|s| s.parse::<u8>().ok())
+            .unwrap_or(99)
+    }
 }
 
 impl Drop for Telemetry {
