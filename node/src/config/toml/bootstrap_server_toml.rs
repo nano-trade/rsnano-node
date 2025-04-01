@@ -6,6 +6,7 @@ pub struct BootstrapServerToml {
     pub batch_size: Option<usize>,
     pub max_queue: Option<usize>,
     pub threads: Option<usize>,
+    pub limiter: Option<usize>,
 }
 
 impl Default for BootstrapServerToml {
@@ -28,6 +29,9 @@ impl From<&BootstrapServerToml> for BootstrapResponderConfig {
         if let Some(batch_size) = toml.batch_size {
             config.batch_size = batch_size;
         }
+        if let Some(limiter) = toml.limiter {
+            config.limiter = limiter;
+        }
         config
     }
 }
@@ -38,6 +42,7 @@ impl From<&BootstrapResponderConfig> for BootstrapServerToml {
             max_queue: Some(config.max_queue),
             threads: Some(config.threads),
             batch_size: Some(config.batch_size),
+            limiter: Some(config.limiter),
         }
     }
 }

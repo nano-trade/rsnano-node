@@ -6,6 +6,7 @@ use std::{
         Arc, Condvar, Mutex, MutexGuard,
     },
     thread::JoinHandle,
+    time::Duration,
 };
 
 use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
@@ -14,7 +15,9 @@ use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
+use rsnano_network::{
+    bandwidth_limiter::RateLimiter, Channel, ChannelId, DeadChannelCleanupStep, TrafficType,
+};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::transport::MessageSender;
@@ -24,6 +27,7 @@ pub struct BootstrapResponderConfig {
     pub max_queue: usize,
     pub threads: usize,
     pub batch_size: usize,
+    pub limiter: usize,
 }
 
 impl Default for BootstrapResponderConfig {
@@ -32,6 +36,7 @@ impl Default for BootstrapResponderConfig {
             max_queue: 16,
             threads: 1,
             batch_size: 64,
+            limiter: 500,
         }
     }
 }
@@ -67,6 +72,7 @@ impl BootstrapResponder {
             stopped: AtomicBool::new(false),
             queue: Mutex::new(FairQueue::new(move |_| max_queue, |_| 1)),
             message_sender: Mutex::new(message_sender),
+            limiter: RateLimiter::with_burst_ratio(config.limiter, 3.0),
         });
 
         Self {
@@ -170,22 +176,39 @@ pub(crate) struct BootstrapResponderImpl {
     queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
     message_sender: Mutex<MessageSender>,
+    limiter: RateLimiter,
 }
 
 impl BootstrapResponderImpl {
     fn run(&self) {
         let mut queue = self.queue.lock().unwrap();
         while !self.stopped.load(Ordering::SeqCst) {
+            queue = self
+                .condition
+                .wait_while(queue, |q| {
+                    q.is_empty() && !self.stopped.load(Ordering::SeqCst)
+                })
+                .unwrap();
+
+            // Rate limit the processing
+            while !self.stopped.load(Ordering::SeqCst) && !self.limiter.should_pass(self.batch_size)
+            {
+                self.stats
+                    .inc(StatType::BootstrapServer, DetailType::Cooldown);
+                queue = self
+                    .condition
+                    .wait_timeout(queue, Duration::from_millis(100))
+                    .unwrap()
+                    .0;
+            }
+
+            if self.stopped.load(Ordering::SeqCst) {
+                return;
+            }
+
             if !queue.is_empty() {
                 self.stats.inc(StatType::BootstrapServer, DetailType::Loop);
                 queue = self.run_batch(queue);
-            } else {
-                queue = self
-                    .condition
-                    .wait_while(queue, |q| {
-                        q.is_empty() && !self.stopped.load(Ordering::SeqCst)
-                    })
-                    .unwrap();
             }
         }
     }
