@@ -301,6 +301,8 @@ impl RepCrawler {
                 );
                 drop(guard);
                 self.query(targets);
+                let loopback = self.network.read().unwrap().loopback().clone();
+                self.query(vec![loopback]);
                 guard = self.rep_crawler_impl.lock().unwrap();
             }
         }

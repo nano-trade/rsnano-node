@@ -23,7 +23,14 @@ use test_helpers::{
 fn one() {
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
-    let node = system.build_node().config(config).finish();
+    let node = system
+        .build_node()
+        .config(config)
+        .flags(NodeFlags {
+            disable_rep_crawler: true,
+            ..Default::default()
+        })
+        .finish();
     node.wallets
         .insert_adhoc2(
             &node.wallets.wallet_ids()[0],
@@ -153,7 +160,14 @@ fn one() {
 fn one_update() {
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
-    let node = system.build_node().config(config).finish();
+    let node = system
+        .build_node()
+        .config(config)
+        .flags(NodeFlags {
+            disable_rep_crawler: true,
+            ..Default::default()
+        })
+        .finish();
     node.wallets
         .insert_adhoc2(
             &node.wallets.wallet_ids()[0],
@@ -279,7 +293,14 @@ fn one_update() {
 fn two() {
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
-    let node = system.build_node().config(config).finish();
+    let node = system
+        .build_node()
+        .config(config)
+        .flags(NodeFlags {
+            disable_rep_crawler: true,
+            ..Default::default()
+        })
+        .finish();
     node.wallets
         .insert_adhoc2(
             &node.wallets.wallet_ids()[0],
@@ -406,7 +427,14 @@ fn split() {
     const MAX_VBH: usize = ConfirmAck::HASHES_MAX;
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
-    let node = system.build_node().config(config).finish();
+    let node = system
+        .build_node()
+        .config(config)
+        .flags(NodeFlags {
+            disable_rep_crawler: true,
+            ..Default::default()
+        })
+        .finish();
     node.wallets
         .insert_adhoc2(
             &node.wallets.wallet_ids()[0],
@@ -495,7 +523,14 @@ fn channel_max_queue() {
     let mut system = System::new();
     let mut config = System::default_config_without_backlog_scan();
     config.request_aggregator.max_queue = 0;
-    let node = system.build_node().config(config).finish();
+    let node = system
+        .build_node()
+        .config(config)
+        .flags(NodeFlags {
+            disable_rep_crawler: true,
+            ..Default::default()
+        })
+        .finish();
     node.wallets
         .insert_adhoc2(
             &node.wallets.wallet_ids()[0],
@@ -532,6 +567,7 @@ fn cannot_vote() {
     let mut system = System::new();
     let mut flags = NodeFlags::default();
     flags.disable_request_loop = true;
+    flags.disable_rep_crawler = true;
     let node = system.build_node().flags(flags).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -736,7 +772,13 @@ fn forked_open() {
 #[test]
 fn epoch_conflict() {
     let mut system = System::new();
-    let node = system.make_node();
+    let node = system
+        .build_node()
+        .flags(NodeFlags {
+            disable_rep_crawler: true,
+            ..Default::default()
+        })
+        .finish();
 
     // Voting needs a rep key set up on the node
     node.insert_into_wallet(&DEV_GENESIS_KEY);

@@ -149,7 +149,7 @@ pub struct Node {
     block_flooder: BlockFlooder,
     vote_rebroadcaster: VoteRebroadcaster,
     tokio_runner: TokioRunner,
-    pub active_elections_driver: TimerThread<AecTicker>,
+    pub aec_ticker: TimerThread<AecTicker>,
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
     pub stats_collector: StatsCollector,
     container_info_factory: ContainerInfoFactory,
@@ -1206,7 +1206,7 @@ impl Node {
             block_flooder,
             vote_rebroadcaster,
             tokio_runner,
-            active_elections_driver: TimerThread::new("Request loop", aec_ticker),
+            aec_ticker: TimerThread::new("Request loop", aec_ticker),
             recently_cemented,
             stats_collector,
             container_info_factory: container_info,
@@ -1422,7 +1422,7 @@ impl Node {
         self.vote_cache_processor.start();
         self.block_processor.start();
         if !self.flags.disable_request_loop {
-            self.active_elections_driver
+            self.aec_ticker
                 .start(self.network_params.network.aec_loop_interval);
         }
         self.vote_generators.start();
@@ -1489,7 +1489,7 @@ impl Node {
         self.vote_processor.stop();
         self.rep_tiers.stop();
         self.election_schedulers.stop();
-        self.active_elections_driver.stop();
+        self.aec_ticker.stop();
         self.active.stop();
         self.vote_generators.stop();
         self.confirming_set.stop();
