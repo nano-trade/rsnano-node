@@ -80,7 +80,7 @@ impl VoteGenerator {
             thread: Mutex::new(None),
             vote_generation_queue: ProcessingQueue::new(
                 Arc::clone(&stats),
-                StatType::VoteGenerator,
+                shared_state_clone.stat_type(),
                 Self::thread_name(is_final),
                 1,         // single threaded
                 1024 * 32, // max queue size
@@ -157,7 +157,7 @@ impl VoteGenerator {
             // On a large queue of requests, erase the oldest one
             guard.requests.pop_front();
             self.stats.inc(
-                StatType::VoteGenerator,
+                self.shared_state.stat_type(),
                 DetailType::GeneratorRepliesDiscarded,
             );
         }
@@ -255,7 +255,7 @@ impl SharedState {
                         hashes.push(hash);
                     } else {
                         self.stats
-                            .inc(StatType::VoteGenerator, DetailType::GeneratorSpacing);
+                            .inc(self.stat_type(), DetailType::GeneratorSpacing);
                     }
                 }
                 if hashes.len() == VoteGenerator::MAX_HASHES {
@@ -268,7 +268,7 @@ impl SharedState {
             drop(queues);
             self.vote(&hashes, &roots, |generated_vote| {
                 self.stats
-                    .inc(StatType::VoteGenerator, DetailType::GeneratorBroadcasts);
+                    .inc(self.stat_type(), DetailType::GeneratorBroadcasts);
                 let sample = if self.is_final {
                     Sample::VoteGeneratorFinalHashes
                 } else {
@@ -342,7 +342,7 @@ impl SharedState {
                             hashes.push(*hash);
                         } else {
                             self.stats
-                                .inc(StatType::VoteGenerator, DetailType::GeneratorSpacing);
+                                .inc(self.stat_type(), DetailType::GeneratorSpacing);
                         }
                     }
                 }
@@ -371,7 +371,7 @@ impl SharedState {
             }
         }
         self.stats
-            .inc(StatType::VoteGenerator, DetailType::GeneratorReplies);
+            .inc(self.stat_type(), DetailType::GeneratorReplies);
     }
 
     fn process_batch(&self, batch: VecDeque<(Root, BlockHash)>) {
@@ -388,6 +388,14 @@ impl SharedState {
             if should_notify {
                 self.condition.notify_all();
             }
+        }
+    }
+
+    fn stat_type(&self) -> StatType {
+        if self.is_final {
+            StatType::VoteGeneratorFinal
+        } else {
+            StatType::VoteGenerator
         }
     }
 }

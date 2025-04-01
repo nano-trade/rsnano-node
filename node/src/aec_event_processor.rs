@@ -105,8 +105,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                         .insert(&vote, voter_weight, &results);
                 }
 
-                self.vote_rebroadcast_queue
-                    .handle_processed_vote(&vote, &results);
+                self.vote_rebroadcast_queue.try_enqueue(&vote, &results);
 
                 let result = aggregate_vote_results(&results);
                 self.try_update_online_reps(&vote, result, source, channel);

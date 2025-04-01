@@ -40,6 +40,7 @@ pub enum StatType {
     Filter,
     Telemetry,
     VoteGenerator,
+    VoteGeneratorFinal,
     VoteCache,
     VoteCacheProcessor,
     Hinting,

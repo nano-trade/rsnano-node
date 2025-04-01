@@ -79,7 +79,7 @@ impl VoteRebroadcastQueue {
         }
     }
 
-    pub fn handle_processed_vote(&self, vote: &Arc<Vote>, results: &HashMap<BlockHash, VoteCode>) {
+    pub fn try_enqueue(&self, vote: &Arc<Vote>, results: &HashMap<BlockHash, VoteCode>) {
         let processed = results.iter().any(|(_, code)| *code == VoteCode::Vote);
         if processed {
             self.enqueue(vote.clone());
@@ -261,7 +261,7 @@ mod tests {
         results.insert(BlockHash::from(3), VoteCode::Indeterminate);
         results.insert(BlockHash::from(4), VoteCode::Ignored);
 
-        queue.handle_processed_vote(&test_vote(), &results);
+        queue.try_enqueue(&test_vote(), &results);
 
         assert_eq!(queue.len(), 0);
     }
@@ -278,7 +278,7 @@ mod tests {
         //This means a processed vote:
         results.insert(BlockHash::from(5), VoteCode::Vote);
 
-        queue.handle_processed_vote(&test_vote(), &results);
+        queue.try_enqueue(&test_vote(), &results);
 
         assert_eq!(queue.len(), 1);
     }
