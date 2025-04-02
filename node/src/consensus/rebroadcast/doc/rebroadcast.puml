@@ -1,23 +1,23 @@
-@startuml
+@startuml Vote Rebroadcast
 package "rebroadcast" {
 	class VoteRebroadcaster {
-	  start()
-	  stop()
+		start()
+		stop()
 	}
 
 	class VoteRebroadcastQueue {
-	  try_enqueue(vote, results)
-	  enqueue(vote)
-	  dequeue()
+		try_enqueue(vote, results)
+		enqueue(vote)
+		dequeue()
 	}
 
 	class RebroadcastProcessor {
-	  process_vote(vote)
+		process_vote(vote)
 	}
 
 	class WalletRepsCache{
-	  have_half_rep()
-	  exists(rep_key)
+		have_half_rep()
+		exists(rep_key)
 	}
 }
 

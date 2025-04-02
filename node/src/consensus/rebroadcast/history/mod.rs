@@ -1,6 +1,9 @@
-use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, Vote, VoteTimestamp};
+use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, Vote};
 use rsnano_nullable_clock::Timestamp;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 /// Keeps track of past rebroadcasts and decides whether a new rebroadcast is necessary
 pub(crate) struct RebroadcastHistory {
@@ -8,7 +11,7 @@ pub(crate) struct RebroadcastHistory {
 }
 
 impl RebroadcastHistory {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(config: RebroadcastHistoryConfig) -> Self {
         Self {
             representatives: HashMap::new(),
         }
@@ -23,7 +26,10 @@ impl RebroadcastHistory {
     }
 
     pub fn total_hashes(&self) -> usize {
-        self.representatives.values().map(|i| i.hashes.len()).sum()
+        self.representatives
+            .values()
+            .map(|i| i.vote_hashes.len())
+            .sum()
     }
 
     pub fn contains_representative(&self, representative: &PublicKey) -> bool {
@@ -42,11 +48,17 @@ impl RebroadcastHistory {
         weight: Amount,
         now: Timestamp,
     ) -> Result<(), RebroadcastError> {
-        let mut entry = RepresentativeEntry {
-            representative: vote.voter,
-            weight,
-            ..Default::default()
-        };
+        let entry = self
+            .representatives
+            .entry(vote.voter)
+            .or_insert_with(|| RepresentativeEntry::new(vote.voter, weight));
+
+        let vote_hash = vote.hash();
+
+        // Check if we already rebroadcasted this exact vote (fast lookup by hash)
+        if entry.vote_hashes.contains(&vote_hash) {
+            return Err(RebroadcastError::AlreadyRebroadcasted);
+        }
 
         for hash in &vote.hashes {
             entry.history.insert(
@@ -58,17 +70,29 @@ impl RebroadcastHistory {
                 },
             );
 
-            entry.hashes.insert(*hash);
+            entry.vote_hashes.insert(vote_hash);
         }
 
-        self.representatives.insert(vote.voter, entry);
         Ok(())
     }
 }
 
 impl Default for RebroadcastHistory {
     fn default() -> Self {
-        Self::new()
+        Self::new(Default::default())
+    }
+}
+
+pub(crate) struct RebroadcastHistoryConfig {
+    /// Minimum amount of time between rebroadcasts for the same hash from the same representative
+    pub rebroadcast_threshold: Duration,
+}
+
+impl Default for RebroadcastHistoryConfig {
+    fn default() -> Self {
+        Self {
+            rebroadcast_threshold: Duration::from_secs(90),
+        }
     }
 }
 
@@ -84,7 +108,20 @@ struct RepresentativeEntry {
     representative: PublicKey,
     weight: Amount,
     history: HashMap<BlockHash, RebroadcastEntry>,
-    hashes: HashSet<BlockHash>,
+
+    /// for quickly filtering out duplicates
+    vote_hashes: HashSet<BlockHash>,
+}
+
+impl RepresentativeEntry {
+    fn new(representative: PublicKey, weight: Amount) -> Self {
+        Self {
+            representative,
+            weight,
+            history: Default::default(),
+            vote_hashes: Default::default(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -97,7 +134,8 @@ pub(crate) struct RebroadcastEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::Vote;
+    use rsnano_core::{Vote, VoteTimestamp};
+    use std::time::Duration;
 
     #[test]
     fn empty() {
@@ -112,10 +150,8 @@ mod tests {
     fn record_one_vote() {
         let mut history = RebroadcastHistory::default();
         let vote = Vote::new_test_instance();
-        let weight = Amount::nano(100_000);
-        let now = Timestamp::new_test_instance();
 
-        history.check_and_record(&vote, weight, now).unwrap();
+        history.check_and_record(&vote, TEST_WEIGHT, NOW).unwrap();
 
         assert_eq!(history.representatives_count(), 1, "rep count");
         assert_eq!(history.total_history(), 1, "total history");
@@ -123,4 +159,65 @@ mod tests {
         assert!(history.contains_representative(&vote.voter), "contains rep");
         assert!(history.contains_block(&vote.hashes[0]), "contains block");
     }
+
+    #[test]
+    fn reject_duplicate_vote() {
+        let mut history = RebroadcastHistory::default();
+        let vote = Vote::new_test_instance();
+
+        // First vote should be accepted
+        history.check_and_record(&vote, TEST_WEIGHT, NOW).unwrap();
+
+        // Same vote should be rejected
+        let error = history
+            .check_and_record(&vote, TEST_WEIGHT, NOW)
+            .unwrap_err();
+        assert_eq!(error, RebroadcastError::AlreadyRebroadcasted);
+
+        // Even after time threshold
+        let error = history
+            .check_and_record(&vote, TEST_WEIGHT, NOW + Duration::from_secs(60 * 60))
+            .unwrap_err();
+        assert_eq!(error, RebroadcastError::AlreadyRebroadcasted);
+    }
+
+    #[test]
+    #[ignore = "WIP"]
+    fn rebroadcast_timing() {
+        //let config = RebroadcastHistoryConfig {
+        //    rebroadcast_threshold: Duration::from_millis(1000),
+        //    ..Default::default()
+        //};
+        //let mut history = RebroadcastHistory::new(config);
+
+        //// Initial vote
+        //let vote1 = Vote::build_test_instance()
+        //    .timestamp(UnixMillisTimestamp::new(1000))
+        //    .finish();
+
+        //history.check_and_record(&vote1, TEST_WEIGHT, NOW).unwrap();
+
+        //// Try rebroadcast immediately - should be rejected
+        //let vote2 = Vote::build_test_instance()
+        //    .timestamp(UnixMillisTimestamp::new(1500))
+        //    .finish();
+
+        //let error = history
+        //    .check_and_record(&vote1, TEST_WEIGHT, NOW)
+        //    .unwrap_err();
+
+        //assert_eq!(error, RebroadcastError::RebroadcastUnnecessary);
+
+        //// Try after threshold - should be accepted
+        //let vote3 = Vote::build_test_instance()
+        //    .timestamp(UnixMillisTimestamp::new(2500))
+        //    .finish();
+
+        //history
+        //    .check_and_record(&vote1, TEST_WEIGHT, NOW + Duration::from_millis(2000))
+        //    .unwrap();
+    }
+
+    const TEST_WEIGHT: Amount = Amount::nano(100_000);
+    const NOW: Timestamp = Timestamp::new_test_instance();
 }
