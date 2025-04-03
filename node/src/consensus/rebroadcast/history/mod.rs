@@ -8,12 +8,14 @@ use std::{
 /// Keeps track of past rebroadcasts and decides whether a new rebroadcast is necessary
 pub(crate) struct RebroadcastHistory {
     representatives: HashMap<PublicKey, RepresentativeEntry>,
+    config: RebroadcastHistoryConfig,
 }
 
 impl RebroadcastHistory {
     pub(super) fn new(config: RebroadcastHistoryConfig) -> Self {
         Self {
             representatives: HashMap::new(),
+            config,
         }
     }
 
@@ -25,7 +27,7 @@ impl RebroadcastHistory {
         self.representatives.values().map(|i| i.history.len()).sum()
     }
 
-    pub fn total_hashes(&self) -> usize {
+    pub fn total_vote_hashes(&self) -> usize {
         self.representatives
             .values()
             .map(|i| i.vote_hashes.len())
@@ -40,6 +42,12 @@ impl RebroadcastHistory {
         self.representatives
             .values()
             .any(|i| i.history.contains_key(block_hash))
+    }
+
+    pub fn contains_vote(&self, vote_hash: &BlockHash) -> bool {
+        self.representatives
+            .values()
+            .any(|i| i.vote_hashes.contains(vote_hash))
     }
 
     fn check_and_record(
@@ -58,6 +66,30 @@ impl RebroadcastHistory {
         // Check if we already rebroadcasted this exact vote (fast lookup by hash)
         if entry.vote_hashes.contains(&vote_hash) {
             return Err(RebroadcastError::AlreadyRebroadcasted);
+        }
+
+        let should_rebroadcast = vote.hashes.iter().any(|hash| {
+            let Some(existing) = entry.history.get(hash) else {
+                // Block hash not seen before, rebroadcast
+                return true;
+            };
+
+            // Always rebroadcast vote if rep switched to a final vote
+            if vote.is_final() && vote.timestamp() > existing.vote_timestamp {
+                return true;
+            }
+
+            // Only rebroadcast if sufficient time has passed since the last rebroadcast
+            if existing.timestamp + self.config.rebroadcast_threshold > now {
+                return false;
+            }
+
+            // Enough time has passed, block hash qualifies for rebroadcast
+            true
+        });
+
+        if !should_rebroadcast {
+            return Err(RebroadcastError::RebroadcastUnnecessary);
         }
 
         for hash in &vote.hashes {
@@ -134,7 +166,7 @@ pub(crate) struct RebroadcastEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{Vote, VoteTimestamp};
+    use rsnano_core::Vote;
     use std::time::Duration;
 
     #[test]
@@ -142,7 +174,7 @@ mod tests {
         let history = RebroadcastHistory::default();
         assert_eq!(history.representatives_count(), 0);
         assert_eq!(history.total_history(), 0);
-        assert_eq!(history.total_hashes(), 0);
+        assert_eq!(history.total_vote_hashes(), 0);
         assert_eq!(history.contains_representative(&PublicKey::from(1)), false);
     }
 
@@ -155,7 +187,7 @@ mod tests {
 
         assert_eq!(history.representatives_count(), 1, "rep count");
         assert_eq!(history.total_history(), 1, "total history");
-        assert_eq!(history.total_hashes(), 1, "total hashes");
+        assert_eq!(history.total_vote_hashes(), 1, "total hashes");
         assert!(history.contains_representative(&vote.voter), "contains rep");
         assert!(history.contains_block(&vote.hashes[0]), "contains block");
     }
@@ -182,40 +214,61 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "WIP"]
     fn rebroadcast_timing() {
-        //let config = RebroadcastHistoryConfig {
-        //    rebroadcast_threshold: Duration::from_millis(1000),
-        //    ..Default::default()
-        //};
-        //let mut history = RebroadcastHistory::new(config);
+        let config = RebroadcastHistoryConfig {
+            rebroadcast_threshold: Duration::from_millis(1000),
+            ..Default::default()
+        };
+        let mut history = RebroadcastHistory::new(config);
 
-        //// Initial vote
-        //let vote1 = Vote::build_test_instance()
-        //    .timestamp(UnixMillisTimestamp::new(1000))
-        //    .finish();
+        // Initial vote
+        let vote1 = Vote::build_test_instance()
+            .timestamp(UnixMillisTimestamp::new(1000))
+            .finish();
 
-        //history.check_and_record(&vote1, TEST_WEIGHT, NOW).unwrap();
+        history.check_and_record(&vote1, TEST_WEIGHT, NOW).unwrap();
 
-        //// Try rebroadcast immediately - should be rejected
-        //let vote2 = Vote::build_test_instance()
-        //    .timestamp(UnixMillisTimestamp::new(1500))
-        //    .finish();
+        // Try rebroadcast immediately - should be rejected
+        let vote2 = Vote::build_test_instance()
+            .timestamp(UnixMillisTimestamp::new(1500))
+            .finish();
 
-        //let error = history
-        //    .check_and_record(&vote1, TEST_WEIGHT, NOW)
-        //    .unwrap_err();
+        let error = history
+            .check_and_record(&vote2, TEST_WEIGHT, NOW)
+            .unwrap_err();
 
-        //assert_eq!(error, RebroadcastError::RebroadcastUnnecessary);
+        assert_eq!(error, RebroadcastError::RebroadcastUnnecessary);
 
-        //// Try after threshold - should be accepted
-        //let vote3 = Vote::build_test_instance()
-        //    .timestamp(UnixMillisTimestamp::new(2500))
-        //    .finish();
+        // Try after threshold - should be accepted
+        let vote3 = Vote::build_test_instance()
+            .timestamp(UnixMillisTimestamp::new(2500))
+            .finish();
 
-        //history
-        //    .check_and_record(&vote1, TEST_WEIGHT, NOW + Duration::from_millis(2000))
-        //    .unwrap();
+        history
+            .check_and_record(&vote3, TEST_WEIGHT, NOW + Duration::from_millis(2000))
+            .unwrap();
+    }
+
+    #[test]
+    fn final_vote_override() {
+        let mut history = RebroadcastHistory::default();
+
+        // Regular vote
+        let vote = Vote::build_test_instance().finish();
+        history.check_and_record(&vote, TEST_WEIGHT, NOW).unwrap();
+
+        // Final vote should override timing restrictions
+        let final_vote = Vote::build_test_instance().final_vote().finish();
+        history
+            .check_and_record(&final_vote, TEST_WEIGHT, NOW)
+            .expect("should override");
+
+        // Both vote should be kept in recent hashes index
+        assert_eq!(history.total_history(), 1);
+        assert_eq!(history.total_vote_hashes(), 2);
+        assert!(history.contains_block(&vote.hashes[0]));
+        assert!(history.contains_vote(&vote.hash()));
+        assert!(history.contains_vote(&final_vote.hash()));
     }
 
     const TEST_WEIGHT: Amount = Amount::nano(100_000);

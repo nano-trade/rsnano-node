@@ -97,13 +97,11 @@ impl Vote {
     }
 
     pub fn new_test_instance() -> Self {
-        let key = PrivateKey::from(42);
-        Self::new(
-            &key,
-            UnixMillisTimestamp::new(1),
-            2,
-            vec![BlockHash::from(5)],
-        )
+        Self::build_test_instance().finish()
+    }
+
+    pub fn build_test_instance() -> TestVoteBuilder {
+        TestVoteBuilder::new()
     }
 
     pub const DURATION_MAX: u8 = 0x0F;
@@ -182,3 +180,41 @@ impl PartialEq for Vote {
 }
 
 impl Eq for Vote {}
+
+pub struct TestVoteBuilder {
+    key: PrivateKey,
+    timestamp: UnixMillisTimestamp,
+    duration: u8,
+    is_final: bool,
+    hashes: Vec<BlockHash>,
+}
+
+impl TestVoteBuilder {
+    fn new() -> Self {
+        Self {
+            key: PrivateKey::from(42),
+            timestamp: UnixMillisTimestamp::new(1),
+            duration: 2,
+            is_final: false,
+            hashes: vec![BlockHash::from(5)],
+        }
+    }
+
+    pub fn timestamp(mut self, ts: UnixMillisTimestamp) -> Self {
+        self.timestamp = ts;
+        self
+    }
+
+    pub fn final_vote(mut self) -> Self {
+        self.is_final = true;
+        self
+    }
+
+    pub fn finish(self) -> Vote {
+        if self.is_final {
+            Vote::new_final(&self.key, self.hashes)
+        } else {
+            Vote::new(&self.key, self.timestamp, self.duration, self.hashes)
+        }
+    }
+}
