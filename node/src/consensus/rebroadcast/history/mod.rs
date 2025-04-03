@@ -66,23 +66,22 @@ impl RebroadcastHistory {
     ) -> Result<(), RebroadcastError> {
         self.ensure_not_full(vote, weight)?;
 
-        let entry = if let Some(existing) = self.representatives.get_mut(&vote.voter) {
-            existing
-        } else {
-            self.representatives.insert(RepresentativeEntry::new(
+        self.get_or_insert(vote, weight)
+            .check_and_record(vote, now)?;
+
+        self.trim_representatives();
+        Ok(())
+    }
+
+    fn get_or_insert(&mut self, vote: &Vote, weight: Amount) -> &mut RepresentativeEntry {
+        self.representatives.get_or_insert(vote.voter, || {
+            RepresentativeEntry::new(
                 vote.voter,
                 weight,
                 self.config.max_blocks_per_rep,
                 self.config.rebroadcast_min_gap,
-            ));
-
-            self.representatives.get_mut(&vote.voter).unwrap()
-        };
-
-        entry.check_and_record(vote, now)?;
-
-        self.trim_representatives();
-        Ok(())
+            )
+        })
     }
 
     fn ensure_not_full(&self, vote: &Vote, weight: Amount) -> Result<(), RebroadcastError> {
@@ -101,34 +100,18 @@ impl RebroadcastHistory {
 
         // However, if we're at capacity, we can still add the rep if it has a higher weight
         // than the lowest weight in the container
-        // TODO: use a BTreeMap for the lookup!
-        self.representatives
-            .entries()
-            .any(|i| rep_weight > i.weight)
+        rep_weight > self.representatives.lowest_weight()
     }
 
     fn trim_representatives(&mut self) {
         // Keep representatives index within limits, erase lowest weight entries
         while self.representatives.len() > self.config.max_representatives {
-            // TODO use BTreeMap
-            let lowest = self
-                .representatives
-                .entries()
-                .min_by(|x, y| x.weight.cmp(&y.weight))
-                .map(|i| i.representative)
-                .unwrap();
-
-            self.representatives.remove(&lowest);
+            self.representatives.remove_lowest_weight();
         }
     }
 
     pub fn update_weights(&mut self, rep_weights: &HashMap<PublicKey, Amount>) {
-        for entry in self.representatives.entries_mut() {
-            entry.weight = rep_weights
-                .get(&entry.representative)
-                .cloned()
-                .unwrap_or(Amount::zero());
-        }
+        self.representatives.change_weights(rep_weights);
     }
 }
 
