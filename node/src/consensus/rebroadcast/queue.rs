@@ -63,7 +63,6 @@ pub(crate) struct VoteRebroadcastQueue {
     stopped: AtomicBool,
     stats: Arc<Stats>,
     block_when_empty: bool,
-    max_len: usize,
 }
 
 impl VoteRebroadcastQueue {
@@ -75,12 +74,11 @@ impl VoteRebroadcastQueue {
 
     fn new(stats: Arc<Stats>, block_when_empty: bool, max_queue: usize) -> Self {
         Self {
-            queue: Mutex::new(Default::default()),
+            queue: Mutex::new(QueueImpl::new(max_queue)),
             enqueued: Condvar::new(),
             stopped: AtomicBool::new(false),
             stats,
             block_when_empty,
-            max_len: max_queue,
         }
     }
 
@@ -99,7 +97,7 @@ impl VoteRebroadcastQueue {
                 return;
             }
 
-            if queue.len() < self.max_len && !self.stopped() {
+            if !self.stopped() {
                 queue.enqueue(vote)
             } else {
                 false
@@ -176,16 +174,30 @@ impl WalletRepsConsumer for VoteRebroadcastQueue {
     }
 }
 
-#[derive(Default)]
 struct QueueImpl {
     queue: VecDeque<Arc<Vote>>,
     rep_tiers: RepTiers,
     is_close_to_pr: bool,
     local_reps: HashSet<PublicKey>,
+    max_queue: usize,
 }
 
 impl QueueImpl {
+    fn new(max_queue: usize) -> Self {
+        Self {
+            queue: VecDeque::new(),
+            rep_tiers: RepTiers::default(),
+            is_close_to_pr: false,
+            local_reps: HashSet::new(),
+            max_queue,
+        }
+    }
+
     fn enqueue(&mut self, vote: Arc<Vote>) -> bool {
+        if self.queue.len() >= self.max_queue {
+            return false;
+        }
+
         if self.is_close_to_pr {
             // Enable vote rebroadcasting only if the node does not host a representative
             return false;
@@ -238,7 +250,6 @@ mod tests {
     fn empty() {
         let queue = VoteRebroadcastQueue::build().finish();
         assert_eq!(queue.len(), 0);
-        assert_eq!(queue.max_len, VoteRebroadcastQueue::DEFAULT_MAX_QUEUE);
     }
 
     #[test]
