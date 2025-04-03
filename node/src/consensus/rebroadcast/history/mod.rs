@@ -1,10 +1,7 @@
 use crate::consensus::bounded_hash_map::BoundedHashMap;
 use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, Vote};
 use rsnano_nullable_clock::Timestamp;
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
+use std::{collections::HashMap, time::Duration};
 
 /// Keeps track of past rebroadcasts and decides whether a new rebroadcast is necessary
 pub(crate) struct RebroadcastHistory {
@@ -49,7 +46,7 @@ impl RebroadcastHistory {
     pub fn contains_vote(&self, vote_hash: &BlockHash) -> bool {
         self.representatives
             .values()
-            .any(|i| i.vote_hashes.contains(vote_hash))
+            .any(|i| i.vote_hashes.contains_key(vote_hash))
     }
 
     fn check_and_record(
@@ -58,7 +55,7 @@ impl RebroadcastHistory {
         weight: Amount,
         now: Timestamp,
     ) -> Result<(), RebroadcastError> {
-        if !self.representatives.contains_key(&vote.voter) && !self.should_add(weight) {
+        if !self.representatives.contains_key(&vote.voter) && !self.can_add(weight) {
             return Err(RebroadcastError::RepresentativesFull);
         }
 
@@ -69,7 +66,7 @@ impl RebroadcastHistory {
         let vote_hash = vote.hash();
 
         // Check if we already rebroadcasted this exact vote (fast lookup by hash)
-        if entry.vote_hashes.contains(&vote_hash) {
+        if entry.vote_hashes.contains_key(&vote_hash) {
             return Err(RebroadcastError::AlreadyRebroadcasted);
         }
 
@@ -89,6 +86,16 @@ impl RebroadcastHistory {
                 return false;
             }
 
+            if existing
+                .vote_timestamp
+                .checked_add(self.config.rebroadcast_threshold)
+                .unwrap_or(UnixMillisTimestamp::MAX)
+                > vote.timestamp()
+            {
+                // Not enough (as seen by vote timestamp) time has passed
+                return false;
+            }
+
             // Enough time has passed, block hash qualifies for rebroadcast
             true
         });
@@ -97,6 +104,7 @@ impl RebroadcastHistory {
             return Err(RebroadcastError::RebroadcastUnnecessary);
         }
 
+        // Update the history with the new vote info
         for hash in &vote.hashes {
             entry.history.insert(
                 *hash,
@@ -106,10 +114,10 @@ impl RebroadcastHistory {
                     timestamp: now,
                 },
             );
-
-            // Also keep track of the vote hash to quickly filter out duplicates
-            entry.vote_hashes.insert(vote_hash);
         }
+
+        // Also keep track of the vote hash to quickly filter out duplicates
+        entry.vote_hashes.insert(vote_hash, ());
 
         // Keep representatives index within limits, erase lowest weight entries
         while self.representatives.len() > self.config.max_representatives {
@@ -127,7 +135,7 @@ impl RebroadcastHistory {
         Ok(())
     }
 
-    fn should_add(&self, rep_weight: Amount) -> bool {
+    fn can_add(&self, rep_weight: Amount) -> bool {
         // Under normal conditions the number of principal representatives should be below this limit
         if self.representatives.len() < self.config.max_representatives {
             return true;
@@ -198,7 +206,7 @@ struct RepresentativeEntry {
     history: BoundedHashMap<BlockHash, RebroadcastEntry>,
 
     /// for quickly filtering out duplicates
-    vote_hashes: HashSet<BlockHash>,
+    vote_hashes: BoundedHashMap<BlockHash, ()>,
 }
 
 impl RepresentativeEntry {
@@ -207,7 +215,7 @@ impl RepresentativeEntry {
             representative,
             weight,
             history: BoundedHashMap::new(max_history),
-            vote_hashes: Default::default(),
+            vote_hashes: BoundedHashMap::new(max_history),
         }
     }
 }
@@ -273,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn rebroadcast_timing() {
+    fn reject_when_last_rebroadcast_is_too_close() {
         let config = RebroadcastHistoryConfig {
             rebroadcast_threshold: Duration::from_millis(1000),
             ..Default::default()
@@ -289,7 +297,7 @@ mod tests {
 
         // Try rebroadcast immediately - should be rejected
         let vote2 = Vote::build_test_instance()
-            .timestamp(UnixMillisTimestamp::new(1500))
+            .timestamp(UnixMillisTimestamp::new(5000))
             .finish();
 
         assert_eq!(
@@ -299,11 +307,46 @@ mod tests {
 
         // Try after threshold - should be accepted
         let vote3 = Vote::build_test_instance()
-            .timestamp(UnixMillisTimestamp::new(2500))
+            .timestamp(UnixMillisTimestamp::new(9000))
             .finish();
 
         history
             .check_and_record(&vote3, TEST_WEIGHT, NOW + Duration::from_millis(2000))
+            .unwrap();
+    }
+
+    #[test]
+    fn reject_when_vote_timestamp_is_too_close_to_previous_vote() {
+        let config = RebroadcastHistoryConfig {
+            rebroadcast_threshold: Duration::from_millis(1000),
+            ..Default::default()
+        };
+        let mut history = RebroadcastHistory::new(config);
+
+        // Initial vote
+        let vote1 = Vote::build_test_instance()
+            .timestamp(UnixMillisTimestamp::new(1000))
+            .finish();
+
+        history.check_and_record(&vote1, TEST_WEIGHT, NOW).unwrap();
+
+        // timestamp too close - should be rejected
+        let vote2 = Vote::build_test_instance()
+            .timestamp(UnixMillisTimestamp::new(1500))
+            .finish();
+
+        assert_eq!(
+            history.check_and_record(&vote2, TEST_WEIGHT, NOW + Duration::from_secs(2)),
+            Err(RebroadcastError::RebroadcastUnnecessary)
+        );
+
+        // gap big enough - should be accepted
+        let vote3 = Vote::build_test_instance()
+            .timestamp(UnixMillisTimestamp::new(2000))
+            .finish();
+
+        history
+            .check_and_record(&vote3, TEST_WEIGHT, NOW + Duration::from_secs(4))
             .unwrap();
     }
 
@@ -406,8 +449,18 @@ mod tests {
         let vote3 = Vote::build_test_instance().blocks([3.into()]).finish();
         history.check_and_record(&vote3, TEST_WEIGHT, NOW).unwrap();
 
-        assert_eq!(history.total_history(), 2);
-        assert_eq!(history.contains_block(&vote1.voter, &1.into()), false); // Oldest was removed
+        assert_eq!(history.total_history(), 2, "total history");
+        assert_eq!(
+            history.contains_block(&vote1.voter, &1.into()),
+            false,
+            "oldest block not removed"
+        );
+        assert_eq!(
+            history.contains_vote(&vote1.hash()),
+            false,
+            "oldest vote not removed"
+        );
+        assert_eq!(history.contains_vote(&vote2.hash()), true, "vote2 missing");
     }
 
     #[test]
@@ -430,7 +483,7 @@ mod tests {
         });
 
         assert_eq!(cleanup_count, 1);
-        assert_eq!(history.representatives_count(), 1);
+        assert_eq!(history.representatives_count(), 1, "rep count");
         assert_eq!(history.contains_representative(&vote1.voter), false);
         assert_eq!(history.contains_representative(&vote2.voter), true);
     }

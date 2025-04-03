@@ -252,6 +252,12 @@ impl UnixMillisTimestamp {
     pub fn from_be_bytes(bytes: [u8; 8]) -> Self {
         Self(u64::from_be_bytes(bytes))
     }
+
+    pub fn checked_add(&self, duration: Duration) -> Option<Self> {
+        self.0
+            .checked_add(duration.as_millis() as u64)
+            .map(|i| Self(i))
+    }
 }
 
 impl From<u64> for UnixMillisTimestamp {
