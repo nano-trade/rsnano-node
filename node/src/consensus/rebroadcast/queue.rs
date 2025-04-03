@@ -100,8 +100,7 @@ impl VoteRebroadcastQueue {
             }
 
             if queue.len() < self.max_len && !self.stopped() {
-                queue.enqueue(vote);
-                true
+                queue.enqueue(vote)
             } else {
                 false
             }
@@ -186,8 +185,16 @@ struct QueueImpl {
 }
 
 impl QueueImpl {
-    fn enqueue(&mut self, vote: Arc<Vote>) {
+    fn enqueue(&mut self, vote: Arc<Vote>) -> bool {
+        if self.is_close_to_pr {
+            // Enable vote rebroadcasting only if the node does not host a representative
+            return false;
+        }
+
+        // Do not rebroadcast votes from non-principal representatives
+
         self.queue.push_back(vote);
+        true
     }
 
     fn dequeue(&mut self) -> Option<Arc<Vote>> {
