@@ -1,18 +1,14 @@
-use std::{
-    sync::{Arc, Mutex},
-    thread::JoinHandle,
-};
+use std::{sync::Arc, thread::JoinHandle};
 
 use rsnano_stats::Stats;
 
 use super::{rebroadcast_processor::RebroadcastProcessor, VoteRebroadcastQueue};
-use crate::{transport::MessageFlooder, wallets::WalletRepresentatives};
+use crate::transport::MessageFlooder;
 
 /// Rebroadcasts votes that were created by other nodes
 pub(crate) struct VoteRebroadcaster {
     queue: Arc<VoteRebroadcastQueue>,
     join_handle: Option<JoinHandle<()>>,
-    wallet_reps: Arc<Mutex<WalletRepresentatives>>,
     message_flooder: Option<MessageFlooder>,
     stats: Arc<Stats>,
     vote_processed_callback: Option<Box<dyn Fn() + Send + Sync>>,
@@ -21,13 +17,11 @@ pub(crate) struct VoteRebroadcaster {
 impl VoteRebroadcaster {
     pub(crate) fn new(
         queue: Arc<VoteRebroadcastQueue>,
-        wallet_reps: Arc<Mutex<WalletRepresentatives>>,
         message_flooder: MessageFlooder,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
             queue,
-            wallet_reps,
             join_handle: None,
             message_flooder: Some(message_flooder),
             stats,
@@ -37,18 +31,15 @@ impl VoteRebroadcaster {
 
     pub fn start(&mut self) {
         let queue = self.queue.clone();
-        let mut rebroadcast_processor = RebroadcastProcessor::new(
-            self.wallet_reps.clone(),
-            self.message_flooder.take().unwrap(),
-            self.stats.clone(),
-        );
+        let mut rebroadcast_processor =
+            RebroadcastProcessor::new(self.message_flooder.take().unwrap(), self.stats.clone());
         let callback = self.vote_processed_callback.take();
 
         let handle = std::thread::Builder::new()
             .name("Vote rebroad".to_owned())
             .spawn(move || {
                 while let Some(vote) = queue.dequeue_blocking() {
-                    rebroadcast_processor.process_vote(&vote);
+                    rebroadcast_processor.rebroadcast(&vote);
                     if let Some(cb) = &callback {
                         cb();
                     }
@@ -106,12 +97,10 @@ mod tests {
         Arc<OutputTrackerMt<FloodEvent>>,
     ) {
         let queue = Arc::new(VoteRebroadcastQueue::default());
-        let wallet_reps = Arc::new(Mutex::new(WalletRepresentatives::default()));
         let message_flooder = MessageFlooder::new_null();
         let flood_tracker = message_flooder.track_floods();
         let stats = Arc::new(Stats::default());
-        let rebroadcaster =
-            VoteRebroadcaster::new(queue.clone(), wallet_reps, message_flooder, stats);
+        let rebroadcaster = VoteRebroadcaster::new(queue.clone(), message_flooder, stats);
 
         (rebroadcaster, queue, flood_tracker)
     }

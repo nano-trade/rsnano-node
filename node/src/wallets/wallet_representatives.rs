@@ -9,7 +9,7 @@ pub struct WalletRepresentatives {
     /// Number of representatives with at least the configured minimum voting weight
     voting: u64,
     /// Representatives with at least the configured minimum voting weight
-    accounts: HashSet<Account>,
+    pub accounts: HashSet<Account>,
     vote_minimum: Amount,
     rep_weights: Arc<RepWeightCache>,
 }

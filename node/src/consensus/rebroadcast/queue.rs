@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Condvar, Mutex,
@@ -13,7 +13,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
-    BlockHash, Vote, VoteCode,
+    BlockHash, PublicKey, Vote, VoteCode,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -170,10 +170,9 @@ impl RepTiersConsumer for VoteRebroadcastQueue {
 
 impl WalletRepsConsumer for VoteRebroadcastQueue {
     fn update_wallet_reps(&self, reps: &WalletRepresentatives) {
-        self.queue
-            .lock()
-            .unwrap()
-            .is_close_to_pr(reps.have_half_rep())
+        let mut queue = self.queue.lock().unwrap();
+        queue.is_close_to_pr(reps.have_half_rep());
+        queue.set_local_reps(reps.accounts.iter().map(|a| a.into()).collect());
     }
 }
 
@@ -182,6 +181,7 @@ struct QueueImpl {
     queue: VecDeque<Arc<Vote>>,
     rep_tiers: RepTiers,
     is_close_to_pr: bool,
+    local_reps: HashSet<PublicKey>,
 }
 
 impl QueueImpl {
@@ -191,7 +191,13 @@ impl QueueImpl {
             return false;
         }
 
+        if self.local_reps.contains(&vote.voter) {
+            // Don't republish votes created by this node
+            return false;
+        }
+
         // Do not rebroadcast votes from non-principal representatives
+        // TODO
 
         self.queue.push_back(vote);
         true
@@ -199,10 +205,6 @@ impl QueueImpl {
 
     fn dequeue(&mut self) -> Option<Arc<Vote>> {
         self.queue.pop_front()
-    }
-
-    fn set_rep_tiers(&mut self, new_tiers: RepTiers) {
-        self.rep_tiers = new_tiers;
     }
 
     fn len(&self) -> usize {
@@ -215,6 +217,14 @@ impl QueueImpl {
 
     fn is_close_to_pr(&mut self, is_pr: bool) {
         self.is_close_to_pr = is_pr;
+    }
+
+    fn set_local_reps(&mut self, reps: HashSet<PublicKey>) {
+        self.local_reps = reps;
+    }
+
+    fn set_rep_tiers(&mut self, new_tiers: RepTiers) {
+        self.rep_tiers = new_tiers;
     }
 }
 
