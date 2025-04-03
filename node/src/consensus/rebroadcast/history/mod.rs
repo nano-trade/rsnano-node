@@ -1,22 +1,24 @@
+mod rep_container;
 mod rep_entry;
 
 use std::{collections::HashMap, time::Duration};
 
 use crate::consensus::bounded_hash_map::BoundedHashMap;
+use rep_container::RepresentativeContainer;
 use rep_entry::RepresentativeEntry;
 use rsnano_core::{Amount, BlockHash, PublicKey, Vote};
 use rsnano_nullable_clock::Timestamp;
 
 /// Keeps track of past rebroadcasts and decides whether a new rebroadcast is necessary
 pub(crate) struct RebroadcastHistory {
-    representatives: HashMap<PublicKey, RepresentativeEntry>,
+    representatives: RepresentativeContainer,
     config: RebroadcastHistoryConfig,
 }
 
 impl RebroadcastHistory {
     pub(super) fn new(config: RebroadcastHistoryConfig) -> Self {
         Self {
-            representatives: HashMap::new(),
+            representatives: Default::default(),
             config,
         }
     }
@@ -26,18 +28,21 @@ impl RebroadcastHistory {
     }
 
     pub fn total_history(&self) -> usize {
-        self.representatives.values().map(|i| i.history.len()).sum()
+        self.representatives
+            .entries()
+            .map(|i| i.history.len())
+            .sum()
     }
 
     pub fn total_vote_hashes(&self) -> usize {
         self.representatives
-            .values()
+            .entries()
             .map(|i| i.vote_hashes.len())
             .sum()
     }
 
     pub fn contains_representative(&self, representative: &PublicKey) -> bool {
-        self.representatives.contains_key(representative)
+        self.representatives.contains(representative)
     }
 
     pub fn contains_block(&self, representative: &PublicKey, block_hash: &BlockHash) -> bool {
@@ -49,7 +54,7 @@ impl RebroadcastHistory {
 
     pub fn contains_vote(&self, vote_hash: &BlockHash) -> bool {
         self.representatives
-            .values()
+            .entries()
             .any(|i| i.vote_hashes.contains_key(vote_hash))
     }
 
@@ -61,17 +66,27 @@ impl RebroadcastHistory {
     ) -> Result<(), RebroadcastError> {
         self.ensure_not_full(vote, weight)?;
 
-        let rep_entry = self.representatives.entry(vote.voter).or_insert_with(|| {
-            RepresentativeEntry::new(vote.voter, weight, self.config.max_blocks_per_rep)
-        });
+        let entry = if let Some(existing) = self.representatives.get_mut(&vote.voter) {
+            existing
+        } else {
+            self.representatives.insert(RepresentativeEntry::new(
+                vote.voter,
+                weight,
+                self.config.max_blocks_per_rep,
+                self.config.rebroadcast_min_gap,
+            ));
 
-        rep_entry.check_and_record(vote, self.config.rebroadcast_min_gap, now)?;
+            self.representatives.get_mut(&vote.voter).unwrap()
+        };
+
+        entry.check_and_record(vote, now)?;
+
         self.trim_representatives();
         Ok(())
     }
 
     fn ensure_not_full(&self, vote: &Vote, weight: Amount) -> Result<(), RebroadcastError> {
-        if self.representatives.contains_key(&vote.voter) || self.can_add(weight) {
+        if self.representatives.contains(&vote.voter) || self.can_add(weight) {
             Ok(())
         } else {
             Err(RebroadcastError::RepresentativesFull)
@@ -87,7 +102,9 @@ impl RebroadcastHistory {
         // However, if we're at capacity, we can still add the rep if it has a higher weight
         // than the lowest weight in the container
         // TODO: use a BTreeMap for the lookup!
-        self.representatives.values().any(|i| rep_weight > i.weight)
+        self.representatives
+            .entries()
+            .any(|i| rep_weight > i.weight)
     }
 
     fn trim_representatives(&mut self) {
@@ -96,7 +113,7 @@ impl RebroadcastHistory {
             // TODO use BTreeMap
             let lowest = self
                 .representatives
-                .values()
+                .entries()
                 .min_by(|x, y| x.weight.cmp(&y.weight))
                 .map(|i| i.representative)
                 .unwrap();
@@ -106,7 +123,7 @@ impl RebroadcastHistory {
     }
 
     pub fn update_weights(&mut self, rep_weights: &HashMap<PublicKey, Amount>) {
-        for entry in self.representatives.values_mut() {
+        for entry in self.representatives.entries_mut() {
             entry.weight = rep_weights
                 .get(&entry.representative)
                 .cloned()

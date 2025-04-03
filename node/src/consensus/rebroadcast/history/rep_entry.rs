@@ -8,6 +8,7 @@ use super::{BoundedHashMap, RebroadcastError};
 pub(crate) struct RepresentativeEntry {
     pub representative: PublicKey,
     pub weight: Amount,
+    min_gap: Duration,
     pub history: BoundedHashMap<BlockHash, RebroadcastEntry>,
 
     /// for quickly filtering out duplicates
@@ -15,10 +16,16 @@ pub(crate) struct RepresentativeEntry {
 }
 
 impl RepresentativeEntry {
-    pub fn new(representative: PublicKey, weight: Amount, max_history: usize) -> Self {
+    pub fn new(
+        representative: PublicKey,
+        weight: Amount,
+        max_history: usize,
+        min_gap: Duration,
+    ) -> Self {
         Self {
             representative,
             weight,
+            min_gap,
             history: BoundedHashMap::new(max_history),
             vote_hashes: BoundedHashMap::new(max_history),
         }
@@ -27,24 +34,12 @@ impl RepresentativeEntry {
     pub fn check_and_record(
         &mut self,
         vote: &Vote,
-        min_gap: Duration,
         now: Timestamp,
     ) -> Result<(), RebroadcastError> {
         let vote_hash = vote.hash();
         self.ensure_not_broadcasted_yet(&vote_hash)?;
-        self.ensure_broadcast_necessary(vote, min_gap, now)?;
-
-        // Update the history with the new vote info
-        for hash in &vote.hashes {
-            self.history.insert(
-                *hash,
-                RebroadcastEntry {
-                    block_hash: *hash,
-                    vote_timestamp: vote.timestamp(),
-                    timestamp: now,
-                },
-            );
-        }
+        self.ensure_broadcast_necessary(vote, now)?;
+        self.insert_block_hashes(vote, now);
 
         // Also keep track of the vote hash to quickly filter out duplicates
         self.vote_hashes.insert(vote_hash, ());
@@ -62,13 +57,12 @@ impl RepresentativeEntry {
     fn ensure_broadcast_necessary(
         &self,
         vote: &Vote,
-        min_gap: Duration,
         now: Timestamp,
     ) -> Result<(), RebroadcastError> {
         let should_rebroadcast = vote
             .hashes
             .iter()
-            .any(|hash| self.should_rebroadcast_hash(hash, vote, min_gap, now));
+            .any(|hash| self.should_rebroadcast_hash(hash, vote, now));
 
         if should_rebroadcast {
             Ok(())
@@ -77,19 +71,26 @@ impl RepresentativeEntry {
         }
     }
 
-    fn should_rebroadcast_hash(
-        &self,
-        hash: &BlockHash,
-        vote: &Vote,
-        min_gap: Duration,
-        now: Timestamp,
-    ) -> bool {
+    fn insert_block_hashes(&mut self, vote: &Vote, now: Timestamp) {
+        for hash in &vote.hashes {
+            self.history.insert(
+                *hash,
+                RebroadcastEntry {
+                    block_hash: *hash,
+                    vote_timestamp: vote.timestamp(),
+                    timestamp: now,
+                },
+            );
+        }
+    }
+
+    fn should_rebroadcast_hash(&self, hash: &BlockHash, vote: &Vote, now: Timestamp) -> bool {
         let Some(last_rebroadcast) = self.history.get(hash) else {
             // Block hash not seen before, rebroadcast
             return true;
         };
 
-        last_rebroadcast.should_rebroadcast(vote, min_gap, now)
+        last_rebroadcast.should_rebroadcast(vote, self.min_gap, now)
     }
 }
 
