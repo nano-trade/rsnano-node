@@ -84,6 +84,7 @@ where
 
     pub fn clear(&mut self) {
         self.queues.clear();
+        self.total_len = 0;
     }
 
     /// Push an item to the appropriate queue based on the source

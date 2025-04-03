@@ -12,7 +12,7 @@ use crate::{
     wallets::WalletRepresentatives,
 };
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoProvider},
+    utils::{ContainerInfo, ContainerInfoProvider, FairQueue},
     BlockHash, PublicKey, Vote, VoteCode,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -175,7 +175,7 @@ impl WalletRepsConsumer for VoteRebroadcastQueue {
 }
 
 struct QueueImpl {
-    queue: VecDeque<Arc<Vote>>,
+    queue: FairQueue<RepTier, Arc<Vote>>,
     rep_tiers: RepTiers,
     is_close_to_pr: bool,
     local_reps: HashSet<PublicKey>,
@@ -184,8 +184,20 @@ struct QueueImpl {
 
 impl QueueImpl {
     fn new(max_queue: usize) -> Self {
+        let max_size_query = move |tier: &RepTier| match tier {
+            RepTier::None => 0,
+            _ => max_queue,
+        };
+
+        let priority_query = |tier: &RepTier| match tier {
+            RepTier::Tier1 => 8,
+            RepTier::Tier2 => 4,
+            RepTier::Tier3 => 2,
+            RepTier::None => 0,
+        };
+
         Self {
-            queue: VecDeque::new(),
+            queue: FairQueue::new(max_size_query, priority_query),
             rep_tiers: RepTiers::default(),
             is_close_to_pr: false,
             local_reps: HashSet::new(),
@@ -208,17 +220,18 @@ impl QueueImpl {
             return false;
         }
 
-        if self.rep_tiers.tier(&vote.voter) == RepTier::None {
+        let tier = self.rep_tiers.tier(&vote.voter);
+        if tier == RepTier::None {
             // Do not rebroadcast votes from non-principal representatives
             return false;
         }
 
-        self.queue.push_back(vote);
+        self.queue.push(tier, vote);
         true
     }
 
     fn dequeue(&mut self) -> Option<Arc<Vote>> {
-        self.queue.pop_front()
+        self.queue.next().map(|(_, vote)| vote)
     }
 
     fn len(&self) -> usize {
