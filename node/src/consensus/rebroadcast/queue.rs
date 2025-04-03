@@ -8,7 +8,7 @@ use std::{
 
 use super::WalletRepsConsumer;
 use crate::{
-    consensus::{RepTiers, RepTiersConsumer},
+    consensus::{RepTier, RepTiers, RepTiersConsumer},
     wallets::WalletRepresentatives,
 };
 use rsnano_core::{
@@ -196,8 +196,10 @@ impl QueueImpl {
             return false;
         }
 
-        // Do not rebroadcast votes from non-principal representatives
-        // TODO
+        if self.rep_tiers.tier(&vote.voter) == RepTier::None {
+            // Do not rebroadcast votes from non-principal representatives
+            return false;
+        }
 
         self.queue.push_back(vote);
         true
@@ -242,6 +244,7 @@ mod tests {
     #[test]
     fn enqueue_and_dequeue_a_vote() {
         let queue = VoteRebroadcastQueue::build().finish();
+        set_rep_tiers(&queue);
         queue.enqueue(test_vote());
         assert_eq!(queue.len(), 1);
 
@@ -253,6 +256,8 @@ mod tests {
     #[test]
     fn dequeue_waits_when_queue_empty() {
         let queue = VoteRebroadcastQueue::build().finish();
+        set_rep_tiers(&queue);
+
         let notify = Condvar::new();
         let waiting = Mutex::new(false);
         let mut dequeued = None;
@@ -290,6 +295,7 @@ mod tests {
     #[test]
     fn stop() {
         let queue = VoteRebroadcastQueue::build().finish();
+        set_rep_tiers(&queue);
         queue.enqueue(test_vote());
 
         queue.stop();
@@ -305,6 +311,7 @@ mod tests {
     #[test]
     fn max_len() {
         let queue = VoteRebroadcastQueue::build().max_len(2).finish();
+        set_rep_tiers(&queue);
         queue.enqueue(test_vote());
         queue.enqueue(test_vote());
         assert_eq!(queue.len(), 2);
@@ -316,6 +323,7 @@ mod tests {
     #[test]
     fn container_info() {
         let queue = VoteRebroadcastQueue::build().max_len(2).finish();
+        set_rep_tiers(&queue);
         queue.enqueue(test_vote());
         let info = queue.container_info();
         let expected: ContainerInfo = [("queue", 1, 0)].into();
@@ -325,6 +333,7 @@ mod tests {
     #[test]
     fn ignore_unprocessed_vote() {
         let queue = VoteRebroadcastQueue::build().finish();
+        set_rep_tiers(&queue);
         let mut results = HashMap::new();
         results.insert(BlockHash::from(1), VoteCode::Invalid);
         results.insert(BlockHash::from(2), VoteCode::Replay);
@@ -339,6 +348,7 @@ mod tests {
     #[test]
     fn enqueue_processed_vote() {
         let queue = VoteRebroadcastQueue::build().finish();
+        set_rep_tiers(&queue);
         let mut results = HashMap::new();
         results.insert(BlockHash::from(1), VoteCode::Invalid);
         results.insert(BlockHash::from(2), VoteCode::Replay);
@@ -355,5 +365,15 @@ mod tests {
 
     fn test_vote() -> Arc<Vote> {
         Arc::new(Vote::new_test_instance())
+    }
+
+    fn test_voter() -> PublicKey {
+        test_vote().voter
+    }
+
+    fn set_rep_tiers(queue: &VoteRebroadcastQueue) {
+        let mut rep_tiers = RepTiers::default();
+        rep_tiers.tier1.insert(test_voter());
+        queue.update_rep_tiers(rep_tiers);
     }
 }

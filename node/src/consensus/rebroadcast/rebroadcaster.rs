@@ -71,7 +71,10 @@ impl Drop for VoteRebroadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transport::FloodEvent;
+    use crate::{
+        consensus::{RepTiers, RepTiersConsumer},
+        transport::FloodEvent,
+    };
     use rsnano_core::{utils::OneShotNotification, Vote};
     use rsnano_output_tracker::OutputTrackerMt;
 
@@ -84,7 +87,11 @@ mod tests {
         rebroadcaster.on_vote_processed(move || done2.notify(()));
         rebroadcaster.start();
 
-        queue.enqueue(Arc::new(Vote::new_test_instance()));
+        let vote = Arc::new(Vote::new_test_instance());
+        let mut rep_tiers = RepTiers::default();
+        rep_tiers.tier1.insert(vote.voter);
+        queue.update_rep_tiers(rep_tiers);
+        queue.enqueue(vote);
 
         done.wait();
 

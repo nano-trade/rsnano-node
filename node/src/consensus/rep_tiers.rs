@@ -45,11 +45,11 @@ impl From<RepTier> for DetailType {
 #[derive(Default, Clone)]
 pub struct RepTiers {
     /// 0.1% or above
-    tier1: HashSet<PublicKey>,
+    pub tier1: HashSet<PublicKey>,
     /// 1% or above
-    tier2: HashSet<PublicKey>,
+    pub tier2: HashSet<PublicKey>,
     /// 5% or above
-    tier3: HashSet<PublicKey>,
+    pub tier3: HashSet<PublicKey>,
 }
 
 impl RepTiers {
