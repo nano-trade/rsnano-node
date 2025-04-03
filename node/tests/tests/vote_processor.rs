@@ -250,11 +250,20 @@ fn weights() {
             >= 2
     });
 
-    assert_timely_eq2(|| node0.rep_tiers.tier(&key0.public_key()), RepTier::None);
-    assert_timely_eq2(|| node0.rep_tiers.tier(&key1.public_key()), RepTier::Tier1);
-    assert_timely_eq2(|| node0.rep_tiers.tier(&key2.public_key()), RepTier::Tier2);
     assert_timely_eq2(
-        || node0.rep_tiers.tier(&DEV_GENESIS_PUB_KEY),
+        || node0.rep_tiers.lock().unwrap().tier(&key0.public_key()),
+        RepTier::None,
+    );
+    assert_timely_eq2(
+        || node0.rep_tiers.lock().unwrap().tier(&key1.public_key()),
+        RepTier::Tier1,
+    );
+    assert_timely_eq2(
+        || node0.rep_tiers.lock().unwrap().tier(&key2.public_key()),
+        RepTier::Tier2,
+    );
+    assert_timely_eq2(
+        || node0.rep_tiers.lock().unwrap().tier(&DEV_GENESIS_PUB_KEY),
         RepTier::Tier3,
     );
 }

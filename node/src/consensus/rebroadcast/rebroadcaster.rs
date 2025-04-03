@@ -47,7 +47,7 @@ impl VoteRebroadcaster {
         let handle = std::thread::Builder::new()
             .name("Vote rebroad".to_owned())
             .spawn(move || {
-                while let Some(vote) = queue.dequeue() {
+                while let Some(vote) = queue.dequeue_blocking() {
                     rebroadcast_processor.process_vote(&vote);
                     if let Some(cb) = &callback {
                         cb();

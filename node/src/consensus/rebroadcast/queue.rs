@@ -112,7 +112,7 @@ impl VoteRebroadcastQueue {
 
     /// This will wait for a vote to be enqueued or for the
     /// queue to be stopped.
-    pub fn dequeue(&self) -> Option<Arc<Vote>> {
+    pub fn dequeue_blocking(&self) -> Option<Arc<Vote>> {
         let mut queue = self.queue.lock().unwrap();
         if queue.len() == 0 && !self.block_when_empty {
             return None;
@@ -175,7 +175,7 @@ mod tests {
         queue.enqueue(test_vote());
         assert_eq!(queue.len(), 1);
 
-        let dequeued = queue.dequeue();
+        let dequeued = queue.dequeue_blocking();
         assert!(dequeued.is_some());
         assert_eq!(queue.len(), 0);
     }
@@ -192,7 +192,7 @@ mod tests {
             s.spawn(|| {
                 *waiting.lock().unwrap() = true;
                 notify.notify_one();
-                dequeued = queue.dequeue();
+                dequeued = queue.dequeue_blocking();
             });
 
             // enqueue when waiting
@@ -213,7 +213,7 @@ mod tests {
             .block_when_empty(false)
             .finish();
 
-        let result = queue.dequeue();
+        let result = queue.dequeue_blocking();
         assert!(result.is_none());
     }
 
@@ -226,7 +226,7 @@ mod tests {
 
         assert!(queue.stopped());
         assert_eq!(queue.len(), 0);
-        assert!(queue.dequeue().is_none());
+        assert!(queue.dequeue_blocking().is_none());
 
         queue.enqueue(test_vote());
         assert_eq!(queue.len(), 0);

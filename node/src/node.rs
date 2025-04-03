@@ -52,11 +52,11 @@ use crate::{
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
         ActiveElections, AecTicker, BlockVoter, BootstrapElectionActivator, ConfirmReqSender,
-        ConfirmedElection, DependentElectionsConfirmer, ForkCache, ForkCacheUpdater,
-        LocalVoteHistory, LocalVotesRemover, RepTiers, RequestAggregator, RequestAggregatorCleanup,
-        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WinnerBlockBroadcaster,
+        ConfirmedElection, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
+        ForkCacheUpdater, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -110,7 +110,8 @@ pub struct Node {
     pub bootstrap_responder: Arc<BootstrapResponder>,
     online_weight_calculation: TimerThread<OnlineWeightCalculation>,
     pub online_reps: Arc<Mutex<OnlineReps>>,
-    pub rep_tiers: Arc<RepTiers>,
+    rep_tiers_calculator: Arc<RepTiersCalculator>,
+    pub rep_tiers: Arc<CurrentRepTiers>,
     pub vote_processor_queue: Arc<VoteProcessorQueue>,
     pub history: Arc<LocalVoteHistory>,
     pub confirming_set: Arc<ConfirmingSet>,
@@ -417,17 +418,9 @@ impl Node {
             bootstrap_responder.server_impl.clone(),
         ));
 
-        let rep_tiers = Arc::new(RepTiers::new(
-            rep_weights.clone(),
-            network_params.clone(),
-            online_reps.clone(),
-            stats.clone(),
-        ));
-
         let vote_processor_queue = Arc::new(VoteProcessorQueue::new(
             config.vote_processor.clone(),
             stats.clone(),
-            rep_tiers.clone(),
         ));
         dead_channel_cleanup.add_step(VoteProcessorQueueCleanup::new(vote_processor_queue.clone()));
 
@@ -1024,6 +1017,17 @@ impl Node {
             ),
         );
 
+        let rep_tiers_calculator = Arc::new(RepTiersCalculator::new(
+            rep_weights.clone(),
+            network_params.clone(),
+            online_reps.clone(),
+            stats.clone(),
+        ));
+
+        let rep_tiers = Arc::new(CurrentRepTiers::new());
+        rep_tiers_calculator.add_tiers_consumer(rep_tiers.clone());
+        rep_tiers_calculator.add_tiers_consumer(vote_processor_queue.clone());
+
         let wallet_backup = WalletBackup {
             data_path: application_path.clone(),
             workers: workers.clone(),
@@ -1172,6 +1176,7 @@ impl Node {
             bootstrap_responder,
             online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
             online_reps,
+            rep_tiers_calculator,
             rep_tiers,
             vote_processor_queue,
             history: vote_history,
@@ -1416,7 +1421,7 @@ impl Node {
 
         self.unchecked.start();
         self.wallets.start();
-        self.rep_tiers.start();
+        self.rep_tiers_calculator.start();
         if self.config.enable_vote_processor {
             self.vote_processor.start();
         }
@@ -1488,7 +1493,7 @@ impl Node {
         self.request_aggregator.stop();
         self.vote_cache_processor.stop();
         self.vote_processor.stop();
-        self.rep_tiers.stop();
+        self.rep_tiers_calculator.stop();
         self.election_schedulers.stop();
         self.aec_ticker.stop();
         self.active.stop();

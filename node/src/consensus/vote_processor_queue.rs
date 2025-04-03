@@ -13,22 +13,22 @@ use rsnano_core::{
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{RepTier, RepTiers, VoteProcessorConfig};
+use super::{RepTier, RepTiers, RepTiersConsumer, VoteProcessorConfig};
 
 pub struct VoteProcessorQueue {
     data: Mutex<VoteProcessorQueueData>,
     condition: Condvar,
     pub config: VoteProcessorConfig,
     stats: Arc<Stats>,
-    rep_tiers: Arc<RepTiers>,
 }
 
 impl VoteProcessorQueue {
-    pub fn new(config: VoteProcessorConfig, stats: Arc<Stats>, rep_tiers: Arc<RepTiers>) -> Self {
+    pub fn new(config: VoteProcessorConfig, stats: Arc<Stats>) -> Self {
         let conf = config.clone();
         Self {
             data: Mutex::new(VoteProcessorQueueData {
                 stopped: false,
+                rep_tiers: Default::default(),
                 queue: FairQueue::new(
                     move |(tier, channel)| {
                         let max_size = match tier {
@@ -53,7 +53,6 @@ impl VoteProcessorQueue {
             condition: Condvar::new(),
             config,
             stats,
-            rep_tiers,
         }
     }
 
@@ -78,10 +77,10 @@ impl VoteProcessorQueue {
             None => ChannelId::LOOPBACK,
         };
 
-        let tier = self.rep_tiers.tier(&vote.voter);
-
+        let tier;
         let added = {
             let mut guard = self.data.lock().unwrap();
+            tier = guard.rep_tiers.tier(&vote.voter);
             guard
                 .queue
                 .push((tier, channel_id), (vote, source, channel, filter))
@@ -169,6 +168,12 @@ impl ContainerInfoProvider for VoteProcessorQueue {
     }
 }
 
+impl RepTiersConsumer for VoteProcessorQueue {
+    fn update_rep_tiers(&self, new_tiers: RepTiers) {
+        self.data.lock().unwrap().rep_tiers = new_tiers;
+    }
+}
+
 pub struct VoteProcessorQueueCleanup(Arc<VoteProcessorQueue>);
 
 impl VoteProcessorQueueCleanup {
@@ -199,4 +204,5 @@ struct VoteProcessorQueueData {
             Option<BlockHash>, //filter
         ),
     >,
+    rep_tiers: RepTiers,
 }
