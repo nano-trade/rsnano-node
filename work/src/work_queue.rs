@@ -144,8 +144,11 @@ impl WorkQueueCoordinator {
     }
 
     pub fn stop(&self) {
-        self.should_stop.store(true, Ordering::Relaxed);
-        self.expire_work_tickets();
+        {
+            let _guard = self.work_queue.lock().unwrap();
+            self.should_stop.store(true, Ordering::SeqCst);
+            self.expire_work_tickets();
+        }
         self.notify_new_work_ticket();
     }
 

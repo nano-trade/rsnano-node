@@ -1,3 +1,4 @@
+use crate::consensus::bounded_hash_map::BoundedHashMap;
 use rsnano_core::{utils::UnixMillisTimestamp, Amount, BlockHash, PublicKey, Vote};
 use rsnano_nullable_clock::Timestamp;
 use std::{
@@ -38,10 +39,11 @@ impl RebroadcastHistory {
         self.representatives.contains_key(representative)
     }
 
-    pub fn contains_block(&self, block_hash: &BlockHash) -> bool {
+    pub fn contains_block(&self, representative: &PublicKey, block_hash: &BlockHash) -> bool {
         self.representatives
-            .values()
-            .any(|i| i.history.contains_key(block_hash))
+            .get(representative)
+            .map(|i| i.history.contains_key(block_hash))
+            .unwrap_or(false)
     }
 
     pub fn contains_vote(&self, vote_hash: &BlockHash) -> bool {
@@ -56,10 +58,13 @@ impl RebroadcastHistory {
         weight: Amount,
         now: Timestamp,
     ) -> Result<(), RebroadcastError> {
-        let entry = self
-            .representatives
-            .entry(vote.voter)
-            .or_insert_with(|| RepresentativeEntry::new(vote.voter, weight));
+        if !self.representatives.contains_key(&vote.voter) && !self.should_add(weight) {
+            return Err(RebroadcastError::RepresentativesFull);
+        }
+
+        let entry = self.representatives.entry(vote.voter).or_insert_with(|| {
+            RepresentativeEntry::new(vote.voter, weight, self.config.max_history)
+        });
 
         let vote_hash = vote.hash();
 
@@ -102,10 +107,54 @@ impl RebroadcastHistory {
                 },
             );
 
+            // Also keep track of the vote hash to quickly filter out duplicates
             entry.vote_hashes.insert(vote_hash);
         }
 
+        // Keep representatives index within limits, erase lowest weight entries
+        while self.representatives.len() > self.config.max_representatives {
+            // TODO use BTreeMap
+            let lowest = self
+                .representatives
+                .values()
+                .min_by(|x, y| x.weight.cmp(&y.weight))
+                .map(|i| i.representative)
+                .unwrap();
+
+            self.representatives.remove(&lowest);
+        }
+
         Ok(())
+    }
+
+    fn should_add(&self, rep_weight: Amount) -> bool {
+        // Under normal conditions the number of principal representatives should be below this limit
+        if self.representatives.len() < self.config.max_representatives {
+            return true;
+        }
+
+        // However, if we're at capacity, we can still add the rep if it has a higher weight
+        // than the lowest weight in the container
+        // TODO: use a BTreeMap for the lookup!
+        self.representatives.values().any(|i| rep_weight > i.weight)
+    }
+
+    pub fn cleanup(&mut self, mut rep_query: impl FnMut(&PublicKey) -> (bool, Amount)) -> usize {
+        // Remove entries for accounts that are no longer principal representatives
+        let old_count = self.representatives_count();
+        self.representatives.retain(|_, i| {
+            let (keep, _) = rep_query(&i.representative);
+            keep
+        });
+
+        // Update representative weights
+        for entry in self.representatives.values_mut() {
+            let (_, weight) = rep_query(&entry.representative);
+            entry.weight = weight;
+        }
+
+        let removed = old_count - self.representatives_count();
+        removed
     }
 }
 
@@ -118,12 +167,20 @@ impl Default for RebroadcastHistory {
 pub(crate) struct RebroadcastHistoryConfig {
     /// Minimum amount of time between rebroadcasts for the same hash from the same representative
     pub rebroadcast_threshold: Duration,
+
+    /// Maximum number of representatives to track rebroadcasts for
+    pub max_representatives: usize,
+
+    /// Maximum number of recently broadcast hashes to keep per representative
+    pub max_history: usize,
 }
 
 impl Default for RebroadcastHistoryConfig {
     fn default() -> Self {
         Self {
             rebroadcast_threshold: Duration::from_secs(90),
+            max_representatives: 100,
+            max_history: 1024 * 32,
         }
     }
 }
@@ -135,22 +192,21 @@ pub(crate) enum RebroadcastError {
     RebroadcastUnnecessary,
 }
 
-#[derive(Default)]
 struct RepresentativeEntry {
     representative: PublicKey,
     weight: Amount,
-    history: HashMap<BlockHash, RebroadcastEntry>,
+    history: BoundedHashMap<BlockHash, RebroadcastEntry>,
 
     /// for quickly filtering out duplicates
     vote_hashes: HashSet<BlockHash>,
 }
 
 impl RepresentativeEntry {
-    fn new(representative: PublicKey, weight: Amount) -> Self {
+    fn new(representative: PublicKey, weight: Amount, max_history: usize) -> Self {
         Self {
             representative,
             weight,
-            history: Default::default(),
+            history: BoundedHashMap::new(max_history),
             vote_hashes: Default::default(),
         }
     }
@@ -189,7 +245,10 @@ mod tests {
         assert_eq!(history.total_history(), 1, "total history");
         assert_eq!(history.total_vote_hashes(), 1, "total hashes");
         assert!(history.contains_representative(&vote.voter), "contains rep");
-        assert!(history.contains_block(&vote.hashes[0]), "contains block");
+        assert!(
+            history.contains_block(&vote.voter, &vote.hashes[0]),
+            "contains block"
+        );
     }
 
     #[test]
@@ -233,11 +292,10 @@ mod tests {
             .timestamp(UnixMillisTimestamp::new(1500))
             .finish();
 
-        let error = history
-            .check_and_record(&vote2, TEST_WEIGHT, NOW)
-            .unwrap_err();
-
-        assert_eq!(error, RebroadcastError::RebroadcastUnnecessary);
+        assert_eq!(
+            history.check_and_record(&vote2, TEST_WEIGHT, NOW),
+            Err(RebroadcastError::RebroadcastUnnecessary)
+        );
 
         // Try after threshold - should be accepted
         let vote3 = Vote::build_test_instance()
@@ -259,16 +317,146 @@ mod tests {
 
         // Final vote should override timing restrictions
         let final_vote = Vote::build_test_instance().final_vote().finish();
-        history
-            .check_and_record(&final_vote, TEST_WEIGHT, NOW)
-            .expect("should override");
+        assert_eq!(
+            history.check_and_record(&final_vote, TEST_WEIGHT, NOW),
+            Ok(()),
+            "should override"
+        );
 
         // Both vote should be kept in recent hashes index
         assert_eq!(history.total_history(), 1);
         assert_eq!(history.total_vote_hashes(), 2);
-        assert!(history.contains_block(&vote.hashes[0]));
+        assert!(history.contains_block(&vote.voter, &vote.hashes[0]));
         assert!(history.contains_vote(&vote.hash()));
         assert!(history.contains_vote(&final_vote.hash()));
+    }
+
+    #[test]
+    fn representative_limit() {
+        let mut history = RebroadcastHistory::new(RebroadcastHistoryConfig {
+            max_representatives: 2,
+            ..Default::default()
+        });
+
+        // Add first rep (weight 100)
+        let vote1 = Vote::build_test_instance().voter_key(1).finish();
+        assert_eq!(
+            history.check_and_record(&vote1, Amount::from(100), NOW),
+            Ok(())
+        );
+
+        // Add second rep (weight 200)
+        let vote2 = Vote::build_test_instance().voter_key(2).finish();
+        assert_eq!(
+            history.check_and_record(&vote2, Amount::from(200), NOW),
+            Ok(())
+        );
+        assert_eq!(history.representatives_count(), 2);
+
+        // Try to add third rep with lower weight - should be rejected
+        let vote3 = Vote::build_test_instance().voter_key(3).finish();
+        assert_eq!(
+            history.check_and_record(&vote3, Amount::from(50), NOW),
+            Err(RebroadcastError::RepresentativesFull)
+        );
+
+        // Add third rep with higher weight - should replace lowest weight
+        let vote4 = Vote::build_test_instance().voter_key(4).finish();
+        assert_eq!(
+            history.check_and_record(&vote4, Amount::from(300), NOW),
+            Ok(())
+        );
+        // Lowest weight was removed
+        assert_eq!(
+            history.contains_representative(&vote1.voter),
+            false,
+            "voter 1 removed"
+        );
+        assert_eq!(history.representatives_count(), 2);
+    }
+
+    #[test]
+    fn multi_hash_vote() {
+        let mut history = RebroadcastHistory::default();
+        let vote = Vote::build_test_instance()
+            .blocks([BlockHash::from(1), BlockHash::from(2), BlockHash::from(3)])
+            .finish();
+
+        history.check_and_record(&vote, TEST_WEIGHT, NOW).unwrap();
+
+        assert_eq!(history.total_history(), 3);
+        assert!(history.contains_block(&vote.voter, &BlockHash::from(1)));
+        assert!(history.contains_block(&vote.voter, &BlockHash::from(2)));
+        assert!(history.contains_block(&vote.voter, &BlockHash::from(3)));
+    }
+
+    #[test]
+    fn history_limit() {
+        let mut history = RebroadcastHistory::new(RebroadcastHistoryConfig {
+            max_history: 2,
+            ..Default::default()
+        });
+
+        let vote1 = Vote::build_test_instance().blocks([1.into()]).finish();
+        history.check_and_record(&vote1, TEST_WEIGHT, NOW).unwrap();
+
+        let vote2 = Vote::build_test_instance().blocks([2.into()]).finish();
+        history.check_and_record(&vote2, TEST_WEIGHT, NOW).unwrap();
+
+        let vote3 = Vote::build_test_instance().blocks([3.into()]).finish();
+        history.check_and_record(&vote3, TEST_WEIGHT, NOW).unwrap();
+
+        assert_eq!(history.total_history(), 2);
+        assert_eq!(history.contains_block(&vote1.voter, &1.into()), false); // Oldest was removed
+    }
+
+    #[test]
+    fn cleanup() {
+        let mut history = RebroadcastHistory::default();
+
+        // Add two reps
+        let vote1 = Vote::build_test_instance().voter_key(1).finish();
+        let vote2 = Vote::build_test_instance().voter_key(2).finish();
+        history.check_and_record(&vote1, TEST_WEIGHT, NOW).unwrap();
+        history.check_and_record(&vote2, TEST_WEIGHT, NOW).unwrap();
+
+        // Cleanup with rep1 becoming non-principal
+        let cleanup_count = history.cleanup(|rep| {
+            if *rep == vote1.voter {
+                (false, Amount::zero())
+            } else {
+                (true, TEST_WEIGHT)
+            }
+        });
+
+        assert_eq!(cleanup_count, 1);
+        assert_eq!(history.representatives_count(), 1);
+        assert_eq!(history.contains_representative(&vote1.voter), false);
+        assert_eq!(history.contains_representative(&vote2.voter), true);
+    }
+
+    #[test]
+    fn weight_updates() {
+        let mut history = RebroadcastHistory::new(RebroadcastHistoryConfig {
+            max_representatives: 1,
+            ..Default::default()
+        });
+
+        // Add rep with initial weight
+        let vote1 = Vote::build_test_instance().voter_key(1).finish();
+        history
+            .check_and_record(&vote1, Amount::from(100), NOW)
+            .unwrap();
+
+        // Update weight through cleanup
+        history.cleanup(|_| (true, Amount::from(200)));
+
+        // Add new rep with lower weight - should be rejected due to updated weight
+        let vote2 = Vote::build_test_instance().voter_key(2).finish();
+        assert_eq!(
+            history.check_and_record(&vote2, Amount::from(150), NOW),
+            Err(RebroadcastError::RepresentativesFull)
+        );
     }
 
     const TEST_WEIGHT: Amount = Amount::nano(100_000);

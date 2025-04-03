@@ -200,6 +200,11 @@ impl TestVoteBuilder {
         }
     }
 
+    pub fn voter_key(mut self, key: impl Into<PrivateKey>) -> Self {
+        self.key = key.into();
+        self
+    }
+
     pub fn timestamp(mut self, ts: UnixMillisTimestamp) -> Self {
         self.timestamp = ts;
         self
@@ -207,6 +212,11 @@ impl TestVoteBuilder {
 
     pub fn final_vote(mut self) -> Self {
         self.is_final = true;
+        self
+    }
+
+    pub fn blocks(mut self, hashes: impl IntoIterator<Item = BlockHash>) -> Self {
+        self.hashes = hashes.into_iter().collect();
         self
     }
 

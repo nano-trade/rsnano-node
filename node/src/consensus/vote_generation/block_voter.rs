@@ -38,7 +38,7 @@ impl BlockVoter {
             vote_generators,
             active_elections,
             clock,
-            last_votes: Mutex::new(BoundedHashMap::default()),
+            last_votes: Mutex::new(BoundedHashMap::new(1024 * 32)),
             vote_broadcast_interval: match network {
                 Networks::NanoDevNetwork => Duration::from_millis(500),
                 _ => Duration::from_secs(15),

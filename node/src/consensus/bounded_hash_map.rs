@@ -6,28 +6,24 @@ use std::{
 pub(crate) struct BoundedHashMap<K, V>
 where
     K: Hash + Eq + Clone,
-    V: Eq + Clone,
 {
     max_len: usize,
-    entries: HashMap<K, V>,
-    sequential: VecDeque<(K, V)>,
+    entries: HashMap<K, (V, usize)>,
+    sequential: VecDeque<(K, usize)>,
+    next_id: usize,
 }
 
 #[allow(dead_code)]
 impl<K, V> BoundedHashMap<K, V>
 where
     K: Hash + Eq + Clone,
-    V: Eq + Clone,
 {
-    pub(crate) fn new() -> Self {
-        Self::with_max_len(1024 * 32)
-    }
-
-    pub fn with_max_len(max_len: usize) -> Self {
+    pub fn new(max_len: usize) -> Self {
         Self {
             max_len,
             entries: HashMap::new(),
             sequential: VecDeque::new(),
+            next_id: 1,
         }
     }
 
@@ -40,29 +36,27 @@ where
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        let result = self.entries.insert(key.clone(), value.clone());
-        self.sequential.push_back((key, value));
+        let new_id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
+        let result = self.entries.insert(key.clone(), (value, new_id));
+        self.sequential.push_back((key, new_id));
         while self.entries.len() > self.max_len() {
-            let (k, v) = self.sequential.pop_front().unwrap();
-            if self.entries.get(&k) == Some(&v) {
-                self.entries.remove(&k);
+            let (k, id_to_remove) = self.sequential.pop_front().unwrap();
+            if let Some((_, id)) = self.entries.get(&k) {
+                if *id == id_to_remove {
+                    self.entries.remove(&k);
+                }
             }
         }
-        result
+        result.map(|(old, _)| old)
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {
-        self.entries.get(key)
+        self.entries.get(key).map(|(value, _)| value)
     }
-}
 
-impl<K, V> Default for BoundedHashMap<K, V>
-where
-    K: Hash + Eq + Clone,
-    V: Eq + Clone,
-{
-    fn default() -> Self {
-        Self::new()
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.entries.contains_key(key)
     }
 }
 
@@ -81,18 +75,18 @@ mod tests {
 
     #[test]
     fn empty() {
-        let last_votes = LastSentVotes::default();
+        let last_votes = LastSentVotes::new(100);
         assert_eq!(last_votes.len(), 0);
         assert_eq!(
             last_votes.get(&(BlockHash::from(1), VoteType::NonFinal)),
             None
         );
-        assert_eq!(last_votes.max_len(), 32768);
+        assert_eq!(last_votes.max_len(), 100);
     }
 
     #[test]
     fn insert() {
-        let mut last_votes = LastSentVotes::default();
+        let mut last_votes = LastSentVotes::new(100);
         let hash = BlockHash::from(1);
         let now = Timestamp::new_test_instance();
 
@@ -104,7 +98,7 @@ mod tests {
 
     #[test]
     fn insert_replaces_previous_value() {
-        let mut last_votes = LastSentVotes::default();
+        let mut last_votes = LastSentVotes::new(100);
         let hash = BlockHash::from(1);
         let past = Timestamp::new_test_instance();
         let now = Timestamp::new_test_instance() + Duration::from_secs(60);
@@ -118,7 +112,7 @@ mod tests {
 
     #[test]
     fn insert_differentiates_vote_type() {
-        let mut last_votes = BoundedHashMap::default();
+        let mut last_votes = BoundedHashMap::new(100);
         let hash = BlockHash::from(1);
         let now = Timestamp::new_test_instance();
         let later = Timestamp::new_test_instance() + Duration::from_secs(60);
@@ -133,7 +127,7 @@ mod tests {
 
     #[test]
     fn insert_differentiates_hash() {
-        let mut last_votes = BoundedHashMap::default();
+        let mut last_votes = BoundedHashMap::new(100);
         let hash1 = BlockHash::from(1);
         let hash2 = BlockHash::from(2);
         let now = Timestamp::new_test_instance();
@@ -149,7 +143,7 @@ mod tests {
 
     #[test]
     fn overfill() {
-        let mut last_votes = BoundedHashMap::with_max_len(2);
+        let mut last_votes = BoundedHashMap::new(2);
         let hash1 = BlockHash::from(1);
         let hash2 = BlockHash::from(2);
         let hash3 = BlockHash::from(3);

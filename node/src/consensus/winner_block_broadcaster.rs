@@ -19,7 +19,7 @@ impl WinnerBlockBroadcaster {
         Self {
             stats,
             clock,
-            last_broadcasts: Default::default(),
+            last_broadcasts: BoundedHashMap::new(1024 * 32),
             broadcast_interval: match network {
                 Networks::NanoDevNetwork => Duration::from_millis(500),
                 _ => Duration::from_secs(150),
