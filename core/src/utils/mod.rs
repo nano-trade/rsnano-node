@@ -258,6 +258,10 @@ impl UnixMillisTimestamp {
             .checked_add(duration.as_millis() as u64)
             .map(|i| Self(i))
     }
+
+    pub fn elapsed(&self, now: UnixMillisTimestamp) -> Duration {
+        Duration::from_millis(now.0.checked_sub(self.0).unwrap_or(0))
+    }
 }
 
 impl From<u64> for UnixMillisTimestamp {
