@@ -2,22 +2,21 @@ use std::{
     collections::HashSet,
     mem::size_of,
     ops::Deref,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     thread::JoinHandle,
-    time::Duration,
 };
 
 use strum_macros::EnumIter;
 use tracing::debug;
 
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoProvider},
+    utils::{CancellationToken, ContainerInfo, ContainerInfoProvider, Runnable},
     PublicKey,
 };
 use rsnano_ledger::RepWeightCache;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::{config::NetworkParams, representatives::OnlineReps};
+use crate::representatives::OnlineReps;
 
 // Higher number means higher priority
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, EnumIter, Hash, Debug)]
@@ -127,124 +126,30 @@ where
 }
 
 pub struct RepTiersCalculator {
-    network_params: NetworkParams,
     thread: Mutex<Option<JoinHandle<()>>>,
-    stopped: Arc<Mutex<bool>>,
-    condition: Arc<Condvar>,
     rep_weights: Arc<RepWeightCache>,
     online_reps: Arc<Mutex<OnlineReps>>,
     stats: Arc<Stats>,
-    tiers: Arc<Mutex<RepTiers>>,
-    consumers: Mutex<Vec<Box<dyn RepTiersConsumer + Send + Sync>>>,
+    consumers: Vec<Box<dyn RepTiersConsumer + Send + Sync>>,
 }
 
 impl RepTiersCalculator {
     pub fn new(
         rep_weights: Arc<RepWeightCache>,
-        network_params: NetworkParams,
         online_reps: Arc<Mutex<OnlineReps>>,
         stats: Arc<Stats>,
     ) -> Self {
-        let tiers = Arc::new(Mutex::new(RepTiers::default()));
         Self {
-            network_params,
             thread: Mutex::new(None),
-            stopped: Arc::new(Mutex::new(false)),
-            condition: Arc::new(Condvar::new()),
             rep_weights,
             online_reps,
             stats,
-            tiers,
-            consumers: Mutex::new(Vec::new()),
+            consumers: Vec::new(),
         }
     }
 
-    pub fn add_tiers_consumer(&self, consumer: impl RepTiersConsumer + Send + Sync + 'static) {
-        self.consumers.lock().unwrap().push(Box::new(consumer));
-    }
-
-    pub fn start(&self) {
-        debug_assert!(self.thread.lock().unwrap().is_none());
-        let stopped_mutex = Arc::clone(&self.stopped);
-        let condition = Arc::clone(&self.condition);
-        let consumers = std::mem::replace(self.consumers.lock().unwrap().as_mut(), Vec::new());
-        let mut rep_tiers_impl = RepTiersImpl::new(
-            self.stats.clone(),
-            self.online_reps.clone(),
-            self.rep_weights.clone(),
-            self.tiers.clone(),
-            consumers,
-        );
-        let interval = if self.network_params.network.is_dev_network() {
-            Duration::from_millis(500)
-        } else {
-            Duration::from_secs(10 * 60)
-        };
-
-        let join_handle = std::thread::Builder::new()
-            .name("Rep tiers".to_string())
-            .spawn(move || {
-                let mut stopped = stopped_mutex.lock().unwrap();
-                while !*stopped {
-                    drop(stopped);
-
-                    rep_tiers_impl.calculate_tiers();
-
-                    stopped = stopped_mutex.lock().unwrap();
-                    stopped = condition
-                        .wait_timeout_while(stopped, interval, |stop| !*stop)
-                        .unwrap()
-                        .0;
-                }
-            })
-            .unwrap();
-        *self.thread.lock().unwrap() = Some(join_handle);
-    }
-
-    pub fn stop(&self) {
-        *self.stopped.lock().unwrap() = true;
-        self.condition.notify_all();
-        let join_handle = self.thread.lock().unwrap().take();
-        if let Some(join_handle) = join_handle {
-            join_handle.join().unwrap();
-        }
-    }
-
-    pub fn tier(&self, representative: &PublicKey) -> RepTier {
-        self.tiers.lock().unwrap().tier(representative)
-    }
-}
-
-impl Drop for RepTiersCalculator {
-    fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none());
-    }
-}
-
-struct RepTiersImpl {
-    stats: Arc<Stats>,
-    online_reps: Arc<Mutex<OnlineReps>>,
-    rep_weights: Arc<RepWeightCache>,
-    tiers: Arc<Mutex<RepTiers>>,
-    consumers: Vec<Box<dyn RepTiersConsumer + Send + Sync>>,
-}
-
-impl RepTiersImpl {
-    fn new(
-        stats: Arc<Stats>,
-        online_reps: Arc<Mutex<OnlineReps>>,
-        rep_weights: Arc<RepWeightCache>,
-        tiers: Arc<Mutex<RepTiers>>,
-        consumers: Vec<Box<dyn RepTiersConsumer + Send + Sync>>,
-    ) -> Self {
-        Self {
-            stats,
-            online_reps,
-            rep_weights,
-            tiers,
-            consumers,
-        }
+    pub fn add_tiers_consumer(&mut self, consumer: impl RepTiersConsumer + Send + Sync + 'static) {
+        self.consumers.push(Box::new(consumer));
     }
 
     fn calculate_tiers(&mut self) {
@@ -303,17 +208,30 @@ impl RepTiersImpl {
             tier2: new_tier2,
             tier3: new_tier3,
         };
-        {
-            let mut guard = self.tiers.lock().unwrap();
-            guard.tier1 = new_rep_tiers.tier1.clone();
-            guard.tier2 = new_rep_tiers.tier2.clone();
-            guard.tier3 = new_rep_tiers.tier3.clone();
-        }
+        //{
+        //    let mut guard = self.tiers.lock().unwrap();
+        //    guard.tier1 = new_rep_tiers.tier1.clone();
+        //    guard.tier2 = new_rep_tiers.tier2.clone();
+        //    guard.tier3 = new_rep_tiers.tier3.clone();
+        //}
 
         for consumer in &self.consumers {
             consumer.update_rep_tiers(new_rep_tiers.clone());
         }
 
         self.stats.inc(StatType::RepTiers, DetailType::Updated);
+    }
+}
+
+impl Drop for RepTiersCalculator {
+    fn drop(&mut self) {
+        // Thread must be stopped before destruction
+        debug_assert!(self.thread.lock().unwrap().is_none());
+    }
+}
+
+impl Runnable for RepTiersCalculator {
+    fn run(&mut self, _cancel_token: &CancellationToken) {
+        self.calculate_tiers();
     }
 }

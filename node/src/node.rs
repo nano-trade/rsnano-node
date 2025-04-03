@@ -110,7 +110,7 @@ pub struct Node {
     pub bootstrap_responder: Arc<BootstrapResponder>,
     online_weight_calculation: TimerThread<OnlineWeightCalculation>,
     pub online_reps: Arc<Mutex<OnlineReps>>,
-    rep_tiers_calculator: Arc<RepTiersCalculator>,
+    rep_tiers_calculator: TimerThread<RepTiersCalculator>,
     pub rep_tiers: Arc<CurrentRepTiers>,
     pub vote_processor_queue: Arc<VoteProcessorQueue>,
     pub history: Arc<LocalVoteHistory>,
@@ -1017,14 +1017,9 @@ impl Node {
             ),
         );
 
-        let rep_tiers_calculator = Arc::new(RepTiersCalculator::new(
-            rep_weights.clone(),
-            network_params.clone(),
-            online_reps.clone(),
-            stats.clone(),
-        ));
-
         let rep_tiers = Arc::new(CurrentRepTiers::new());
+        let mut rep_tiers_calculator =
+            RepTiersCalculator::new(rep_weights.clone(), online_reps.clone(), stats.clone());
         rep_tiers_calculator.add_tiers_consumer(rep_tiers.clone());
         rep_tiers_calculator.add_tiers_consumer(vote_processor_queue.clone());
 
@@ -1176,7 +1171,7 @@ impl Node {
             bootstrap_responder,
             online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
             online_reps,
-            rep_tiers_calculator,
+            rep_tiers_calculator: TimerThread::new("Rep tiers", rep_tiers_calculator),
             rep_tiers,
             vote_processor_queue,
             history: vote_history,
@@ -1375,6 +1370,8 @@ impl Node {
             return; // TODO better nullability implementation
         }
 
+        let is_dev_network = self.network_params.network.is_dev_network();
+
         if !self
             .ledger
             .any()
@@ -1421,7 +1418,11 @@ impl Node {
 
         self.unchecked.start();
         self.wallets.start();
-        self.rep_tiers_calculator.start();
+        self.rep_tiers_calculator.start(if is_dev_network {
+            Duration::from_millis(500)
+        } else {
+            Duration::from_secs(60 * 10)
+        });
         if self.config.enable_vote_processor {
             self.vote_processor.start();
         }
@@ -1444,13 +1445,11 @@ impl Node {
         self.telemetry.start();
         self.local_block_broadcaster.start();
 
-        let peer_cache_update_interval = if self.network_params.network.is_dev_network() {
+        self.peer_cache_updater.start_delayed(if is_dev_network {
             Duration::from_secs(1)
         } else {
             Duration::from_secs(15)
-        };
-        self.peer_cache_updater
-            .start_delayed(peer_cache_update_interval);
+        });
 
         if !self.config.network.peer_reachout.is_zero() {
             self.peer_cache_connector
