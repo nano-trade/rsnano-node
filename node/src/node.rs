@@ -56,7 +56,8 @@ use crate::{
         ForkCacheUpdater, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
         RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
         VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WinnerBlockBroadcaster,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
+        WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -154,6 +155,7 @@ pub struct Node {
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ConfirmedElection>>>,
     pub stats_collector: StatsCollector,
     container_info_factory: ContainerInfoFactory,
+    wallet_reps_checker: TimerThread<WalletRepsChecker>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1017,11 +1019,15 @@ impl Node {
             ),
         );
 
+        let mut wallet_reps_checker = WalletRepsChecker::new(wallets.wallet_reps.clone());
+        wallet_reps_checker.add_consumer(vote_rebroadcast_queue.clone());
+
         let rep_tiers = Arc::new(CurrentRepTiers::new());
         let mut rep_tiers_calculator =
             RepTiersCalculator::new(rep_weights.clone(), online_reps.clone(), stats.clone());
         rep_tiers_calculator.add_tiers_consumer(rep_tiers.clone());
         rep_tiers_calculator.add_tiers_consumer(vote_processor_queue.clone());
+        rep_tiers_calculator.add_tiers_consumer(vote_rebroadcast_queue.clone());
 
         let wallet_backup = WalletBackup {
             data_path: application_path.clone(),
@@ -1211,6 +1217,7 @@ impl Node {
             recently_cemented,
             stats_collector,
             container_info_factory: container_info,
+            wallet_reps_checker: TimerThread::new("Wallet reps check", wallet_reps_checker),
         }
     }
 
@@ -1390,6 +1397,11 @@ impl Node {
             .run_once_then_start(OnlineReps::default_interval_for(
                 self.network_params.network.current_network,
             ));
+        self.wallet_reps_checker.start(if is_dev_network {
+            Duration::from_millis(500)
+        } else {
+            Duration::from_secs(60)
+        });
 
         self.network_threads.lock().unwrap().start();
         self.message_processor.lock().unwrap().start();
@@ -1475,6 +1487,7 @@ impl Node {
 
         self.tcp_listener.stop();
         self.ledger.stop();
+        self.wallet_reps_checker.stop();
         self.online_weight_calculation.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();

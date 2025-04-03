@@ -6,6 +6,11 @@ use std::{
     },
 };
 
+use super::WalletRepsConsumer;
+use crate::{
+    consensus::{RepTiers, RepTiersConsumer},
+    wallets::WalletRepresentatives,
+};
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     BlockHash, Vote, VoteCode,
@@ -53,7 +58,7 @@ impl Default for VoteRebroadcastQueueBuilder {
 }
 
 pub(crate) struct VoteRebroadcastQueue {
-    queue: Mutex<VecDeque<Arc<Vote>>>,
+    queue: Mutex<QueueImpl>,
     enqueued: Condvar,
     stopped: AtomicBool,
     stats: Arc<Stats>,
@@ -95,7 +100,7 @@ impl VoteRebroadcastQueue {
             }
 
             if queue.len() < self.max_len && !self.stopped() {
-                queue.push_back(vote);
+                queue.enqueue(vote);
                 true
             } else {
                 false
@@ -123,7 +128,7 @@ impl VoteRebroadcastQueue {
             .wait_while(queue, |q| q.len() == 0 && !self.stopped())
             .unwrap();
 
-        return queue.pop_front();
+        return queue.dequeue();
     }
 
     pub fn stopped(&self) -> bool {
@@ -155,6 +160,54 @@ impl ContainerInfoProvider for VoteRebroadcastQueue {
     fn container_info(&self) -> ContainerInfo {
         let queue = self.queue.lock().unwrap();
         [("queue", queue.len(), 0)].into()
+    }
+}
+
+impl RepTiersConsumer for VoteRebroadcastQueue {
+    fn update_rep_tiers(&self, new_tiers: RepTiers) {
+        self.queue.lock().unwrap().set_rep_tiers(new_tiers);
+    }
+}
+
+impl WalletRepsConsumer for VoteRebroadcastQueue {
+    fn update_wallet_reps(&self, reps: &WalletRepresentatives) {
+        self.queue
+            .lock()
+            .unwrap()
+            .is_close_to_pr(reps.have_half_rep())
+    }
+}
+
+#[derive(Default)]
+struct QueueImpl {
+    queue: VecDeque<Arc<Vote>>,
+    rep_tiers: RepTiers,
+    is_close_to_pr: bool,
+}
+
+impl QueueImpl {
+    fn enqueue(&mut self, vote: Arc<Vote>) {
+        self.queue.push_back(vote);
+    }
+
+    fn dequeue(&mut self) -> Option<Arc<Vote>> {
+        self.queue.pop_front()
+    }
+
+    fn set_rep_tiers(&mut self, new_tiers: RepTiers) {
+        self.rep_tiers = new_tiers;
+    }
+
+    fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    fn clear(&mut self) {
+        self.queue.clear();
+    }
+
+    fn is_close_to_pr(&mut self, is_pr: bool) {
+        self.is_close_to_pr = is_pr;
     }
 }
 
