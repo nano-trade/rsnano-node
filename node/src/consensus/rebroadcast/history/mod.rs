@@ -6,7 +6,10 @@ use std::{collections::HashMap, time::Duration};
 use crate::consensus::bounded_hash_map::BoundedHashMap;
 use rep_container::RepresentativeContainer;
 use rep_entry::RepresentativeEntry;
-use rsnano_core::{Amount, BlockHash, PublicKey, Vote};
+use rsnano_core::{
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Amount, BlockHash, PublicKey, Vote,
+};
 use rsnano_nullable_clock::Timestamp;
 use strum_macros::{EnumCount, EnumIter};
 

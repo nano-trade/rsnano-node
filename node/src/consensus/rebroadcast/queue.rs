@@ -160,8 +160,7 @@ impl Default for VoteRebroadcastQueue {
 
 impl ContainerInfoProvider for VoteRebroadcastQueue {
     fn container_info(&self) -> ContainerInfo {
-        let queue = self.queue.lock().unwrap();
-        [("queue", queue.len(), 0)].into()
+        self.queue.lock().unwrap().container_info()
     }
 }
 
@@ -277,6 +276,16 @@ impl QueueImpl {
 
     fn set_rep_tiers(&mut self, new_tiers: RepTiers) {
         self.rep_tiers = new_tiers;
+    }
+}
+
+impl ContainerInfoProvider for QueueImpl {
+    fn container_info(&self) -> ContainerInfo {
+        ContainerInfo::builder()
+            .node("queue", self.queue.container_info())
+            .leaf("queue_total", self.queue.len(), 0)
+            .leaf("queue_hashes", self.queue_hashes.len(), 0)
+            .finish()
     }
 }
 
