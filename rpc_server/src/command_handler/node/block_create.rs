@@ -6,7 +6,7 @@ use rsnano_core::{
     StateBlockArgs, WorkNonce,
 };
 use rsnano_ledger::{AnySet, LedgerSet};
-use rsnano_node::Node;
+use rsnano_node::{work::WorkRequest, Node};
 use rsnano_rpc_messages::{BlockCreateArgs, BlockCreateResponse, BlockTypeDto};
 use std::sync::Arc;
 
@@ -197,15 +197,14 @@ impl RpcCommandHandler {
                 difficulty
             };
 
-            let work =
-                match self
-                    .node
-                    .distributed_work
-                    .make_blocking(root, difficulty, Some(account))
-                {
-                    Some(work) => work,
-                    None => bail!("Work generation cancellation or failure"),
-                };
+            let work = match self
+                .node
+                .distributed_work
+                .generate_work(WorkRequest { root, difficulty })
+            {
+                Some(work) => work,
+                None => bail!("Work generation cancellation or failure"),
+            };
             block.set_work(work);
         }
 

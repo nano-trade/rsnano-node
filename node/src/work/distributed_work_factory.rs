@@ -1,9 +1,8 @@
-use rsnano_core::{to_hex_string, Account, Block, Root, WorkNonce};
+use rsnano_core::{to_hex_string, Account, Root, WorkNonce};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_work::WorkPool;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::oneshot;
 
 #[derive(Serialize)]
 pub struct HttpWorkRequest {
@@ -34,8 +33,6 @@ pub struct HttpWorkResponse {
 pub struct WorkRequest {
     pub root: Root,
     pub difficulty: u64,
-    pub account: Option<Account>,
-    pub peers: Vec<(String, u16)>,
 }
 
 impl WorkRequest {
@@ -43,65 +40,35 @@ impl WorkRequest {
         Self {
             root: Root::from(100),
             difficulty: 42,
-            account: Some(Account::from(200)),
-            peers: vec![("127.0.0.1".to_string(), 9999)],
         }
     }
 }
 
 pub struct DistributedWorkFactory {
-    work_pool: Arc<WorkPool>,
+    local_work_pool: Arc<WorkPool>,
     cancel_listener: OutputListenerMt<Root>,
 }
 
 impl DistributedWorkFactory {
     pub fn new(work_pool: Arc<WorkPool>) -> Self {
         Self {
-            work_pool,
+            local_work_pool: work_pool,
             cancel_listener: OutputListenerMt::new(),
         }
     }
 
-    pub fn make_blocking_block(&self, block: &mut Block, difficulty: u64) -> Option<WorkNonce> {
-        let work = self.generate_work(WorkRequest {
-            root: block.root(),
-            difficulty,
-            account: None,
-            peers: Vec::new(),
-        });
-
-        if let Some(work) = work {
-            block.set_work(work);
-        }
-
-        work
-    }
-
-    pub fn make_blocking(
-        &self,
-        root: Root,
-        difficulty: u64,
-        account: Option<Account>,
-    ) -> Option<WorkNonce> {
-        self.generate_work(WorkRequest {
-            root,
-            difficulty,
-            account,
-            peers: Vec::new(),
-        })
-    }
-
-    fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
-        self.work_pool.generate(request.root, request.difficulty)
+    pub fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
+        self.local_work_pool
+            .generate(request.root, request.difficulty)
     }
 
     pub fn cancel(&self, root: Root) {
         self.cancel_listener.emit(root);
-        self.work_pool.cancel(&root);
+        self.local_work_pool.cancel(&root);
     }
 
     pub fn work_generation_enabled(&self) -> bool {
-        self.work_pool.work_generation_enabled()
+        self.local_work_pool.work_generation_enabled()
     }
 
     pub fn stop(&self) {
@@ -123,11 +90,7 @@ mod tests {
         let expected_work = WorkNonce::from(12345);
         let work_pool = Arc::new(WorkPool::new_null(expected_work));
         let work_factory = DistributedWorkFactory::new(work_pool);
-
-        let request = WorkRequest {
-            peers: vec![],
-            ..WorkRequest::new_test_instance()
-        };
+        let request = WorkRequest::new_test_instance();
 
         let work = work_factory.generate_work(request.clone());
 

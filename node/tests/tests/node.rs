@@ -16,6 +16,7 @@ use rsnano_node::{
     config::{NodeConfig, NodeFlags},
     consensus::{AecEvent, AggregatorRequest},
     wallets::WalletsExt,
+    work::WorkRequest,
 };
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
@@ -1455,7 +1456,11 @@ fn work_generate() {
     {
         let difficulty =
             DifficultyV1::from_multiplier(1.5, node.network_params.work.threshold_base());
-        let work = node.distributed_work.make_blocking(root, difficulty, None);
+
+        let work = node
+            .distributed_work
+            .generate_work(WorkRequest { root, difficulty });
+
         assert!(work.is_some());
         let work = work.unwrap();
         assert!(node.network_params.work.difficulty(&root, work) >= difficulty);
@@ -1467,7 +1472,9 @@ fn work_generate() {
             DifficultyV1::from_multiplier(0.5, node.network_params.work.threshold_base());
         let mut work;
         loop {
-            work = node.distributed_work.make_blocking(root, difficulty, None);
+            work = node
+                .distributed_work
+                .generate_work(WorkRequest { root, difficulty });
             if let Some(work_value) = work {
                 if node.network_params.work.difficulty(&root, work_value)
                     < node.network_params.work.threshold_base()
@@ -2580,7 +2587,7 @@ fn unconfirmed_send() {
         representative: *DEV_GENESIS_PUB_KEY,
         balance: Amount::nano(1),
         link: (*DEV_GENESIS_ACCOUNT).into(),
-        work: system.work.generate_dev(recv1.hash().into()).unwrap(),
+        work: node2.work_generate_dev(recv1.hash()),
     }
     .into();
 

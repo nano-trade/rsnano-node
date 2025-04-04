@@ -3,6 +3,7 @@ use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
 use rsnano_core::{Block, BlockType, DifficultyV1};
 use rsnano_ledger::{AnySet, LedgerSet};
+use rsnano_node::work::WorkRequest;
 use rsnano_rpc_messages::{WorkGenerateArgs, WorkGenerateDto};
 
 impl RpcCommandHandler {
@@ -52,9 +53,10 @@ impl RpcCommandHandler {
 
         let work = if !use_peers {
             if self.node.work.work_generation_enabled() {
-                self.node
-                    .distributed_work
-                    .make_blocking(args.hash.into(), difficulty, None)
+                self.node.distributed_work.generate_work(WorkRequest {
+                    root: args.hash.into(),
+                    difficulty,
+                })
             } else {
                 bail!("Local work generation is disabled");
             }

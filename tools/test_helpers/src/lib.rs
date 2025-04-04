@@ -34,7 +34,6 @@ use rsnano_work::WorkPool;
 
 pub struct System {
     pub network_params: NetworkParams,
-    pub work: Arc<WorkPool>,
     pub nodes: Vec<Arc<Node>>,
     pub initialization_blocks: Vec<Block>,
     pub initialization_blocks_cemented: Vec<Block>,
@@ -46,12 +45,6 @@ impl System {
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
 
         Self {
-            work: Arc::new(
-                WorkPool::builder()
-                    .network(Networks::NanoDevNetwork)
-                    .one_cpu_only()
-                    .finish(),
-            ),
             network_params,
             nodes: Vec::new(),
             initialization_blocks: Vec::new(),
@@ -173,8 +166,7 @@ impl System {
             .data_path(path)
             .config(config)
             .network_params(self.network_params.clone())
-            .flags(flags)
-            .work(self.work.clone());
+            .flags(flags);
         if let Some(sink) = event_sink {
             builder = builder.event_sink(sink);
         }
@@ -199,7 +191,6 @@ impl System {
             exclusive_node.stop();
             std::fs::remove_dir_all(&node.data_path).expect("Could not delete node data dir");
         }
-        self.work.stop();
     }
 
     pub fn stop_node(&mut self, node: Arc<Node>) {

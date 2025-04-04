@@ -163,7 +163,6 @@ pub(crate) struct NodeArgs {
     pub config: NodeConfig,
     pub network_params: NetworkParams,
     pub flags: NodeFlags,
-    pub work: Arc<WorkPool>,
     pub callbacks: NodeCallbacks,
     pub event_sender: Option<SyncSender<NodeEvent>>,
 }
@@ -178,7 +177,6 @@ impl NodeArgs {
             config,
             flags: Default::default(),
             callbacks: Default::default(),
-            work: Arc::new(WorkPool::new_null(WorkNonce::from(123))),
             event_sender: None,
         }
     }
@@ -214,7 +212,17 @@ impl Node {
         let current_network = network_params.network.current_network;
         let config = args.config;
         let flags = args.flags;
-        let work = args.work;
+
+        let work = Arc::new(
+            WorkPool::builder()
+                .thresholds(network_params.work.clone())
+                .threads(config.work_threads as usize)
+                .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
+                .opencl_config(config.opencl.clone())
+                .enable_gpu(config.enable_opencl)
+                .finish(),
+        );
+
         let node_observer = args.event_sender;
         // Time relative to the start of the node. This makes time exlicit and enables us to
         // write time relevant unit tests with ease.
@@ -1678,18 +1686,11 @@ mod tests {
             app_path.push(format!("rsnano-test-{}", Uuid::new_v4().simple()));
             let config = NodeConfig::new_test_instance();
             let network_params = NetworkParams::new(Networks::NanoDevNetwork);
-            let work = Arc::new(
-                WorkPool::builder()
-                    .network(Networks::NanoDevNetwork)
-                    .threads(1)
-                    .finish(),
-            );
 
             let node = NodeBuilder::new(Networks::NanoDevNetwork)
                 .data_path(app_path.clone())
                 .config(config)
                 .network_params(network_params)
-                .work(work)
                 .finish()
                 .unwrap();
 

@@ -8,11 +8,9 @@ use crate::{
 use rsnano_core::{utils::get_cpu_count, Networks};
 use rsnano_messages::Message;
 use rsnano_network::ChannelId;
-use rsnano_work::WorkPool;
 use std::{
     path::PathBuf,
     sync::{mpsc::SyncSender, Arc},
-    time::Duration,
 };
 
 #[derive(Default)]
@@ -70,7 +68,6 @@ pub struct NodeBuilder {
     config: Option<NodeConfig>,
     network_params: Option<NetworkParams>,
     flags: Option<NodeFlags>,
-    work: Option<Arc<WorkPool>>,
     callbacks: Option<NodeCallbacks>,
     event_sink: Option<SyncSender<NodeEvent>>,
 }
@@ -83,7 +80,6 @@ impl NodeBuilder {
             config: None,
             network_params: None,
             flags: None,
-            work: None,
             callbacks: None,
             event_sink: None,
         }
@@ -106,11 +102,6 @@ impl NodeBuilder {
 
     pub fn flags(mut self, flags: NodeFlags) -> Self {
         self.flags = Some(flags);
-        self
-    }
-
-    pub fn work(mut self, work: Arc<WorkPool>) -> Self {
-        self.work = Some(work);
         self
     }
 
@@ -154,18 +145,6 @@ impl NodeBuilder {
         };
 
         let flags = self.flags.unwrap_or_default();
-        let work = self.work.unwrap_or_else(|| {
-            Arc::new(
-                WorkPool::builder()
-                    .thresholds(network_params.work.clone())
-                    .threads(config.work_threads as usize)
-                    .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
-                    .opencl_config(config.opencl.clone())
-                    .enable_gpu(config.enable_opencl)
-                    .finish(),
-            )
-        });
-
         let callbacks = self.callbacks.unwrap_or_default();
 
         let args = NodeArgs {
@@ -173,7 +152,6 @@ impl NodeBuilder {
             config,
             network_params,
             flags,
-            work,
             callbacks,
             event_sender: self.event_sink,
         };

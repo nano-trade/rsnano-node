@@ -37,7 +37,7 @@ use crate::{
     representatives::OnlineReps,
     transport::MessageFlooder,
     utils::{ThreadPool, ThreadPoolImpl},
-    work::DistributedWorkFactory,
+    work::{DistributedWorkFactory, WorkRequest},
 };
 
 #[derive(FromPrimitive, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -370,11 +370,12 @@ impl Wallets {
 
     fn work_cache_blocking(&self, wallet: &Wallet, pub_key: &PublicKey, root: &Root) {
         if self.distributed_work.work_generation_enabled() {
-            let difficulty = self.work_thresholds.threshold_base();
-            if let Some(work) =
-                self.distributed_work
-                    .make_blocking(*root, difficulty, Some(pub_key.into()))
-            {
+            let work_request = WorkRequest {
+                root: *root,
+                difficulty: self.work_thresholds.threshold_base(),
+            };
+
+            if let Some(work) = self.distributed_work.generate_work(work_request) {
                 let mut tx = self.env.tx_begin_write();
                 if wallet.live() && wallet.store.exists(&tx, pub_key) {
                     wallet.work_update(&mut tx, pub_key, root, work);
@@ -1361,9 +1362,18 @@ impl WalletsExt for Arc<Wallets> {
                 block.hash(),
                 account.encode_account()
             );
-            self.distributed_work
-                .make_blocking_block(&mut block, required_difficulty)
+
+            let work_request = WorkRequest {
+                root: block.root(),
+                difficulty: required_difficulty,
+            };
+
+            let work = self
+                .distributed_work
+                .generate_work(work_request)
                 .ok_or_else(|| anyhow!("no work generated"))?;
+
+            block.set_work(work);
         }
         let arc_block = Arc::new(block.clone());
         let saved_block = self
