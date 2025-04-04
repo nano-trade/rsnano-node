@@ -52,8 +52,8 @@ impl RpcCommandHandler {
         let use_peers = args.use_peers.unwrap_or_default().inner();
 
         let work = if !use_peers {
-            if self.node.work.work_generation_enabled() {
-                self.node.distributed_work.generate_work(WorkRequest {
+            if self.node.work_factory.work_generation_enabled() {
+                self.node.work_factory.generate_work(WorkRequest {
                     root: args.hash.into(),
                     difficulty,
                 })

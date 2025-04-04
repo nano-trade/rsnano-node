@@ -32,7 +32,7 @@ impl RpcCommandHandler {
         let mut balance = args.balance.unwrap_or(Amount::zero());
         let mut prv_key = PrivateKey::zero();
 
-        if work.is_zero() && !self.node.distributed_work.work_generation_enabled() {
+        if work.is_zero() && !self.node.work_factory.work_generation_enabled() {
             bail!("Work generation is disabled");
         }
 
@@ -199,7 +199,7 @@ impl RpcCommandHandler {
 
             let work = match self
                 .node
-                .distributed_work
+                .work_factory
                 .generate_work(WorkRequest { root, difficulty })
             {
                 Some(work) => work,

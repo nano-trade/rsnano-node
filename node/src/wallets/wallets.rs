@@ -27,7 +27,7 @@ use rsnano_store_lmdb::{
     create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, LmdbWriteTransaction,
     Transaction,
 };
-use rsnano_work::{WorkPool, WorkThresholds};
+use rsnano_work::WorkThresholds;
 
 use super::{Wallet, WalletActionThread, WalletRepresentatives};
 use crate::{
@@ -108,7 +108,7 @@ impl Wallets {
             Arc::new(Ledger::new_null()),
             &NodeConfig::new_test_instance(),
             WorkThresholds::new(0, 0, 0),
-            Arc::new(DistributedWorkFactory::new(Arc::new(WorkPool::disabled()))),
+            Arc::new(DistributedWorkFactory::new_null()),
             NetworkParams::new(NetworkConstants::active_network()),
             Arc::new(ThreadPoolImpl::new_null()),
             Arc::new(BlockProcessor::new_null()),

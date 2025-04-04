@@ -1458,7 +1458,7 @@ fn work_generate() {
             DifficultyV1::from_multiplier(1.5, node.network_params.work.threshold_base());
 
         let work = node
-            .distributed_work
+            .work_factory
             .generate_work(WorkRequest { root, difficulty });
 
         assert!(work.is_some());
@@ -1473,7 +1473,7 @@ fn work_generate() {
         let mut work;
         loop {
             work = node
-                .distributed_work
+                .work_factory
                 .generate_work(WorkRequest { root, difficulty });
             if let Some(work_value) = work {
                 if node.network_params.work.difficulty(&root, work_value)

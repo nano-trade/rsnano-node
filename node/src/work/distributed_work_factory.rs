@@ -1,4 +1,8 @@
-use rsnano_core::{to_hex_string, Account, Root, WorkNonce};
+use rsnano_core::{
+    to_hex_string,
+    utils::{ContainerInfo, ContainerInfoProvider},
+    Account, Root, WorkNonce,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_work::WorkPool;
 use serde::{Deserialize, Serialize};
@@ -45,16 +49,20 @@ impl WorkRequest {
 }
 
 pub struct DistributedWorkFactory {
-    local_work_pool: Arc<WorkPool>,
+    pub local_work_pool: WorkPool,
     cancel_listener: OutputListenerMt<Root>,
 }
 
 impl DistributedWorkFactory {
-    pub fn new(work_pool: Arc<WorkPool>) -> Self {
+    pub fn new(work_pool: WorkPool) -> Self {
         Self {
             local_work_pool: work_pool,
             cancel_listener: OutputListenerMt::new(),
         }
+    }
+
+    pub fn new_null() -> Self {
+        Self::new(WorkPool::disabled())
     }
 
     pub fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
@@ -80,15 +88,20 @@ impl DistributedWorkFactory {
     }
 }
 
+impl ContainerInfoProvider for DistributedWorkFactory {
+    fn container_info(&self) -> ContainerInfo {
+        self.local_work_pool.container_info()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
     #[test]
     fn use_local_work_factor_when_no_peers_given() {
         let expected_work = WorkNonce::from(12345);
-        let work_pool = Arc::new(WorkPool::new_null(expected_work));
+        let work_pool = WorkPool::new_null(expected_work);
         let work_factory = DistributedWorkFactory::new(work_pool);
         let request = WorkRequest::new_test_instance();
 
@@ -99,7 +112,7 @@ mod tests {
 
     #[test]
     fn cancellations_can_be_tracked() {
-        let work_pool = Arc::new(WorkPool::new_null(1.into()));
+        let work_pool = WorkPool::new_null(1.into());
         let work_factory = DistributedWorkFactory::new(work_pool);
         let cancel_tracker = work_factory.track_cancellations();
 

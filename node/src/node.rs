@@ -85,7 +85,7 @@ use crate::{
         TimerThread, TxnTrackingConfig,
     },
     wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
-    work::DistributedWorkFactory,
+    work::{DistributedWorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
 
@@ -101,8 +101,7 @@ pub struct Node {
     pub workers: Arc<dyn ThreadPool>,
     wallet_workers: Arc<dyn ThreadPool>,
     pub flags: NodeFlags,
-    pub work: Arc<WorkPool>,
-    pub distributed_work: Arc<DistributedWorkFactory>,
+    pub work_factory: Arc<DistributedWorkFactory>,
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
@@ -213,15 +212,15 @@ impl Node {
         let config = args.config;
         let flags = args.flags;
 
-        let work = Arc::new(
-            WorkPool::builder()
-                .thresholds(network_params.work.clone())
-                .threads(config.work_threads as usize)
-                .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
-                .opencl_config(config.opencl.clone())
-                .enable_gpu(config.enable_opencl)
-                .finish(),
-        );
+        let local_work_pool = WorkPool::builder()
+            .thresholds(network_params.work.clone())
+            .threads(config.work_threads as usize)
+            .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
+            .opencl_config(config.opencl.clone())
+            .enable_gpu(config.enable_opencl)
+            .finish();
+
+        let work_factory = Arc::new(DistributedWorkFactory::new(local_work_pool));
 
         let node_observer = args.event_sender;
         // Time relative to the start of the node. This makes time exlicit and enables us to
@@ -265,8 +264,12 @@ impl Node {
         info!("Database backend: {}", store.vendor());
         info!(
             "Work pool threads: {} ({})",
-            work.thread_count(),
-            if work.has_opencl() { "OpenCL" } else { "CPU" }
+            work_factory.local_work_pool.thread_count(),
+            if work_factory.local_work_pool.has_opencl() {
+                "OpenCL"
+            } else {
+                "CPU"
+            }
         );
         info!("Work peers: {}", config.work_peers.len());
         info!("Node ID: {}", node_id);
@@ -465,8 +468,6 @@ impl Node {
             block_processor.processor_loop.clone(),
         ));
 
-        let distributed_work = Arc::new(DistributedWorkFactory::new(work.clone()));
-
         let mut wallets_path = application_path.clone();
         wallets_path.push("wallets.ldb");
 
@@ -488,7 +489,7 @@ impl Node {
             ledger.clone(),
             &config,
             network_params.work.clone(),
-            distributed_work.clone(),
+            work_factory.clone(),
             network_params.clone(),
             workers.clone(),
             block_processor.clone(),
@@ -953,7 +954,7 @@ impl Node {
                     .try_send(&channel, &keepalive, TrafficType::Keepalive);
             }));
 
-        if !distributed_work.work_generation_enabled() {
+        if !work_factory.work_generation_enabled() {
             info!("Work generation is disabled");
         }
 
@@ -1133,7 +1134,7 @@ impl Node {
         stats_collector.add_source(vote_rebroadcaster.stats.clone());
 
         let mut container_info = ContainerInfoFactory::new();
-        container_info.add("work", work.clone());
+        container_info.add("work", work_factory.clone());
         container_info.add("ledger", ledger.clone());
         container_info.add("active", active_elections.clone());
         container_info.add("network", network.clone());
@@ -1170,7 +1171,7 @@ impl Node {
             node_id: node_id_key,
             workers,
             wallet_workers,
-            distributed_work,
+            work_factory,
             unchecked,
             telemetry,
             syn_cookies,
@@ -1181,7 +1182,6 @@ impl Node {
             network_params,
             config,
             flags,
-            work,
             runtime,
             bootstrap_responder,
             online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
@@ -1318,7 +1318,13 @@ impl Node {
     }
 
     pub fn work_generate_dev(&self, root: impl Into<Root>) -> WorkNonce {
-        self.work.generate_dev(root.into()).unwrap()
+        let difficulty = self.network_params.work.threshold_base();
+        self.work_factory
+            .generate_work(WorkRequest {
+                root: root.into(),
+                difficulty,
+            })
+            .unwrap()
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> bool {
@@ -1506,7 +1512,7 @@ impl Node {
         self.peer_cache_updater.stop();
         // Cancels ongoing work generation tasks, which may be blocking other threads
         // No tasks may wait for work generation in I/O threads, or termination signal capturing will be unable to call node::stop()
-        self.distributed_work.stop();
+        self.work_factory.stop();
         self.backlog_scan.stop();
         self.bootstrapper.stop();
         self.bounded_backlog.stop();

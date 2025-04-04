@@ -34,7 +34,7 @@ impl RpcCommandHandler {
             }
             work
         } else {
-            if !self.node.distributed_work.work_generation_enabled() {
+            if !self.node.work_factory.work_generation_enabled() {
                 bail!("Work generation is disabled");
             }
             0.into()
