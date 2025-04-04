@@ -1116,19 +1116,17 @@ fn vote_replays() {
             .vote_blocking(&vote_send1, None, VoteSource::Live, None),
         VoteCode::Vote
     );
-    assert_eq!(
-        node.vote_processor
-            .vote_blocking(&vote_send1, None, VoteSource::Live, None),
-        VoteCode::Replay
-    );
+    let code = node
+        .vote_processor
+        .vote_blocking(&vote_send1, None, VoteSource::Live, None);
+    assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
 
-    // Wait until the election is removed, at which point the vote is still a replay since it's been recently confirmed
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
-    assert_eq!(
-        node.vote_processor
-            .vote_blocking(&vote_send1, None, VoteSource::Live, None),
-        VoteCode::Replay
-    );
+    // Wait until the election is removed, at which point the vote is considered late since it's been recently confirmed
+    assert_timely_eq2(|| node.active.len(), 1);
+    let code = node
+        .vote_processor
+        .vote_blocking(&vote_send1, None, VoteSource::Live, None);
+    assert_eq!(code, VoteCode::Late);
 
     // Open new account
     let vote_open1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![open1.hash()]));
@@ -1137,18 +1135,17 @@ fn vote_replays() {
             .vote_blocking(&vote_open1, None, VoteSource::Live, None),
         VoteCode::Vote
     );
-    assert_eq!(
-        node.vote_processor
-            .vote_blocking(&vote_open1, None, VoteSource::Live, None),
-        VoteCode::Replay
-    );
+    let code = node
+        .vote_processor
+        .vote_blocking(&vote_open1, None, VoteSource::Live, None);
+    assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
 
     assert_timely_eq2(|| node.active.len(), 0);
 
     assert_eq!(
         node.vote_processor
             .vote_blocking(&vote_open1, None, VoteSource::Live, None),
-        VoteCode::Replay
+        VoteCode::Late
     );
     assert_eq!(node.ledger.weight(&key.public_key()), Amount::nano(1000));
 
@@ -1182,26 +1179,26 @@ fn vote_replays() {
         VoteCode::Vote
     );
 
-    // this should still return replay, either because the election is still in the AEC or because it is recently confirmed
+    // This should still return replay or late, either because the election is still in the AEC or because it is recently confirmed
+    let code = node
+        .vote_processor
+        .vote_blocking(&vote1_send2, None, VoteSource::Live, None);
+    assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
+    assert_timely_eq2(|| node.active.len(), 0);
     assert_eq!(
         node.vote_processor
             .vote_blocking(&vote1_send2, None, VoteSource::Live, None),
-        VoteCode::Replay
-    );
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
-    assert_eq!(
-        node.vote_processor
-            .vote_blocking(&vote1_send2, None, VoteSource::Live, None),
-        VoteCode::Replay
+        VoteCode::Late
     );
     assert_eq!(
         node.vote_processor
             .vote_blocking(&vote2_send2, None, VoteSource::Live, None),
-        VoteCode::Replay
+        VoteCode::Late
     );
 
     // Removing blocks as recently confirmed makes every vote indeterminate
     node.active.clear_recently_confirmed();
+
     assert_eq!(
         node.vote_processor
             .vote_blocking(&vote_send1, None, VoteSource::Live, None),

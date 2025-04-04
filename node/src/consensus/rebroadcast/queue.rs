@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Condvar, Mutex,
@@ -83,8 +83,13 @@ impl VoteRebroadcastQueue {
     }
 
     pub fn try_enqueue(&self, vote: &Arc<Vote>, results: &HashMap<BlockHash, VoteCode>) {
-        let processed = results.iter().any(|(_, code)| *code == VoteCode::Vote);
-        if processed {
+        let should_rebroadcast = results.iter().any(|(_, code)| match code {
+            VoteCode::Vote => true,
+            VoteCode::Late => vote.is_final(),
+            _ => false,
+        });
+
+        if should_rebroadcast {
             self.enqueue(vote.clone());
         }
     }
@@ -114,7 +119,7 @@ impl VoteRebroadcastQueue {
 
     /// This will wait for a vote to be enqueued or for the
     /// queue to be stopped.
-    pub fn dequeue_blocking(&self) -> Option<Arc<Vote>> {
+    pub fn dequeue_blocking(&self) -> Option<(RepTier, Arc<Vote>)> {
         let mut queue = self.queue.lock().unwrap();
         if queue.len() == 0 && !self.block_when_empty {
             return None;
@@ -246,9 +251,9 @@ impl QueueImpl {
         added
     }
 
-    fn dequeue(&mut self) -> Option<Arc<Vote>> {
-        let vote = self.queue.next().map(|(_, vote)| vote);
-        if let Some(v) = &vote {
+    fn dequeue(&mut self) -> Option<(RepTier, Arc<Vote>)> {
+        let vote = self.queue.next();
+        if let Some((_, v)) = &vote {
             self.queue_hashes.remove(&v.signature);
         }
         vote
@@ -278,7 +283,6 @@ impl QueueImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::PrivateKey;
 
     #[test]
     fn empty() {

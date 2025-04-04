@@ -492,10 +492,10 @@ impl ActiveElectionsContainer {
 
                 results.insert(vote_summary.hash, vote_code);
             } else {
-                if !self.was_recently_confirmed(&vote_summary.hash) {
-                    results.insert(vote_summary.hash, VoteCode::Indeterminate);
+                if self.was_recently_confirmed(&vote_summary.hash) {
+                    results.insert(vote_summary.hash, VoteCode::Late);
                 } else {
-                    results.insert(vote_summary.hash, VoteCode::Replay);
+                    results.insert(vote_summary.hash, VoteCode::Indeterminate);
                 }
             }
         }

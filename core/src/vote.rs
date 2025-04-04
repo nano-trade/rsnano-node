@@ -28,17 +28,30 @@ impl VoteSource {
 
 #[derive(FromPrimitive, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum VoteCode {
-    Invalid,       // Vote is not signed correctly
-    Replay,        // Vote does not have the highest timestamp, it's a replay
-    Vote,          // Vote has the highest timestamp
-    Indeterminate, // Unknown if replay or vote
-    Ignored,       // Vote is valid, but got ingored (e.g. due to cooldown)
+    /// Vote is not signed correctly
+    Invalid,
+
+    /// Vote does not have the highest timestamp, it's a replay
+    Replay,
+
+    /// Vote has the highest timestamp
+    Vote,
+
+    /// Vote is late, the election is already confirmed and present in the recently confirmed set
+    Late,
+
+    /// Unknown if replay or vote
+    Indeterminate,
+
+    /// Vote is valid, but got ingored (e.g. due to cooldown)
+    Ignored,
 }
 
 impl VoteCode {
     pub fn as_str(&self) -> &'static str {
         match self {
             VoteCode::Vote => "vote",
+            VoteCode::Late => "late",
             VoteCode::Replay => "replay",
             VoteCode::Indeterminate => "indeterminate",
             VoteCode::Ignored => "ignored",

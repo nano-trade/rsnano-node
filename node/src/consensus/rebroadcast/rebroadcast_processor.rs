@@ -12,7 +12,7 @@ use rsnano_network::TrafficType;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::history::{RebroadcastError, RebroadcastHistory};
-use crate::transport::MessageFlooder;
+use crate::{consensus::RepTier, transport::MessageFlooder};
 use rsnano_ledger::RepWeightCache;
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use strum::{EnumCount, IntoEnumIterator};
@@ -44,7 +44,7 @@ impl RebroadcastProcessor {
         }
     }
 
-    pub fn rebroadcast(&mut self, vote: &Vote) -> bool {
+    pub fn rebroadcast(&mut self, tier: RepTier, vote: &Vote) -> bool {
         self.stats.processed.fetch_add(1, Relaxed);
 
         let now = self.clock.now();
@@ -72,7 +72,7 @@ impl RebroadcastProcessor {
 
         match self.history.check_and_record(vote, voter_weight, now) {
             Ok(()) => {
-                self.update_stats(vote);
+                self.update_stats(vote, tier);
                 let message = self.create_ack_message(vote);
 
                 let sent = self.message_flooder.flood(
@@ -95,12 +95,14 @@ impl RebroadcastProcessor {
         Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(vote.clone()))
     }
 
-    fn update_stats(&self, vote: &Vote) {
+    fn update_stats(&self, vote: &Vote, tier: RepTier) {
         self.stats.rebroadcast.fetch_add(1, Relaxed);
 
         self.stats
             .rebroadcast_hashes
             .fetch_add(vote.hashes.len(), Relaxed);
+
+        self.stats.tiers[tier as usize].fetch_add(1, Relaxed);
     }
 }
 
@@ -112,6 +114,7 @@ pub(crate) struct RebroadcastStats {
     rebroadcast_hashes: AtomicUsize,
     errors: [AtomicUsize; RebroadcastError::COUNT],
     cooldown: AtomicUsize,
+    tiers: [AtomicUsize; RepTier::COUNT],
 }
 
 impl RebroadcastStats {
@@ -135,6 +138,14 @@ impl StatsSource for RebroadcastStats {
                 Self::KEY,
                 err.as_str(),
                 self.errors[err as usize].load(Relaxed),
+            );
+        }
+
+        for tier in RepTier::iter() {
+            result.insert(
+                "vote_rebroadcaster_tier",
+                tier.as_str(),
+                self.tiers[tier as usize].load(Relaxed),
             );
         }
     }
@@ -170,7 +181,7 @@ mod tests {
         let stats = Arc::new(RebroadcastStats::default());
         let mut processor = RebroadcastProcessor::new(message_flooder, rep_weights, clock, stats);
 
-        processor.rebroadcast(&input.vote);
+        processor.rebroadcast(RepTier::Tier1, &input.vote);
 
         flood_tracker.output()
     }

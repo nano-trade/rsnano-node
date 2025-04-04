@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn process_events() {
-        let (tx, rx) = backpressure_channel::<&'static str>(2);
+        let (_tx, rx) = backpressure_channel::<&'static str>(2);
         let mut ev_loop = BackpressureEventLoop::new(rx, StubProcessor::default());
         ev_loop.process_event("test1");
         ev_loop.process_event("test2");
@@ -104,7 +104,7 @@ mod tests {
 
         ev_loop.processor.clear();
         ev_loop.process_event("test4");
-        ev_loop.receiver.recv();
+        ev_loop.receiver.recv().unwrap();
         ev_loop.process_event("test5");
 
         assert_eq!(ev_loop.processor.log(), ["test4", "recovered", "test5"]);

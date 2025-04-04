@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    collections::HashMap,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
@@ -146,24 +147,7 @@ impl VoteProcessor {
                 .vote_applier
                 .vote(vote, source, channel.clone(), filter);
 
-            // Aggregate results for individual hashes
-            let mut ignored = false;
-            let mut replay = false;
-            let mut processed = false;
-            for (_, vote_code) in vote_results {
-                ignored |= vote_code == VoteCode::Ignored;
-                replay |= vote_code == VoteCode::Replay;
-                processed |= vote_code == VoteCode::Vote;
-            }
-            result = if ignored {
-                VoteCode::Ignored
-            } else if replay {
-                VoteCode::Replay
-            } else if processed {
-                VoteCode::Vote
-            } else {
-                VoteCode::Indeterminate
-            };
+            result = aggregate_vote_results(&vote_results);
         }
 
         result
@@ -196,5 +180,30 @@ impl VoteProcessorExt for Arc<VoteProcessor> {
                     .unwrap(),
             )
         }
+    }
+}
+
+// Aggregate results for individual hashes
+pub fn aggregate_vote_results(results: &HashMap<BlockHash, VoteCode>) -> VoteCode {
+    let mut ignored = false;
+    let mut replay = false;
+    let mut processed = false;
+    let mut late = false;
+    for (_, vote_code) in results {
+        ignored |= *vote_code == VoteCode::Ignored;
+        replay |= *vote_code == VoteCode::Replay;
+        processed |= *vote_code == VoteCode::Vote;
+        late |= *vote_code == VoteCode::Late;
+    }
+    if ignored {
+        VoteCode::Ignored
+    } else if replay {
+        VoteCode::Replay
+    } else if processed {
+        VoteCode::Vote
+    } else if late {
+        VoteCode::Late
+    } else {
+        VoteCode::Indeterminate
     }
 }

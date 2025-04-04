@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{mpsc::SyncSender, Arc, Mutex},
-};
+use std::sync::{mpsc::SyncSender, Arc, Mutex};
 
 use rsnano_core::{utils::MemoryStream, Block, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_messages::NetworkFilter;
@@ -11,9 +8,9 @@ use crate::{
     block_processing::BlockProcessor,
     cementation::ConfirmingSet,
     consensus::{
-        election_schedulers::ElectionSchedulers, ActiveElections, AecCooldownReason, AecEvent,
-        BlockVoter, BootstrapElectionActivator, LocalVotesRemover, VoteCache, VoteCacheProcessor,
-        VoteProcessor, VoteRebroadcastQueue, VoteType,
+        aggregate_vote_results, election_schedulers::ElectionSchedulers, ActiveElections,
+        AecCooldownReason, AecEvent, BlockVoter, BootstrapElectionActivator, LocalVotesRemover,
+        VoteCache, VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue, VoteType,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -163,22 +160,4 @@ impl AecEventProcessor {
                 .vote_observed(vote.voter, self.clock.now());
         }
     }
-}
-
-// Aggregate results for individual hashes
-fn aggregate_vote_results(results: &HashMap<BlockHash, VoteCode>) -> VoteCode {
-    let mut replay = false;
-    let mut processed = false;
-    for (_, vote_code) in results {
-        replay |= *vote_code == VoteCode::Replay;
-        processed |= *vote_code == VoteCode::Vote;
-    }
-    let result = if replay {
-        VoteCode::Replay
-    } else if processed {
-        VoteCode::Vote
-    } else {
-        VoteCode::Indeterminate
-    };
-    result
 }

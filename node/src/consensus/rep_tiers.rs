@@ -6,7 +6,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use strum_macros::EnumIter;
+use strum_macros::{EnumCount, EnumIter};
 use tracing::debug;
 
 use rsnano_core::{
@@ -19,7 +19,7 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 use crate::representatives::OnlineReps;
 
 // Higher number means higher priority
-#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, EnumIter, Hash, Debug)]
+#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, EnumIter, Hash, Debug, EnumCount)]
 pub enum RepTier {
     /// Not a principal representatives
     None,
@@ -29,6 +29,17 @@ pub enum RepTier {
     Tier2,
     /// (> 5%) of online stake
     Tier3,
+}
+
+impl RepTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RepTier::None => "none",
+            RepTier::Tier1 => "tier1",
+            RepTier::Tier2 => "tier2",
+            RepTier::Tier3 => "tier3",
+        }
+    }
 }
 
 impl From<RepTier> for DetailType {

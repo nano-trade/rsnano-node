@@ -50,10 +50,10 @@ impl VoteRebroadcaster {
         let handle = std::thread::Builder::new()
             .name("Vote rebroad".to_owned())
             .spawn(move || {
-                while let Some(vote) = queue.dequeue_blocking() {
+                while let Some((tier, vote)) = queue.dequeue_blocking() {
                     let mut success = false;
                     while !success && !queue.stopped() {
-                        success = rebroadcast_processor.rebroadcast(&vote);
+                        success = rebroadcast_processor.rebroadcast(tier, &vote);
                         if !success {
                             // Wait for more capacity
                             std::thread::sleep(Duration::from_millis(100));
