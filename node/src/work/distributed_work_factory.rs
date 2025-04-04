@@ -51,26 +51,24 @@ impl WorkRequest {
 
 pub struct DistributedWorkFactory {
     work_pool: Arc<WorkPool>,
-    tokio: tokio::runtime::Handle,
     cancel_listener: OutputListenerMt<Root>,
 }
 
 impl DistributedWorkFactory {
-    pub fn new(work_pool: Arc<WorkPool>, tokio: tokio::runtime::Handle) -> Self {
+    pub fn new(work_pool: Arc<WorkPool>) -> Self {
         Self {
             work_pool,
-            tokio,
             cancel_listener: OutputListenerMt::new(),
         }
     }
 
     pub fn make_blocking_block(&self, block: &mut Block, difficulty: u64) -> Option<WorkNonce> {
-        let work = self.tokio.block_on(self.generate_work(WorkRequest {
+        let work = self.generate_work(WorkRequest {
             root: block.root(),
             difficulty,
             account: None,
             peers: Vec::new(),
-        }));
+        });
 
         if let Some(work) = work {
             block.set_work(work);
@@ -85,44 +83,16 @@ impl DistributedWorkFactory {
         difficulty: u64,
         account: Option<Account>,
     ) -> Option<WorkNonce> {
-        self.tokio.block_on(self.generate_work(WorkRequest {
-            root,
-            difficulty,
-            account,
-            peers: Vec::new(),
-        }))
-    }
-
-    pub async fn make(
-        &self,
-        root: Root,
-        difficulty: u64,
-        account: Option<Account>,
-    ) -> Option<WorkNonce> {
         self.generate_work(WorkRequest {
             root,
             difficulty,
             account,
             peers: Vec::new(),
         })
-        .await
     }
 
-    async fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
-        self.generate_in_local_work_pool(request.root, request.difficulty)
-            .await
-    }
-
-    async fn generate_in_local_work_pool(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
-        let (tx, rx) = oneshot::channel::<Option<WorkNonce>>();
-        self.work_pool.generate_async(
-            root,
-            difficulty,
-            Some(Box::new(move |work| {
-                tx.send(work).unwrap();
-            })),
-        );
-        rx.await.ok()?
+    fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
+        self.work_pool.generate(request.root, request.difficulty)
     }
 
     pub fn cancel(&self, root: Root) {
@@ -148,28 +118,26 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    #[tokio::test]
-    async fn use_local_work_factor_when_no_peers_given() {
+    #[test]
+    fn use_local_work_factor_when_no_peers_given() {
         let expected_work = WorkNonce::from(12345);
         let work_pool = Arc::new(WorkPool::new_null(expected_work));
-        let work_factory =
-            DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
+        let work_factory = DistributedWorkFactory::new(work_pool);
 
         let request = WorkRequest {
             peers: vec![],
             ..WorkRequest::new_test_instance()
         };
 
-        let work = work_factory.generate_work(request.clone()).await;
+        let work = work_factory.generate_work(request.clone());
 
         assert_eq!(work, Some(expected_work));
     }
 
-    #[tokio::test]
-    async fn cancellations_can_be_tracked() {
+    #[test]
+    fn cancellations_can_be_tracked() {
         let work_pool = Arc::new(WorkPool::new_null(1.into()));
-        let work_factory =
-            DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
+        let work_factory = DistributedWorkFactory::new(work_pool);
         let cancel_tracker = work_factory.track_cancellations();
 
         let root = Root::from(1);

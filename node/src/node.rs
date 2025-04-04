@@ -457,7 +457,7 @@ impl Node {
             block_processor.processor_loop.clone(),
         ));
 
-        let distributed_work = Arc::new(DistributedWorkFactory::new(work.clone(), runtime.clone()));
+        let distributed_work = Arc::new(DistributedWorkFactory::new(work.clone()));
 
         let mut wallets_path = application_path.clone();
         wallets_path.push("wallets.ldb");

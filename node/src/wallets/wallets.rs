@@ -102,16 +102,13 @@ pub struct Wallets {
 }
 
 impl Wallets {
-    pub fn new_null_with_env(env: Arc<LmdbEnv>, tokio_handle: tokio::runtime::Handle) -> Self {
+    pub fn new_null_with_env(env: Arc<LmdbEnv>) -> Self {
         Wallets::new(
             env,
             Arc::new(Ledger::new_null()),
             &NodeConfig::new_test_instance(),
             WorkThresholds::new(0, 0, 0),
-            Arc::new(DistributedWorkFactory::new(
-                Arc::new(WorkPool::disabled()),
-                tokio_handle.clone(),
-            )),
+            Arc::new(DistributedWorkFactory::new(Arc::new(WorkPool::disabled()))),
             NetworkParams::new(NetworkConstants::active_network()),
             Arc::new(ThreadPoolImpl::new_null()),
             Arc::new(BlockProcessor::new_null()),
