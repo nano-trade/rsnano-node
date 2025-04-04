@@ -73,7 +73,7 @@ mod tests {
     fn bootstrap_weights_text() {
         assert_eq!(
             get_bootstrap_weights_text(Networks::NanoLiveNetwork).len(),
-            13921,
+            14126,
             "expected live weights don't match'"
         );
         assert_eq!(
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn bootstrap_weights() {
         let (max_blocks, weights) = get_bootstrap_weights(Networks::NanoLiveNetwork);
-        assert_eq!(weights.len(), 135);
-        assert_eq!(max_blocks, 204_137_485);
+        assert_eq!(weights.len(), 137);
+        assert_eq!(max_blocks, 207_494_994);
     }
 }

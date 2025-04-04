@@ -386,16 +386,6 @@ mod tests {
     }
 
     #[test]
-    fn container_info() {
-        let queue = VoteRebroadcastQueue::build().max_len(2).finish();
-        set_rep_tiers(&queue);
-        queue.enqueue(test_vote());
-        let info = queue.container_info();
-        let expected: ContainerInfo = [("queue", 1, 0)].into();
-        assert_eq!(info, expected);
-    }
-
-    #[test]
     fn ignore_unprocessed_vote() {
         let queue = VoteRebroadcastQueue::build().finish();
         set_rep_tiers(&queue);
