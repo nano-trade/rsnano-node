@@ -22,7 +22,7 @@ RsNano is a Rust port of the original Nano node.
 
 ## Option 1: Run the official docker image
 
-    docker run -p 7075:7075 -v ~/Nano:/root/Nano simpago/rsnano-dev:V1.0-dev.1 nano_node daemon --network=live
+    docker run -p 7075:7075 -v ~/Nano:/root/Nano simpago/rsnano-dev:V1.0-dev.2 nano_node daemon --network=live
 
 ## Option 2: Build your own docker image
 
