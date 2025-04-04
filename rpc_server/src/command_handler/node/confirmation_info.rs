@@ -36,24 +36,32 @@ impl RpcCommandHandler {
                 None
             };
 
-            let representatives = if include_representatives {
+            let (representatives, representatives_final) = if include_representatives {
                 let mut reps = IndexMap::new();
+                let mut reps_final = IndexMap::new();
                 for (representative, vote) in election.votes() {
                     if block.hash() == vote.hash {
                         let amount = self.node.ledger.rep_weights.weight(representative);
+
                         reps.insert(Account::from(representative), amount);
+
+                        if vote.is_final_vote() {
+                            reps_final.insert(Account::from(representative), amount);
+                        }
                     }
                 }
                 reps.sort_by(|k1, _, k2, _| k2.cmp(k1));
-                Some(reps)
+                reps_final.sort_by(|k1, _, k2, _| k2.cmp(k1));
+                (Some(reps), Some(reps_final))
             } else {
-                None
+                (None, None)
             };
 
             let entry = ConfirmationBlockInfoDto {
                 tally,
                 contents,
                 representatives,
+                representatives_final,
             };
 
             blocks.insert(block.hash(), entry);

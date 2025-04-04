@@ -63,10 +63,15 @@ pub struct ConfirmationInfoResponse {
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct ConfirmationBlockInfoDto {
     pub tally: Amount,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contents: Option<JsonBlock>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub representatives: Option<IndexMap<Account, Amount>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub representatives_final: Option<IndexMap<Account, Amount>>,
 }
 
 #[cfg(test)]
@@ -87,6 +92,7 @@ mod tests {
                     tally: 7.into(),
                     contents: None,
                     representatives: None,
+                    representatives_final: None,
                 },
             )]
             .into(),
