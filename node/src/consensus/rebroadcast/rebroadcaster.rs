@@ -1,6 +1,4 @@
-use std::{sync::Arc, thread::JoinHandle};
-
-use rsnano_stats::{StatsCollection, StatsSource};
+use std::{sync::Arc, thread::JoinHandle, time::Duration};
 
 use super::{
     rebroadcast_processor::{RebroadcastProcessor, RebroadcastStats},
@@ -53,7 +51,14 @@ impl VoteRebroadcaster {
             .name("Vote rebroad".to_owned())
             .spawn(move || {
                 while let Some(vote) = queue.dequeue_blocking() {
-                    rebroadcast_processor.rebroadcast(&vote);
+                    let mut success = false;
+                    while !success && !queue.stopped() {
+                        success = rebroadcast_processor.rebroadcast(&vote);
+                        if !success {
+                            // Wait for more capacity
+                            std::thread::sleep(Duration::from_millis(100));
+                        }
+                    }
                     if let Some(cb) = &callback {
                         cb();
                     }

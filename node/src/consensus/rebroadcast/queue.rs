@@ -278,6 +278,7 @@ impl QueueImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rsnano_core::PrivateKey;
 
     #[test]
     fn empty() {
@@ -356,11 +357,18 @@ mod tests {
     fn max_len() {
         let queue = VoteRebroadcastQueue::build().max_len(2).finish();
         set_rep_tiers(&queue);
-        queue.enqueue(test_vote());
-        queue.enqueue(test_vote());
+
+        queue.enqueue(Arc::new(
+            Vote::build_test_instance().blocks([1.into()]).finish(),
+        ));
+        queue.enqueue(Arc::new(
+            Vote::build_test_instance().blocks([2.into()]).finish(),
+        ));
         assert_eq!(queue.len(), 2);
 
-        queue.enqueue(test_vote());
+        queue.enqueue(Arc::new(
+            Vote::build_test_instance().blocks([3.into()]).finish(),
+        ));
         assert_eq!(queue.len(), 2);
     }
 

@@ -604,7 +604,14 @@ fn republish_winner() {
 #[test]
 fn confirm_election_by_request() {
     let mut system = System::new();
-    let node1 = system.make_node();
+    let node1 = system
+        .build_node()
+        .config(NodeConfig {
+            // Disable vote rebroadcasting to prevent node1 from actively sending votes to node2
+            enable_vote_rebroadcast: false,
+            ..System::default_config()
+        })
+        .finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
 
     let send1 = lattice.genesis().send(Account::from(1), 100);

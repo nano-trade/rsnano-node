@@ -443,6 +443,17 @@ impl Network {
             .count()
     }
 
+    pub fn check_capacity(&self, traffic_type: TrafficType, scale: f32) -> bool {
+        let target_count = self.fanout(scale);
+        let candidates = self
+            .channels()
+            .filter(|c| c.free_capacity(traffic_type) > 0)
+            .count();
+
+        // We need to have at least half of the target capacity available
+        candidates >= target_count / 2
+    }
+
     pub fn bootstrap_peer(&mut self, now: Timestamp) -> SocketAddrV6 {
         let mut peering_endpoint = None;
         let mut channel = None;

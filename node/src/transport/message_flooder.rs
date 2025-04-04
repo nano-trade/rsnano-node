@@ -4,12 +4,14 @@ use std::{
 };
 
 use rsnano_messages::{Message, MessageSerializer};
-use rsnano_network::{Channel, Network, TrafficType};
+use rsnano_network::{Channel, ChannelDirection, Network, TrafficType};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::Stats;
 
 use super::{try_send_serialized_message, MessageSender};
 use crate::representatives::OnlineReps;
+use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
+use rsnano_nullable_clock::Timestamp;
 
 /// Floods messages to PRs and non PRs
 pub struct MessageFlooder {
@@ -39,9 +41,21 @@ impl MessageFlooder {
     }
 
     pub(crate) fn new_null() -> Self {
+        let mut network = Network::new_test_instance();
+        // add a channel so that capacity checks succeed
+        let (channel, _) = network
+            .add(
+                TEST_ENDPOINT_1,
+                TEST_ENDPOINT_2,
+                ChannelDirection::Outbound,
+                Timestamp::new_test_instance(),
+            )
+            .unwrap();
+        channel.set_mode(rsnano_network::ChannelMode::Realtime);
+
         Self::new(
             Arc::new(Mutex::new(OnlineReps::default())),
-            Arc::new(RwLock::new(Network::new_test_instance())),
+            Arc::new(RwLock::new(network)),
             Arc::new(Stats::default()),
             MessageSender::new_null(),
         )
@@ -121,6 +135,13 @@ impl MessageFlooder {
         let mut channels = network.shuffled_channels(traffic_type);
         channels.truncate(network.fanout(scale));
         channels
+    }
+
+    pub fn check_capacity(&self, traffic_type: TrafficType, scale: f32) -> bool {
+        self.network
+            .read()
+            .unwrap()
+            .check_capacity(traffic_type, scale)
     }
 }
 

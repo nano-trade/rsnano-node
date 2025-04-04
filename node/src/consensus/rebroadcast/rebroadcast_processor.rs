@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::Relaxed},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering::Relaxed},
+        Arc,
+    },
+    time::Duration,
 };
 
 use rsnano_core::Vote;
@@ -11,7 +14,7 @@ use rsnano_stats::{StatsCollection, StatsSource};
 use super::history::{RebroadcastError, RebroadcastHistory};
 use crate::transport::MessageFlooder;
 use rsnano_ledger::RepWeightCache;
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use strum::{EnumCount, IntoEnumIterator};
 
 /// Rebroadcasts a given vote if necessary
@@ -21,6 +24,7 @@ pub(super) struct RebroadcastProcessor {
     rep_weights: Arc<RepWeightCache>,
     clock: Arc<SteadyClock>,
     stats: Arc<RebroadcastStats>,
+    last_rep_weight_update: Timestamp,
 }
 
 impl RebroadcastProcessor {
@@ -34,25 +38,48 @@ impl RebroadcastProcessor {
             message_flooder,
             history: RebroadcastHistory::default(),
             rep_weights,
+            last_rep_weight_update: clock.now(),
             clock,
             stats,
         }
     }
 
-    pub fn rebroadcast(&mut self, vote: &Vote) {
+    pub fn rebroadcast(&mut self, vote: &Vote) -> bool {
         self.stats.processed.fetch_add(1, Relaxed);
 
-        let weight = self.rep_weights.weight(&vote.voter);
         let now = self.clock.now();
 
-        match self.history.check_and_record(vote, weight, now) {
+        let voter_weight = {
+            let weights = self.rep_weights.read();
+
+            if self.last_rep_weight_update.elapsed(now) > Duration::from_secs(60) {
+                self.history.update_weights(&weights);
+            }
+
+            weights.get(&vote.voter).cloned().unwrap_or_default()
+        };
+
+        const NETWORK_FANOUT_SCALE: f32 = 1.0;
+
+        // Wait for spare capacity if our network traffic is too high
+        if !self
+            .message_flooder
+            .check_capacity(TrafficType::VoteRebroadcast, NETWORK_FANOUT_SCALE)
+        {
+            self.stats.cooldown.fetch_add(1, Relaxed);
+            return false;
+        }
+
+        match self.history.check_and_record(vote, voter_weight, now) {
             Ok(()) => {
                 self.update_stats(vote);
                 let message = self.create_ack_message(vote);
 
-                let sent = self
-                    .message_flooder
-                    .flood(&message, TrafficType::VoteRebroadcast, 0.5);
+                let sent = self.message_flooder.flood(
+                    &message,
+                    TrafficType::VoteRebroadcast,
+                    NETWORK_FANOUT_SCALE,
+                );
 
                 self.stats.sent.fetch_add(sent, Relaxed);
             }
@@ -60,6 +87,8 @@ impl RebroadcastProcessor {
                 self.stats.errors[err as usize].fetch_add(1, Relaxed);
             }
         }
+
+        true
     }
 
     fn create_ack_message(&self, vote: &Vote) -> Message {
@@ -82,6 +111,7 @@ pub(crate) struct RebroadcastStats {
     rebroadcast: AtomicUsize,
     rebroadcast_hashes: AtomicUsize,
     errors: [AtomicUsize; RebroadcastError::COUNT],
+    cooldown: AtomicUsize,
 }
 
 impl RebroadcastStats {
@@ -98,6 +128,8 @@ impl StatsSource for RebroadcastStats {
             "rebroadcast_hashes",
             self.rebroadcast_hashes.load(Relaxed),
         );
+        result.insert(Self::KEY, "cooldown", self.cooldown.load(Relaxed));
+
         for err in RebroadcastError::iter() {
             result.insert(
                 Self::KEY,
@@ -125,7 +157,7 @@ mod tests {
             vec![FloodEvent {
                 message: Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(vote)),
                 traffic_type: TrafficType::VoteRebroadcast,
-                scale: 0.5
+                scale: 1.0
             }]
         )
     }

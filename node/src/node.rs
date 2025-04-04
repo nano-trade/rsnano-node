@@ -1471,7 +1471,9 @@ impl Node {
         if self.config.enable_monitor {
             self.monitor.start_delayed(self.config.monitor.interval);
         }
-        self.vote_rebroadcaster.start();
+        if self.config.enable_vote_rebroadcast {
+            self.vote_rebroadcaster.start();
+        }
     }
 
     pub fn stop(&mut self) {

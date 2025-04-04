@@ -57,6 +57,7 @@ pub struct NodeConfig {
     pub enable_hinted_scheduler: bool,
     pub enable_monitor: bool,
     pub enable_bounded_backlog: bool,
+    pub enable_vote_rebroadcast: bool,
     pub bootstrap_initiator_threads: u32,
     pub bootstrap_serving_threads: u32,
     pub block_processor_batch_max_time_ms: i64,
@@ -253,6 +254,7 @@ impl NodeConfig {
             enable_hinted_scheduler: true,
             enable_monitor: true,
             enable_bounded_backlog: true,
+            enable_vote_rebroadcast: true,
             bootstrap_initiator_threads: 1,
             bootstrap_serving_threads: 1,
             block_processor_batch_max_time_ms: block_processor_cfg.batch_max_time.as_millis()

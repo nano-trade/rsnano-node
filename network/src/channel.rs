@@ -258,6 +258,10 @@ impl Channel {
         inserted
     }
 
+    pub fn free_capacity(&self, traffic_type: TrafficType) -> usize {
+        self.write_queue.free_capacity(traffic_type)
+    }
+
     pub fn queue_len(&self) -> usize {
         self.write_queue.len()
     }
