@@ -221,6 +221,9 @@ impl Wallets {
             }
 
             info!("Found {} wallet(s)", guard.len());
+            for i in guard.keys() {
+                info!("Wallet: {}", i);
+            }
 
             // Backup before upgrade wallets
             let mut backup_required = false;
