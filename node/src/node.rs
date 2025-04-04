@@ -85,7 +85,7 @@ use crate::{
         TimerThread, TxnTrackingConfig,
     },
     wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
-    work::{DistributedWorkFactory, WorkRequest},
+    work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
 
@@ -101,7 +101,7 @@ pub struct Node {
     pub workers: Arc<dyn ThreadPool>,
     wallet_workers: Arc<dyn ThreadPool>,
     pub flags: NodeFlags,
-    pub work_factory: Arc<DistributedWorkFactory>,
+    pub work_factory: Arc<WorkFactory>,
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
@@ -220,7 +220,7 @@ impl Node {
             .enable_gpu(config.enable_opencl)
             .finish();
 
-        let work_factory = Arc::new(DistributedWorkFactory::new(local_work_pool));
+        let work_factory = Arc::new(WorkFactory::new(local_work_pool));
 
         let node_observer = args.event_sender;
         // Time relative to the start of the node. This makes time exlicit and enables us to

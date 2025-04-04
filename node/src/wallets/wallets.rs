@@ -37,7 +37,7 @@ use crate::{
     representatives::OnlineReps,
     transport::MessageFlooder,
     utils::{ThreadPool, ThreadPoolImpl},
-    work::{DistributedWorkFactory, WorkRequest},
+    work::{WorkFactory, WorkRequest},
 };
 
 #[derive(FromPrimitive, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -86,7 +86,7 @@ pub struct Wallets {
     node_config: NodeConfig,
     ledger: Arc<Ledger>,
     last_log: Mutex<Option<Instant>>,
-    distributed_work: Arc<DistributedWorkFactory>,
+    distributed_work: Arc<WorkFactory>,
     work_thresholds: WorkThresholds,
     network_params: NetworkParams,
     pub delayed_work: Mutex<HashMap<Account, Root>>,
@@ -108,7 +108,7 @@ impl Wallets {
             Arc::new(Ledger::new_null()),
             &NodeConfig::new_test_instance(),
             WorkThresholds::new(0, 0, 0),
-            Arc::new(DistributedWorkFactory::new_null()),
+            Arc::new(WorkFactory::new_null()),
             NetworkParams::new(NetworkConstants::active_network()),
             Arc::new(ThreadPoolImpl::new_null()),
             Arc::new(BlockProcessor::new_null()),
@@ -133,7 +133,7 @@ impl Wallets {
         ledger: Arc<Ledger>,
         node_config: &NodeConfig,
         work: WorkThresholds,
-        distributed_work: Arc<DistributedWorkFactory>,
+        distributed_work: Arc<WorkFactory>,
         network_params: NetworkParams,
         workers: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,

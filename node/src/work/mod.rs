@@ -1,2 +1,2 @@
-mod distributed_work_factory;
-pub use distributed_work_factory::*;
+mod work_factory;
+pub use work_factory::*;

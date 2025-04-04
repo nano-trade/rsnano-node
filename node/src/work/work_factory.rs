@@ -48,12 +48,12 @@ impl WorkRequest {
     }
 }
 
-pub struct DistributedWorkFactory {
+pub struct WorkFactory {
     pub local_work_pool: WorkPool,
     cancel_listener: OutputListenerMt<Root>,
 }
 
-impl DistributedWorkFactory {
+impl WorkFactory {
     pub fn new(work_pool: WorkPool) -> Self {
         Self {
             local_work_pool: work_pool,
@@ -88,7 +88,7 @@ impl DistributedWorkFactory {
     }
 }
 
-impl ContainerInfoProvider for DistributedWorkFactory {
+impl ContainerInfoProvider for WorkFactory {
     fn container_info(&self) -> ContainerInfo {
         self.local_work_pool.container_info()
     }
@@ -102,7 +102,7 @@ mod tests {
     fn use_local_work_factor_when_no_peers_given() {
         let expected_work = WorkNonce::from(12345);
         let work_pool = WorkPool::new_null(expected_work);
-        let work_factory = DistributedWorkFactory::new(work_pool);
+        let work_factory = WorkFactory::new(work_pool);
         let request = WorkRequest::new_test_instance();
 
         let work = work_factory.generate_work(request.clone());
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn cancellations_can_be_tracked() {
         let work_pool = WorkPool::new_null(1.into());
-        let work_factory = DistributedWorkFactory::new(work_pool);
+        let work_factory = WorkFactory::new(work_pool);
         let cancel_tracker = work_factory.track_cancellations();
 
         let root = Root::from(1);
