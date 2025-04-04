@@ -2,7 +2,7 @@ use crate::utils::{BufferWriter, Serialize, Stream};
 use serde::de::{Unexpected, Visitor};
 use std::fmt::{Debug, Write};
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Signature {
     bytes: [u8; 64],
 }

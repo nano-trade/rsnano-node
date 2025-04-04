@@ -35,7 +35,7 @@ impl StatsCollection {
         self.0.get(&key).cloned().unwrap_or_default()
     }
 
-    pub fn insert(&mut self, stat: &'static str, detail: &'static str, value: impl Into<u64>) {
+    pub fn insert(&mut self, stat: &'static str, detail: &'static str, value: impl TryInto<u64>) {
         self.insert_dir(stat, detail, Direction::In, value);
     }
 
@@ -44,10 +44,10 @@ impl StatsCollection {
         stat: &'static str,
         detail: &'static str,
         dir: Direction,
-        value: impl Into<u64>,
+        value: impl TryInto<u64>,
     ) {
         let key = StatsKey { stat, detail, dir };
-        self.0.insert(key, value.into());
+        self.0.insert(key, value.try_into().unwrap_or_default());
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&StatsKey, &u64)> {

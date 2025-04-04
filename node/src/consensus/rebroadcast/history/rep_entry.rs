@@ -71,6 +71,15 @@ impl RepresentativeEntry {
         }
     }
 
+    fn should_rebroadcast_hash(&self, hash: &BlockHash, vote: &Vote, now: Timestamp) -> bool {
+        let Some(last_rebroadcast) = self.history.get(hash) else {
+            // Block hash not seen before, rebroadcast
+            return true;
+        };
+
+        last_rebroadcast.should_rebroadcast(vote, self.min_gap, now)
+    }
+
     fn insert_block_hashes(&mut self, vote: &Vote, now: Timestamp) {
         for hash in &vote.hashes {
             self.history.insert(
@@ -82,15 +91,6 @@ impl RepresentativeEntry {
                 },
             );
         }
-    }
-
-    fn should_rebroadcast_hash(&self, hash: &BlockHash, vote: &Vote, now: Timestamp) -> bool {
-        let Some(last_rebroadcast) = self.history.get(hash) else {
-            // Block hash not seen before, rebroadcast
-            return true;
-        };
-
-        last_rebroadcast.should_rebroadcast(vote, self.min_gap, now)
     }
 }
 

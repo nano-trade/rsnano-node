@@ -1,33 +1,39 @@
 @startuml Vote Rebroadcast
-package "rebroadcast" {
-	class VoteRebroadcaster {
-		start()
-		stop()
-	}
 
-	class VoteRebroadcastQueue {
-		try_enqueue(vote, results)
-		enqueue(vote)
-		dequeue()
-	}
-
-	class RebroadcastProcessor {
-		process_vote(vote)
-	}
-
-	class WalletRepsCache{
-		have_half_rep()
-		exists(rep_key)
-	}
+class VoteRebroadcaster {
+	start()
+	stop()
 }
 
-class WalletRepresentatives
+class VoteRebroadcastQueue {
+	try_enqueue(vote, results)
+	enqueue(vote)
+	dequeue()
+}
+
+class RebroadcastProcessor {
+	process_vote(vote)
+}
+
+class RebroadcastHistory
+
+
 class AecEventProcessor
 
+interface RepTiersConsumer {
+	update_rep_tiers(tiers)
+}
+
+interface WalletRepsConsumer {
+	udpate_wallet_reps(reps)
+}
+
+VoteRebroadcastQueue ..|> RepTiersConsumer
+VoteRebroadcastQueue ..|> WalletRepsConsumer
 VoteRebroadcaster --> VoteRebroadcastQueue
 VoteRebroadcaster --> RebroadcastProcessor
 RebroadcastProcessor --> MessageFlooder
-RebroadcastProcessor --> WalletRepsCache
-WalletRepsCache --> WalletRepresentatives
+RebroadcastProcessor --> RebroadcastHistory
 AecEventProcessor --> VoteRebroadcastQueue: try_enqueue()
+
 @enduml

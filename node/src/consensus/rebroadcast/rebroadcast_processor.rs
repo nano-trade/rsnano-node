@@ -1,36 +1,65 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::Relaxed},
+    Arc,
+};
 
 use rsnano_core::Vote;
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::TrafficType;
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{StatsCollection, StatsSource};
 
+use super::history::{RebroadcastError, RebroadcastHistory};
 use crate::transport::MessageFlooder;
+use rsnano_ledger::RepWeightCache;
+use rsnano_nullable_clock::SteadyClock;
+use strum::{EnumCount, IntoEnumIterator};
 
 /// Rebroadcasts a given vote if necessary
 pub(super) struct RebroadcastProcessor {
     message_flooder: MessageFlooder,
-    stats: Arc<Stats>,
+    history: RebroadcastHistory,
+    rep_weights: Arc<RepWeightCache>,
+    clock: Arc<SteadyClock>,
+    stats: Arc<RebroadcastStats>,
 }
 
 impl RebroadcastProcessor {
-    pub(super) fn new(message_flooder: MessageFlooder, stats: Arc<Stats>) -> Self {
+    pub(super) fn new(
+        message_flooder: MessageFlooder,
+        rep_weights: Arc<RepWeightCache>,
+        clock: Arc<SteadyClock>,
+        stats: Arc<RebroadcastStats>,
+    ) -> Self {
         Self {
             message_flooder,
+            history: RebroadcastHistory::default(),
+            rep_weights,
+            clock,
             stats,
         }
     }
 
     pub fn rebroadcast(&mut self, vote: &Vote) {
-        self.update_stats(vote);
-        let message = self.create_ack_message(vote);
+        self.stats.processed.fetch_add(1, Relaxed);
 
-        let sent = self
-            .message_flooder
-            .flood(&message, TrafficType::VoteRebroadcast, 0.5);
+        let weight = self.rep_weights.weight(&vote.voter);
+        let now = self.clock.now();
 
-        self.stats
-            .add(StatType::VoteRebroadcaster, DetailType::Sent, sent as u64);
+        match self.history.check_and_record(vote, weight, now) {
+            Ok(()) => {
+                self.update_stats(vote);
+                let message = self.create_ack_message(vote);
+
+                let sent = self
+                    .message_flooder
+                    .flood(&message, TrafficType::VoteRebroadcast, 0.5);
+
+                self.stats.sent.fetch_add(sent, Relaxed);
+            }
+            Err(err) => {
+                self.stats.errors[err as usize].fetch_add(1, Relaxed);
+            }
+        }
     }
 
     fn create_ack_message(&self, vote: &Vote) -> Message {
@@ -38,14 +67,44 @@ impl RebroadcastProcessor {
     }
 
     fn update_stats(&self, vote: &Vote) {
-        self.stats
-            .inc(StatType::VoteRebroadcaster, DetailType::Rebroadcast);
+        self.stats.rebroadcast.fetch_add(1, Relaxed);
 
-        self.stats.add(
-            StatType::VoteRebroadcaster,
-            DetailType::RebroadcastHashes,
-            vote.hashes.len() as u64,
+        self.stats
+            .rebroadcast_hashes
+            .fetch_add(vote.hashes.len(), Relaxed);
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct RebroadcastStats {
+    processed: AtomicUsize,
+    sent: AtomicUsize,
+    rebroadcast: AtomicUsize,
+    rebroadcast_hashes: AtomicUsize,
+    errors: [AtomicUsize; RebroadcastError::COUNT],
+}
+
+impl RebroadcastStats {
+    const KEY: &str = "vote_rebroadcaster";
+}
+
+impl StatsSource for RebroadcastStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert(Self::KEY, "process", self.processed.load(Relaxed));
+        result.insert(Self::KEY, "sent", self.sent.load(Relaxed));
+        result.insert(Self::KEY, "rebroadcast", self.rebroadcast.load(Relaxed));
+        result.insert(
+            Self::KEY,
+            "rebroadcast_hashes",
+            self.rebroadcast_hashes.load(Relaxed),
         );
+        for err in RebroadcastError::iter() {
+            result.insert(
+                Self::KEY,
+                err.as_str(),
+                self.errors[err as usize].load(Relaxed),
+            );
+        }
     }
 }
 
@@ -74,8 +133,10 @@ mod tests {
     fn run_processor(input: TestInput) -> Vec<FloodEvent> {
         let message_flooder = MessageFlooder::new_null();
         let flood_tracker = message_flooder.track_floods();
-        let stats = Arc::new(Stats::default());
-        let mut processor = RebroadcastProcessor::new(message_flooder, stats);
+        let rep_weights = Arc::new(RepWeightCache::new());
+        let clock = Arc::new(SteadyClock::new_null());
+        let stats = Arc::new(RebroadcastStats::default());
+        let mut processor = RebroadcastProcessor::new(message_flooder, rep_weights, clock, stats);
 
         processor.rebroadcast(&input.vote);
 

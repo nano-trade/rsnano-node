@@ -8,6 +8,7 @@ use rep_container::RepresentativeContainer;
 use rep_entry::RepresentativeEntry;
 use rsnano_core::{Amount, BlockHash, PublicKey, Vote};
 use rsnano_nullable_clock::Timestamp;
+use strum_macros::{EnumCount, EnumIter};
 
 /// Keeps track of past rebroadcasts and decides whether a new rebroadcast is necessary
 pub(crate) struct RebroadcastHistory {
@@ -58,7 +59,7 @@ impl RebroadcastHistory {
             .any(|i| i.vote_hashes.contains_key(vote_hash))
     }
 
-    fn check_and_record(
+    pub fn check_and_record(
         &mut self,
         vote: &Vote,
         weight: Amount,
@@ -66,14 +67,14 @@ impl RebroadcastHistory {
     ) -> Result<(), RebroadcastError> {
         self.ensure_not_full(vote, weight)?;
 
-        self.get_or_insert(vote, weight)
+        self.get_or_insert_rep(vote, weight)
             .check_and_record(vote, now)?;
 
         self.trim_representatives();
         Ok(())
     }
 
-    fn get_or_insert(&mut self, vote: &Vote, weight: Amount) -> &mut RepresentativeEntry {
+    fn get_or_insert_rep(&mut self, vote: &Vote, weight: Amount) -> &mut RepresentativeEntry {
         self.representatives.get_or_insert(vote.voter, || {
             RepresentativeEntry::new(
                 vote.voter,
@@ -142,11 +143,21 @@ impl Default for RebroadcastHistoryConfig {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, EnumCount, EnumIter)]
 pub(crate) enum RebroadcastError {
     AlreadyRebroadcasted,
     RepresentativesFull,
     RebroadcastUnnecessary,
+}
+
+impl RebroadcastError {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RebroadcastError::AlreadyRebroadcasted => "already_rebroadcasted",
+            RebroadcastError::RepresentativesFull => "representatives_full",
+            RebroadcastError::RebroadcastUnnecessary => "rebroadcast_unnecessary",
+        }
+    }
 }
 
 #[cfg(test)]

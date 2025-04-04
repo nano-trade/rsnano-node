@@ -1,38 +1,52 @@
 use std::{sync::Arc, thread::JoinHandle};
 
-use rsnano_stats::Stats;
+use rsnano_stats::{StatsCollection, StatsSource};
 
-use super::{rebroadcast_processor::RebroadcastProcessor, VoteRebroadcastQueue};
+use super::{
+    rebroadcast_processor::{RebroadcastProcessor, RebroadcastStats},
+    VoteRebroadcastQueue,
+};
 use crate::transport::MessageFlooder;
+use rsnano_ledger::RepWeightCache;
+use rsnano_nullable_clock::SteadyClock;
 
 /// Rebroadcasts votes that were created by other nodes
 pub(crate) struct VoteRebroadcaster {
     queue: Arc<VoteRebroadcastQueue>,
     join_handle: Option<JoinHandle<()>>,
     message_flooder: Option<MessageFlooder>,
-    stats: Arc<Stats>,
+    rep_weights: Arc<RepWeightCache>,
+    clock: Arc<SteadyClock>,
     vote_processed_callback: Option<Box<dyn Fn() + Send + Sync>>,
+    pub stats: Arc<RebroadcastStats>,
 }
 
 impl VoteRebroadcaster {
     pub(crate) fn new(
         queue: Arc<VoteRebroadcastQueue>,
         message_flooder: MessageFlooder,
-        stats: Arc<Stats>,
+        rep_weights: Arc<RepWeightCache>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             queue,
             join_handle: None,
             message_flooder: Some(message_flooder),
-            stats,
+            rep_weights,
+            clock,
             vote_processed_callback: None,
+            stats: Arc::new(RebroadcastStats::default()),
         }
     }
 
     pub fn start(&mut self) {
         let queue = self.queue.clone();
-        let mut rebroadcast_processor =
-            RebroadcastProcessor::new(self.message_flooder.take().unwrap(), self.stats.clone());
+        let mut rebroadcast_processor = RebroadcastProcessor::new(
+            self.message_flooder.take().unwrap(),
+            self.rep_weights.clone(),
+            self.clock.clone(),
+            self.stats.clone(),
+        );
         let callback = self.vote_processed_callback.take();
 
         let handle = std::thread::Builder::new()
@@ -106,8 +120,10 @@ mod tests {
         let queue = Arc::new(VoteRebroadcastQueue::default());
         let message_flooder = MessageFlooder::new_null();
         let flood_tracker = message_flooder.track_floods();
-        let stats = Arc::new(Stats::default());
-        let rebroadcaster = VoteRebroadcaster::new(queue.clone(), message_flooder, stats);
+        let rep_weights = Arc::new(RepWeightCache::new());
+        let clock = Arc::new(SteadyClock::new_null());
+        let rebroadcaster =
+            VoteRebroadcaster::new(queue.clone(), message_flooder, rep_weights, clock);
 
         (rebroadcaster, queue, flood_tracker)
     }

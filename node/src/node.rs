@@ -920,7 +920,8 @@ impl Node {
         let vote_rebroadcaster = VoteRebroadcaster::new(
             vote_rebroadcast_queue.clone(),
             message_flooder.clone(),
-            stats.clone(),
+            rep_weights.clone(),
+            steady_clock.clone(),
         );
 
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
@@ -1024,9 +1025,9 @@ impl Node {
         let rep_tiers = Arc::new(CurrentRepTiers::new());
         let mut rep_tiers_calculator =
             RepTiersCalculator::new(rep_weights.clone(), online_reps.clone(), stats.clone());
-        rep_tiers_calculator.add_tiers_consumer(rep_tiers.clone());
         rep_tiers_calculator.add_tiers_consumer(vote_processor_queue.clone());
         rep_tiers_calculator.add_tiers_consumer(vote_rebroadcast_queue.clone());
+        rep_tiers_calculator.add_tiers_consumer(rep_tiers.clone());
 
         let wallet_backup = WalletBackup {
             data_path: application_path.clone(),
@@ -1121,6 +1122,7 @@ impl Node {
         stats_collector.add_source(online_reps.clone());
         stats_collector.add_source(fork_cache.clone());
         stats_collector.add_source(active_elections.clone());
+        stats_collector.add_source(vote_rebroadcaster.stats.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work.clone());

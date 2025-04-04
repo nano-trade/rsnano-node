@@ -13,7 +13,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueue},
-    BlockHash, PublicKey, Vote, VoteCode,
+    BlockHash, PublicKey, Signature, Vote, VoteCode,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -176,6 +176,10 @@ impl WalletRepsConsumer for VoteRebroadcastQueue {
 
 struct QueueImpl {
     queue: FairQueue<RepTier, Arc<Vote>>,
+
+    /// Avoids queuing the same vote multiple times
+    queue_hashes: HashSet<Signature>,
+
     rep_tiers: RepTiers,
     is_close_to_pr: bool,
     local_reps: HashSet<PublicKey>,
@@ -198,6 +202,7 @@ impl QueueImpl {
 
         Self {
             queue: FairQueue::new(max_size_query, priority_query),
+            queue_hashes: HashSet::new(),
             rep_tiers: RepTiers::default(),
             is_close_to_pr: false,
             local_reps: HashSet::new(),
@@ -226,12 +231,27 @@ impl QueueImpl {
             return false;
         }
 
-        self.queue.push(tier, vote);
-        true
+        if self.queue_hashes.contains(&vote.signature) {
+            return false;
+        }
+
+        let signature = vote.signature.clone();
+        let added = self.queue.push(tier, vote);
+
+        if added {
+            // Keep track of vote signatures to avoid duplicates
+            self.queue_hashes.insert(signature);
+        }
+
+        added
     }
 
     fn dequeue(&mut self) -> Option<Arc<Vote>> {
-        self.queue.next().map(|(_, vote)| vote)
+        let vote = self.queue.next().map(|(_, vote)| vote);
+        if let Some(v) = &vote {
+            self.queue_hashes.remove(&v.signature);
+        }
+        vote
     }
 
     fn len(&self) -> usize {
