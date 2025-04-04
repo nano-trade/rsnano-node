@@ -202,3 +202,11 @@ fn rep_connection_close() {
         0,
     );
 }
+
+#[test]
+fn rep_local() {
+    let mut system = System::new();
+    let node = system.make_node();
+    node.insert_into_wallet(&DEV_GENESIS_KEY);
+    assert_timely_eq2(|| node.online_reps.lock().unwrap().peered_reps_count(), 1);
+}
