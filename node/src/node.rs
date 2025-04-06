@@ -358,10 +358,6 @@ impl Node {
             inbound_message_queue.clone(),
         ));
 
-        let telemetry_config = TelementryConfig {
-            enable_ongoing_broadcasts: !flags.disable_providing_telemetry_metrics,
-        };
-
         let unchecked = Arc::new(UncheckedMap::new(
             config.max_unchecked_blocks as usize,
             stats.clone(),
@@ -401,6 +397,9 @@ impl Node {
             message_sender.clone(),
         );
 
+        let telemetry_config = TelementryConfig {
+            enable_ongoing_broadcasts: !flags.disable_providing_telemetry_metrics,
+        };
         let telemetry_factory = TelemetryFactory {
             ledger: ledger.clone(),
             network: network.clone(),
@@ -409,7 +408,6 @@ impl Node {
             startup_time: steady_clock.now(),
             clock: steady_clock.clone(),
         };
-
         let telemetry = Arc::new(Telemetry::new(
             telemetry_factory,
             telemetry_config,
