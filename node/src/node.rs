@@ -233,12 +233,11 @@ impl Node {
         };
 
         let network_label = network_params.network.get_current_network_as_string();
-        let global_config = GlobalConfig {
+        let global_config = &GlobalConfig {
             node_config: config.clone(),
             flags: flags.clone(),
             network_params: network_params.clone(),
         };
-        let global_config = &global_config;
         let application_path = args.data_path;
         let node_id_key = node_id_key_file.initialize(&application_path).unwrap();
         let node_id = NodeId::from(&node_id_key);
