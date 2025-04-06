@@ -79,3 +79,65 @@ impl StatsSource for StoppedCounter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use rsnano_core::SavedBlock;
+    use rsnano_nullable_clock::Timestamp;
+    use std::time::Duration;
+
+    #[test]
+    fn collect_stats_empty() {
+        let mut stats = StatsCollection::new();
+        let mut stopped_counter = StoppedCounter::new();
+
+        stopped_counter.collect_stats(&mut stats);
+
+        assert_eq!(stats.get("active_elections", "stopped"), 0);
+        assert_eq!(stats.get("active_elections", "confirmed"), 0);
+        assert_eq!(stats.get("active_elections", "unconfirmed"), 0);
+
+        // Assert that all stats are zero
+        for (stats_key, _) in stats.iter() {
+            assert_eq!(stats.get(stats_key.stat, stats_key.detail), 0);
+        }
+    }
+
+    #[test]
+    fn stop_election() {
+        let mut stats = StatsCollection::new();
+        let mut stopped_counter = StoppedCounter::new();
+        let election = Election::new_test_instance_with(SavedBlock::new_test_instance());
+
+        stopped_counter.stopped(&election);
+        stopped_counter.collect_stats(&mut stats);
+
+        assert_eq!(stats.get("active_elections", "stopped"), 1);
+        assert_eq!(stats.get("active_elections", "confirmed"), 0);
+        assert_eq!(stats.get("active_elections", "unconfirmed"), 1);
+    }
+
+    #[test]
+    fn stop_multiple_elections() {
+        let mut stats = StatsCollection::new();
+        let mut stopped_counter = StoppedCounter::new();
+        let election1 = Election::new_test_instance_with(SavedBlock::new_test_instance());
+        let election2 = Election::new(
+            SavedBlock::new_test_receive_block(),
+            ElectionBehavior::Optimistic,
+            Duration::from_millis(1000),
+            Timestamp::new_test_instance(),
+        );
+
+        stopped_counter.stopped(&election1);
+        stopped_counter.stopped(&election2);
+        stopped_counter.collect_stats(&mut stats);
+
+        assert_eq!(stats.get("active_elections", "stopped"), 2);
+        assert_eq!(stats.get("active_elections", "confirmed"), 0);
+        assert_eq!(stats.get("active_elections", "unconfirmed"), 2);
+        assert_eq!(stats.get("active_elections_dropped", "optimistic"), 1);
+    }
+}
