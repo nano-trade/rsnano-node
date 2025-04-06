@@ -224,7 +224,7 @@ impl Node {
         );
 
         let node_observer = args.event_sender;
-        // Time relative to the start of the node. This makes time exlicit and enables us to
+        // Time relative to the start of the node. This makes time exlpicit and enables us to
         // write time relevant unit tests with ease.
         let steady_clock = if is_nulled {
             Arc::new(SteadyClock::new_null())
