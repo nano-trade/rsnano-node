@@ -108,7 +108,7 @@ impl Wallets {
             Arc::new(Ledger::new_null()),
             &NodeConfig::new_test_instance(),
             WorkThresholds::new(0, 0, 0),
-            Arc::new(WorkFactory::new_null()),
+            Arc::new(WorkFactory::disabled()),
             NetworkParams::new(NetworkConstants::active_network()),
             Arc::new(ThreadPoolImpl::new_null()),
             Arc::new(BlockProcessor::new_null()),

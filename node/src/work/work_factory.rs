@@ -36,8 +36,8 @@ impl WorkFactory {
         }
     }
 
-    pub fn new_null() -> Self {
-        Self::new(WorkPool::disabled())
+    pub fn disabled() -> Self {
+        Self::builder().local_work_pool(|p| p.disabled()).finish()
     }
 
     pub fn builder() -> WorkFactoryBuilder {
@@ -100,9 +100,10 @@ impl WorkFactoryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::work::distributed_work_client::DistributedWorkClient;
 
     #[test]
-    fn use_local_work_factor_when_no_peers_given() {
+    fn use_local_work_pool_when_no_peers_given() {
         let expected_work = WorkNonce::from(12345);
         let work_pool = WorkPool::new_null(expected_work);
         let work_factory = WorkFactory::new(work_pool);
@@ -125,13 +126,26 @@ mod tests {
         assert_eq!(cancel_tracker.output(), vec![root]);
     }
 
+    #[test]
+    fn work_generation_disabled() {
+        let work_factory = WorkFactory::disabled();
+        let result = work_factory.generate_work(WorkRequest::new_test_instance());
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    #[ignore = "wip"]
+    fn use_remote_work_server() {
+        let work_pool = WorkPool::disabled();
+        //let work_client = DistributedWorkClient::new_null();
+        let work_factory = WorkFactory::new(work_pool);
+    }
+
     // TODO:
     // Backoff + Workrequest
     // Cancel
-    // Local work
     // resolve hostnames
     // multiple peers
     // secondary peers
-    // work generation disabled
     // unresponsive work peers => use local work
 }

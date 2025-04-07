@@ -41,6 +41,12 @@ impl WorkPoolBuilder {
         self
     }
 
+    pub fn disabled(mut self) -> Self {
+        self.enable_gpu = false;
+        self.cpu_thread_count = Some(0);
+        self
+    }
+
     pub fn cpu_rate_limit(mut self, limit: Duration) -> Self {
         self.cpu_rate_limiter = Some(limit);
         self

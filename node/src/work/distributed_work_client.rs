@@ -1,6 +1,6 @@
 use super::WorkRequest;
 use rsnano_core::{to_hex_string, Root, WorkNonce};
-use rsnano_nullable_http_client::{HttpClient, Url};
+use rsnano_nullable_http_client::{HttpClient, IntoUrl, Url};
 
 #[derive(serde::Serialize)]
 struct HttpWorkRequest {
@@ -33,7 +33,15 @@ impl DistributedWorkClient {
         Self { http_client }
     }
 
-    async fn generate_work(&self, url: Url, request: WorkRequest) -> anyhow::Result<WorkNonce> {
+    pub fn new_null() -> Self {
+        Self::new(HttpClient::new_null())
+    }
+
+    async fn generate_work(
+        &self,
+        url: impl IntoUrl,
+        request: WorkRequest,
+    ) -> anyhow::Result<WorkNonce> {
         let http_work_request = HttpWorkRequest::new(request.root, request.difficulty);
         let response: HttpWorkResponse = self
             .http_client
@@ -101,5 +109,16 @@ mod tests {
             "error was: {}",
             err
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "wip"]
+    async fn can_be_nulled() {
+        let client = DistributedWorkClient::new_null();
+        let result = client
+            .generate_work("http://nulled-host", WorkRequest::new_test_instance())
+            .await
+            .unwrap();
+        assert_eq!(result, WorkNonce::new(42));
     }
 }
