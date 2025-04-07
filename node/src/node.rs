@@ -212,15 +212,16 @@ impl Node {
         let config = args.config;
         let flags = args.flags;
 
-        let local_work_pool = WorkPool::builder()
-            .thresholds(network_params.work.clone())
-            .threads(config.work_threads as usize)
-            .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
-            .opencl_config(config.opencl.clone())
-            .enable_gpu(config.enable_opencl)
-            .finish();
-
-        let work_factory = Arc::new(WorkFactory::new(local_work_pool));
+        let work_factory = Arc::new(
+            WorkFactory::builder()
+                .local_work_pool(|p| {
+                    p.threads(config.work_threads as usize)
+                        .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))
+                        .opencl_config(config.opencl.clone())
+                        .enable_gpu(config.enable_opencl)
+                })
+                .finish(),
+        );
 
         let node_observer = args.event_sender;
         // Time relative to the start of the node. This makes time exlicit and enables us to
@@ -1320,10 +1321,7 @@ impl Node {
     pub fn work_generate_dev(&self, root: impl Into<Root>) -> WorkNonce {
         let difficulty = self.network_params.work.threshold_base();
         self.work_factory
-            .generate_work(WorkRequest {
-                root: root.into(),
-                difficulty,
-            })
+            .generate_work(WorkRequest::new(root.into(), difficulty))
             .unwrap()
     }
 

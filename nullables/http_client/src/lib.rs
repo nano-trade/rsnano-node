@@ -149,6 +149,24 @@ impl Response {
         }
     }
 
+    pub fn error_for_status(self) -> anyhow::Result<Self> {
+        match self.strategy {
+            ResponseStrategy::Real(resp) => Ok(Self {
+                strategy: ResponseStrategy::Real(resp.error_for_status()?),
+            }),
+            ResponseStrategy::Nulled(resp) => {
+                let status = resp.status;
+                if status.is_client_error() || status.is_server_error() {
+                    Err(anyhow!("Nulled HTTP client error ({})", status))
+                } else {
+                    Ok(Self {
+                        strategy: ResponseStrategy::Nulled(resp),
+                    })
+                }
+            }
+        }
+    }
+
     pub async fn json<T: DeserializeOwned>(self) -> anyhow::Result<T> {
         match self.strategy {
             ResponseStrategy::Real(resp) => Ok(resp.json().await?),
@@ -210,6 +228,7 @@ impl From<ConfiguredResponse> for Response {
 mod tests {
     use super::*;
     use reqwest::StatusCode;
+    use std::sync::atomic::{AtomicU16, Ordering};
     use tokio::net::TcpListener;
 
     #[tokio::test]
@@ -243,6 +262,25 @@ mod tests {
         assert_eq!(requests[0].json, serde_json::to_value(&data).unwrap());
     }
 
+    #[tokio::test]
+    async fn error_for_status() {
+        let port = get_available_port().await;
+        let _server = test_http_server::start(("0.0.0.0", port)).await;
+
+        let client = HttpClient::new();
+        let url: Url = format!("http://127.0.0.1:{}/not-found", port)
+            .parse()
+            .unwrap();
+        let result = client.post_json(url.clone(), &vec!["hello"]).await.unwrap();
+        assert_eq!(result.status(), StatusCode::NOT_FOUND);
+        match result.error_for_status() {
+            Ok(_) => panic!("should return error!"),
+            Err(e) => {
+                assert_eq!(e.to_string(), format!("HTTP status client error (404 Not Found) for url (http://127.0.0.1:{port}/not-found)"));
+            }
+        }
+    }
+
     mod nullability {
         use super::*;
 
@@ -263,6 +301,21 @@ mod tests {
 
             let response = client.post_json("http://127.0.0.1:42", "").await.unwrap();
             assert_eq!(response.json::<Vec<i32>>().await.unwrap(), vec![1, 2, 3]);
+        }
+
+        #[tokio::test]
+        async fn error_for_status() {
+            let client = HttpClient::null_builder()
+                .respond(ConfiguredResponse::new(StatusCode::NOT_FOUND, "not found"));
+
+            let url: Url = "http://127.0.0.1:42".parse().unwrap();
+            let response = client.post_json(url.clone(), "").await.unwrap();
+            match response.error_for_status() {
+                Ok(_) => panic!("should return error"),
+                Err(e) => {
+                    assert_eq!(e.to_string(), "Nulled HTTP client error (404 Not Found)");
+                }
+            }
         }
     }
 
@@ -322,8 +375,11 @@ mod tests {
         }
     }
 
+    static START_PORT: AtomicU16 = AtomicU16::new(1025);
+
     async fn get_available_port() -> u16 {
-        for port in 1025..65535 {
+        let start = START_PORT.fetch_add(1, Ordering::SeqCst);
+        for port in start..65535 {
             if is_port_available(port).await {
                 return port;
             }

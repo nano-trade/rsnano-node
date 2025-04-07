@@ -275,6 +275,10 @@ impl WorkThresholds {
     }
 }
 
+pub fn dev_difficulty() -> u64 {
+    WorkThresholds::publish_dev().threshold_base()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

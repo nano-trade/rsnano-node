@@ -39,6 +39,7 @@ impl DistributedWorkClient {
             .http_client
             .post_json(url, &http_work_request)
             .await?
+            .error_for_status()?
             .json()
             .await?;
 
@@ -76,5 +77,29 @@ mod tests {
         assert_eq!(output[0].method, Method::POST);
         assert_eq!(output[0].url, url);
         assert_eq!(work, WorkNonce::new(42));
+    }
+
+    #[tokio::test]
+    async fn check_response_status() {
+        let http_client = HttpClient::null_builder().respond(ConfiguredResponse::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "error",
+        ));
+        let work_client = DistributedWorkClient::new(http_client);
+
+        let url: Url = "http://test-host:123".parse().unwrap();
+        let request = WorkRequest::new_test_instance();
+
+        let err = work_client
+            .generate_work(url, request)
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(
+            err.contains("500 Internal Server Error"),
+            "error was: {}",
+            err
+        );
     }
 }

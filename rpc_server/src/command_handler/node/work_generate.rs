@@ -53,10 +53,9 @@ impl RpcCommandHandler {
 
         let work = if !use_peers {
             if self.node.work_factory.work_generation_enabled() {
-                self.node.work_factory.generate_work(WorkRequest {
-                    root: args.hash.into(),
-                    difficulty,
-                })
+                self.node
+                    .work_factory
+                    .generate_work(WorkRequest::new(args.hash.into(), difficulty))
             } else {
                 bail!("Local work generation is disabled");
             }

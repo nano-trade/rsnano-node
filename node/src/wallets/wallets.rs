@@ -370,10 +370,7 @@ impl Wallets {
 
     fn work_cache_blocking(&self, wallet: &Wallet, pub_key: &PublicKey, root: &Root) {
         if self.distributed_work.work_generation_enabled() {
-            let work_request = WorkRequest {
-                root: *root,
-                difficulty: self.work_thresholds.threshold_base(),
-            };
+            let work_request = WorkRequest::new(*root, self.work_thresholds.threshold_base());
 
             if let Some(work) = self.distributed_work.generate_work(work_request) {
                 let mut tx = self.env.tx_begin_write();
@@ -1363,10 +1360,7 @@ impl WalletsExt for Arc<Wallets> {
                 account.encode_account()
             );
 
-            let work_request = WorkRequest {
-                root: block.root(),
-                difficulty: required_difficulty,
-            };
+            let work_request = WorkRequest::new(block.root(), required_difficulty);
 
             let work = self
                 .distributed_work

@@ -5,7 +5,7 @@ use rsnano_core::{
     Root, WorkNonce,
 };
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use rsnano_work::WorkPool;
+use rsnano_work::{WorkPool, WorkPoolBuilder};
 
 #[derive(Clone)]
 pub struct WorkRequest {
@@ -14,11 +14,12 @@ pub struct WorkRequest {
 }
 
 impl WorkRequest {
+    pub fn new(root: Root, difficulty: u64) -> Self {
+        Self { root, difficulty }
+    }
+
     pub fn new_test_instance() -> Self {
-        Self {
-            root: Root::from(100),
-            difficulty: 42,
-        }
+        Self::new(Root::from(100), 42)
     }
 }
 
@@ -28,7 +29,7 @@ pub struct WorkFactory {
 }
 
 impl WorkFactory {
-    pub fn new(work_pool: WorkPool) -> Self {
+    fn new(work_pool: WorkPool) -> Self {
         Self {
             local_work_pool: work_pool,
             cancel_listener: OutputListenerMt::new(),
@@ -37,6 +38,12 @@ impl WorkFactory {
 
     pub fn new_null() -> Self {
         Self::new(WorkPool::disabled())
+    }
+
+    pub fn builder() -> WorkFactoryBuilder {
+        WorkFactoryBuilder {
+            local_work_pool: None,
+        }
     }
 
     pub fn generate_work(&self, request: WorkRequest) -> Option<WorkNonce> {
@@ -65,6 +72,28 @@ impl WorkFactory {
 impl ContainerInfoProvider for WorkFactory {
     fn container_info(&self) -> ContainerInfo {
         self.local_work_pool.container_info()
+    }
+}
+
+impl Default for WorkFactory {
+    fn default() -> Self {
+        Self::builder().finish()
+    }
+}
+
+pub struct WorkFactoryBuilder {
+    local_work_pool: Option<WorkPool>,
+}
+
+impl WorkFactoryBuilder {
+    pub fn local_work_pool(mut self, f: impl FnOnce(WorkPoolBuilder) -> WorkPoolBuilder) -> Self {
+        self.local_work_pool = Some(f(WorkPool::builder()).finish());
+        self
+    }
+
+    pub fn finish(self) -> WorkFactory {
+        let local_work_pool = self.local_work_pool.unwrap_or_default();
+        WorkFactory::new(local_work_pool)
     }
 }
 

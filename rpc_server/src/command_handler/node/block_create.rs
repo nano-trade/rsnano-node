@@ -200,7 +200,7 @@ impl RpcCommandHandler {
             let work = match self
                 .node
                 .work_factory
-                .generate_work(WorkRequest { root, difficulty })
+                .generate_work(WorkRequest::new(root, difficulty))
             {
                 Some(work) => work,
                 None => bail!("Work generation cancellation or failure"),

@@ -1459,7 +1459,7 @@ fn work_generate() {
 
         let work = node
             .work_factory
-            .generate_work(WorkRequest { root, difficulty });
+            .generate_work(WorkRequest::new(root, difficulty));
 
         assert!(work.is_some());
         let work = work.unwrap();
@@ -1474,7 +1474,7 @@ fn work_generate() {
         loop {
             work = node
                 .work_factory
-                .generate_work(WorkRequest { root, difficulty });
+                .generate_work(WorkRequest::new(root, difficulty));
             if let Some(work_value) = work {
                 if node.network_params.work.difficulty(&root, work_value)
                     < node.network_params.work.threshold_base()

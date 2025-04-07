@@ -7,19 +7,17 @@ use std::{
 
 use rsnano_core::{
     utils::{get_cpu_count, ContainerInfo, ContainerInfoProvider},
-    Networks, Root, WorkNonce,
+    Root, WorkNonce,
 };
 
 #[cfg(feature = "opencl")]
 use super::gpu_work_generator::GpuWorkGenerator;
 use super::{
-    CpuWorkGenerator, OpenClConfig, WorkItem, WorkQueueCoordinator, WorkThread, WorkThresholds,
-    WorkTicket, WORK_THRESHOLDS_STUB,
+    CpuWorkGenerator, OpenClConfig, WorkItem, WorkQueueCoordinator, WorkThread, WorkTicket,
 };
 
 pub struct WorkPoolBuilder {
     cpu_thread_count: Option<usize>,
-    thresholds: Option<WorkThresholds>,
     cpu_rate_limiter: Option<Duration>,
     enable_gpu: bool,
     opencl_config: Option<OpenClConfig>,
@@ -43,16 +41,6 @@ impl WorkPoolBuilder {
         self
     }
 
-    pub fn network(mut self, network: Networks) -> Self {
-        self.thresholds = Some(WorkThresholds::default_for(network));
-        self
-    }
-
-    pub fn thresholds(mut self, thresholds: WorkThresholds) -> Self {
-        self.thresholds = Some(thresholds);
-        self
-    }
-
     pub fn cpu_rate_limit(mut self, limit: Duration) -> Self {
         self.cpu_rate_limiter = Some(limit);
         self
@@ -70,14 +58,10 @@ impl WorkPoolBuilder {
 
     pub fn finish(self) -> WorkPool {
         let thread_count = self.cpu_thread_count.unwrap_or_else(|| get_cpu_count());
-        let thresholds = self
-            .thresholds
-            .unwrap_or_else(|| WorkThresholds::publish_full().clone());
         let cpu_rate_limiter = self.cpu_rate_limiter.unwrap_or(Duration::ZERO);
         let opencl_config = self.opencl_config.unwrap_or_default();
 
         WorkPool::new(
-            thresholds,
             thread_count,
             cpu_rate_limiter,
             self.enable_gpu,
@@ -89,14 +73,12 @@ impl WorkPoolBuilder {
 pub struct WorkPool {
     threads: Vec<JoinHandle<()>>,
     work_queue: Arc<WorkQueueCoordinator>,
-    work_thresholds: WorkThresholds,
     cpu_rate_limiter: Duration,
     has_open_cl: bool,
 }
 
 impl WorkPool {
     fn new(
-        work_thresholds: WorkThresholds,
         thread_count: usize,
         cpu_rate_limiter: Duration,
         enable_open_cl: bool,
@@ -105,7 +87,6 @@ impl WorkPool {
         let mut pool = Self {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
-            work_thresholds,
             cpu_rate_limiter,
             has_open_cl: false,
         };
@@ -117,28 +98,16 @@ impl WorkPool {
     pub fn builder() -> WorkPoolBuilder {
         WorkPoolBuilder {
             cpu_thread_count: None,
-            thresholds: None,
             cpu_rate_limiter: None,
             enable_gpu: false,
             opencl_config: None,
         }
     }
 
-    pub fn new_dev() -> Self {
-        Self::new(
-            WorkThresholds::publish_dev().clone(),
-            1,
-            Duration::ZERO,
-            false,
-            OpenClConfig::default(),
-        )
-    }
-
     pub fn new_null(configured_work: WorkNonce) -> Self {
         let mut pool = Self {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
-            work_thresholds: WORK_THRESHOLDS_STUB.clone(),
             cpu_rate_limiter: Duration::ZERO,
             has_open_cl: false,
         };
@@ -152,7 +121,6 @@ impl WorkPool {
         Self {
             threads: Vec::new(),
             work_queue: Arc::new(WorkQueueCoordinator::new()),
-            work_thresholds: WORK_THRESHOLDS_STUB.clone(),
             cpu_rate_limiter: Duration::ZERO,
             has_open_cl: false,
         }
@@ -234,14 +202,6 @@ impl WorkPool {
         self.threads.len()
     }
 
-    pub fn threshold_base(&self) -> u64 {
-        self.work_thresholds.threshold_base()
-    }
-
-    pub fn difficulty(&self, root: &Root, work: WorkNonce) -> u64 {
-        self.work_thresholds.difficulty(root, work)
-    }
-
     pub fn generate_async(
         &self,
         root: Root,
@@ -258,14 +218,6 @@ impl WorkPool {
         } else if let Some(callback) = done {
             callback(None);
         }
-    }
-
-    pub fn generate_dev(&self, root: Root) -> Option<WorkNonce> {
-        self.generate(root, self.work_thresholds.base)
-    }
-
-    pub fn generate_send(&self, root: Root) -> Option<WorkNonce> {
-        self.generate(root, self.work_thresholds.threshold_base())
     }
 
     pub fn generate(&self, root: Root, difficulty: u64) -> Option<WorkNonce> {
@@ -291,6 +243,12 @@ impl WorkPool {
 impl ContainerInfoProvider for WorkPool {
     fn container_info(&self) -> ContainerInfo {
         [("pending", self.size(), Self::pending_value_size())].into()
+    }
+}
+
+impl Default for WorkPool {
+    fn default() -> Self {
+        Self::builder().finish()
     }
 }
 
@@ -366,12 +324,12 @@ impl WorkGenerator for StubWorkGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{dev_difficulty, WorkThresholds};
     use rsnano_core::{Block, TestBlockBuilder};
     use std::sync::{mpsc, LazyLock};
 
     pub static WORK_POOL: LazyLock<WorkPool> = LazyLock::new(|| {
         WorkPool::new(
-            WorkThresholds::publish_dev().clone(),
             rsnano_core::utils::get_cpu_count(),
             Duration::ZERO,
             false,
@@ -381,14 +339,8 @@ mod tests {
 
     #[test]
     fn work_disabled() {
-        let pool = WorkPool::new(
-            WorkThresholds::publish_dev().clone(),
-            0,
-            Duration::ZERO,
-            false,
-            OpenClConfig::default(),
-        );
-        let result = pool.generate_dev(Root::from(1));
+        let pool = WorkPool::new(0, Duration::ZERO, false, OpenClConfig::default());
+        let result = pool.generate(Root::from(1), dev_difficulty());
         assert_eq!(result, None);
     }
 
@@ -397,20 +349,20 @@ mod tests {
         let pool = &WORK_POOL;
         let mut block = TestBlockBuilder::state().build();
         let root = block.root();
-        block.set_work(pool.generate_dev(root).unwrap());
-        assert!(pool.threshold_base() < difficulty(&block));
+        block.set_work(pool.generate(root, dev_difficulty()).unwrap());
+        assert!(WorkThresholds::publish_dev().threshold_base() < difficulty(&block));
     }
 
     #[test]
     fn work_validate() {
         let pool = &WORK_POOL;
         let mut block = TestBlockBuilder::legacy_send().work(6).build();
-        assert!(difficulty(&block) < pool.threshold_base());
+        assert!(difficulty(&block) < WorkThresholds::publish_dev().threshold_base());
         let root = block.root();
         block
             .as_block_mut()
-            .set_work(pool.generate_dev(root).unwrap());
-        assert!(difficulty(&block) > pool.threshold_base());
+            .set_work(pool.generate(root, dev_difficulty()).unwrap());
+        assert!(difficulty(&block) > WorkThresholds::publish_dev().threshold_base());
     }
 
     #[test]
