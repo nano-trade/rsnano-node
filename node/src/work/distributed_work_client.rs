@@ -51,6 +51,14 @@ impl DistributedWorkClient {
         )))
     }
 
+    pub fn new_failing_null(error_message: impl Into<String>) -> Self {
+        Self::new(HttpClient::null_builder().fail_with(error_message))
+    }
+
+    pub fn new_halting_null() -> Self {
+        Self::new(HttpClient::null_builder().halt())
+    }
+
     pub async fn generate_work(
         &self,
         url: impl IntoUrl,
@@ -139,6 +147,18 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, WorkNonce::new(42));
+    }
+
+    #[tokio::test]
+    async fn failing_null() {
+        let client = DistributedWorkClient::new_failing_null("an error");
+
+        let err = client
+            .generate_work("http://nulled-host", WorkRequest::new_test_instance())
+            .await
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "an error");
     }
 
     #[tokio::test]

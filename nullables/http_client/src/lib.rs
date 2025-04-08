@@ -4,6 +4,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 pub use reqwest::{IntoUrl, Method, StatusCode, Url};
+use tokio::task::yield_now;
 
 pub struct HttpClient {
     strategy: HttpClientStrategy,
@@ -52,7 +53,7 @@ impl HttpClient {
             HttpClientStrategy::Real(client) => {
                 Ok(client.post(url).json(json).send().await?.into())
             }
-            HttpClientStrategy::Nulled(client) => client.get_response(Method::POST, url),
+            HttpClientStrategy::Nulled(client) => client.get_response(Method::POST, url).await,
         }
     }
 
@@ -78,10 +79,10 @@ pub struct NulledHttpClientBuilder {
 
 impl NulledHttpClientBuilder {
     pub fn respond(self, response: ConfiguredResponse) -> HttpClient {
-        HttpClient::new_with_strategy(HttpClientStrategy::Nulled(HttpClientStub {
+        Self::create_client(HttpClientStub {
             the_only_response: Some(response),
-            responses: HashMap::new(),
-        }))
+            ..Default::default()
+        })
     }
 
     pub fn respond_url(
@@ -95,28 +96,59 @@ impl NulledHttpClientBuilder {
         self
     }
 
+    pub fn fail_with(self, error_message: impl Into<String>) -> HttpClient {
+        Self::create_client(HttpClientStub {
+            error: Some(error_message.into()),
+            ..Default::default()
+        })
+    }
+
     pub fn finish(self) -> HttpClient {
-        HttpClient::new_with_strategy(HttpClientStrategy::Nulled(HttpClientStub {
-            the_only_response: None,
+        Self::create_client(HttpClientStub {
             responses: self.responses,
-        }))
+            ..Default::default()
+        })
+    }
+
+    pub fn halt(self) -> HttpClient {
+        Self::create_client(HttpClientStub {
+            halt: true,
+            ..Default::default()
+        })
+    }
+
+    fn create_client(stub: HttpClientStub) -> HttpClient {
+        HttpClient::new_with_strategy(HttpClientStrategy::Nulled(stub))
     }
 }
 
+#[derive(Default)]
 struct HttpClientStub {
     the_only_response: Option<ConfiguredResponse>,
     responses: HashMap<(Url, Method), ConfiguredResponse>,
+    error: Option<String>,
+    halt: bool,
 }
 
 impl HttpClientStub {
     fn with_response(response: ConfiguredResponse) -> Self {
         Self {
             the_only_response: Some(response),
-            responses: HashMap::new(),
+            ..Default::default()
         }
     }
 
-    fn get_response(&self, method: Method, url: Url) -> anyhow::Result<Response> {
+    async fn get_response(&self, method: Method, url: Url) -> anyhow::Result<Response> {
+        if self.halt {
+            loop {
+                yield_now().await;
+            }
+        }
+
+        if let Some(error) = &self.error {
+            return Err(anyhow!("{}", error));
+        }
+
         let response = if let Some(r) = &self.the_only_response {
             Some(r)
         } else {
@@ -315,6 +347,16 @@ mod tests {
                     assert_eq!(e.to_string(), "Nulled HTTP client error (404 Not Found)");
                 }
             }
+        }
+
+        #[tokio::test]
+        async fn failing_null() {
+            let client = HttpClient::null_builder().fail_with("my error");
+            let url: Url = "http://127.0.0.1:42".parse().unwrap();
+            let Err(error) = client.post_json(url.clone(), "").await else {
+                panic!("did not fail!")
+            };
+            assert_eq!(error.to_string(), "my error")
         }
     }
 
