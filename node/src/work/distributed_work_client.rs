@@ -1,6 +1,9 @@
 use super::WorkRequest;
 use rsnano_core::{to_hex_string, Root, WorkNonce};
-use rsnano_nullable_http_client::{ConfiguredResponse, HttpClient, IntoUrl, StatusCode, Url};
+use rsnano_nullable_http_client::{
+    ConfiguredHttpResponse, HttpClient, IntoUrl, JsonResponse, Method, NulledHttpClientBuilder,
+    StatusCode, Url,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
 
@@ -45,7 +48,7 @@ impl DistributedWorkClient {
     }
 
     pub fn new_null_with(response: WorkNonce) -> Self {
-        Self::new(HttpClient::null_builder().respond(ConfiguredResponse::new(
+        Self::new(HttpClient::null_builder().respond(JsonResponse::new(
             StatusCode::OK,
             HttpWorkResponse { work: response },
         )))
@@ -57,6 +60,12 @@ impl DistributedWorkClient {
 
     pub fn new_halting_null() -> Self {
         Self::new(HttpClient::null_builder().halt())
+    }
+
+    pub fn null_builder() -> NullDistributedWorkClientBuilder {
+        NullDistributedWorkClientBuilder {
+            http_client: HttpClient::null_builder(),
+        }
     }
 
     pub async fn generate_work(
@@ -85,14 +94,50 @@ impl DistributedWorkClient {
     }
 }
 
+pub(crate) struct NullDistributedWorkClientBuilder {
+    http_client: NulledHttpClientBuilder,
+}
+
+impl NullDistributedWorkClientBuilder {
+    pub fn response(mut self, url: impl IntoUrl, resp: ConfiguredWorkResponse) -> Self {
+        self.http_client = self.http_client.respond_url(Method::POST, url, resp.into());
+        self
+    }
+
+    pub fn finish(self) -> DistributedWorkClient {
+        DistributedWorkClient::new(self.http_client.finish())
+    }
+}
+
+pub(crate) enum ConfiguredWorkResponse {
+    Ok(WorkNonce),
+    Error(String),
+    Halt,
+}
+
+impl From<ConfiguredWorkResponse> for ConfiguredHttpResponse {
+    fn from(value: ConfiguredWorkResponse) -> Self {
+        match value {
+            ConfiguredWorkResponse::Ok(work) => ConfiguredHttpResponse::Json(JsonResponse::new(
+                StatusCode::OK,
+                HttpWorkResponse { work },
+            )),
+            ConfiguredWorkResponse::Error(error) => ConfiguredHttpResponse::Error(error),
+            ConfiguredWorkResponse::Halt => ConfiguredHttpResponse::Halt,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_nullable_http_client::{ConfiguredResponse, Method};
+    use rsnano_nullable_http_client::{JsonResponse, Method};
+    use std::time::Duration;
+    use tokio::time::timeout;
 
     #[tokio::test]
     async fn post_work_request() {
-        let http_client = HttpClient::null_builder().respond(ConfiguredResponse::new(
+        let http_client = HttpClient::null_builder().respond(JsonResponse::new(
             StatusCode::OK,
             HttpWorkResponse {
                 work: WorkNonce::new(42),
@@ -117,7 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_response_status() {
-        let http_client = HttpClient::null_builder().respond(ConfiguredResponse::new(
+        let http_client = HttpClient::null_builder().respond(JsonResponse::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             "error",
         ));
@@ -159,6 +204,64 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(err.to_string(), "an error");
+    }
+
+    #[tokio::test]
+    async fn configure_multiple_responses() {
+        let client = DistributedWorkClient::null_builder()
+            .response(
+                "http://host1",
+                ConfiguredWorkResponse::Ok(WorkNonce::new(1)),
+            )
+            .response(
+                "http://host2",
+                ConfiguredWorkResponse::Ok(WorkNonce::new(2)),
+            )
+            .finish();
+
+        let request = WorkRequest::new_test_instance();
+
+        let work1 = client
+            .generate_work("http://host1", request.clone())
+            .await
+            .unwrap();
+
+        let work2 = client.generate_work("http://host2", request).await.unwrap();
+
+        assert_eq!(work1, 1.into());
+        assert_eq!(work2, 2.into());
+    }
+
+    #[tokio::test]
+    async fn configure_error_per_url() {
+        let client = DistributedWorkClient::null_builder()
+            .response(
+                "http://host1",
+                ConfiguredWorkResponse::Error("test error".to_string()),
+            )
+            .finish();
+
+        let error = client
+            .generate_work("http://host1", WorkRequest::new_test_instance())
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.to_string(), "test error");
+    }
+
+    #[tokio::test]
+    async fn configure_halt_per_url() {
+        let client = DistributedWorkClient::null_builder()
+            .response("http://host1", ConfiguredWorkResponse::Halt)
+            .finish();
+
+        let result = timeout(
+            Duration::ZERO,
+            client.generate_work("http://host1", WorkRequest::new_test_instance()),
+        )
+        .await;
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]

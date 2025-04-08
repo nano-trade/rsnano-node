@@ -18,7 +18,7 @@ impl HttpClient {
 
     pub fn new_null() -> Self {
         Self::new_with_strategy(HttpClientStrategy::Nulled(HttpClientStub::with_response(
-            ConfiguredResponse::default(),
+            ConfiguredHttpResponse::Json(JsonResponse::default()),
         )))
     }
 
@@ -74,22 +74,19 @@ enum HttpClientStrategy {
 }
 
 pub struct NulledHttpClientBuilder {
-    responses: HashMap<(Url, Method), ConfiguredResponse>,
+    responses: HashMap<(Url, Method), ConfiguredHttpResponse>,
 }
 
 impl NulledHttpClientBuilder {
-    pub fn respond(self, response: ConfiguredResponse) -> HttpClient {
-        Self::create_client(HttpClientStub {
-            the_only_response: Some(response),
-            ..Default::default()
-        })
+    pub fn respond(self, response: JsonResponse) -> HttpClient {
+        Self::create_client_with_response(ConfiguredHttpResponse::Json(response))
     }
 
     pub fn respond_url(
         mut self,
         method: Method,
         url: impl IntoUrl,
-        response: ConfiguredResponse,
+        response: ConfiguredHttpResponse,
     ) -> Self {
         self.responses
             .insert((url.into_url().unwrap(), method), response);
@@ -97,10 +94,7 @@ impl NulledHttpClientBuilder {
     }
 
     pub fn fail_with(self, error_message: impl Into<String>) -> HttpClient {
-        Self::create_client(HttpClientStub {
-            error: Some(error_message.into()),
-            ..Default::default()
-        })
+        Self::create_client_with_response(ConfiguredHttpResponse::Error(error_message.into()))
     }
 
     pub fn finish(self) -> HttpClient {
@@ -111,10 +105,11 @@ impl NulledHttpClientBuilder {
     }
 
     pub fn halt(self) -> HttpClient {
-        Self::create_client(HttpClientStub {
-            halt: true,
-            ..Default::default()
-        })
+        Self::create_client_with_response(ConfiguredHttpResponse::Halt)
+    }
+
+    fn create_client_with_response(response: ConfiguredHttpResponse) -> HttpClient {
+        Self::create_client(HttpClientStub::with_response(response))
     }
 
     fn create_client(stub: HttpClientStub) -> HttpClient {
@@ -124,14 +119,12 @@ impl NulledHttpClientBuilder {
 
 #[derive(Default)]
 struct HttpClientStub {
-    the_only_response: Option<ConfiguredResponse>,
-    responses: HashMap<(Url, Method), ConfiguredResponse>,
-    error: Option<String>,
-    halt: bool,
+    the_only_response: Option<ConfiguredHttpResponse>,
+    responses: HashMap<(Url, Method), ConfiguredHttpResponse>,
 }
 
 impl HttpClientStub {
-    fn with_response(response: ConfiguredResponse) -> Self {
+    fn with_response(response: ConfiguredHttpResponse) -> Self {
         Self {
             the_only_response: Some(response),
             ..Default::default()
@@ -139,25 +132,21 @@ impl HttpClientStub {
     }
 
     async fn get_response(&self, method: Method, url: Url) -> anyhow::Result<Response> {
-        if self.halt {
-            loop {
-                yield_now().await;
-            }
-        }
-
-        if let Some(error) = &self.error {
-            return Err(anyhow!("{}", error));
-        }
-
         let response = if let Some(r) = &self.the_only_response {
-            Some(r)
+            r
         } else {
-            self.responses.get(&(url.clone(), method.clone()))
+            self.responses
+                .get(&(url.clone(), method.clone()))
+                .ok_or_else(|| anyhow!("no response configured for {} {}", method, url))?
         };
 
-        response
-            .map(|r| r.clone().into())
-            .ok_or_else(|| anyhow!("no response configured for {} {}", method, url))
+        match response {
+            ConfiguredHttpResponse::Json(i) => Ok(i.clone().into()),
+            ConfiguredHttpResponse::Error(e) => Err(anyhow!("{}", e)),
+            ConfiguredHttpResponse::Halt => loop {
+                yield_now().await;
+            },
+        }
     }
 }
 
@@ -208,7 +197,7 @@ impl Response {
 
 enum ResponseStrategy {
     Real(reqwest::Response),
-    Nulled(ConfiguredResponse),
+    Nulled(JsonResponse),
 }
 
 impl From<reqwest::Response> for Response {
@@ -219,13 +208,19 @@ impl From<reqwest::Response> for Response {
     }
 }
 
+pub enum ConfiguredHttpResponse {
+    Json(JsonResponse),
+    Error(String),
+    Halt,
+}
+
 #[derive(Clone)]
-pub struct ConfiguredResponse {
+pub struct JsonResponse {
     status: StatusCode,
     body: serde_json::Value,
 }
 
-impl ConfiguredResponse {
+impl JsonResponse {
     pub fn new(status: StatusCode, json: impl Serialize) -> Self {
         Self {
             status,
@@ -238,7 +233,7 @@ impl ConfiguredResponse {
     }
 }
 
-impl Default for ConfiguredResponse {
+impl Default for JsonResponse {
     fn default() -> Self {
         Self {
             status: StatusCode::OK,
@@ -247,8 +242,8 @@ impl Default for ConfiguredResponse {
     }
 }
 
-impl From<ConfiguredResponse> for Response {
-    fn from(value: ConfiguredResponse) -> Self {
+impl From<JsonResponse> for Response {
+    fn from(value: JsonResponse) -> Self {
         Self {
             strategy: ResponseStrategy::Nulled(value),
         }
@@ -314,33 +309,31 @@ mod tests {
 
     mod nullability {
         use super::*;
+        use std::time::Duration;
+        use tokio::time::timeout;
 
         #[tokio::test]
         async fn can_be_nulled() {
             let client = HttpClient::new_null();
-            let response = client
-                .post_json("http://127.0.0.1:42", "foobar")
-                .await
-                .unwrap();
+            let response = client.post_json(test_url(), "foobar").await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
         }
 
         #[tokio::test]
         async fn return_configured_json_response() {
             let client = HttpClient::null_builder()
-                .respond(ConfiguredResponse::new(StatusCode::OK, vec![1, 2, 3]));
+                .respond(JsonResponse::new(StatusCode::OK, vec![1, 2, 3]));
 
-            let response = client.post_json("http://127.0.0.1:42", "").await.unwrap();
+            let response = client.post_json(test_url(), "").await.unwrap();
             assert_eq!(response.json::<Vec<i32>>().await.unwrap(), vec![1, 2, 3]);
         }
 
         #[tokio::test]
         async fn error_for_status() {
             let client = HttpClient::null_builder()
-                .respond(ConfiguredResponse::new(StatusCode::NOT_FOUND, "not found"));
+                .respond(JsonResponse::new(StatusCode::NOT_FOUND, "not found"));
 
-            let url: Url = "http://127.0.0.1:42".parse().unwrap();
-            let response = client.post_json(url.clone(), "").await.unwrap();
+            let response = client.post_json(test_url(), "").await.unwrap();
             match response.error_for_status() {
                 Ok(_) => panic!("should return error"),
                 Err(e) => {
@@ -352,11 +345,30 @@ mod tests {
         #[tokio::test]
         async fn failing_null() {
             let client = HttpClient::null_builder().fail_with("my error");
-            let url: Url = "http://127.0.0.1:42".parse().unwrap();
-            let Err(error) = client.post_json(url.clone(), "").await else {
+            let Err(error) = client.post_json(test_url(), "").await else {
                 panic!("did not fail!")
             };
             assert_eq!(error.to_string(), "my error")
+        }
+
+        #[tokio::test]
+        async fn halts() {
+            let client = HttpClient::null_builder().halt();
+            let result = timeout(Duration::ZERO, client.post_json(test_url(), "")).await;
+            assert!(matches!(result, Err(_)));
+        }
+
+        #[tokio::test]
+        async fn halts_only_for_specified_url() {
+            let client = HttpClient::null_builder()
+                .respond_url(Method::POST, test_url(), ConfiguredHttpResponse::Halt)
+                .finish();
+            let result = timeout(Duration::ZERO, client.post_json(test_url(), "")).await;
+            assert!(matches!(result, Err(_)));
+        }
+
+        fn test_url() -> Url {
+            "http://127.0.0.1:42".parse().unwrap()
         }
     }
 
