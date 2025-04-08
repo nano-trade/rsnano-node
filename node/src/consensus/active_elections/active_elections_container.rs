@@ -274,11 +274,6 @@ impl ActiveElectionsContainer {
 
         self.stopped_counter.stopped(&entry.election);
         self.vote_router.disconnect_election(&election);
-        let winner_hash = election.winner().hash();
-        if election.is_confirmed() {
-            self.recently_confirmed
-                .put(election.qualified_root().clone(), winner_hash);
-        }
     }
 
     pub fn confirm_dependent_elections(
@@ -477,6 +472,11 @@ impl ActiveElectionsContainer {
                                     ));
                                 }
                                 if election.is_confirmed() {
+                                    self.recently_confirmed.put(
+                                        election.qualified_root().clone(),
+                                        election.winner().hash(),
+                                    );
+
                                     let confirmed_election = election.into_confirmed_election(
                                         now,
                                         ElectionResult::ActiveConfirmedQuorum,
