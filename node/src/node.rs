@@ -224,7 +224,7 @@ impl Node {
         );
 
         let node_observer = args.event_sender;
-        // Time relative to the start of the node. This makes time exlicit and enables us to
+        // Time relative to the start of the node. This makes time exlpicit and enables us to
         // write time relevant unit tests with ease.
         let steady_clock = if is_nulled {
             Arc::new(SteadyClock::new_null())
@@ -233,12 +233,11 @@ impl Node {
         };
 
         let network_label = network_params.network.get_current_network_as_string();
-        let global_config = GlobalConfig {
+        let global_config = &GlobalConfig {
             node_config: config.clone(),
             flags: flags.clone(),
             network_params: network_params.clone(),
         };
-        let global_config = &global_config;
         let application_path = args.data_path;
         let node_id_key = node_id_key_file.initialize(&application_path).unwrap();
         let node_id = NodeId::from(&node_id_key);
@@ -359,10 +358,6 @@ impl Node {
             inbound_message_queue.clone(),
         ));
 
-        let telemetry_config = TelementryConfig {
-            enable_ongoing_broadcasts: !flags.disable_providing_telemetry_metrics,
-        };
-
         let unchecked = Arc::new(UncheckedMap::new(
             config.max_unchecked_blocks as usize,
             stats.clone(),
@@ -402,6 +397,9 @@ impl Node {
             message_sender.clone(),
         );
 
+        let telemetry_config = TelementryConfig {
+            enable_ongoing_broadcasts: !flags.disable_providing_telemetry_metrics,
+        };
         let telemetry_factory = TelemetryFactory {
             ledger: ledger.clone(),
             network: network.clone(),
@@ -410,7 +408,6 @@ impl Node {
             startup_time: steady_clock.now(),
             clock: steady_clock.clone(),
         };
-
         let telemetry = Arc::new(Telemetry::new(
             telemetry_factory,
             telemetry_config,
