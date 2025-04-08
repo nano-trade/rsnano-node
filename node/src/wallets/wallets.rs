@@ -102,32 +102,6 @@ pub struct Wallets {
 }
 
 impl Wallets {
-    pub fn new_null_with_env(env: Arc<LmdbEnv>) -> Self {
-        Wallets::new(
-            env,
-            Arc::new(Ledger::new_null()),
-            &NodeConfig::new_test_instance(),
-            WorkThresholds::new(0, 0, 0),
-            Arc::new(WorkFactory::disabled()),
-            NetworkParams::new(NetworkConstants::active_network()),
-            Arc::new(ThreadPoolImpl::new_null()),
-            Arc::new(BlockProcessor::new_null()),
-            Arc::new(Mutex::new(OnlineReps::new(
-                Arc::new(RepWeightCache::new()),
-                Duration::default(),
-                Amount::zero(),
-                Amount::zero(),
-            ))),
-            Arc::new(ConfirmingSet::new(
-                ConfirmingSetConfig::default(),
-                Arc::new(Ledger::new_null()),
-                Arc::new(Stats::default()),
-            )),
-            MessageFlooder::new_null(),
-            Networks::NanoDevNetwork,
-        )
-    }
-
     pub fn new(
         env: Arc<LmdbEnv>,
         ledger: Arc<Ledger>,

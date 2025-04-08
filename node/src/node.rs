@@ -34,7 +34,6 @@ use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
 };
-use rsnano_work::WorkPool;
 
 use crate::{
     aec_event_processor::AecEventProcessor,
@@ -213,7 +212,7 @@ impl Node {
         let flags = args.flags;
 
         let work_factory = Arc::new(
-            WorkFactory::builder()
+            WorkFactory::builder(runtime.clone())
                 .local_work_pool(|p| {
                     p.threads(config.work_threads as usize)
                         .cpu_rate_limit(Duration::from_millis(config.pow_sleep_interval_ns as u64))

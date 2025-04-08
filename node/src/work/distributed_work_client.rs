@@ -1,6 +1,8 @@
 use super::WorkRequest;
 use rsnano_core::{to_hex_string, Root, WorkNonce};
-use rsnano_nullable_http_client::{HttpClient, IntoUrl, Url};
+use rsnano_nullable_http_client::{ConfiguredResponse, HttpClient, IntoUrl, StatusCode, Url};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use std::sync::Arc;
 
 #[derive(serde::Serialize)]
 struct HttpWorkRequest {
@@ -21,28 +23,44 @@ impl HttpWorkRequest {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct HttpWorkResponse {
-    work: String,
+    work: WorkNonce,
 }
 
+#[derive(Default)]
 pub(crate) struct DistributedWorkClient {
     http_client: HttpClient,
+    request_listener: OutputListenerMt<(Url, WorkRequest)>,
 }
 
 impl DistributedWorkClient {
     fn new(http_client: HttpClient) -> Self {
-        Self { http_client }
+        Self {
+            http_client,
+            request_listener: Default::default(),
+        }
     }
 
     pub fn new_null() -> Self {
-        Self::new(HttpClient::new_null())
+        Self::new_null_with(42.into())
     }
 
-    async fn generate_work(
+    pub fn new_null_with(response: WorkNonce) -> Self {
+        Self::new(HttpClient::null_builder().respond(ConfiguredResponse::new(
+            StatusCode::OK,
+            HttpWorkResponse { work: response },
+        )))
+    }
+
+    pub async fn generate_work(
         &self,
         url: impl IntoUrl,
         request: WorkRequest,
     ) -> anyhow::Result<WorkNonce> {
+        let url = url.into_url()?;
+        self.request_listener.emit((url.clone(), request.clone()));
+
         let http_work_request = HttpWorkRequest::new(request.root, request.difficulty);
+
         let response: HttpWorkResponse = self
             .http_client
             .post_json(url, &http_work_request)
@@ -51,23 +69,25 @@ impl DistributedWorkClient {
             .json()
             .await?;
 
-        let work = response.work.parse()?;
+        Ok(response.work)
+    }
 
-        Ok(WorkNonce::new(work))
+    pub fn track_requests(&self) -> Arc<OutputTrackerMt<(Url, WorkRequest)>> {
+        self.request_listener.track()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_nullable_http_client::{ConfiguredResponse, Method, StatusCode};
+    use rsnano_nullable_http_client::{ConfiguredResponse, Method};
 
     #[tokio::test]
     async fn post_work_request() {
         let http_client = HttpClient::null_builder().respond(ConfiguredResponse::new(
             StatusCode::OK,
             HttpWorkResponse {
-                work: "42".to_string(),
+                work: WorkNonce::new(42),
             },
         ));
         let tracker = http_client.track_requests();
@@ -112,7 +132,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "wip"]
     async fn can_be_nulled() {
         let client = DistributedWorkClient::new_null();
         let result = client
@@ -120,5 +139,22 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, WorkNonce::new(42));
+    }
+
+    #[tokio::test]
+    async fn can_track_requests() {
+        let client = DistributedWorkClient::new_null();
+        let tracker = client.track_requests();
+        let request = WorkRequest::new_test_instance();
+        let url = Url::parse("http://127.0.0.1:1234").unwrap();
+
+        client
+            .generate_work(url.clone(), request.clone())
+            .await
+            .unwrap();
+
+        let output = tracker.output();
+        assert_eq!(output.len(), 1, "nothing tracked");
+        assert_eq!(output[0], (url, request));
     }
 }
