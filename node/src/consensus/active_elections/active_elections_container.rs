@@ -20,7 +20,8 @@ use super::{
     recently_confirmed_cache::RecentlyConfirmedCache,
     stopped_counter::StoppedCounter,
     vote_counter::VoteCounter,
-    ActiveElectionsConfig, AecEvent, Entry, ErasedCallback, RootContainer, VoteRouter,
+    ActiveElectionsConfig, AecEvent, AecInsertError, Entry, ErasedCallback, RootContainer,
+    VoteRouter,
 };
 
 pub struct ActiveElectionsContainer {
@@ -92,9 +93,9 @@ impl ActiveElectionsContainer {
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
         now: Timestamp,
-    ) -> bool {
+    ) -> Result<(), AecInsertError> {
         if self.stopped {
-            return false;
+            return Err(AecInsertError::Stopped);
         }
 
         let hash = block.hash();
@@ -102,7 +103,7 @@ impl ActiveElectionsContainer {
 
         if self.recently_confirmed.root_exists(&root) {
             // This block or a fork got recently confirmed, so there is no need for a new election.
-            return false;
+            return Err(AecInsertError::RecentlyConfirmed);
         }
 
         let existing = self.roots.get_mut(&root).map(|i| &mut i.election);
@@ -115,7 +116,7 @@ impl ActiveElectionsContainer {
                 *self.count_by_behavior_mut(previous_behavior) -= 1;
                 *self.count_by_behavior_mut(election_behavior) += 1;
             }
-            return false;
+            return Err(AecInsertError::Duplicate);
         }
 
         let election = Election::new(block, election_behavior, self.base_latency, now);
@@ -129,7 +130,7 @@ impl ActiveElectionsContainer {
         // Keep track of election count by election type
         *self.count_by_behavior_mut(election_behavior) += 1;
         self.vote_router.connect(hash, root);
-        true
+        Ok(())
     }
 
     pub(super) fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {

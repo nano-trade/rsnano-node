@@ -37,7 +37,7 @@ impl Default for PriorityBucketConfig {
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
     config: PriorityBucketConfig,
-    active: Arc<ActiveElections>,
+    active_elections: Arc<ActiveElections>,
     stats: Arc<Stats>,
     data: Mutex<BucketData>,
 }
@@ -45,12 +45,12 @@ pub struct Bucket {
 impl Bucket {
     pub fn new(
         config: PriorityBucketConfig,
-        active: Arc<ActiveElections>,
+        active_elections: Arc<ActiveElections>,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
             config,
-            active,
+            active_elections,
             stats: stats.clone(),
             data: Mutex::new(BucketData {
                 queue: Default::default(),
@@ -82,7 +82,7 @@ impl Bucket {
         if election_count < self.config.reserved_elections
             || election_count < self.config.max_elections
         {
-            self.active.read().vacancy() > 0
+            self.active_elections.read().vacancy() > 0
         } else if election_count > 0 {
             // Compare to equal to drain duplicates
             if candidate <= lowest {
@@ -100,7 +100,7 @@ impl Bucket {
         if data.elections.len() < self.config.reserved_elections {
             false
         } else if data.elections.len() < self.config.max_elections {
-            self.active.read().vacancy() < 0
+            self.active_elections.read().vacancy() < 0
         } else {
             true
         }
@@ -109,7 +109,7 @@ impl Bucket {
     pub fn update(&self) {
         let guard = self.data.lock().unwrap();
         if self.election_overfill(&guard) {
-            guard.cancel_lowest_election(&self.active);
+            guard.cancel_lowest_election(&self.active_elections);
             drop(guard);
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::CancelLowest);
@@ -163,6 +163,11 @@ impl BucketExt for Arc<Bucket> {
 
             block = top.block;
             priority = top.time;
+
+            guard.elections.insert(ElectionEntry {
+                root: block.qualified_root(),
+                priority,
+            });
         }
 
         let self_w = Arc::downgrade(self);
@@ -175,25 +180,21 @@ impl BucketExt for Arc<Bucket> {
         });
 
         let root = block.qualified_root();
-        let inserted = self
-            .active
-            .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
-        if inserted {
-            self.data
-                .lock()
-                .unwrap()
-                .elections
-                .insert(ElectionEntry { root, priority });
+        let result =
+            self.active_elections
+                .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
+        if result.is_ok() {
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::ActivateSuccess);
         } else {
+            self.data.lock().unwrap().elections.erase(&root);
             self.stats
                 .inc(StatType::ElectionBucket, DetailType::ActivateFailed);
         }
 
-        inserted
+        result.is_ok()
     }
 }
 

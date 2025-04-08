@@ -216,18 +216,18 @@ impl ActiveElections {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
-    ) -> bool {
+    ) -> Result<(), AecInsertError> {
         let hash = block.hash();
         let root = block.qualified_root();
 
-        let inserted = self.container.write().unwrap().insert(
+        let result = self.container.write().unwrap().insert(
             block,
             election_behavior,
             erased_callback,
             self.clock.now(),
         );
 
-        if inserted {
+        if result.is_ok() {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::Started);
             self.stats
@@ -242,7 +242,7 @@ impl ActiveElections {
             }
         }
 
-        inserted
+        result
     }
 
     pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
@@ -472,4 +472,11 @@ impl ApplyVoteResult {
             events: Vec::new(),
         }
     }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub enum AecInsertError {
+    Stopped,
+    Duplicate,
+    RecentlyConfirmed,
 }

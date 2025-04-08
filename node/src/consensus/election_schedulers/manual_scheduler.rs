@@ -85,7 +85,11 @@ impl ManualScheduler {
                     self.stats
                         .inc(StatType::ElectionScheduler, DetailType::InsertManual);
 
-                    if self.active.insert(block, ElectionBehavior::Manual, None) {
+                    if self
+                        .active
+                        .insert(block, ElectionBehavior::Manual, None)
+                        .is_ok()
+                    {
                         self.active.transition_active_hash(&hash);
                     }
                 } else {
