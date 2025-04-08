@@ -2,13 +2,13 @@ use super::difficulty_ledger;
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
 use rsnano_core::{Block, BlockType, DifficultyV1};
-use rsnano_ledger::{AnySet, LedgerSet};
 use rsnano_node::work::WorkRequest;
 use rsnano_rpc_messages::{WorkGenerateArgs, WorkGenerateDto};
 
 impl RpcCommandHandler {
     pub(crate) fn work_generate(&self, args: WorkGenerateArgs) -> anyhow::Result<WorkGenerateDto> {
         let default_difficulty = self.node.ledger.constants.work.threshold_base();
+
         let mut difficulty = args
             .difficulty
             .unwrap_or_else(|| default_difficulty.into())
@@ -49,42 +49,18 @@ impl RpcCommandHandler {
             }
         }
 
-        let use_peers = args.use_peers.unwrap_or_default().inner();
+        if !self.node.work_factory.work_generation_enabled() {
+            bail!("Work generation is disabled");
+        }
 
-        let work = if !use_peers {
-            if self.node.work_factory.work_generation_enabled() {
-                self.node
-                    .work_factory
-                    .generate_work(WorkRequest::new(args.hash.into(), difficulty))
-            } else {
-                bail!("Local work generation is disabled");
-            }
-        } else {
-            let _account = if let Some(_account) = args.account {
-                // Fetch account from block if not given
-                let any = self.node.ledger.any();
-                if any.block_exists(&args.hash) {
-                    any.block_account(&args.hash)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            // TODO implement
-            bail!("Distributed work generation isn't implemented yet");
-        };
+        let work_request = WorkRequest::new(args.hash.into(), difficulty);
+        let work = self.node.work_factory.generate_work(work_request.clone());
 
         let Some(work) = work else {
             bail!("Work generation cancelled")
         };
 
-        let result_difficulty = self
-            .node
-            .network_params
-            .work
-            .difficulty(&args.hash.into(), work);
+        let result_difficulty = work_request.difficulty_of(work);
         let result_multiplier = DifficultyV1::to_multiplier(result_difficulty, default_difficulty);
 
         Ok(WorkGenerateDto {

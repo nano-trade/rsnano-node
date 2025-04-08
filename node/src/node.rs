@@ -219,6 +219,7 @@ impl Node {
                         .opencl_config(config.opencl.clone())
                         .enable_gpu(config.enable_opencl)
                 })
+                .work_peers(config.work_peers.clone())
                 .finish(),
         );
 

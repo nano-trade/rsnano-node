@@ -34,7 +34,7 @@ impl NanoRpcClient {
         self.request(&RpcCommand::account_get(key)).await
     }
 
-    pub async fn work_peers(&self) -> Result<WorkPeersDto> {
+    pub async fn work_peers(&self) -> Result<WorkPeersResponse> {
         self.request(&RpcCommand::work_peers()).await
     }
 

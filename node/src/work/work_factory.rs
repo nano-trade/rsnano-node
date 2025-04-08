@@ -36,8 +36,11 @@ impl WorkRequest {
     }
 
     pub fn is_valid_work(&self, work: WorkNonce) -> bool {
-        let difficulty = DifficultyV1 {}.get_difficulty(&self.root, work);
-        difficulty >= self.difficulty
+        self.difficulty_of(work) >= self.difficulty
+    }
+
+    pub fn difficulty_of(&self, work: WorkNonce) -> u64 {
+        DifficultyV1 {}.get_difficulty(&self.root, work)
     }
 }
 
@@ -46,7 +49,7 @@ static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
 pub struct WorkFactory {
     pub local_work_pool: WorkPool,
     work_client: DistributedWorkClient,
-    work_peers: Vec<Peer>,
+    work_peers: Mutex<Vec<Peer>>,
     timeout: Duration,
     cancel_listener: OutputListenerMt<Root>,
     runtime: tokio::runtime::Handle,
@@ -66,7 +69,7 @@ impl WorkFactory {
         Self {
             local_work_pool: work_pool,
             work_client,
-            work_peers,
+            work_peers: Mutex::new(work_peers),
             timeout,
             cancel_listener: OutputListenerMt::new(),
             runtime,
@@ -96,10 +99,12 @@ impl WorkFactory {
             return None;
         }
 
-        if self.work_peers.is_empty() {
+        let peers = self.work_peers.lock().unwrap().clone();
+
+        if peers.is_empty() {
             self.generate_local(request)
         } else {
-            self.generate_remote_or_local(request)
+            self.generate_remote_or_local(peers, request)
         }
     }
 
@@ -113,12 +118,18 @@ impl WorkFactory {
         }
     }
 
-    fn generate_remote_or_local(&self, request: WorkRequest) -> Option<WorkNonce> {
+    fn generate_remote_or_local(
+        &self,
+        peers: Vec<Peer>,
+        request: WorkRequest,
+    ) -> Option<WorkNonce> {
         let (id, cancel_token) = self.create_cancellation_token(request.root);
 
-        let result = self
-            .runtime
-            .block_on(self.generate_remote(request.clone(), cancel_token.clone()));
+        let result = self.runtime.block_on(self.generate_remote(
+            peers,
+            request.clone(),
+            cancel_token.clone(),
+        ));
 
         self.remove_cancelation_token(id);
 
@@ -161,6 +172,7 @@ impl WorkFactory {
 
     async fn generate_remote(
         &self,
+        peers: Vec<Peer>,
         request: WorkRequest,
         cancel_token: CancellationToken,
     ) -> Option<WorkNonce> {
@@ -168,11 +180,11 @@ impl WorkFactory {
 
         tokio_scoped::scope(|scope| {
             // Query all configured peers
-            for peer in &self.work_peers {
+            for peer in peers {
                 scope.spawn(async {
                     select! {
                         _ = async {
-                                let res = self.generate_on_peer(peer.clone(), request.clone()).await;
+                                let res = self.generate_on_peer(peer, request.clone()).await;
                                 if let Some(work) = res {
                                     result.store(work.into(), Ordering::SeqCst);
 
@@ -226,7 +238,11 @@ impl WorkFactory {
     }
 
     fn work_peer_url(peer: &Peer) -> Option<Url> {
-        Url::parse(&format!("http://{}:{}", peer.address, peer.port)).ok()
+        if peer.address.starts_with("::") {
+            Url::parse(&format!("http://[{}]:{}", peer.address, peer.port)).ok()
+        } else {
+            Url::parse(&format!("http://{}:{}", peer.address, peer.port)).ok()
+        }
     }
 
     pub fn cancel(&self, root: Root) {
@@ -249,6 +265,7 @@ impl WorkFactory {
 
     pub fn work_generation_enabled(&self) -> bool {
         self.local_work_pool.work_generation_enabled()
+            || !self.work_peers.lock().unwrap().is_empty()
     }
 
     pub fn stop(&self) {
@@ -272,6 +289,18 @@ impl WorkFactory {
     pub fn requests_made(&self) -> usize {
         self.requests_made.load(Ordering::SeqCst)
     }
+
+    pub fn peers(&self) -> Vec<Peer> {
+        self.work_peers.lock().unwrap().clone()
+    }
+
+    pub fn add_peer(&self, peer: Peer) {
+        self.work_peers.lock().unwrap().push(peer);
+    }
+
+    pub fn clear_peers(&self) {
+        self.work_peers.lock().unwrap().clear();
+    }
 }
 
 impl ContainerInfoProvider for WorkFactory {
@@ -290,6 +319,11 @@ pub struct WorkFactoryBuilder {
 impl WorkFactoryBuilder {
     pub fn local_work_pool(mut self, f: impl FnOnce(WorkPoolBuilder) -> WorkPoolBuilder) -> Self {
         self.local_work_pool = Some(f(WorkPool::builder()).finish());
+        self
+    }
+
+    pub fn work_peers(mut self, peers: Vec<Peer>) -> Self {
+        self.work_peers = peers;
         self
     }
 
@@ -565,8 +599,4 @@ mod tests {
         );
         (factory, runner)
     }
-
-    // TODO:
-    // Backoff + Workrequest
-    // unresponsive work peers => use local work
 }

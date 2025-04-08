@@ -1,16 +1,15 @@
 use serde::{Deserialize, Serialize};
-use std::net::Ipv6Addr;
 
 use super::primitives::RpcU16;
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct AddressWithPortArgs {
-    pub address: Ipv6Addr,
+    pub address: String,
     pub port: RpcU16,
 }
 
 impl AddressWithPortArgs {
-    pub fn new(address: Ipv6Addr, port: u16) -> Self {
+    pub fn new(address: String, port: u16) -> Self {
         Self {
             address,
             port: port.into(),
@@ -37,13 +36,12 @@ impl HostWithPortArgs {
 mod tests {
     use super::AddressWithPortArgs;
     use serde_json::to_string_pretty;
-    use std::{net::Ipv6Addr, str::FromStr};
 
     #[test]
     fn serialize_address_with_port_arg() {
         assert_eq!(
             to_string_pretty(&AddressWithPortArgs::new(
-                Ipv6Addr::from_str("::ffff:192.169.0.1").unwrap(),
+                "::ffff:192.169.0.1".to_string(),
                 1024
             ))
             .unwrap(),
@@ -61,8 +59,7 @@ mod tests {
 "port": "1024"
 }"#;
         let deserialized: AddressWithPortArgs = serde_json::from_str(json_str).unwrap();
-        let expected_arg =
-            AddressWithPortArgs::new(Ipv6Addr::from_str("::ffff:192.169.0.1").unwrap(), 1024);
+        let expected_arg = AddressWithPortArgs::new("::ffff:192.169.0.1".to_string(), 1024);
         assert_eq!(deserialized, expected_arg);
     }
 }

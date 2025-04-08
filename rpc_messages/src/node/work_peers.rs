@@ -10,11 +10,11 @@ impl RpcCommand {
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 
-pub struct WorkPeersDto {
+pub struct WorkPeersResponse {
     pub work_peers: Vec<Peer>,
 }
 
-impl WorkPeersDto {
+impl WorkPeersResponse {
     pub fn new(work_peers: Vec<Peer>) -> Self {
         Self { work_peers }
     }
