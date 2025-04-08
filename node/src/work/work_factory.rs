@@ -10,7 +10,7 @@ use tracing::warn;
 
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, Peer},
-    Root, WorkNonce,
+    Difficulty, DifficultyV1, Root, WorkNonce,
 };
 use rsnano_nullable_http_client::Url;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -32,7 +32,12 @@ impl WorkRequest {
     }
 
     pub fn new_test_instance() -> Self {
-        Self::new(Root::from(100), 42)
+        Self::new(Root::from(100), 0)
+    }
+
+    pub fn is_valid_work(&self, work: WorkNonce) -> bool {
+        let difficulty = DifficultyV1 {}.get_difficulty(&self.root, work);
+        difficulty >= self.difficulty
     }
 }
 
@@ -109,26 +114,49 @@ impl WorkFactory {
     }
 
     fn generate_remote_or_local(&self, request: WorkRequest) -> Option<WorkNonce> {
-        let cancel_token = CancellationToken::new();
-
-        let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        self.running
-            .lock()
-            .unwrap()
-            .push((id, request.root, cancel_token.clone()));
+        let (id, cancel_token) = self.create_cancellation_token(request.root);
 
         let result = self
             .runtime
             .block_on(self.generate_remote(request.clone(), cancel_token.clone()));
 
-        self.running.lock().unwrap().retain(|(i, _, _)| *i != id);
+        self.remove_cancelation_token(id);
 
-        if result.is_none() && !cancel_token.is_cancelled() {
-            self.generate_local(request)
-        } else {
-            // TODO check if work is actually valid
-            result
+        match result {
+            None => {
+                if cancel_token.is_cancelled() {
+                    None
+                } else {
+                    // No peer returned a result. Fall back to local work generation
+                    self.generate_local(request)
+                }
+            }
+            Some(work) => {
+                if request.is_valid_work(work) {
+                    Some(work)
+                } else {
+                    warn!("Peer returned invalid work!");
+                    None
+                }
+            }
         }
+    }
+
+    fn create_cancellation_token(&self, root: Root) -> (usize, CancellationToken) {
+        let cancel_token = CancellationToken::new();
+
+        let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
+
+        self.running
+            .lock()
+            .unwrap()
+            .push((id, root, cancel_token.clone()));
+
+        (id, cancel_token)
+    }
+
+    fn remove_cancelation_token(&self, id: usize) {
+        self.running.lock().unwrap().retain(|(i, _, _)| *i != id);
     }
 
     async fn generate_remote(
@@ -488,6 +516,24 @@ mod tests {
         assert_eq!(result, None);
     }
 
+    #[test]
+    #[traced_test]
+    fn validate_difficulty_of_remote_work() {
+        let work_client = DistributedWorkClient::new_null_with(WorkNonce::new(42));
+        let (work_factory, _rt) = create_work_factory(TestContext {
+            work_pool: WorkPool::disabled(),
+            work_client,
+            work_peers: vec![Peer::new("foo.com", 123)],
+            ..Default::default()
+        });
+
+        let request = WorkRequest::new(Root::from(123), u64::MAX);
+        let work = work_factory.generate_work(request.clone());
+
+        assert_eq!(work, None);
+        assert!(logs_contain("Peer returned invalid work!"))
+    }
+
     struct TestContext {
         work_pool: WorkPool,
         work_client: DistributedWorkClient,
@@ -519,4 +565,8 @@ mod tests {
         );
         (factory, runner)
     }
+
+    // TODO:
+    // Backoff + Workrequest
+    // unresponsive work peers => use local work
 }
