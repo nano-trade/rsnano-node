@@ -17,7 +17,7 @@ use super::{Bucket, BucketExt, BucketStats, Bucketing, PriorityBucketConfig};
 use crate::consensus::ActiveElections;
 
 pub struct PriorityScheduler {
-    mutex: Mutex<PrioritySchedulerImpl>,
+    stopped: Mutex<bool>,
     condition: Condvar,
     stats: Arc<Stats>,
     bucketing: Bucketing,
@@ -47,7 +47,7 @@ impl PriorityScheduler {
         Self {
             thread: Mutex::new(None),
             cleanup_thread: Mutex::new(None),
-            mutex: Mutex::new(PrioritySchedulerImpl { stopped: false }),
+            stopped: Mutex::new(false),
             condition: Condvar::new(),
             buckets,
             bucketing,
@@ -61,7 +61,7 @@ impl PriorityScheduler {
     }
 
     pub fn stop(&self) {
-        self.mutex.lock().unwrap().stopped = true;
+        *self.stopped.lock().unwrap() = true;
         self.condition.notify_all();
         let handle = self.thread.lock().unwrap().take();
         if let Some(handle) = handle {
@@ -163,14 +163,15 @@ impl PriorityScheduler {
     }
 
     fn run(&self) {
-        let mut guard = self.mutex.lock().unwrap();
-        while !guard.stopped {
-            guard = self
+        let mut stopped = self.stopped.lock().unwrap();
+        while !*stopped {
+            stopped = self
                 .condition
-                .wait_while(guard, |i| !i.stopped && !self.predicate())
+                .wait_while(stopped, |s| !*s && !self.predicate())
                 .unwrap();
-            if !guard.stopped {
-                drop(guard);
+
+            if !*stopped {
+                drop(stopped);
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Loop);
 
@@ -180,29 +181,29 @@ impl PriorityScheduler {
                     }
                 }
 
-                guard = self.mutex.lock().unwrap();
+                stopped = self.stopped.lock().unwrap();
             }
         }
     }
 
     fn run_cleanup(&self) {
-        let mut guard = self.mutex.lock().unwrap();
-        while !guard.stopped {
-            guard = self
+        let mut stopped = self.stopped.lock().unwrap();
+        while !*stopped {
+            stopped = self
                 .condition
-                .wait_timeout_while(guard, Duration::from_secs(1), |i| !i.stopped)
+                .wait_timeout_while(stopped, Duration::from_secs(1), |s| !*s)
                 .unwrap()
                 .0;
 
-            if !guard.stopped {
-                drop(guard);
+            if !*stopped {
+                drop(stopped);
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Cleanup);
                 for bucket in &self.buckets {
                     bucket.update();
                 }
 
-                guard = self.mutex.lock().unwrap();
+                stopped = self.stopped.lock().unwrap();
             }
         }
     }
@@ -265,7 +266,7 @@ impl PrioritySchedulerExt for Arc<PriorityScheduler> {
         let self_l = Arc::clone(&self);
         *self.cleanup_thread.lock().unwrap() = Some(
             std::thread::Builder::new()
-                .name("Sched Priority".to_string())
+                .name("Sched Priority Clean".to_string())
                 .spawn(Box::new(move || {
                     self_l.run_cleanup();
                 }))
@@ -278,8 +279,4 @@ impl StatsSource for PriorityScheduler {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.bucket_stats.collect_stats(result);
     }
-}
-
-struct PrioritySchedulerImpl {
-    stopped: bool,
 }

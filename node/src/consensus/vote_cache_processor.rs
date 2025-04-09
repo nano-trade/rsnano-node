@@ -156,7 +156,7 @@ impl VoteCacheLoop {
             let cached = self.vote_cache.lock().unwrap().find(&hash);
             for cached_vote in cached {
                 self.vote_queue
-                    .vote(cached_vote, None, VoteSource::Cache, Some(hash));
+                    .enqueue(cached_vote, None, VoteSource::Cache, Some(hash));
             }
         }
     }

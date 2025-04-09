@@ -65,7 +65,7 @@ impl VoteProcessorQueue {
     }
 
     /// Queue vote for processing. @returns true if the vote was queued
-    pub fn vote(
+    pub fn enqueue(
         &self,
         vote: Arc<Vote>,
         channel: Option<Arc<Channel>>,

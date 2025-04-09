@@ -8,10 +8,7 @@ use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
 use crate::consensus::{election::ElectionBehavior, ActiveElections, AecInsertError};
-use rsnano_core::{
-    utils::{TimePriority, UnixTimestamp},
-    Block, BlockHash, QualifiedRoot, SavedBlock,
-};
+use rsnano_core::{utils::TimePriority, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -67,18 +64,18 @@ impl Bucket {
 
     pub fn available(&self) -> bool {
         let candidate_prio: TimePriority;
+        let highest_election: TimePriority;
         let election_count: usize;
-        let highest_prio: TimePriority;
 
         {
             let guard = self.data.lock().unwrap();
-            let Some(first) = guard.queue.highest_prio() else {
+            let Some(highest) = guard.queue.highest_prio() else {
                 return false;
             };
 
-            candidate_prio = first.priority;
+            candidate_prio = highest.priority;
             election_count = guard.elections.len();
-            highest_prio = guard.elections.highest_priority();
+            highest_election = guard.elections.highest_priority();
         }
 
         if election_count < self.config.reserved_elections
@@ -87,7 +84,7 @@ impl Bucket {
             self.active_elections.read().vacancy() > 0
         } else if election_count > 0 {
             // Compare to equal to drain duplicates
-            if candidate_prio >= highest_prio {
+            if candidate_prio >= highest_election {
                 // Bound number of reprioritizations
                 election_count < self.config.max_elections * 2
             } else {

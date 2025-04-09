@@ -36,7 +36,7 @@ impl VoteBroadcaster {
         let ack = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote.deref().clone()));
 
         self.vote_processor_queue
-            .vote(vote, None, VoteSource::Live, None);
+            .enqueue(vote, None, VoteSource::Live, None);
 
         let count = self
             .message_flooder

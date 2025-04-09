@@ -1861,7 +1861,7 @@ fn vote_republish() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1
         .vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
 
     // FIXME: there is a race condition here, if the vote arrives before the block then the vote is wasted and the test fails
     // we could resend the vote but then there is a race condition between the vote resending and the election reaching quorum on node1
@@ -1909,7 +1909,7 @@ fn vote_by_hash_republish() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node1
         .vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
 
     // send2 should win on both nodes
     assert_timely2(|| node1.blocks_confirmed(&[send2.clone()]));
@@ -2000,7 +2000,7 @@ fn confirm_back() {
     assert_eq!(node.active.len(), 3);
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node.vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
     assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
 }
 

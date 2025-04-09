@@ -129,7 +129,7 @@ impl RealtimeMessageHandler {
                     false => VoteSource::Live,
                 };
 
-                let added = self.vote_processor_queue.vote(
+                let added = self.vote_processor_queue.enqueue(
                     Arc::new(ack.vote().clone()),
                     Some(channel.clone()),
                     source,
@@ -162,7 +162,9 @@ impl RealtimeMessageHandler {
             Message::FrontierReq(_)
             | Message::BulkPush
             | Message::BulkPull(_)
-            | Message::BulkPullAccount(_) => unreachable!(),
+            | Message::BulkPullAccount(_) => {
+                // obsolete messages
+            }
         }
     }
 }

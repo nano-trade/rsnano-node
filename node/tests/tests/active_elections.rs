@@ -90,7 +90,7 @@ fn fork_replacement_tally() {
         ));
         node1
             .vote_processor_queue
-            .vote(vote, None, VoteSource::Live, None);
+            .enqueue(vote, None, VoteSource::Live, None);
         assert_timely2(|| node1.vote_cache.lock().unwrap().find(&fork.hash()).len() > 0);
         node1.process_active(fork);
     }
@@ -166,7 +166,7 @@ fn fork_replacement_tally() {
     ));
     node1
         .vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
     // ensure vote arrives before the block
     assert_timely_eq2(
         || {
@@ -227,7 +227,7 @@ fn inactive_votes_cache_basic() {
     let send = lattice.genesis().send(&key, Amount::raw(100));
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send.hash()]));
     node.vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
     assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 1);
     node.process_active(send.clone());
     assert_timely2(|| node.block_confirmed(&send.hash()));
@@ -252,7 +252,7 @@ fn non_final() {
         vec![send.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
     assert_timely_eq(
         Duration::from_secs(5),
         || node.vote_cache.lock().unwrap().size(),
@@ -303,7 +303,7 @@ fn inactive_votes_cache_fork() {
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node.vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
 
     assert_timely_eq(
         Duration::from_secs(5),
@@ -350,7 +350,7 @@ fn inactive_votes_cache_existing_vote() {
         vec![send.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote1.clone(), None, VoteSource::Live, None);
+        .enqueue(vote1.clone(), None, VoteSource::Live, None);
 
     assert_timely_eq2(
         || {
@@ -422,7 +422,7 @@ fn inactive_votes_cache_multiple_votes() {
         vec![send1.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote1, None, VoteSource::Live, None);
+        .enqueue(vote1, None, VoteSource::Live, None);
 
     let vote2 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
@@ -431,7 +431,7 @@ fn inactive_votes_cache_multiple_votes() {
         vec![send1.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote2, None, VoteSource::Live, None);
+        .enqueue(vote2, None, VoteSource::Live, None);
 
     assert_timely_eq(
         Duration::from_secs(5),
@@ -492,7 +492,7 @@ fn inactive_votes_cache_election_start() {
         vec![open1.hash(), open2.hash(), send4.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote1, None, VoteSource::Live, None);
+        .enqueue(vote1, None, VoteSource::Live, None);
     assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 3);
     assert_eq!(node.active.len(), 0);
     assert_eq!(1, node.ledger.confirmed_count());
@@ -505,7 +505,7 @@ fn inactive_votes_cache_election_start() {
         vec![open1.hash(), open2.hash(), send4.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote2, None, VoteSource::Live, None);
+        .enqueue(vote2, None, VoteSource::Live, None);
     // Only election for send1 should start, other blocks are missing dependencies and don't have enough final weight
     assert_timely_eq2(|| node.active.len(), 1);
     assert!(node.active.is_active_hash(&send1.hash()));
@@ -516,7 +516,7 @@ fn inactive_votes_cache_election_start() {
         vec![open1.hash(), open2.hash(), send4.hash()],
     ));
     node.vote_processor_queue
-        .vote(vote0, None, VoteSource::Live, None);
+        .enqueue(vote0, None, VoteSource::Live, None);
     assert_timely_eq2(|| node.active.len(), 0);
     assert_timely_eq2(|| node.ledger.confirmed_count(), 5);
     // Confirmation on disk may lag behind cemented_count cache
@@ -587,7 +587,7 @@ fn republish_winner() {
 
     node1
         .vote_processor_queue
-        .vote(vote, None, VoteSource::Live, None);
+        .enqueue(vote, None, VoteSource::Live, None);
 
     assert_timely2(|| node2.block_confirmed(&fork.hash()));
 }
@@ -990,7 +990,7 @@ fn conflicting_block_vote_existing_election() {
 
     // Vote for conflicting block, but the block does not yet exist in the ledger
     node.vote_processor_queue
-        .vote(vote_fork, None, VoteSource::Live, None);
+        .enqueue(vote_fork, None, VoteSource::Live, None);
 
     // Block now gets processed
     assert_eq!(node.process_local(fork.clone()).unwrap(), BlockStatus::Fork);
