@@ -117,7 +117,7 @@ impl Bucket {
         let mut guard = self.data.lock().unwrap();
         let inserted = guard.queue.insert(BlockEntry { time, block });
         if guard.queue.len() > self.config.max_blocks {
-            if let Some(removed) = guard.queue.pop_last() {
+            if let Some(removed) = guard.queue.pop_lowest_prio() {
                 inserted && !(removed.time == time && removed.block.hash() == hash)
             } else {
                 inserted
@@ -153,7 +153,7 @@ impl BucketExt for Arc<Bucket> {
         {
             let mut guard = self.data.lock().unwrap();
 
-            let Some(top) = guard.queue.pop_first() else {
+            let Some(top) = guard.queue.pop_highest_prio() else {
                 return false; // Not activated;
             };
 

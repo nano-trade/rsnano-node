@@ -4,6 +4,7 @@ use std::{
     collections::{BTreeSet, HashSet},
 };
 
+#[derive(Debug, Eq)]
 pub(super) struct BlockEntry {
     pub time: UnixTimestamp,
     pub block: SavedBlock,
@@ -37,8 +38,6 @@ impl PartialEq for BlockEntry {
     }
 }
 
-impl Eq for BlockEntry {}
-
 /// BlockEntries ordered by timestamp
 #[derive(Default)]
 pub(super) struct OrderedBlocks {
@@ -69,13 +68,13 @@ impl OrderedBlocks {
         self.by_priority.first()
     }
 
-    pub fn pop_first(&mut self) -> Option<BlockEntry> {
+    pub fn pop_highest_prio(&mut self) -> Option<BlockEntry> {
         let first = self.by_priority.pop_first()?;
         self.hashes.remove(&first.hash());
         Some(first)
     }
 
-    pub fn pop_last(&mut self) -> Option<BlockEntry> {
+    pub fn pop_lowest_prio(&mut self) -> Option<BlockEntry> {
         let last = self.by_priority.pop_last()?;
         self.hashes.remove(&last.hash());
         Some(last)
@@ -89,10 +88,111 @@ impl OrderedBlocks {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rsnano_core::PrivateKey;
 
     #[test]
     fn empty() {
-        let blocks = OrderedBlocks::default();
+        let mut blocks = OrderedBlocks::default();
         assert_eq!(blocks.len(), 0);
+        assert_eq!(blocks.contains(&BlockHash::from(1)), false);
+        assert_eq!(blocks.first(), None);
+        assert_eq!(blocks.pop_highest_prio(), None);
+        assert_eq!(blocks.pop_lowest_prio(), None);
+    }
+
+    #[test]
+    fn insert_one() {
+        let mut blocks = OrderedBlocks::default();
+
+        let (hash, entry) = create_entry(UnixTimestamp::new(123), 1);
+        blocks.insert(entry);
+
+        assert_eq!(blocks.len(), 1);
+        assert!(blocks.contains(&hash));
+        assert_eq!(blocks.first().unwrap().hash(), hash);
+        assert_eq!(blocks.iter().count(), 1);
+    }
+
+    #[test]
+    fn insert_multiple() {
+        let mut blocks = OrderedBlocks::default();
+
+        let (hash1, entry1) = create_entry(UnixTimestamp::new(123), 1);
+        let (hash2, entry2) = create_entry(UnixTimestamp::new(456), 2);
+
+        blocks.insert(entry1);
+        blocks.insert(entry2);
+
+        assert_eq!(blocks.len(), 2);
+        assert!(blocks.contains(&hash1));
+        assert!(blocks.contains(&hash2));
+    }
+
+    #[test]
+    fn order_by_timestamp() {
+        let mut blocks = OrderedBlocks::default();
+
+        let (hash1, entry1) = create_entry(UnixTimestamp::new(333), 1);
+        let (hash2, entry2) = create_entry(UnixTimestamp::new(111), 2);
+        let (hash3, entry3) = create_entry(UnixTimestamp::new(222), 3);
+
+        blocks.insert(entry1);
+        blocks.insert(entry2);
+        blocks.insert(entry3);
+
+        assert_eq!(blocks.first().unwrap().block.hash(), hash2);
+        assert_eq!(
+            blocks.iter().map(|i| i.hash()).collect::<Vec<_>>(),
+            [hash2, hash3, hash1]
+        );
+    }
+
+    #[test]
+    fn pop_highest_prio() {
+        let mut blocks = OrderedBlocks::default();
+
+        let (_, entry1) = create_entry(UnixTimestamp::new(333), 1);
+        let (hash2, entry2) = create_entry(UnixTimestamp::new(111), 2);
+        let (_, entry3) = create_entry(UnixTimestamp::new(222), 3);
+
+        blocks.insert(entry1);
+        blocks.insert(entry2);
+        blocks.insert(entry3);
+
+        let popped = blocks.pop_highest_prio().unwrap();
+        assert_eq!(popped.hash(), hash2);
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks.contains(&hash2), false);
+        assert_eq!(blocks.hashes.len(), 2);
+        assert_eq!(blocks.by_priority.len(), 2);
+    }
+
+    #[test]
+    fn pop_lowest_prio() {
+        let mut blocks = OrderedBlocks::default();
+
+        let (hash1, entry1) = create_entry(UnixTimestamp::new(333), 1);
+        let (_, entry2) = create_entry(UnixTimestamp::new(111), 2);
+        let (_, entry3) = create_entry(UnixTimestamp::new(222), 3);
+
+        blocks.insert(entry1);
+        blocks.insert(entry2);
+        blocks.insert(entry3);
+
+        let popped = blocks.pop_lowest_prio().unwrap();
+        assert_eq!(popped.hash(), hash1);
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks.contains(&hash1), false);
+        assert_eq!(blocks.hashes.len(), 2);
+        assert_eq!(blocks.by_priority.len(), 2);
+    }
+
+    fn create_entry(time: UnixTimestamp, key: impl Into<PrivateKey>) -> (BlockHash, BlockEntry) {
+        let entry = BlockEntry {
+            time,
+            block: SavedBlock::new_test_instance_with_key(key),
+        };
+        let hash = entry.block.hash();
+        (hash, entry)
     }
 }
