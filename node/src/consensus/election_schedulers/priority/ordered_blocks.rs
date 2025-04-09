@@ -39,6 +39,7 @@ impl PartialEq for BlockEntry {
 
 impl Eq for BlockEntry {}
 
+/// BlockEntries ordered by timestamp
 #[derive(Default)]
 pub(super) struct OrderedBlocks {
     hashes: HashSet<BlockHash>,

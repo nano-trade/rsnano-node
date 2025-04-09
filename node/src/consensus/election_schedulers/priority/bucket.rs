@@ -1,12 +1,12 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
 };
 
-use super::ordered_blocks::{BlockEntry, OrderedBlocks};
+use super::{
+    bucket_elections::{BucketElection, BucketElections},
+    ordered_blocks::{BlockEntry, OrderedBlocks},
+};
 use crate::consensus::{election::ElectionBehavior, ActiveElections, AecInsertError};
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
@@ -160,7 +160,7 @@ impl BucketExt for Arc<Bucket> {
             block = top.block;
             priority = top.time;
 
-            guard.elections.insert(ElectionEntry {
+            guard.elections.insert(BucketElection {
                 root: block.qualified_root(),
                 priority,
             });
@@ -210,7 +210,7 @@ impl BucketExt for Arc<Bucket> {
 
 struct BucketData {
     queue: OrderedBlocks,
-    elections: OrderedElections,
+    elections: BucketElections,
     stats: Arc<BucketStats>,
 }
 
@@ -255,63 +255,5 @@ impl StatsSource for BucketStats {
             "activate_failed_confirmed",
             self.activate_failed_confirmed.load(Ordering::Relaxed),
         );
-    }
-}
-
-struct ElectionEntry {
-    root: QualifiedRoot,
-    priority: UnixTimestamp,
-}
-
-#[derive(Default)]
-struct OrderedElections {
-    by_root: HashMap<QualifiedRoot, ElectionEntry>,
-    sequenced: Vec<QualifiedRoot>,
-    by_priority: BTreeMap<UnixTimestamp, Vec<QualifiedRoot>>,
-}
-
-impl OrderedElections {
-    fn insert(&mut self, entry: ElectionEntry) {
-        let root = entry.root.clone();
-        let priority = entry.priority;
-        let old = self.by_root.insert(root.clone(), entry);
-        if let Some(old) = old {
-            self.erase_indices(old);
-        }
-        self.sequenced.push(root.clone());
-        self.by_priority.entry(priority).or_default().push(root);
-    }
-
-    fn entry_with_lowest_priority(&self) -> Option<&ElectionEntry> {
-        self.by_priority
-            .first_key_value()
-            .and_then(|(_, roots)| self.by_root.get(&roots[0]))
-    }
-
-    fn lowest_priority(&self) -> UnixTimestamp {
-        self.by_priority
-            .first_key_value()
-            .map(|(prio, _)| *prio)
-            .unwrap_or_default()
-    }
-
-    fn len(&self) -> usize {
-        self.sequenced.len()
-    }
-
-    fn erase(&mut self, root: &QualifiedRoot) {
-        if let Some(entry) = self.by_root.remove(root) {
-            self.erase_indices(entry)
-        }
-    }
-
-    fn erase_indices(&mut self, entry: ElectionEntry) {
-        let keys = self.by_priority.get_mut(&entry.priority).unwrap();
-        if keys.len() == 1 {
-            self.by_priority.remove(&entry.priority);
-        } else {
-            keys.retain(|i| *i != entry.root);
-        }
-        self.sequenced.retain(|i| *i != entry.root);
     }
 }
