@@ -5,31 +5,30 @@ mod root_container;
 mod stopped_counter;
 mod vote_counter;
 
-pub use active_elections_container::*;
-pub use cooldown_controller::AecCooldownReason;
-use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache, RollbackResults};
-use rsnano_network::Channel;
-
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, RwLock, RwLockReadGuard},
     time::{Duration, SystemTime},
 };
 
-use root_container::{Entry, RootContainer};
-use rsnano_nullable_clock::SteadyClock;
 use tracing::debug;
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
 };
+use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache, RollbackResults};
+use rsnano_network::Channel;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{
-    AddForkResult, ConfirmedElection, ElectionBehavior, ForkCache, VoteCache, VoteRouter,
-    VoteSummary,
+    election::{AddForkResult, ConfirmedElection, ElectionBehavior, VoteSummary},
+    ForkCache, VoteCache, VoteRouter,
 };
+pub use active_elections_container::*;
+pub use cooldown_controller::AecCooldownReason;
+use root_container::{Entry, RootContainer};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {

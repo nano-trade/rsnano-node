@@ -6,7 +6,7 @@ use tracing::error;
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
 use rsnano_node::{
-    consensus::{ConfirmedElection, ElectionResult},
+    consensus::election::{ConfirmedElection, ElectionResult},
     NodeEvent, NodeEventHandler,
 };
 use rsnano_nullable_http_client::{HttpClient, Url};

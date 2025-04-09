@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::ordered_blocks::{BlockEntry, OrderedBlocks};
-use crate::consensus::{ActiveElections, ElectionBehavior};
+use crate::consensus::{election::ElectionBehavior, ActiveElections};
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
 

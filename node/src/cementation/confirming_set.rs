@@ -17,7 +17,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ordered_entries::OrderedEntries;
 use crate::{
-    consensus::{ConfirmedElection, ConfirmedElectionsCache},
+    consensus::{election::ConfirmedElection, ConfirmedElectionsCache},
     utils::{ThreadPool, ThreadPoolImpl},
 };
 

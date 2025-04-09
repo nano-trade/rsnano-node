@@ -1,6 +1,6 @@
 use std::sync::{mpsc::SyncSender, Arc, Mutex};
 
-use rsnano_core::{utils::MemoryStream, Block, BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{utils::MemoryStream, Block, Vote, VoteCode, VoteSource};
 use rsnano_messages::NetworkFilter;
 use rsnano_nullable_clock::SteadyClock;
 
@@ -8,9 +8,9 @@ use crate::{
     block_processing::BlockProcessor,
     cementation::ConfirmingSet,
     consensus::{
-        aggregate_vote_results, election_schedulers::ElectionSchedulers, ActiveElections,
-        AecCooldownReason, AecEvent, BlockVoter, BootstrapElectionActivator, LocalVotesRemover,
-        VoteCache, VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue, VoteType,
+        aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
+        ActiveElections, AecCooldownReason, AecEvent, BlockVoter, BootstrapElectionActivator,
+        LocalVotesRemover, VoteCache, VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},

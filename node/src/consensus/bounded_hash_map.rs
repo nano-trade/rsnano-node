@@ -67,7 +67,7 @@ mod tests {
     use rsnano_core::BlockHash;
     use rsnano_nullable_clock::Timestamp;
 
-    use crate::consensus::VoteType;
+    use crate::consensus::election::VoteType;
 
     use super::*;
 

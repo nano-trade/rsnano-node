@@ -15,7 +15,9 @@ use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ActiveElections;
-use crate::{cementation::ConfirmingSet, config::NetworkConstants, consensus::ElectionBehavior};
+use crate::{
+    cementation::ConfirmingSet, config::NetworkConstants, consensus::election::ElectionBehavior,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptimisticSchedulerConfig {

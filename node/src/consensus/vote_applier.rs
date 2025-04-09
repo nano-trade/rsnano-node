@@ -11,7 +11,7 @@ use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, 
 use rsnano_ledger::Ledger;
 
 use super::{ActiveElections, AecEvent};
-use crate::{consensus::VoteSummary, representatives::OnlineReps};
+use crate::{consensus::election::VoteSummary, representatives::OnlineReps};
 
 /// Applies a vote to an election
 pub(crate) struct VoteApplier {

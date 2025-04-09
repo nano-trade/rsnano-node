@@ -11,7 +11,7 @@ use rsnano_core::{
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
 
-use crate::consensus::{
+use crate::consensus::election::{
     AddForkResult, ConfirmedElection, Election, ElectionBehavior, ElectionResult, VoteSummary,
 };
 

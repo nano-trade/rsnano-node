@@ -4,7 +4,11 @@ use rsnano_core::QualifiedRoot;
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{bounded_hash_map::BoundedHashMap, ConfirmationSolicitor, Election, ElectionBehavior};
+use super::{
+    bounded_hash_map::BoundedHashMap,
+    election::{Election, ElectionBehavior},
+    ConfirmationSolicitor,
+};
 
 pub(crate) struct ConfirmReqSender {
     stats: Arc<Stats>,

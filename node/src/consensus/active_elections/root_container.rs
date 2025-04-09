@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use rsnano_core::QualifiedRoot;
-
-use crate::consensus::Election;
-
 use super::ErasedCallback;
+use crate::consensus::election::Election;
+use rsnano_core::QualifiedRoot;
 
 pub(crate) struct Entry {
     pub root: QualifiedRoot,

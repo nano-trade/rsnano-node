@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
-use rsnano_node::consensus::ConfirmedElection;
+use rsnano_node::consensus::election::ConfirmedElection;
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
@@ -92,7 +92,7 @@ impl ConfirmationMessageFactory<'_> {
 
 #[cfg(test)]
 mod tests {
-    use rsnano_node::consensus::ElectionResult;
+    use rsnano_node::consensus::election::ElectionResult;
 
     use crate::ConfirmationJsonOptions;
 

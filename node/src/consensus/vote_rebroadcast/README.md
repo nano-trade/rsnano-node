@@ -2,7 +2,7 @@
 
 After the node has processed a vote, that vote may be rebroadcasted to more nodes in the network.
 
-![rebroadcast diagram](http://www.plantuml.com/plantuml/proxy?cache=no&fmt=svg&src=https://raw.github.com/rsnano-node/rsnano-node/develop/node/src/consensus/rebroadcast/doc/rebroadcast.puml)
+![rebroadcast diagram](http://www.plantuml.com/plantuml/proxy?cache=no&fmt=svg&src=https://raw.github.com/rsnano-node/rsnano-node/develop/node/src/vote_consensus/rebroadcast/doc/rebroadcast.puml)
 
 The procedure is as follows:
 

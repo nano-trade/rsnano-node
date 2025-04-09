@@ -1,8 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
+use super::election::ConfirmedElection;
 use rsnano_core::BlockHash;
-
-use super::ConfirmedElection;
 
 pub(crate) struct ConfirmedElectionsCache {
     max_len: usize,

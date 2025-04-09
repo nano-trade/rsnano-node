@@ -4,7 +4,7 @@ use rsnano_core::{BlockHash, Networks};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{bounded_hash_map::BoundedHashMap, ConfirmationSolicitor, Election};
+use super::{bounded_hash_map::BoundedHashMap, election::Election, ConfirmationSolicitor};
 
 /// Broadcasts the winner block of an election
 pub(crate) struct WinnerBlockBroadcaster {

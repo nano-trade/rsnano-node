@@ -7,11 +7,7 @@ use rsnano_core::{BlockHash, Networks, Root};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::consensus::{
-    bounded_hash_map::BoundedHashMap,
-    ActiveElections,
-    VoteType::{self, Final, NonFinal},
-};
+use crate::consensus::{bounded_hash_map::BoundedHashMap, election::VoteType, ActiveElections};
 
 use super::VoteGenerators;
 
@@ -86,13 +82,13 @@ impl BlockVoter {
             .inc(StatType::Election, DetailType::BroadcastVote);
 
         match vote_type {
-            NonFinal => {
+            VoteType::NonFinal => {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteNormal);
                 self.vote_generators
                     .generate_non_final_vote(&root, &block_hash);
             }
-            Final => {
+            VoteType::Final => {
                 self.stats
                     .inc(StatType::Election, DetailType::GenerateVoteFinal);
                 self.vote_generators.generate_final_vote(&root, &block_hash);

@@ -6,8 +6,9 @@ use rsnano_network::Network;
 use crate::{config::NetworkParams, representatives::OnlineReps, transport::MessageFlooder};
 
 use super::{
-    confirm_req_sender::ConfirmReqSender, winner_block_broadcaster::WinnerBlockBroadcaster,
-    ActiveElections, BlockVoter, ConfirmationSolicitor, ElectionState,
+    confirm_req_sender::ConfirmReqSender, election::ElectionState,
+    winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElections, BlockVoter,
+    ConfirmationSolicitor,
 };
 
 /// Every 300ms tries to transitions election state and send votes + blocks

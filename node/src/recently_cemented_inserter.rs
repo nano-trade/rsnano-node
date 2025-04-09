@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use bounded_vec_deque::BoundedVecDeque;
 
-use crate::consensus::ConfirmedElection;
+use crate::consensus::election::ConfirmedElection;
 
 /// When a block gets confirmed, this struct inserts that
 /// block into the recently cemented cache

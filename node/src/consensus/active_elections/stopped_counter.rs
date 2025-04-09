@@ -2,7 +2,7 @@ use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_stats::{StatsCollection, StatsSource};
 
-use crate::consensus::{Election, ElectionBehavior, ElectionState};
+use crate::consensus::election::{Election, ElectionBehavior, ElectionState};
 
 #[derive(Default)]
 pub(super) struct StoppedCounter {
@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn collect_stats_empty() {
         let mut stats = StatsCollection::new();
-        let mut stopped_counter = StoppedCounter::new();
+        let stopped_counter = StoppedCounter::new();
 
         stopped_counter.collect_stats(&mut stats);
 

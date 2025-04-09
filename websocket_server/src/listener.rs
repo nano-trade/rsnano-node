@@ -19,7 +19,7 @@ use tracing::{info, warn};
 use rsnano_core::{Account, Amount, BlockSideband, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_node::{
-    consensus::{ConfirmedElection, VoteSummary},
+    consensus::election::{ConfirmedElection, VoteSummary},
     wallets::Wallets,
 };
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};

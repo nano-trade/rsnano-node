@@ -5,7 +5,10 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::cementation::ConfirmingSet;
 
-use super::{ActiveElections, AecEvent, ConfirmedElection, ElectionResult};
+use super::{
+    election::{ConfirmedElection, ElectionResult},
+    ActiveElections, AecEvent,
+};
 
 pub(crate) struct DependentElectionsConfirmer {
     pub(crate) stats: Arc<Stats>,

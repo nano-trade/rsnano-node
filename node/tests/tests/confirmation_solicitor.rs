@@ -6,7 +6,10 @@ use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
 use rsnano_node::{
     config::{NodeFlags, DEV_NETWORK_PARAMS},
-    consensus::{ConfirmationSolicitor, Election, ElectionBehavior},
+    consensus::{
+        election::{Election, ElectionBehavior},
+        ConfirmationSolicitor,
+    },
     representatives::PeeredRepInfo,
 };
 use rsnano_stats::{DetailType, Direction, StatType};

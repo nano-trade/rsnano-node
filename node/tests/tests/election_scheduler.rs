@@ -107,7 +107,7 @@ mod election_scheduler {
     use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
     use rsnano_node::{
         config::NodeConfig,
-        consensus::{election_schedulers::OptimisticSchedulerConfig, ElectionBehavior},
+        consensus::{election::ElectionBehavior, election_schedulers::OptimisticSchedulerConfig},
     };
     use test_helpers::{setup_chains, setup_rep};
 
