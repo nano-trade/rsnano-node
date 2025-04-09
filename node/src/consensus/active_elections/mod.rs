@@ -4,6 +4,7 @@ mod recently_confirmed_cache;
 mod root_container;
 mod stopped_counter;
 mod vote_counter;
+mod vote_router;
 
 use std::{
     collections::HashMap,
@@ -24,7 +25,7 @@ use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSo
 
 use super::{
     election::{AddForkResult, ConfirmedElection, ElectionBehavior, VoteSummary},
-    ForkCache, VoteCache, VoteRouter,
+    ForkCache, VoteCache,
 };
 pub use active_elections_container::*;
 pub use cooldown_controller::AecCooldownReason;

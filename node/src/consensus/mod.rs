@@ -21,7 +21,6 @@ mod vote_generation;
 mod vote_processor;
 mod vote_processor_queue;
 mod vote_rebroadcast;
-mod vote_router;
 mod winner_block_broadcaster;
 
 pub use active_elections::*;
@@ -44,5 +43,4 @@ pub use vote_generation::*;
 pub use vote_processor::*;
 pub use vote_processor_queue::*;
 pub(crate) use vote_rebroadcast::*;
-pub(crate) use vote_router::*;
 pub(crate) use winner_block_broadcaster::*;

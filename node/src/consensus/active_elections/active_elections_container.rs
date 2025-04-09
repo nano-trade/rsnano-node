@@ -20,8 +20,8 @@ use super::{
     recently_confirmed_cache::RecentlyConfirmedCache,
     stopped_counter::StoppedCounter,
     vote_counter::VoteCounter,
+    vote_router::VoteRouter,
     ActiveElectionsConfig, AecEvent, AecInsertError, Entry, ErasedCallback, RootContainer,
-    VoteRouter,
 };
 
 pub struct ActiveElectionsContainer {
