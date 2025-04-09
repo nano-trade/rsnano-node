@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::ordered_blocks::{BlockEntry, OrderedBlocks};
-use crate::consensus::{election::ElectionBehavior, ActiveElections};
+use crate::consensus::{election::ElectionBehavior, ActiveElections, AecInsertError};
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
 
@@ -171,11 +171,14 @@ impl BucketExt for Arc<Bucket> {
                 .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
         let mut guard = self.data.lock().unwrap();
-        if result.is_ok() {
-            guard.activate_success += 1;
-        } else {
+        if result.is_err() {
             guard.elections.erase(&root);
-            guard.activate_failed += 1;
+        }
+        match result {
+            Ok(_) => guard.activate_success += 1,
+            Err(AecInsertError::Duplicate) => guard.activate_failed_duplicate += 1,
+            Err(AecInsertError::RecentlyConfirmed) => guard.activate_failed_confirmed += 1,
+            Err(AecInsertError::Stopped) => {}
         }
 
         result.is_ok()
@@ -190,7 +193,16 @@ impl StatsSource for Bucket {
 
         result.insert(STATS_KEY, "cancel_lowest", guard.cancel_lowest_counter);
         result.insert(STATS_KEY, "activate_success", guard.activate_success);
-        result.insert(STATS_KEY, "activate_failed", guard.activate_failed);
+        result.insert(
+            STATS_KEY,
+            "activate_failed_duplicate",
+            guard.activate_failed_duplicate,
+        );
+        result.insert(
+            STATS_KEY,
+            "activate_failed_confirmed",
+            guard.activate_failed_confirmed,
+        );
     }
 }
 
@@ -200,7 +212,8 @@ struct BucketData {
     elections: OrderedElections,
     cancel_lowest_counter: usize,
     activate_success: usize,
-    activate_failed: usize,
+    activate_failed_duplicate: usize,
+    activate_failed_confirmed: usize,
 }
 
 impl BucketData {
