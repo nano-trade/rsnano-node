@@ -8,7 +8,10 @@ use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
 use crate::consensus::{election::ElectionBehavior, ActiveElections, AecInsertError};
-use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{
+    utils::{TimePriority, UnixTimestamp},
+    Block, BlockHash, QualifiedRoot, SavedBlock,
+};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -63,19 +66,19 @@ impl Bucket {
     }
 
     pub fn available(&self) -> bool {
-        let candidate: UnixTimestamp;
+        let candidate_prio: TimePriority;
         let election_count: usize;
-        let lowest: UnixTimestamp;
+        let highest_prio: TimePriority;
 
         {
             let guard = self.data.lock().unwrap();
-            let Some(first) = guard.queue.first() else {
+            let Some(first) = guard.queue.highest_prio() else {
                 return false;
             };
 
-            candidate = first.time;
+            candidate_prio = first.priority;
             election_count = guard.elections.len();
-            lowest = guard.elections.lowest_priority();
+            highest_prio = guard.elections.highest_priority();
         }
 
         if election_count < self.config.reserved_elections
@@ -84,7 +87,7 @@ impl Bucket {
             self.active_elections.read().vacancy() > 0
         } else if election_count > 0 {
             // Compare to equal to drain duplicates
-            if candidate <= lowest {
+            if candidate_prio >= highest_prio {
                 // Bound number of reprioritizations
                 election_count < self.config.max_elections * 2
             } else {
@@ -108,17 +111,17 @@ impl Bucket {
     pub fn update(&self) {
         let mut guard = self.data.lock().unwrap();
         if self.election_overfill(&guard) {
-            guard.cancel_lowest_election(&self.active_elections);
+            guard.cancel_election_with_lowest_prio(&self.active_elections);
         }
     }
 
-    pub fn push(&self, time: UnixTimestamp, block: SavedBlock) -> bool {
+    pub fn push(&self, priority: TimePriority, block: SavedBlock) -> bool {
         let hash = block.hash();
         let mut guard = self.data.lock().unwrap();
-        let inserted = guard.queue.insert(BlockEntry { time, block });
+        let inserted = guard.queue.insert(BlockEntry::new(block, priority));
         if guard.queue.len() > self.config.max_blocks {
             if let Some(removed) = guard.queue.pop_lowest_prio() {
-                inserted && !(removed.time == time && removed.block.hash() == hash)
+                inserted && !(removed.priority == priority && removed.block.hash() == hash)
             } else {
                 inserted
             }
@@ -148,7 +151,7 @@ pub(crate) trait BucketExt {
 impl BucketExt for Arc<Bucket> {
     fn activate(&self) -> bool {
         let block: SavedBlock;
-        let priority: UnixTimestamp;
+        let priority: TimePriority;
 
         {
             let mut guard = self.data.lock().unwrap();
@@ -158,7 +161,7 @@ impl BucketExt for Arc<Bucket> {
             };
 
             block = top.block;
-            priority = top.time;
+            priority = top.priority;
 
             guard.elections.insert(BucketElection {
                 root: block.qualified_root(),
@@ -215,8 +218,8 @@ struct BucketData {
 }
 
 impl BucketData {
-    fn cancel_lowest_election(&mut self, active_elections: &ActiveElections) {
-        if let Some(entry) = self.elections.entry_with_lowest_priority() {
+    fn cancel_election_with_lowest_prio(&mut self, active_elections: &ActiveElections) {
+        if let Some(entry) = self.elections.entry_with_highest_priority() {
             active_elections.cancel(&entry.root);
             self.stats.cancelled.fetch_add(1, Ordering::Relaxed);
         }

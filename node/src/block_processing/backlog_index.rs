@@ -1,5 +1,5 @@
 use rsnano_core::{
-    utils::{ContainerInfo, UnixTimestamp},
+    utils::{ContainerInfo, TimePriority},
     Account, BlockHash,
 };
 use std::collections::{BTreeMap, HashMap};
@@ -9,7 +9,7 @@ pub(super) struct BacklogEntry {
     pub hash: BlockHash,
     pub account: Account,
     pub bucket_index: usize,
-    pub priority: UnixTimestamp,
+    pub priority: TimePriority,
 }
 
 impl BacklogEntry {
@@ -19,7 +19,7 @@ impl BacklogEntry {
             hash: 100.into(),
             account: 200.into(),
             bucket_index: 1,
-            priority: UnixTimestamp::new(300),
+            priority: TimePriority::new(300),
         }
     }
 }
@@ -28,8 +28,7 @@ pub(super) struct BacklogIndex {
     by_hash: BTreeMap<BlockHash, BacklogEntry>,
     by_account: HashMap<Account, Vec<BlockHash>>,
     /// indexed by bucket index!
-    /// Ordered in ascending timestamp order which means descending priority!
-    by_priority: Vec<BTreeMap<UnixTimestamp, Vec<BlockHash>>>,
+    by_priority: Vec<BTreeMap<TimePriority, Vec<BlockHash>>>,
     bucket_lens: Vec<usize>,
 }
 
@@ -115,7 +114,6 @@ impl BacklogIndex {
     ) -> Vec<BlockHash> {
         self.by_priority[bucket_index]
             .iter()
-            .rev()
             .flat_map(|(_, hashes)| hashes)
             .cloned()
             .filter(|hash| filter(hash))
@@ -224,21 +222,21 @@ mod tests {
         let entry2 = BacklogEntry {
             account: 2000.into(),
             hash: 2001.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
         let entry3 = BacklogEntry {
             account: 2000.into(),
             hash: 2002.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
         let entry4 = BacklogEntry {
             account: 2000.into(),
             hash: 2003.into(),
-            priority: UnixTimestamp::new(2),
+            priority: TimePriority::new(2),
             ..BacklogEntry::new_test_instance()
         };
 
@@ -277,21 +275,21 @@ mod tests {
         let entry2 = BacklogEntry {
             account: 2000.into(),
             hash: 2001.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
         let entry3 = BacklogEntry {
             account: 2000.into(),
             hash: 2002.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
         let entry4 = BacklogEntry {
             account: 2000.into(),
             hash: 2003.into(),
-            priority: UnixTimestamp::new(2),
+            priority: TimePriority::new(2),
             ..BacklogEntry::new_test_instance()
         };
 
@@ -321,14 +319,14 @@ mod tests {
         let entry2 = BacklogEntry {
             account: 2000.into(),
             hash: 2001.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
         let entry3 = BacklogEntry {
             account: 2000.into(),
             hash: 2002.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
@@ -353,14 +351,14 @@ mod tests {
             account: 1000.into(),
             hash: 1001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
         };
 
         let entry2 = BacklogEntry {
             account: 2000.into(),
             hash: 2001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(10000),
+            priority: TimePriority::new(10000),
         };
 
         // Same priority as entry2
@@ -368,7 +366,7 @@ mod tests {
             account: 3000.into(),
             hash: 3001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(2),
+            priority: TimePriority::new(2),
         };
 
         // filtered out!
@@ -376,14 +374,14 @@ mod tests {
             account: 4000.into(),
             hash: 4001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(2),
+            priority: TimePriority::new(2),
         };
 
         // different bucket
         let entry5 = BacklogEntry {
             account: 5000.into(),
             hash: 5001.into(),
-            priority: UnixTimestamp::new(2),
+            priority: TimePriority::new(2),
             bucket_index: 1,
         };
 
@@ -410,14 +408,14 @@ mod tests {
             account: 1000.into(),
             hash: 1001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
         };
 
         let entry2 = BacklogEntry {
             account: 2000.into(),
             hash: 2001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(10000),
+            priority: TimePriority::new(10000),
         };
 
         // Same priority as entry2
@@ -425,7 +423,7 @@ mod tests {
             account: 3000.into(),
             hash: 3001.into(),
             bucket_index: 3,
-            priority: UnixTimestamp::new(2),
+            priority: TimePriority::new(2),
         };
 
         index.insert(entry1.clone());
@@ -460,14 +458,14 @@ mod tests {
         let entry2 = BacklogEntry {
             account: 2000.into(),
             hash: 2001.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 
         let entry3 = BacklogEntry {
             account: 2000.into(),
             hash: 2002.into(),
-            priority: UnixTimestamp::new(1),
+            priority: TimePriority::new(1),
             ..BacklogEntry::new_test_instance()
         };
 

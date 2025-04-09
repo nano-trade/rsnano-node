@@ -192,8 +192,8 @@ impl BoundedBacklog {
     }
 
     pub fn insert(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
-        let (priority_balance, priority_timestamp) = any.block_priority(block);
-        let bucket_index = self.bucketing.bucket_index(priority_balance);
+        let (balance_prio, time_prio) = any.block_priority(block);
+        let bucket_index = self.bucketing.bucket_index(balance_prio);
 
         self.backlog_impl
             .mutex
@@ -204,7 +204,7 @@ impl BoundedBacklog {
                 hash: block.hash(),
                 account: block.account(),
                 bucket_index,
-                priority: priority_timestamp,
+                priority: time_prio,
             })
     }
 

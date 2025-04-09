@@ -769,7 +769,7 @@ fn block_priority() {
     let (prio_amount, prio_time) = ledger.any().block_priority(&receive);
 
     assert_eq!(prio_amount, receive.balance());
-    assert_eq!(prio_time, send.timestamp());
+    assert_eq!(prio_time, send.timestamp().into());
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use rsnano_core::{utils::UnixTimestamp, BlockHash, SavedBlock};
+use rsnano_core::{utils::TimePriority, BlockHash, SavedBlock};
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
@@ -6,11 +6,16 @@ use std::{
 
 #[derive(Debug, Eq)]
 pub(super) struct BlockEntry {
-    pub time: UnixTimestamp,
+    /// a lower timestamp means a higher priority!
+    pub priority: TimePriority,
     pub block: SavedBlock,
 }
 
 impl BlockEntry {
+    pub fn new(block: SavedBlock, priority: TimePriority) -> Self {
+        Self { priority, block }
+    }
+
     pub fn hash(&self) -> BlockHash {
         self.block.hash()
     }
@@ -18,10 +23,10 @@ impl BlockEntry {
 
 impl Ord for BlockEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        let time_order = self.time.cmp(&other.time);
-        match time_order {
+        let prio_order = self.priority.cmp(&other.priority);
+        match prio_order {
             Ordering::Equal => self.block.hash().cmp(&other.block.hash()),
-            _ => time_order,
+            _ => prio_order,
         }
     }
 }
@@ -34,7 +39,7 @@ impl PartialOrd for BlockEntry {
 
 impl PartialEq for BlockEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.time == other.time && self.block.hash() == other.block.hash()
+        self.priority == other.priority && self.block.hash() == other.block.hash()
     }
 }
 
@@ -64,38 +69,38 @@ impl OrderedBlocks {
         true
     }
 
-    pub fn first(&self) -> Option<&BlockEntry> {
-        self.by_priority.first()
+    pub fn highest_prio(&self) -> Option<&BlockEntry> {
+        self.by_priority.last()
     }
 
     pub fn pop_highest_prio(&mut self) -> Option<BlockEntry> {
-        let first = self.by_priority.pop_first()?;
+        let first = self.by_priority.pop_last()?;
         self.hashes.remove(&first.hash());
         Some(first)
     }
 
     pub fn pop_lowest_prio(&mut self) -> Option<BlockEntry> {
-        let last = self.by_priority.pop_last()?;
+        let last = self.by_priority.pop_first()?;
         self.hashes.remove(&last.hash());
         Some(last)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &BlockEntry> {
-        self.by_priority.iter()
+        self.by_priority.iter().rev()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::PrivateKey;
+    use rsnano_core::{utils::UnixTimestamp, PrivateKey};
 
     #[test]
     fn empty() {
         let mut blocks = OrderedBlocks::default();
         assert_eq!(blocks.len(), 0);
         assert_eq!(blocks.contains(&BlockHash::from(1)), false);
-        assert_eq!(blocks.first(), None);
+        assert_eq!(blocks.highest_prio(), None);
         assert_eq!(blocks.pop_highest_prio(), None);
         assert_eq!(blocks.pop_lowest_prio(), None);
     }
@@ -109,7 +114,7 @@ mod tests {
 
         assert_eq!(blocks.len(), 1);
         assert!(blocks.contains(&hash));
-        assert_eq!(blocks.first().unwrap().hash(), hash);
+        assert_eq!(blocks.highest_prio().unwrap().hash(), hash);
         assert_eq!(blocks.iter().count(), 1);
     }
 
@@ -140,7 +145,7 @@ mod tests {
         blocks.insert(entry2);
         blocks.insert(entry3);
 
-        assert_eq!(blocks.first().unwrap().block.hash(), hash2);
+        assert_eq!(blocks.highest_prio().unwrap().block.hash(), hash2);
         assert_eq!(
             blocks.iter().map(|i| i.hash()).collect::<Vec<_>>(),
             [hash2, hash3, hash1]
@@ -189,7 +194,7 @@ mod tests {
 
     fn create_entry(time: UnixTimestamp, key: impl Into<PrivateKey>) -> (BlockHash, BlockEntry) {
         let entry = BlockEntry {
-            time,
+            priority: time.into(),
             block: SavedBlock::new_test_instance_with_key(key),
         };
         let hash = entry.block.hash();

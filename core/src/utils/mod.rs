@@ -369,3 +369,45 @@ impl<T> OneShotNotification<T> {
 pub trait Runnable: Send {
     fn run(&mut self, cancel_token: &CancellationToken);
 }
+
+/// Lower timestamps have a higher priority
+#[derive(PartialEq, Eq, Copy, Clone, Default)]
+pub struct TimePriority(UnixTimestamp);
+
+impl TimePriority {
+    pub const ZERO: TimePriority = TimePriority::new(0);
+
+    pub const fn new(timestamp: u64) -> Self {
+        Self(UnixTimestamp::new(timestamp))
+    }
+}
+
+impl Ord for TimePriority {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.0.cmp(&self.0)
+    }
+}
+
+impl PartialOrd for TimePriority {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::fmt::Debug for TimePriority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<UnixTimestamp> for TimePriority {
+    fn from(value: UnixTimestamp) -> Self {
+        Self(value)
+    }
+}
+
+impl From<TimePriority> for UnixTimestamp {
+    fn from(value: TimePriority) -> Self {
+        value.0
+    }
+}

@@ -1,10 +1,10 @@
-use crate::{utils::UnixTimestamp, Amount, SavedBlock};
+use crate::{utils::TimePriority, Amount, SavedBlock};
 use std::cmp::max;
 
 pub fn block_priority(
     block: &SavedBlock,
     previous_block: Option<&SavedBlock>,
-) -> (Amount, UnixTimestamp) {
+) -> (Amount, TimePriority) {
     let previous_balance = previous_block
         .as_ref()
         .map(|b| b.balance())
@@ -26,9 +26,9 @@ pub fn block_priority(
     // rollbacks happen
     let priority_timestamp = previous_block
         .map(|b| b.timestamp())
-        .unwrap_or(block.timestamp());
+        .unwrap_or(block.timestamp().into());
 
-    (priority_balance, priority_timestamp)
+    (priority_balance, priority_timestamp.into())
 }
 
 #[cfg(test)]
@@ -36,7 +36,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::{BlockSideband, StateBlockArgs};
+    use crate::{utils::UnixTimestamp, BlockSideband, StateBlockArgs};
 
     #[test]
     fn open_block() {
@@ -45,7 +45,7 @@ mod tests {
         let (prio_balance, prio_time) = block_priority(&open, None);
 
         assert_eq!(prio_balance, open.balance());
-        assert_eq!(prio_time, open.timestamp());
+        assert_eq!(prio_time, open.timestamp().into());
     }
 
     #[test]
@@ -60,7 +60,7 @@ mod tests {
         );
 
         assert_eq!(prio_balance, receive_balance);
-        assert_eq!(prio_time, prev_timestamp);
+        assert_eq!(prio_time, prev_timestamp.into());
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod tests {
         );
 
         assert_eq!(prio_balance, prev_balance);
-        assert_eq!(prio_time, prev_timestamp);
+        assert_eq!(prio_time, prev_timestamp.into());
     }
 
     #[test]
@@ -90,7 +90,7 @@ mod tests {
         );
 
         assert_eq!(prio_balance, prev_balance);
-        assert_eq!(prio_time, prev_timestamp);
+        assert_eq!(prio_time, prev_timestamp.into());
     }
 
     #[test]
@@ -105,14 +105,14 @@ mod tests {
         );
 
         assert_eq!(prio_balance, prev_balance);
-        assert_eq!(prio_time, prev_timestamp);
+        assert_eq!(prio_time, prev_timestamp.into());
     }
 
     fn test_block_priority(
         balance: Amount,
         timestamp: UnixTimestamp,
         previous: Option<(Amount, UnixTimestamp)>,
-    ) -> (Amount, UnixTimestamp) {
+    ) -> (Amount, TimePriority) {
         let previous = previous
             .map(|(prev_balance, prev_timestamp)| create_block(prev_balance, prev_timestamp));
 
