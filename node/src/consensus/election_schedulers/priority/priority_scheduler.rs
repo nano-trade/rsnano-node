@@ -13,7 +13,7 @@ use rsnano_core::{
 use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
-use super::{Bucket, BucketExt, Bucketing, PriorityBucketConfig};
+use super::{Bucket, BucketExt, BucketStats, Bucketing, PriorityBucketConfig};
 use crate::consensus::ActiveElections;
 
 pub struct PriorityScheduler {
@@ -24,6 +24,7 @@ pub struct PriorityScheduler {
     buckets: Vec<Arc<Bucket>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     cleanup_thread: Mutex<Option<JoinHandle<()>>>,
+    bucket_stats: Arc<BucketStats>,
 }
 
 impl PriorityScheduler {
@@ -34,8 +35,13 @@ impl PriorityScheduler {
     ) -> Self {
         let bucketing = Bucketing::default();
         let mut buckets = Vec::with_capacity(bucketing.bucket_count());
+        let bucket_stats = Arc::new(BucketStats::default());
         for _ in 0..bucketing.bucket_count() {
-            buckets.push(Arc::new(Bucket::new(config.clone(), active.clone())))
+            buckets.push(Arc::new(Bucket::new(
+                config.clone(),
+                active.clone(),
+                bucket_stats.clone(),
+            )))
         }
 
         Self {
@@ -46,6 +52,7 @@ impl PriorityScheduler {
             buckets,
             bucketing,
             stats,
+            bucket_stats,
         }
     }
 
@@ -269,9 +276,7 @@ impl PrioritySchedulerExt for Arc<PriorityScheduler> {
 
 impl StatsSource for PriorityScheduler {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        for bucket in &self.buckets {
-            bucket.collect_stats(result);
-        }
+        self.bucket_stats.collect_stats(result);
     }
 }
 

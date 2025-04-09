@@ -1,6 +1,9 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use super::ordered_blocks::{BlockEntry, OrderedBlocks};
@@ -39,11 +42,19 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    pub fn new(config: PriorityBucketConfig, active_elections: Arc<ActiveElections>) -> Self {
+    pub fn new(
+        config: PriorityBucketConfig,
+        active_elections: Arc<ActiveElections>,
+        stats: Arc<BucketStats>,
+    ) -> Self {
         Self {
             config,
             active_elections,
-            data: Mutex::new(BucketData::default()),
+            data: Mutex::new(BucketData {
+                queue: Default::default(),
+                elections: Default::default(),
+                stats,
+            }),
         }
     }
 
@@ -175,9 +186,21 @@ impl BucketExt for Arc<Bucket> {
             guard.elections.erase(&root);
         }
         match result {
-            Ok(_) => guard.activate_success += 1,
-            Err(AecInsertError::Duplicate) => guard.activate_failed_duplicate += 1,
-            Err(AecInsertError::RecentlyConfirmed) => guard.activate_failed_confirmed += 1,
+            Ok(_) => {
+                guard.stats.activate_success.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::Duplicate) => {
+                guard
+                    .stats
+                    .activate_failed_duplicate
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::RecentlyConfirmed) => {
+                guard
+                    .stats
+                    .activate_failed_confirmed
+                    .fetch_add(1, Ordering::Relaxed);
+            }
             Err(AecInsertError::Stopped) => {}
         }
 
@@ -185,43 +208,53 @@ impl BucketExt for Arc<Bucket> {
     }
 }
 
-const STATS_KEY: &'static str = "election_bucket";
-
-impl StatsSource for Bucket {
-    fn collect_stats(&self, result: &mut StatsCollection) {
-        let guard = self.data.lock().unwrap();
-
-        result.insert(STATS_KEY, "cancel_lowest", guard.cancel_lowest_counter);
-        result.insert(STATS_KEY, "activate_success", guard.activate_success);
-        result.insert(
-            STATS_KEY,
-            "activate_failed_duplicate",
-            guard.activate_failed_duplicate,
-        );
-        result.insert(
-            STATS_KEY,
-            "activate_failed_confirmed",
-            guard.activate_failed_confirmed,
-        );
-    }
-}
-
-#[derive(Default)]
 struct BucketData {
     queue: OrderedBlocks,
     elections: OrderedElections,
-    cancel_lowest_counter: usize,
-    activate_success: usize,
-    activate_failed_duplicate: usize,
-    activate_failed_confirmed: usize,
+    stats: Arc<BucketStats>,
 }
 
 impl BucketData {
     fn cancel_lowest_election(&mut self, active_elections: &ActiveElections) {
         if let Some(entry) = self.elections.entry_with_lowest_priority() {
             active_elections.cancel(&entry.root);
-            self.cancel_lowest_counter += 1;
+            self.stats.cancelled.fetch_add(1, Ordering::Relaxed);
         }
+    }
+}
+
+#[derive(Default)]
+pub struct BucketStats {
+    cancelled: AtomicUsize,
+    activate_success: AtomicUsize,
+    activate_failed_duplicate: AtomicUsize,
+    activate_failed_confirmed: AtomicUsize,
+}
+
+const STATS_KEY: &'static str = "election_bucket";
+
+impl StatsSource for BucketStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert(
+            STATS_KEY,
+            "cancel_lowest",
+            self.cancelled.load(Ordering::Relaxed),
+        );
+        result.insert(
+            STATS_KEY,
+            "activate_success",
+            self.activate_success.load(Ordering::Relaxed),
+        );
+        result.insert(
+            STATS_KEY,
+            "activate_failed_duplicate",
+            self.activate_failed_duplicate.load(Ordering::Relaxed),
+        );
+        result.insert(
+            STATS_KEY,
+            "activate_failed_confirmed",
+            self.activate_failed_confirmed.load(Ordering::Relaxed),
+        );
     }
 }
 

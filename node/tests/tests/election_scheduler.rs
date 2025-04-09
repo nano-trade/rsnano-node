@@ -3,14 +3,18 @@ use test_helpers::{assert_timely2, assert_timely_eq2, System};
 mod bucket {
     use super::*;
     use rsnano_core::{utils::UnixTimestamp, SavedBlock};
-    use rsnano_node::consensus::election_schedulers::priority::{Bucket, PriorityBucketConfig};
+    use rsnano_node::consensus::election_schedulers::priority::{
+        Bucket, BucketStats, PriorityBucketConfig,
+    };
+    use std::sync::Arc;
 
     #[test]
     fn construction() {
         let mut system = System::new();
         let node = system.make_node();
+        let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
 
         assert_eq!(bucket.len(), 0);
     }
@@ -19,8 +23,9 @@ mod bucket {
     fn insert_one() {
         let mut system = System::new();
         let node = system.make_node();
+        let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.contains(&block.hash()), false);
@@ -33,8 +38,9 @@ mod bucket {
     fn insert_duplicate() {
         let mut system = System::new();
         let node = system.make_node();
+        let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.push(UnixTimestamp::new(1000), block.clone()), true);
@@ -45,8 +51,9 @@ mod bucket {
     fn insert_many() {
         let mut system = System::new();
         let node = system.make_node();
+        let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
@@ -71,12 +78,13 @@ mod bucket {
     fn max_blocks() {
         let mut system = System::new();
         let node = system.make_node();
+        let stats = Arc::new(BucketStats::default());
 
         let config = PriorityBucketConfig {
             max_blocks: 2,
             ..Default::default()
         };
-        let bucket = Bucket::new(config, node.active.clone());
+        let bucket = Bucket::new(config, node.active.clone(), stats);
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
