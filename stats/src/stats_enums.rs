@@ -564,10 +564,6 @@ pub enum DetailType {
     ActiveConfirmationHeight,
     InactiveConfirmationHeight,
 
-    // election bucket
-    ActivateSuccess,
-    CancelLowest,
-
     // query_type
     BlocksByHash,
     BlocksByAccount,

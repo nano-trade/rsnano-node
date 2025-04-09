@@ -18,7 +18,7 @@ use super::{
     backlog_scan::UnconfirmedInfo,
     BlockProcessor,
 };
-use crate::consensus::Bucketing;
+use crate::consensus::election_schedulers::priority::Bucketing;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {

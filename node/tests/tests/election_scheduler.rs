@@ -1,9 +1,9 @@
-use rsnano_node::consensus::{Bucket, PriorityBucketConfig};
 use test_helpers::{assert_timely2, assert_timely_eq2, System};
 
 mod bucket {
     use super::*;
     use rsnano_core::{utils::UnixTimestamp, SavedBlock};
+    use rsnano_node::consensus::election_schedulers::priority::{Bucket, PriorityBucketConfig};
 
     #[test]
     fn construction() {

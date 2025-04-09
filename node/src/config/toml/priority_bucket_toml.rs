@@ -1,4 +1,4 @@
-use crate::consensus::PriorityBucketConfig;
+use crate::consensus::election_schedulers::priority::PriorityBucketConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]

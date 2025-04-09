@@ -13,9 +13,8 @@ use rsnano_core::{
 use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
-use crate::consensus::{
-    bucketing::Bucketing, ActiveElections, Bucket, BucketExt, PriorityBucketConfig,
-};
+use super::{Bucket, BucketExt, Bucketing, PriorityBucketConfig};
+use crate::consensus::ActiveElections;
 
 pub struct PriorityScheduler {
     mutex: Mutex<PrioritySchedulerImpl>,

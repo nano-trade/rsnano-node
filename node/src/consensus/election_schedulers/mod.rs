@@ -1,12 +1,11 @@
 mod hinted_scheduler;
 mod manual_scheduler;
 mod optimistic_scheduler;
-mod priority_scheduler;
+pub mod priority;
 
 pub use hinted_scheduler::*;
 pub use manual_scheduler::*;
 pub use optimistic_scheduler::*;
-pub use priority_scheduler::*;
 
 use std::sync::{Arc, Mutex};
 
@@ -24,6 +23,7 @@ use crate::{
     config::{NetworkConstants, NodeConfig},
     representatives::OnlineReps,
 };
+use priority::{PriorityScheduler, PrioritySchedulerExt};
 
 pub struct ElectionSchedulers {
     pub priority: Arc<PriorityScheduler>,

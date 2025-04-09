@@ -3,13 +3,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use super::ordered_blocks::{BlockEntry, OrderedBlocks};
+use crate::consensus::{ActiveElections, ElectionBehavior};
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
-
-use super::{
-    ordered_blocks::{BlockEntry, OrderedBlocks},
-    ActiveElections, ElectionBehavior,
-};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PriorityBucketConfig {
