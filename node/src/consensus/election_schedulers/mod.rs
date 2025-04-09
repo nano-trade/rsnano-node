@@ -16,7 +16,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use rsnano_stats::Stats;
+use rsnano_stats::{Stats, StatsCollection, StatsSource};
 
 use super::{ActiveElections, VoteCache};
 use crate::{
@@ -166,5 +166,11 @@ impl ContainerInfoProvider for ElectionSchedulers {
             .node("optimistic", self.optimistic.container_info())
             .node("priority", self.priority.container_info())
             .finish()
+    }
+}
+
+impl StatsSource for ElectionSchedulers {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.priority.collect_stats(result);
     }
 }

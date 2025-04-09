@@ -4,7 +4,7 @@ use std::{
 };
 
 use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
@@ -38,24 +38,15 @@ impl Default for PriorityBucketConfig {
 pub struct Bucket {
     config: PriorityBucketConfig,
     active_elections: Arc<ActiveElections>,
-    stats: Arc<Stats>,
     data: Mutex<BucketData>,
 }
 
 impl Bucket {
-    pub fn new(
-        config: PriorityBucketConfig,
-        active_elections: Arc<ActiveElections>,
-        stats: Arc<Stats>,
-    ) -> Self {
+    pub fn new(config: PriorityBucketConfig, active_elections: Arc<ActiveElections>) -> Self {
         Self {
             config,
             active_elections,
-            stats: stats.clone(),
-            data: Mutex::new(BucketData {
-                queue: Default::default(),
-                elections: OrderedElections::default(),
-            }),
+            data: Mutex::new(BucketData::default()),
         }
     }
 
@@ -107,12 +98,9 @@ impl Bucket {
     }
 
     pub fn update(&self) {
-        let guard = self.data.lock().unwrap();
+        let mut guard = self.data.lock().unwrap();
         if self.election_overfill(&guard) {
             guard.cancel_lowest_election(&self.active_elections);
-            drop(guard);
-            self.stats
-                .inc(StatType::ElectionBucket, DetailType::CancelLowest);
         }
     }
 
@@ -185,28 +173,44 @@ impl BucketExt for Arc<Bucket> {
             self.active_elections
                 .insert(block, ElectionBehavior::Priority, Some(erase_callback));
 
+        let mut guard = self.data.lock().unwrap();
         if result.is_ok() {
-            self.stats
-                .inc(StatType::ElectionBucket, DetailType::ActivateSuccess);
+            guard.activate_success += 1;
         } else {
-            self.data.lock().unwrap().elections.erase(&root);
-            self.stats
-                .inc(StatType::ElectionBucket, DetailType::ActivateFailed);
+            guard.elections.erase(&root);
+            guard.activate_failed += 1;
         }
 
         result.is_ok()
     }
 }
 
+const STATS_KEY: &'static str = "election_bucket";
+
+impl StatsSource for Bucket {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        let guard = self.data.lock().unwrap();
+
+        result.insert(STATS_KEY, "cancel_lowest", guard.cancel_lowest_counter);
+        result.insert(STATS_KEY, "activate_success", guard.activate_success);
+        result.insert(STATS_KEY, "activate_failed", guard.activate_failed);
+    }
+}
+
+#[derive(Default)]
 struct BucketData {
     queue: OrderedBlocks,
     elections: OrderedElections,
+    cancel_lowest_counter: usize,
+    activate_success: usize,
+    activate_failed: usize,
 }
 
 impl BucketData {
-    fn cancel_lowest_election(&self, active_elections: &ActiveElections) {
+    fn cancel_lowest_election(&mut self, active_elections: &ActiveElections) {
         if let Some(entry) = self.elections.entry_with_lowest_priority() {
             active_elections.cancel(&entry.root);
+            self.cancel_lowest_counter += 1;
         }
     }
 }

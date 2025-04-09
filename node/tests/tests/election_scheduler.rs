@@ -10,11 +10,7 @@ mod bucket {
         let mut system = System::new();
         let node = system.make_node();
 
-        let bucket = Bucket::new(
-            PriorityBucketConfig::default(),
-            node.active.clone(),
-            node.stats.clone(),
-        );
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
 
         assert_eq!(bucket.len(), 0);
     }
@@ -24,11 +20,7 @@ mod bucket {
         let mut system = System::new();
         let node = system.make_node();
 
-        let bucket = Bucket::new(
-            PriorityBucketConfig::default(),
-            node.active.clone(),
-            node.stats.clone(),
-        );
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.contains(&block.hash()), false);
@@ -42,11 +34,7 @@ mod bucket {
         let mut system = System::new();
         let node = system.make_node();
 
-        let bucket = Bucket::new(
-            PriorityBucketConfig::default(),
-            node.active.clone(),
-            node.stats.clone(),
-        );
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.push(UnixTimestamp::new(1000), block.clone()), true);
@@ -58,11 +46,7 @@ mod bucket {
         let mut system = System::new();
         let node = system.make_node();
 
-        let bucket = Bucket::new(
-            PriorityBucketConfig::default(),
-            node.active.clone(),
-            node.stats.clone(),
-        );
+        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone());
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
@@ -92,7 +76,7 @@ mod bucket {
             max_blocks: 2,
             ..Default::default()
         };
-        let bucket = Bucket::new(config, node.active.clone(), node.stats.clone());
+        let bucket = Bucket::new(config, node.active.clone());
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);

@@ -11,7 +11,7 @@ use rsnano_core::{
     SavedBlock,
 };
 use rsnano_ledger::{AnySet, ConfirmedSet};
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use crate::consensus::{
     bucketing::Bucketing, ActiveElections, Bucket, BucketExt, PriorityBucketConfig,
@@ -36,11 +36,7 @@ impl PriorityScheduler {
         let bucketing = Bucketing::default();
         let mut buckets = Vec::with_capacity(bucketing.bucket_count());
         for _ in 0..bucketing.bucket_count() {
-            buckets.push(Arc::new(Bucket::new(
-                config.clone(),
-                active.clone(),
-                stats.clone(),
-            )))
+            buckets.push(Arc::new(Bucket::new(config.clone(), active.clone())))
         }
 
         Self {
@@ -269,6 +265,14 @@ impl PrioritySchedulerExt for Arc<PriorityScheduler> {
                 }))
                 .unwrap(),
         );
+    }
+}
+
+impl StatsSource for PriorityScheduler {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        for bucket in &self.buckets {
+            bucket.collect_stats(result);
+        }
     }
 }
 

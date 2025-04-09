@@ -1130,6 +1130,7 @@ impl Node {
         stats_collector.add_source(fork_cache.clone());
         stats_collector.add_source(active_elections.clone());
         stats_collector.add_source(vote_rebroadcaster.stats.clone());
+        stats_collector.add_source(election_schedulers.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
