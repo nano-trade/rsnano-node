@@ -166,7 +166,7 @@ impl BucketExt for Arc<Bucket> {
 
         let result =
             self.active_elections
-                .insert(block, ElectionBehavior::Priority, Some(priority), None);
+                .insert(block, ElectionBehavior::Priority, Some(priority));
 
         if result.is_ok() {
             guard.elections.insert(BucketElection {

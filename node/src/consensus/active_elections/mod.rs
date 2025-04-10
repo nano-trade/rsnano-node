@@ -173,26 +173,19 @@ impl ActiveElections {
     }
 
     fn handle_removed_election(&self, entry: Entry) {
-        self.add_stats(&entry);
+        self.sample(&entry);
         self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
 
-    fn add_stats(&self, entry: &Entry) {
-        let election = &entry.election;
-        let start = election.start();
-        let root = election.qualified_root().clone();
+    fn sample(&self, entry: &Entry) {
+        let elapsed = entry.election.start().elapsed(self.clock.now());
 
         // Track election duration
         self.stats.sample(
             Sample::ActiveElectionDuration,
-            start.elapsed(self.clock.now()).as_millis() as i64,
+            elapsed.as_millis() as i64,
             (0, 1000 * 60 * 10),
         ); // 0-10 minutes range
-
-        // Notify observers without holding the lock
-        if let Some(callback) = &entry.erased_callback {
-            callback(&root);
-        }
     }
 
     pub fn insert(
@@ -200,7 +193,6 @@ impl ActiveElections {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         priority: Option<BlockPriority>,
-        erased_callback: Option<ErasedCallback>,
     ) -> Result<bool, AecInsertError> {
         let hash = block.hash();
         let root = block.qualified_root();
@@ -209,7 +201,6 @@ impl ActiveElections {
             block,
             election_behavior,
             priority,
-            erased_callback,
             self.clock.now(),
         );
 
@@ -441,8 +432,6 @@ impl StatsSource for ActiveElections {
         self.container.read().unwrap().collect_stats(result);
     }
 }
-
-pub(crate) type ErasedCallback = Box<dyn Fn(&QualifiedRoot) + Send + Sync>;
 
 pub struct ApplyVoteResult {
     pub voted_block: BlockHash,

@@ -183,7 +183,7 @@ impl HintedScheduler {
                 // Try to insert it into AEC as hinted election
                 let inserted = self
                     .active_elections
-                    .insert(block, ElectionBehavior::Hinted, None, None)
+                    .insert(block, ElectionBehavior::Hinted, None)
                     .is_ok();
 
                 self.stats.inc(

@@ -21,7 +21,7 @@ use super::{
     stopped_counter::StoppedCounter,
     vote_counter::VoteCounter,
     vote_router::VoteRouter,
-    ActiveElectionsConfig, AecEvent, AecInsertError, Entry, ErasedCallback, RootContainer,
+    ActiveElectionsConfig, AecEvent, AecInsertError, Entry, RootContainer,
 };
 
 pub struct ActiveElectionsContainer {
@@ -96,7 +96,6 @@ impl ActiveElectionsContainer {
         block: SavedBlock,
         election_behavior: ElectionBehavior,
         priority: Option<BlockPriority>,
-        erased_callback: Option<ErasedCallback>,
         now: Timestamp,
     ) -> Result<bool, AecInsertError> {
         if self.stopped {
@@ -131,7 +130,6 @@ impl ActiveElectionsContainer {
             root: root.clone(),
             election,
             priority,
-            erased_callback,
         });
 
         // Keep track of election count by election type

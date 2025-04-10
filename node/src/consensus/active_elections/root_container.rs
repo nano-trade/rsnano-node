@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use super::ErasedCallback;
 use crate::consensus::election::Election;
 use rsnano_core::{utils::BlockPriority, QualifiedRoot};
 
@@ -8,7 +7,6 @@ pub(crate) struct Entry {
     pub root: QualifiedRoot,
     pub election: Election,
     pub priority: Option<BlockPriority>,
-    pub erased_callback: Option<ErasedCallback>,
 }
 
 /// Contains elections and their qualified roots
