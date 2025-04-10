@@ -79,8 +79,6 @@ pub struct ActiveElections {
     clock: Arc<SteadyClock>,
     rep_weights: Arc<RepWeightCache>,
     observer: RwLock<Option<BackpressureSender<AecEvent>>>,
-    fork_cache: Arc<RwLock<ForkCache>>,
-    vote_cache: Arc<Mutex<VoteCache>>,
 }
 
 impl ActiveElections {
@@ -88,16 +86,12 @@ impl ActiveElections {
         config: ActiveElectionsConfig,
         stats: Arc<Stats>,
         rep_weights: Arc<RepWeightCache>,
-        fork_cache: Arc<RwLock<ForkCache>>,
-        vote_cache: Arc<Mutex<VoteCache>>,
         base_latency: Duration,
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             container: RwLock::new(ActiveElectionsContainer::new(config, base_latency)),
             rep_weights,
-            fork_cache,
-            vote_cache,
             stats,
             clock,
             observer: RwLock::new(None),
@@ -123,27 +117,10 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         priority: Option<BlockPriority>,
     ) -> Result<bool, AecInsertError> {
-        let hash = block.hash();
-        let root = block.qualified_root();
-
-        let result = self.container.write().unwrap().insert(
-            block,
-            election_behavior,
-            priority,
-            self.clock.now(),
-        );
-
-        if matches!(result, Ok(true)) {
-            self.stats
-                .inc(StatType::ActiveElections, DetailType::Started);
-            self.stats
-                .inc(StatType::ActiveElectionsStarted, election_behavior.into());
-
-            debug!(behavior = ?election_behavior, block = %hash, "Started new election");
-            self.notify(AecEvent::ElectionStarted(hash, root.clone()));
-        }
-
-        result
+        self.container
+            .write()
+            .unwrap()
+            .insert(block, election_behavior, priority, self.clock.now())
     }
 
     pub fn remove_recently_confirmed(&self, block_hash: &BlockHash) {

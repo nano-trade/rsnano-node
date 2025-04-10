@@ -24,6 +24,7 @@ use crate::{
     representatives::OnlineReps,
 };
 use priority::{PriorityScheduler, PrioritySchedulerExt};
+use rsnano_nullable_clock::SteadyClock;
 
 pub struct ElectionSchedulers {
     pub priority: Arc<PriorityScheduler>,
@@ -45,6 +46,7 @@ impl ElectionSchedulers {
         vote_cache: Arc<Mutex<VoteCache>>,
         confirming_set: Arc<ConfirmingSet>,
         online_reps: Arc<Mutex<OnlineReps>>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         let hinted = Arc::new(HintedScheduler::new(
             config.hinted_scheduler.clone(),
@@ -54,11 +56,13 @@ impl ElectionSchedulers {
             vote_cache.clone(),
             confirming_set.clone(),
             online_reps.clone(),
+            clock.clone(),
         ));
 
         let manual = Arc::new(ManualScheduler::new(
             stats.clone(),
             active_elections.clone(),
+            clock.clone(),
         ));
 
         let optimistic = Arc::new(OptimisticScheduler::new(
@@ -68,12 +72,14 @@ impl ElectionSchedulers {
             network_constants,
             ledger.clone(),
             confirming_set.clone(),
+            clock.clone(),
         ));
 
         let priority = Arc::new(PriorityScheduler::new(
             config.priority_bucket.clone(),
             stats.clone(),
             active_elections.clone(),
+            clock,
         ));
 
         Self {

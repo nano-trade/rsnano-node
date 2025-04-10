@@ -10,6 +10,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ActiveElections;
 use crate::consensus::election::ElectionBehavior;
+use rsnano_nullable_clock::SteadyClock;
 
 pub struct ManualScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
@@ -17,15 +18,17 @@ pub struct ManualScheduler {
     mutex: Mutex<ManualSchedulerImpl>,
     stats: Arc<Stats>,
     active: Arc<ActiveElections>,
+    clock: Arc<SteadyClock>,
 }
 
 impl ManualScheduler {
-    pub fn new(stats: Arc<Stats>, active: Arc<ActiveElections>) -> Self {
+    pub fn new(stats: Arc<Stats>, active: Arc<ActiveElections>, clock: Arc<SteadyClock>) -> Self {
         Self {
             thread: Mutex::new(None),
             condition: Condvar::new(),
             stats,
             active,
+            clock,
             mutex: Mutex::new(ManualSchedulerImpl {
                 queue: Default::default(),
                 stopped: false,
@@ -84,9 +87,12 @@ impl ManualScheduler {
                     self.stats
                         .inc(StatType::ElectionScheduler, DetailType::InsertManual);
 
+                    let now = self.clock.now();
                     if self
                         .active
-                        .insert(block, ElectionBehavior::Manual, None)
+                        .write()
+                        .unwrap()
+                        .insert(block, ElectionBehavior::Manual, None, now)
                         .is_ok()
                     {
                         self.active.transition_active_hash(&hash);

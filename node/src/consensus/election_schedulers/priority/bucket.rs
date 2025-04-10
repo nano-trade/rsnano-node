@@ -12,6 +12,7 @@ use rsnano_core::{
     utils::{BlockPriority, TimePriority},
     Block, BlockHash, QualifiedRoot, SavedBlock,
 };
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,6 +43,7 @@ pub struct Bucket {
     config: PriorityBucketConfig,
     active_elections: Arc<ActiveElections>,
     data: Mutex<BucketData>,
+    clock: Arc<SteadyClock>,
 }
 
 impl Bucket {
@@ -49,6 +51,7 @@ impl Bucket {
         config: PriorityBucketConfig,
         active_elections: Arc<ActiveElections>,
         stats: Arc<BucketStats>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             config,
@@ -58,6 +61,7 @@ impl Bucket {
                 elections: Default::default(),
                 stats,
             }),
+            clock,
         }
     }
 
@@ -164,9 +168,13 @@ impl BucketExt for Arc<Bucket> {
         let priority = top.priority;
         let root = block.qualified_root();
 
-        let result =
-            self.active_elections
-                .insert(block, ElectionBehavior::Priority, Some(priority));
+        let now = self.clock.now();
+        let result = self.active_elections.write().unwrap().insert(
+            block,
+            ElectionBehavior::Priority,
+            Some(priority),
+            now,
+        );
 
         if result.is_ok() {
             guard.elections.insert(BucketElection {

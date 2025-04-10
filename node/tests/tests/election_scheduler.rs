@@ -17,7 +17,12 @@ mod bucket {
         let node = system.make_node();
         let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
+        let bucket = Bucket::new(
+            PriorityBucketConfig::default(),
+            node.active.clone(),
+            stats,
+            node.steady_clock.clone(),
+        );
 
         assert_eq!(bucket.len(), 0);
     }
@@ -28,7 +33,12 @@ mod bucket {
         let node = system.make_node();
         let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
+        let bucket = Bucket::new(
+            PriorityBucketConfig::default(),
+            node.active.clone(),
+            stats,
+            node.steady_clock.clone(),
+        );
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.contains(&block.hash()), false);
@@ -43,7 +53,12 @@ mod bucket {
         let node = system.make_node();
         let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
+        let bucket = Bucket::new(
+            PriorityBucketConfig::default(),
+            node.active.clone(),
+            stats,
+            node.steady_clock.clone(),
+        );
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.push(test_priority(1000), block.clone()), true);
@@ -56,7 +71,12 @@ mod bucket {
         let node = system.make_node();
         let stats = Arc::new(BucketStats::default());
 
-        let bucket = Bucket::new(PriorityBucketConfig::default(), node.active.clone(), stats);
+        let bucket = Bucket::new(
+            PriorityBucketConfig::default(),
+            node.active.clone(),
+            stats,
+            node.steady_clock.clone(),
+        );
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
@@ -87,7 +107,12 @@ mod bucket {
             max_blocks: 2,
             ..Default::default()
         };
-        let bucket = Bucket::new(config, node.active.clone(), stats);
+        let bucket = Bucket::new(
+            config,
+            node.active.clone(),
+            stats,
+            node.steady_clock.clone(),
+        );
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);

@@ -1,12 +1,10 @@
 use super::{ActiveElections, ForkCache, VoteCache};
 use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot};
 use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache};
-use rsnano_stats::Stats;
 use std::sync::{Arc, Mutex, RwLock};
 use tracing::debug;
 
 pub(crate) struct ForkProcessor {
-    pub(crate) stats: Arc<Stats>,
     pub(crate) rep_weights: Arc<RepWeightCache>,
     pub(crate) fork_cache: Arc<RwLock<ForkCache>>,
     pub(crate) active_elections: Arc<ActiveElections>,

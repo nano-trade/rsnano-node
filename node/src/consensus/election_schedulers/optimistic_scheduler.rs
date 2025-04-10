@@ -18,6 +18,7 @@ use super::ActiveElections;
 use crate::{
     cementation::ConfirmingSet, config::NetworkConstants, consensus::election::ElectionBehavior,
 };
+use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptimisticSchedulerConfig {
@@ -58,6 +59,7 @@ pub struct OptimisticScheduler {
     network_constants: NetworkConstants,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
+    clock: Arc<SteadyClock>,
     pub max_elections: usize,
 }
 
@@ -69,6 +71,7 @@ impl OptimisticScheduler {
         network_constants: NetworkConstants,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         let max_elections =
             active_elections.read().unwrap().max_len() * config.optimistic_limit_percentage / 100;
@@ -84,6 +87,7 @@ impl OptimisticScheduler {
             network_constants,
             ledger,
             confirming_set,
+            clock,
             max_elections,
         }
     }
@@ -214,9 +218,12 @@ impl OptimisticScheduler {
             {
                 // Try to insert it into AEC
                 // We check for AEC vacancy inside our predicate
+                let now = self.clock.now();
                 let inserted = self
                     .active_elections
-                    .insert(block, ElectionBehavior::Optimistic, None)
+                    .write()
+                    .unwrap()
+                    .insert(block, ElectionBehavior::Optimistic, None, now)
                     .is_ok();
 
                 if inserted {

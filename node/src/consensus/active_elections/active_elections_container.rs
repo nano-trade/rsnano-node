@@ -23,6 +23,7 @@ use super::{
     vote_router::VoteRouter,
     ActiveElectionsConfig, AecEvent, AecInsertError, Entry, RootContainer,
 };
+use strum::{EnumCount, IntoEnumIterator};
 
 pub struct ActiveElectionsContainer {
     roots: RootContainer,
@@ -43,6 +44,8 @@ pub struct ActiveElectionsContainer {
     cooldown_count: u64,
     recover_count: u64,
     conflict_counter: u64,
+    started_counter: u64,
+    started_by_behavor: [u64; ElectionBehavior::COUNT],
 }
 
 impl ActiveElectionsContainer {
@@ -66,6 +69,8 @@ impl ActiveElectionsContainer {
             cooldown_count: 0,
             recover_count: 0,
             conflict_counter: 0,
+            started_counter: 0,
+            started_by_behavor: Default::default(),
         }
     }
 
@@ -99,7 +104,7 @@ impl ActiveElectionsContainer {
         self.roots.iter_sequenced().map(|i| &i.election)
     }
 
-    pub(super) fn insert(
+    pub fn insert(
         &mut self,
         block: SavedBlock,
         election_behavior: ElectionBehavior,
@@ -142,7 +147,12 @@ impl ActiveElectionsContainer {
 
         // Keep track of election count by election type
         *self.count_by_behavior_mut(election_behavior) += 1;
-        self.vote_router.connect(hash, root);
+        self.vote_router.connect(hash, root.clone());
+
+        self.started_counter += 1;
+        self.started_by_behavor[election_behavior as usize] += 1;
+        self.notify(AecEvent::ElectionStarted(hash, root));
+
         Ok(true)
     }
 
@@ -558,6 +568,14 @@ impl StatsSource for ActiveElectionsContainer {
         result.insert("active_elections", "cooldown", self.cooldown_count);
         result.insert("active_elections", "recovered", self.recover_count);
         result.insert("active_elections", "block_conflict", self.conflict_counter);
+        result.insert("active_elections", "started", self.started_counter);
+        for behavior in ElectionBehavior::iter() {
+            result.insert(
+                "active_elections_started",
+                behavior.as_str(),
+                self.started_by_behavor[behavior as usize],
+            );
+        }
 
         self.vote_counter.collect_stats(result);
         self.stopped_counter.collect_stats(result);

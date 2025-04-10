@@ -18,6 +18,7 @@ use super::{ActiveElections, VoteCache};
 use crate::{
     cementation::ConfirmingSet, consensus::election::ElectionBehavior, representatives::OnlineReps,
 };
+use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HintedSchedulerConfig {
@@ -62,6 +63,7 @@ pub struct HintedScheduler {
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
     online_reps: Arc<Mutex<OnlineReps>>,
+    clock: Arc<SteadyClock>,
     stopped: AtomicBool,
     stopped_mutex: Mutex<()>,
     cooldowns: Mutex<OrderedCooldowns>,
@@ -78,6 +80,7 @@ impl HintedScheduler {
         vote_cache: Arc<Mutex<VoteCache>>,
         confirming_set: Arc<ConfirmingSet>,
         online_reps: Arc<Mutex<OnlineReps>>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         let max_elections =
             active_elections.read().unwrap().max_len() * config.hinted_limit_percentage / 100;
@@ -95,6 +98,7 @@ impl HintedScheduler {
             vote_cache,
             confirming_set,
             online_reps,
+            clock,
             stopped: AtomicBool::new(false),
             stopped_mutex: Mutex::new(()),
             cooldowns: Mutex::new(OrderedCooldowns::new()),
@@ -183,9 +187,12 @@ impl HintedScheduler {
                 }
 
                 // Try to insert it into AEC as hinted election
+                let now = self.clock.now();
                 let inserted = self
                     .active_elections
-                    .insert(block, ElectionBehavior::Hinted, None)
+                    .write()
+                    .unwrap()
+                    .insert(block, ElectionBehavior::Hinted, None, now)
                     .is_ok();
 
                 self.stats.inc(

@@ -15,6 +15,7 @@ use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{Bucket, BucketExt, BucketStats, Bucketing, PriorityBucketConfig};
 use crate::consensus::ActiveElections;
+use rsnano_nullable_clock::SteadyClock;
 
 pub struct PriorityScheduler {
     stopped: Mutex<bool>,
@@ -32,6 +33,7 @@ impl PriorityScheduler {
         config: PriorityBucketConfig,
         stats: Arc<Stats>,
         active: Arc<ActiveElections>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         let bucketing = Bucketing::default();
         let mut buckets = Vec::with_capacity(bucketing.bucket_count());
@@ -41,6 +43,7 @@ impl PriorityScheduler {
                 config.clone(),
                 active.clone(),
                 bucket_stats.clone(),
+                clock.clone(),
             )))
         }
 

@@ -535,8 +535,6 @@ impl Node {
             config.active_elections.clone(),
             stats.clone(),
             ledger.rep_weights.clone(),
-            fork_cache.clone(),
-            vote_cache.clone(),
             base_latency,
             steady_clock.clone(),
         );
@@ -602,6 +600,7 @@ impl Node {
             vote_cache.clone(),
             confirming_set.clone(),
             online_reps.clone(),
+            steady_clock.clone(),
         ));
 
         let mut bootstrap_sender = MessageSender::new_with_buffer_size(
@@ -1069,7 +1068,6 @@ impl Node {
         };
 
         let fork_processor = Arc::new(ForkProcessor {
-            stats: stats.clone(),
             rep_weights: rep_weights.clone(),
             fork_cache: fork_cache.clone(),
             active_elections: active_elections.clone(),
