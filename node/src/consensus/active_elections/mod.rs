@@ -8,7 +8,7 @@ mod vote_router;
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
+    sync::{Arc, LockResult, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
     time::{Duration, SystemTime},
 };
 
@@ -93,7 +93,6 @@ impl ActiveElections {
         base_latency: Duration,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        let max_elections = config.max_elections;
         Self {
             container: RwLock::new(ActiveElectionsContainer::new(config, base_latency)),
             rep_weights,
@@ -106,11 +105,16 @@ impl ActiveElections {
     }
 
     pub fn set_observer(&self, observer: BackpressureSender<AecEvent>) {
-        *self.observer.write().unwrap() = Some(observer);
+        *self.observer.write().unwrap() = Some(observer.clone());
+        self.container.write().unwrap().set_observer(observer);
     }
 
-    pub fn read(&self) -> RwLockReadGuard<ActiveElectionsContainer> {
-        self.container.read().unwrap()
+    pub fn read(&self) -> LockResult<RwLockReadGuard<ActiveElectionsContainer>> {
+        self.container.read()
+    }
+
+    pub fn write(&self) -> LockResult<RwLockWriteGuard<ActiveElectionsContainer>> {
+        self.container.write()
     }
 
     pub fn len(&self) -> usize {
@@ -423,7 +427,7 @@ impl Drop for ActiveElections {
 
 impl ContainerInfoProvider for ActiveElections {
     fn container_info(&self) -> ContainerInfo {
-        self.read().container_info()
+        self.read().unwrap().container_info()
     }
 }
 

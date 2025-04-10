@@ -67,6 +67,7 @@ mod votes {
             node1
                 .active
                 .read()
+                .unwrap()
                 .election_for_block(&send1.hash())
                 .unwrap()
                 .vote_count(),
@@ -76,6 +77,7 @@ mod votes {
             node1
                 .active
                 .read()
+                .unwrap()
                 .election_for_block(&send1.hash())
                 .unwrap()
                 .votes()
@@ -118,6 +120,7 @@ mod votes {
             node1
                 .active
                 .read()
+                .unwrap()
                 .election_for_block(&send1.hash())
                 .unwrap()
                 .votes()
@@ -161,6 +164,7 @@ mod votes {
             node1
                 .active
                 .read()
+                .unwrap()
                 .election_for_block(&send1.hash())
                 .unwrap()
                 .votes()
@@ -183,7 +187,7 @@ mod votes {
             VoteCode::Replay
         );
 
-        let active = node1.active.read();
+        let active = node1.active.read().unwrap();
         let election = active.election_for_block(&send1.hash()).unwrap();
         assert_eq!(
             election
@@ -283,6 +287,7 @@ fn block_hash_account_conflict() {
         node1
             .active
             .read()
+            .unwrap()
             .election_for_root(root)
             .unwrap()
             .winner()

@@ -87,7 +87,7 @@ impl Monitor {
             );
         }
 
-        let elections = self.active.read().info();
+        let elections = self.active.read().unwrap().info();
         info!(
             "Elections active: {} (priority: {} | hinted: {} | optimistic: {})",
             elections.total, elections.priority, elections.hinted, elections.optimistic

@@ -35,6 +35,7 @@ pub fn activate_one() {
     assert_eq!(
         node.active
             .read()
+            .unwrap()
             .election_for_root(&block.qualified_root())
             .unwrap()
             .behavior(),
@@ -71,6 +72,7 @@ pub fn activate_one_zero_conf() {
     assert_eq!(
         node.active
             .read()
+            .unwrap()
             .election_for_root(&block.qualified_root())
             .unwrap()
             .behavior(),
@@ -102,7 +104,7 @@ pub fn activate_many() {
     assert_timely(Duration::from_secs(20), || {
         chains.iter().all(|(_, blocks)| {
             let block = blocks.last().unwrap();
-            let active = node.active.read();
+            let active = node.active.read().unwrap();
             let Some(election) = active.election_for_root(&block.qualified_root()) else {
                 return false;
             };

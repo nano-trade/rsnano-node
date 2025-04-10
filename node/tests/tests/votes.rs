@@ -103,7 +103,7 @@ fn add_old() {
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live, None);
 
-    let active = node.active.read();
+    let active = node.active.read().unwrap();
     let election = active.election_for_root(&send1.qualified_root()).unwrap();
     assert_eq!(1, election.vote_count());
     let votes = election.votes();
@@ -146,7 +146,7 @@ fn add_cooldown() {
     node.vote_processor
         .vote_blocking(&vote2, Some(channel), VoteSource::Live, None);
 
-    let active = node.active.read();
+    let active = node.active.read().unwrap();
     let election1 = active.election_for_root(&send1.qualified_root()).unwrap();
     assert_eq!(1, election1.vote_count());
     let votes = election1.votes();

@@ -105,6 +105,7 @@ fn invalid_signature() {
         || {
             node.active
                 .read()
+                .unwrap()
                 .election_for_block(&chain[0].hash())
                 .unwrap()
                 .vote_count()

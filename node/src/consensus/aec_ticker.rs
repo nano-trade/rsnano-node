@@ -43,7 +43,7 @@ impl Runnable for AecTicker {
          * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
          * Flushed elections are later re-activated via frontier confirmation
          */
-        for election in self.active_elections.read().iter() {
+        for election in self.active_elections.read().unwrap().iter() {
             match election.state() {
                 ElectionState::Passive => {
                     self.block_voter.try_vote_for_block(

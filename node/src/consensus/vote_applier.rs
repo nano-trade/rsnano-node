@@ -90,7 +90,7 @@ impl VoteApplier {
         }
 
         let is_active = {
-            let active = self.active_elections.read();
+            let active = self.active_elections.read().unwrap();
             vote.hashes.iter().any(|hash| active.is_active_hash(hash))
         };
 

@@ -44,7 +44,7 @@ impl BlockVoter {
 
     pub fn try_vote(&self, block_hash: &BlockHash) {
         let (block_hash, root, vote_type) = {
-            let active = self.active_elections.read();
+            let active = self.active_elections.read().unwrap();
             let Some(election) = active.election_for_block(block_hash) else {
                 return;
             };

@@ -84,7 +84,7 @@ impl Bucket {
         if election_count < self.config.reserved_elections
             || election_count < self.config.max_elections
         {
-            self.active_elections.read().vacancy() > 0
+            self.active_elections.read().unwrap().vacancy() > 0
         } else if election_count > 0 {
             // Compare to equal to drain duplicates
             if candidate_prio >= highest_election {
@@ -102,7 +102,7 @@ impl Bucket {
         if data.elections.len() < self.config.reserved_elections {
             false
         } else if data.elections.len() < self.config.max_elections {
-            self.active_elections.read().vacancy() < 0
+            self.active_elections.read().unwrap().vacancy() < 0
         } else {
             true
         }

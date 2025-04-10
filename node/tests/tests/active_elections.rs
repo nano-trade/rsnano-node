@@ -73,6 +73,7 @@ fn fork_replacement_tally() {
         node1
             .active
             .read()
+            .unwrap()
             .election_for_root(&send_last.qualified_root())
             .unwrap()
             .has_max_blocks()
@@ -99,7 +100,7 @@ fn fork_replacement_tally() {
     // it also checks that there are 10 votes in the election
     let count_rep_votes_in_election = || {
         // Check that only max weight blocks remains (and start winner)
-        let active = node1.active.read();
+        let active = node1.active.read().unwrap();
         let election = active
             .election_for_root(&send_last.qualified_root())
             .unwrap();
@@ -119,6 +120,7 @@ fn fork_replacement_tally() {
     assert!(node1
         .active
         .read()
+        .unwrap()
         .election_for_root(&send_last.qualified_root())
         .unwrap()
         .has_max_blocks());
@@ -143,6 +145,7 @@ fn fork_replacement_tally() {
         node1
             .active
             .read()
+            .unwrap()
             .election_for_root(&send_last.qualified_root())
             .unwrap()
             .has_max_blocks()
@@ -151,6 +154,7 @@ fn fork_replacement_tally() {
     let blocks1 = node1
         .active
         .read()
+        .unwrap()
         .election_for_root(&send_last.qualified_root())
         .unwrap()
         .candidate_blocks()
@@ -195,6 +199,7 @@ fn fork_replacement_tally() {
         node1
             .active
             .read()
+            .unwrap()
             .election_for_root(&send_last.qualified_root())
             .unwrap()
             .contains_block(&send_last.hash())
@@ -203,6 +208,7 @@ fn fork_replacement_tally() {
     assert!(node1
         .active
         .read()
+        .unwrap()
         .election_for_root(&send_last.qualified_root())
         .unwrap()
         .has_max_blocks());
@@ -211,6 +217,7 @@ fn fork_replacement_tally() {
         node1
             .active
             .read()
+            .unwrap()
             .election_for_root(&send_last.qualified_root())
             .unwrap()
             .votes()
@@ -264,6 +271,7 @@ fn non_final() {
     assert_timely2(|| {
         node.active
             .read()
+            .unwrap()
             .election_for_root(&send.qualified_root())
             .is_some()
     });
@@ -273,7 +281,7 @@ fn non_final() {
     let _quorum_delta = node.online_reps.lock().unwrap().quorum_delta();
     assert_timely_eq2(
         || {
-            let active = node.active.read();
+            let active = node.active.read().unwrap();
             let election = active.election_for_root(&send.qualified_root()).unwrap();
             //election.update_tallies(&node.ledger.rep_weights.read(), quorum_delta);
             election.tallies().winner().unwrap().1
@@ -283,6 +291,7 @@ fn non_final() {
     assert_eq!(
         node.active
             .read()
+            .unwrap()
             .election_for_root(&send.qualified_root())
             .unwrap()
             .is_confirmed(),
@@ -356,6 +365,7 @@ fn inactive_votes_cache_existing_vote() {
         || {
             node.active
                 .read()
+                .unwrap()
                 .election_for_block(&send.hash())
                 .unwrap()
                 .vote_count()
@@ -368,6 +378,7 @@ fn inactive_votes_cache_existing_vote() {
     let last_vote1 = node
         .active
         .read()
+        .unwrap()
         .election_for_block(&send.hash())
         .unwrap()
         .votes()
@@ -389,7 +400,7 @@ fn inactive_votes_cache_existing_vote() {
         .vote_blocking(&cached[0], None, VoteSource::Live, None);
 
     // Check that election data is not changed
-    let active = node.active.read();
+    let active = node.active.read().unwrap();
     let election = active.election_for_block(&send.hash()).unwrap();
     assert_eq!(election.vote_count(), 1);
     let last_vote2 = election.votes().get(&key.public_key()).unwrap().clone();
@@ -444,6 +455,7 @@ fn inactive_votes_cache_multiple_votes() {
         || {
             node.active
                 .read()
+                .unwrap()
                 .election_for_block(&send1.hash())
                 .unwrap()
                 .vote_count()
@@ -655,6 +667,7 @@ fn confirm_election_by_request() {
         node2
             .active
             .read()
+            .unwrap()
             .election_for_root(&send1.qualified_root())
             .unwrap()
             .is_confirmed(),
@@ -773,17 +786,17 @@ fn bound_election_winners() {
 
         // Ensure that when the number of election winners reaches the limit, AEC vacancy reflects that
         // Confirming more elections should make the vacancy negative
-        assert!(node.active.read().vacancy() > 0);
+        assert!(node.active.read().unwrap().vacancy() > 0);
 
         for block in blocks {
             node.active.force_confirm(&block.hash());
         }
 
-        assert_timely2(|| node.active.read().vacancy() <= 0);
+        assert_timely2(|| node.active.read().unwrap().vacancy() <= 0);
         // Release the guard to allow cementing, there should be some vacancy now
     }
 
-    assert_timely2(|| node.active.read().vacancy() > 0);
+    assert_timely2(|| node.active.read().unwrap().vacancy() > 0);
 }
 
 /// Blocks should only be broadcasted when they are active in the AEC
@@ -901,7 +914,12 @@ fn confirmation_consistency() {
             .unwrap();
 
         assert_timely2(|| node.block_confirmed(&block.hash()));
-        assert_timely2(|| node.active.read().was_recently_confirmed(&block.hash()));
+        assert_timely2(|| {
+            node.active
+                .read()
+                .unwrap()
+                .was_recently_confirmed(&block.hash())
+        });
     }
 }
 
@@ -933,6 +951,7 @@ fn fork_filter_cleanup() {
             node1
                 .active
                 .read()
+                .unwrap()
                 .election_for_root(&send1.qualified_root())
                 .unwrap()
                 .block_count()
@@ -1000,6 +1019,7 @@ fn conflicting_block_vote_existing_election() {
     assert_timely2(|| {
         node.active
             .read()
+            .unwrap()
             .election_for_root(&fork.qualified_root())
             .unwrap()
             .is_confirmed()

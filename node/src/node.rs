@@ -789,7 +789,7 @@ impl Node {
             }
 
             if let Some(i) = active_w.upgrade() {
-                let guard = i.read();
+                let guard = i.read().unwrap();
                 if guard.is_active_hash(hash) || guard.was_recently_confirmed(hash) {
                     return false;
                 }
@@ -828,7 +828,7 @@ impl Node {
             }
 
             if let Some(i) = active_w.upgrade() {
-                let guard = i.read();
+                let guard = i.read().unwrap();
                 if guard.is_active_hash(hash) || guard.was_recently_confirmed(hash) {
                     return false;
                 }

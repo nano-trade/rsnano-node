@@ -5,7 +5,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{BlockPriority, ContainerInfo, UnixMillisTimestamp},
+    utils::{BackpressureSender, BlockPriority, ContainerInfo, UnixMillisTimestamp},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -26,6 +26,7 @@ use super::{
 
 pub struct ActiveElectionsContainer {
     roots: RootContainer,
+    observer: Option<BackpressureSender<AecEvent>>,
     stopped: bool,
     manual_count: usize,
     priority_count: usize,
@@ -48,6 +49,7 @@ impl ActiveElectionsContainer {
         Self {
             roots: RootContainer::default(),
             vote_router: VoteRouter::new(),
+            observer: None,
             stopped: false,
             manual_count: 0,
             priority_count: 0,
@@ -63,6 +65,10 @@ impl ActiveElectionsContainer {
             cooldown_count: 0,
             recover_count: 0,
         }
+    }
+
+    pub fn set_observer(&mut self, observer: BackpressureSender<AecEvent>) {
+        self.observer = Some(observer);
     }
 
     pub fn max_len(&self) -> usize {
@@ -194,6 +200,8 @@ impl ActiveElectionsContainer {
     }
 
     pub(super) fn stop(&mut self) {
+        // destroy send queue so that the receiver thread will be stopped too
+        drop(self.observer.take());
         self.stopped = true;
         self.roots.clear();
     }

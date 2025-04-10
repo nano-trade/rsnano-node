@@ -374,6 +374,7 @@ impl RepCrawler {
             if self
                 .active_elections
                 .read()
+                .unwrap()
                 .was_recently_confirmed(&block.hash())
             {
                 continue;

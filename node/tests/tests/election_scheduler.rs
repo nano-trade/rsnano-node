@@ -290,6 +290,7 @@ mod election_scheduler {
         assert_eq!(
             node.active
                 .read()
+                .unwrap()
                 .election_for_block(&block.hash())
                 .unwrap()
                 .behavior(),
@@ -308,6 +309,7 @@ mod election_scheduler {
         assert_eq!(
             node.active
                 .read()
+                .unwrap()
                 .election_for_block(&block.hash())
                 .unwrap()
                 .behavior(),
