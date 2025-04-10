@@ -302,7 +302,7 @@ mod election_scheduler {
         // Attempt to start priority election for second block
         let _ = node
             .active
-            .insert(block.clone(), ElectionBehavior::Priority, None);
+            .insert(block.clone(), ElectionBehavior::Priority, None, None);
 
         // Verify priority transition
         assert_eq!(

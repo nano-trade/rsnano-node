@@ -211,20 +211,11 @@ impl ActiveElections {
         }
     }
 
-    pub fn insert2(
-        &self,
-        block: SavedBlock,
-        election_behavior: ElectionBehavior,
-        priority: Option<BlockPriority>,
-        erased_callback: Option<ErasedCallback>,
-    ) -> Result<(), AecInsertError> {
-        self.insert(block, election_behavior, erased_callback)
-    }
-
     pub fn insert(
         &self,
         block: SavedBlock,
         election_behavior: ElectionBehavior,
+        priority: Option<BlockPriority>,
         erased_callback: Option<ErasedCallback>,
     ) -> Result<(), AecInsertError> {
         let hash = block.hash();
@@ -233,6 +224,7 @@ impl ActiveElections {
         let result = self.container.write().unwrap().insert(
             block,
             election_behavior,
+            priority,
             erased_callback,
             self.clock.now(),
         );

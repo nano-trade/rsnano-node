@@ -151,7 +151,7 @@ pub(crate) trait BucketExt {
 impl BucketExt for Arc<Bucket> {
     fn activate(&self) -> bool {
         let block: SavedBlock;
-        let priority: TimePriority;
+        let priority: BlockPriority;
 
         {
             let mut guard = self.data.lock().unwrap();
@@ -161,11 +161,11 @@ impl BucketExt for Arc<Bucket> {
             };
 
             block = top.block;
-            priority = top.priority.time;
+            priority = top.priority;
 
             guard.elections.insert(BucketElection {
                 root: block.qualified_root(),
-                priority,
+                priority: priority.time,
             });
         }
 
@@ -180,14 +180,19 @@ impl BucketExt for Arc<Bucket> {
 
         let root = block.qualified_root();
 
-        let result =
-            self.active_elections
-                .insert(block, ElectionBehavior::Priority, Some(erase_callback));
+        let result = self.active_elections.insert(
+            block,
+            ElectionBehavior::Priority,
+            Some(priority),
+            Some(erase_callback),
+        );
 
         let mut guard = self.data.lock().unwrap();
+
         if result.is_err() {
             guard.elections.erase(&root);
         }
+
         match result {
             Ok(_) => {
                 guard.stats.activate_success.fetch_add(1, Ordering::Relaxed);

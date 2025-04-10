@@ -5,7 +5,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{ContainerInfo, UnixMillisTimestamp},
+    utils::{BlockPriority, ContainerInfo, UnixMillisTimestamp},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -95,6 +95,7 @@ impl ActiveElectionsContainer {
         &mut self,
         block: SavedBlock,
         election_behavior: ElectionBehavior,
+        priority: Option<BlockPriority>,
         erased_callback: Option<ErasedCallback>,
         now: Timestamp,
     ) -> Result<(), AecInsertError> {
@@ -110,13 +111,14 @@ impl ActiveElectionsContainer {
             return Err(AecInsertError::RecentlyConfirmed);
         }
 
-        let existing = self.roots.get_mut(&root).map(|i| &mut i.election);
+        let existing = self.roots.get_mut(&root);
 
         if let Some(existing) = existing {
             // Try upgrading to priority election to enable immediate vote broadcasting.
-            let previous_behavior = existing.behavior();
-            let upgraded = existing.maybe_upgrade_to(election_behavior);
+            let previous_behavior = existing.election.behavior();
+            let upgraded = existing.election.maybe_upgrade_to(election_behavior);
             if upgraded {
+                existing.priority = priority;
                 *self.count_by_behavior_mut(previous_behavior) -= 1;
                 *self.count_by_behavior_mut(election_behavior) += 1;
             }
@@ -128,6 +130,7 @@ impl ActiveElectionsContainer {
         self.roots.insert(Entry {
             root: root.clone(),
             election,
+            priority,
             erased_callback,
         });
 
