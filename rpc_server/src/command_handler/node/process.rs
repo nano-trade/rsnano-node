@@ -75,7 +75,11 @@ impl RpcCommandHandler {
                 BlockStatus::NegativeSpend => Err(anyhow!("Negative spend")),
                 BlockStatus::Fork => {
                     if args.force.unwrap_or_default().inner() {
-                        self.node.active.erase(&block.qualified_root());
+                        self.node
+                            .active
+                            .write()
+                            .unwrap()
+                            .erase(&block.qualified_root());
                         self.node.block_processor.force(block);
                         Ok(serde_json::to_value(HashRpcMessage::new(hash))?)
                     } else {

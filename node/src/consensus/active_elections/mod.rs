@@ -18,13 +18,13 @@ use rsnano_core::{
     utils::{BackpressureSender, BlockPriority, ContainerInfo, ContainerInfoProvider},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
 };
-use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache, RollbackResults};
+use rsnano_ledger::{RepWeightCache, RollbackResults};
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
+use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{
-    election::{AddForkResult, ConfirmedElection, Election, ElectionBehavior, VoteSummary},
+    election::{ConfirmedElection, Election, ElectionBehavior, VoteSummary},
     ForkCache, VoteCache,
 };
 pub use active_elections_container::*;
@@ -49,7 +49,7 @@ impl Default for ActiveElectionsConfig {
 }
 
 pub enum AecEvent {
-    ElectionStarted(BlockHash),
+    ElectionStarted(BlockHash, QualifiedRoot),
     ElectionConfirmed(ConfirmedElection),
 
     /// Ended ether confirmed or unconfirmed
@@ -117,73 +117,6 @@ impl ActiveElections {
         self.container.write()
     }
 
-    pub fn max_len(&self) -> usize {
-        self.container.read().unwrap().max_len()
-    }
-
-    pub fn set_cooldown(&self, cool_down: bool, reason: AecCooldownReason) {
-        let ev = self
-            .container
-            .write()
-            .unwrap()
-            .set_cooldown(cool_down, reason);
-        if let Some(ev) = ev {
-            self.notify(ev);
-        }
-    }
-
-    pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
-        self.container.read().unwrap().is_active_hash(block_hash)
-    }
-
-    pub fn clear_recently_confirmed(&self) {
-        self.container.write().unwrap().clear_recently_confirmed();
-    }
-
-    pub fn transition_time(&self) {
-        let now = self.clock.now();
-        self.container.write().unwrap().transition_time(now);
-    }
-
-    pub fn erase_ended_elections(&self) {
-        let erased = self.container.write().unwrap().erase_ended_elections();
-        let something_erased = erased.len() > 0;
-        for entry in erased {
-            self.handle_removed_election(entry);
-        }
-        if something_erased {
-            self.notify(AecEvent::VacancyUpdated);
-        }
-    }
-
-    pub fn erase(&self, root: &QualifiedRoot) -> bool {
-        let removed = self.container.write().unwrap().erase(root);
-        let was_removed = removed.is_some();
-
-        if let Some(entry) = removed {
-            self.handle_removed_election(entry);
-            self.notify(AecEvent::VacancyUpdated);
-        }
-
-        was_removed
-    }
-
-    fn handle_removed_election(&self, entry: Entry) {
-        self.sample(&entry);
-        self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
-    }
-
-    fn sample(&self, entry: &Entry) {
-        let elapsed = entry.election.start().elapsed(self.clock.now());
-
-        // Track election duration
-        self.stats.sample(
-            Sample::ActiveElectionDuration,
-            elapsed.as_millis() as i64,
-            (0, 1000 * 60 * 10),
-        ); // 0-10 minutes range
-    }
-
     pub fn insert(
         &self,
         block: SavedBlock,
@@ -207,42 +140,10 @@ impl ActiveElections {
                 .inc(StatType::ActiveElectionsStarted, election_behavior.into());
 
             debug!(behavior = ?election_behavior, block = %hash, "Started new election");
-            self.notify(AecEvent::ElectionStarted(hash));
-
-            let fork_cache = self.fork_cache.read().unwrap();
-            for fork in fork_cache.get_forks(&root) {
-                self.handle_fork(fork);
-            }
+            self.notify(AecEvent::ElectionStarted(hash, root.clone()));
         }
 
         result
-    }
-
-    pub fn try_add_fork(&self, fork: &Block, fork_tally: Amount) -> bool {
-        let result = self
-            .container
-            .write()
-            .unwrap()
-            .try_add_fork(fork, fork_tally);
-
-        let added = match result {
-            AddForkResult::Added => {
-                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
-                true
-            }
-            AddForkResult::Replaced(removed) => {
-                self.notify(AecEvent::BlockDiscarded(removed.into()));
-                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
-                true
-            }
-            AddForkResult::TallyTooLow => {
-                self.notify(AecEvent::BlockDiscarded(fork.clone()));
-                false
-            }
-            AddForkResult::Duplicate | AddForkResult::ElectionEnded => false,
-        };
-
-        added
     }
 
     pub fn remove_recently_confirmed(&self, block_hash: &BlockHash) {
@@ -380,34 +281,6 @@ impl ActiveElections {
                 }
             }
         }
-    }
-
-    pub fn handle_processed_blocks(&self, batch: &[ProcessedResult]) {
-        for result in batch {
-            if result.status == BlockStatus::Fork {
-                self.handle_fork(&result.block);
-            }
-        }
-    }
-
-    fn handle_fork(&self, fork: &Block) {
-        let fork_tally = self.get_cached_tally(&fork.hash());
-        let added = self.try_add_fork(fork, fork_tally);
-        if added {
-            self.stats
-                .inc(StatType::Active, DetailType::ElectionBlockConflict);
-            debug!("Block was added to an existing election: {}", fork.hash());
-        }
-    }
-
-    fn get_cached_tally(&self, hash: &BlockHash) -> Amount {
-        let votes = self.vote_cache.lock().unwrap().find(hash);
-        let mut tally = Amount::zero();
-        let weights = self.rep_weights.read();
-        for vote in votes {
-            tally += weights.get(&vote.voter).cloned().unwrap_or_default();
-        }
-        tally
     }
 }
 

@@ -54,7 +54,7 @@ pub struct OptimisticScheduler {
     condition: Condvar,
     candidates: Mutex<OrderedCandidates>,
     stats: Arc<Stats>,
-    active: Arc<ActiveElections>,
+    active_elections: Arc<ActiveElections>,
     network_constants: NetworkConstants,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
@@ -65,12 +65,13 @@ impl OptimisticScheduler {
     pub fn new(
         config: OptimisticSchedulerConfig,
         stats: Arc<Stats>,
-        active: Arc<ActiveElections>,
+        active_elections: Arc<ActiveElections>,
         network_constants: NetworkConstants,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
     ) -> Self {
-        let max_elections = active.max_len() * config.optimistic_limit_percentage / 100;
+        let max_elections =
+            active_elections.read().unwrap().max_len() * config.optimistic_limit_percentage / 100;
 
         Self {
             thread: Mutex::new(None),
@@ -79,7 +80,7 @@ impl OptimisticScheduler {
             condition: Condvar::new(),
             candidates: Mutex::new(OrderedCandidates::default()),
             stats,
-            active,
+            active_elections,
             network_constants,
             ledger,
             confirming_set,
@@ -158,7 +159,7 @@ impl OptimisticScheduler {
     }
 
     fn predicate(&self, candidates: &OrderedCandidates) -> bool {
-        let active = self.active.read().unwrap();
+        let active = self.active_elections.read().unwrap();
         let vacancy = self.max_elections as i64
             - active.count_by_behavior(ElectionBehavior::Optimistic) as i64;
         let vacancy = min(vacancy, active.vacancy());
@@ -214,7 +215,7 @@ impl OptimisticScheduler {
                 // Try to insert it into AEC
                 // We check for AEC vacancy inside our predicate
                 let inserted = self
-                    .active
+                    .active_elections
                     .insert(block, ElectionBehavior::Optimistic, None)
                     .is_ok();
 

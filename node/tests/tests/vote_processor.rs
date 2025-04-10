@@ -76,7 +76,11 @@ fn codes() {
     );
 
     // Once the election is removed (confirmed / dropped) the vote is again indeterminate
-    assert!(node.active.erase(&blocks[0].qualified_root()));
+    assert!(node
+        .active
+        .write()
+        .unwrap()
+        .erase(&blocks[0].qualified_root()));
     assert_eq!(
         VoteCode::Indeterminate,
         node.vote_processor

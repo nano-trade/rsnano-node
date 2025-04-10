@@ -227,7 +227,7 @@ fn quorum_minimum_flip_fail() {
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
-    assert_timely2(|| node1.active.is_active_hash(&send2.hash()));
+    assert_timely2(|| node1.is_active_hash(&send2.hash()));
 
     // Genesis generates a final vote for send2 but it should not be enough to reach quorum
     // due to the online_weight_minimum being so high
@@ -271,7 +271,7 @@ fn quorum_minimum_flip_success() {
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
-    assert_timely2(|| node1.active.is_active_hash(&send2.hash()));
+    assert_timely2(|| node1.is_active_hash(&send2.hash()));
 
     // Genesis generates a final vote for send2
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));

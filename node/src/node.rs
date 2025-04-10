@@ -52,11 +52,11 @@ use crate::{
         election::ConfirmedElection, election_schedulers::ElectionSchedulers,
         get_bootstrap_weights, log_bootstrap_weights, ActiveElections, AecTicker, BlockVoter,
         BootstrapElectionActivator, ConfirmReqSender, CurrentRepTiers, DependentElectionsConfirmer,
-        ForkCache, ForkCacheUpdater, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
-        WinnerBlockBroadcaster,
+        ForkCache, ForkCacheUpdater, ForkProcessor, LocalVoteHistory, LocalVotesRemover,
+        RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -590,6 +590,7 @@ impl Node {
             block_voter: block_voter.clone(),
             winner_block_broadcaster,
             confirm_req_sender,
+            clock: steady_clock.clone(),
         };
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(
@@ -1067,6 +1068,14 @@ impl Node {
             vote_history: vote_history.clone(),
         };
 
+        let fork_processor = Arc::new(ForkProcessor {
+            stats: stats.clone(),
+            rep_weights: rep_weights.clone(),
+            fork_cache: fork_cache.clone(),
+            active_elections: active_elections.clone(),
+            vote_cache: vote_cache.clone(),
+        });
+
         let aec_event_processor = AecEventProcessor {
             vote_cache_processor: vote_cache_processor.clone(),
             node_observer: node_observer.clone(),
@@ -1085,6 +1094,8 @@ impl Node {
             rep_crawler: rep_crawler.clone(),
             clock: steady_clock.clone(),
             local_votes_remover,
+            fork_processor: fork_processor.clone(),
+            stats: stats.clone(),
         };
 
         spawn_backpressure_processor("AEC ev proc", aec_receiver, aec_event_processor);
@@ -1112,6 +1123,7 @@ impl Node {
             active_elections: active_elections.clone(),
             block_processor: block_processor.clone(),
             fork_cache_updater,
+            fork_processor,
         };
 
         spawn_backpressure_processor("Ledger ev proc", ledger_rx, ledger_event_processor);
@@ -1366,6 +1378,10 @@ impl Node {
 
     pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
         self.active.read().unwrap().is_active_root(root)
+    }
+
+    pub fn is_active_hash(&self, hash: &BlockHash) -> bool {
+        self.active.read().unwrap().is_active_hash(hash)
     }
 
     pub fn flood_block_many(

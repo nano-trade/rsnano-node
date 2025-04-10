@@ -148,6 +148,6 @@ pub fn under_gap_threshold() {
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
     assert_never(Duration::from_secs(3), || {
-        node.active.is_active_hash(&block.hash())
+        node.is_active_hash(&block.hash())
     });
 }

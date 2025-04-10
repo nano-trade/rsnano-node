@@ -10,7 +10,7 @@ use crate::{
     config::NodeFlags,
     consensus::{
         election_schedulers::ElectionSchedulers, ActiveElections, DependentElectionsConfirmer,
-        ForkCacheUpdater, LocalVoteHistory,
+        ForkCacheUpdater, ForkProcessor, LocalVoteHistory,
     },
     utils::BackpressureEventProcessor,
     NodeEvent,
@@ -30,6 +30,7 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) active_elections: Arc<ActiveElections>,
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) fork_cache_updater: ForkCacheUpdater,
+    pub(crate) fork_processor: Arc<ForkProcessor>,
 }
 
 impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
@@ -51,7 +52,7 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
         match event {
             LedgerEvent::BlocksProcessed(results) => {
                 // Notify elections about alternative (forked) blocks
-                self.active_elections.handle_processed_blocks(&results);
+                self.fork_processor.handle_forks(&results);
                 self.election_schedulers
                     .activate_accounts_with_fresh_blocks(&results);
 

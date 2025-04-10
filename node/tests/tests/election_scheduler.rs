@@ -286,7 +286,7 @@ mod election_scheduler {
 
         // Wait for optimistic election to start for last block
         let block = blocks.last().unwrap();
-        assert_timely2(|| node.active.is_active_hash(&block.hash()));
+        assert_timely2(|| node.is_active_hash(&block.hash()));
         assert_eq!(
             node.active
                 .read()

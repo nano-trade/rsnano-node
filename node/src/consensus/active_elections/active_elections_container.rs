@@ -42,6 +42,7 @@ pub struct ActiveElectionsContainer {
     ticked: u64,
     cooldown_count: u64,
     recover_count: u64,
+    conflict_counter: u64,
 }
 
 impl ActiveElectionsContainer {
@@ -64,6 +65,7 @@ impl ActiveElectionsContainer {
             ticked: 0,
             cooldown_count: 0,
             recover_count: 0,
+            conflict_counter: 0,
         }
     }
 
@@ -144,27 +146,36 @@ impl ActiveElectionsContainer {
         Ok(true)
     }
 
-    pub(super) fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
+    pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> bool {
         let Some(entry) = self.roots.get_mut(&fork.qualified_root()) else {
-            return AddForkResult::ElectionEnded;
+            return false;
         };
 
         let result = entry.election.try_add_fork(fork, fork_tally);
-        let added = match &result {
-            AddForkResult::Added => true,
-            AddForkResult::Replaced(removed) => {
-                self.vote_router.disconnect(&removed.hash());
+        let added = match result {
+            AddForkResult::Added => {
+                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
                 true
             }
-            AddForkResult::Duplicate => false,
-            AddForkResult::TallyTooLow | AddForkResult::ElectionEnded => false,
+            AddForkResult::Replaced(removed) => {
+                self.vote_router.disconnect(&removed.hash());
+                self.notify(AecEvent::BlockDiscarded(removed.into()));
+                self.notify(AecEvent::BlockAddedToElection(fork.hash()));
+                true
+            }
+            AddForkResult::TallyTooLow => {
+                self.notify(AecEvent::BlockDiscarded(fork.clone()));
+                false
+            }
+            AddForkResult::Duplicate | AddForkResult::ElectionEnded => false,
         };
 
         if added {
             self.vote_router.connect(fork.hash(), fork.qualified_root());
+            self.conflict_counter += 1;
         }
 
-        result
+        added
     }
 
     /// How many election slots are available
@@ -177,11 +188,7 @@ impl ActiveElectionsContainer {
         self.max_elections as i64 - current_size
     }
 
-    pub(super) fn set_cooldown(
-        &mut self,
-        cool_down: bool,
-        reason: AecCooldownReason,
-    ) -> Option<AecEvent> {
+    pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) {
         let was_cooling_down_before = self.cooldown.is_cooling_down();
         self.cooldown.set_cooldown(cool_down, reason);
         let cooling_down = self.cooldown.is_cooling_down();
@@ -193,9 +200,7 @@ impl ActiveElectionsContainer {
         let recovered = !cooling_down && was_cooling_down_before;
         if recovered {
             self.recover_count += 1;
-            Some(AecEvent::VacancyUpdated)
-        } else {
-            None
+            self.notify(AecEvent::VacancyUpdated);
         }
     }
 
@@ -260,27 +265,30 @@ impl ActiveElectionsContainer {
         }
     }
 
-    pub(crate) fn erase_ended_elections(&mut self) -> Vec<Entry> {
+    pub fn erase_ended_elections(&mut self) {
         let removed = self.roots.drain_filter(|i| i.election.state().has_ended());
 
-        for entry in &removed {
+        let something_removed = removed.len() > 0;
+
+        for entry in removed {
             self.cleanup_election(entry);
         }
 
-        removed
-    }
-
-    pub(super) fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
-        let entry = self.roots.erase(root);
-        if let Some(e) = entry {
-            self.cleanup_election(&e);
-            Some(e)
-        } else {
-            None
+        if something_removed {
+            self.notify(AecEvent::VacancyUpdated);
         }
     }
 
-    fn cleanup_election(&mut self, entry: &Entry) {
+    pub fn erase(&mut self, root: &QualifiedRoot) -> bool {
+        let Some(entry) = self.roots.erase(root) else {
+            return false;
+        };
+        self.cleanup_election(entry);
+        self.notify(AecEvent::VacancyUpdated);
+        true
+    }
+
+    fn cleanup_election(&mut self, entry: Entry) {
         let election = &entry.election;
 
         // Keep track of election count by election type
@@ -288,6 +296,7 @@ impl ActiveElectionsContainer {
 
         self.stopped_counter.stopped(&entry.election);
         self.vote_router.disconnect_election(&election);
+        self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
 
     pub fn confirm_dependent_elections(
@@ -535,6 +544,12 @@ impl ActiveElectionsContainer {
             entry.election.cancel();
         }
     }
+
+    fn notify(&self, event: AecEvent) {
+        if let Some(sender) = &self.observer {
+            sender.send(event).unwrap()
+        }
+    }
 }
 
 impl StatsSource for ActiveElectionsContainer {
@@ -542,6 +557,8 @@ impl StatsSource for ActiveElectionsContainer {
         result.insert("active_elections", "loop", self.ticked);
         result.insert("active_elections", "cooldown", self.cooldown_count);
         result.insert("active_elections", "recovered", self.recover_count);
+        result.insert("active_elections", "block_conflict", self.conflict_counter);
+
         self.vote_counter.collect_stats(result);
         self.stopped_counter.collect_stats(result);
     }

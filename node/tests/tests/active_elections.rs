@@ -520,7 +520,7 @@ fn inactive_votes_cache_election_start() {
         .enqueue(vote2, None, VoteSource::Live, None);
     // Only election for send1 should start, other blocks are missing dependencies and don't have enough final weight
     assert_timely_eq2(|| node.active.read().unwrap().len(), 1);
-    assert!(node.active.is_active_hash(&send1.hash()));
+    assert!(node.is_active_hash(&send1.hash()));
 
     // Confirm elections with weight quorum
     let vote0 = Arc::new(Vote::new_final(
@@ -593,7 +593,7 @@ fn republish_winner() {
     let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
     let fork = fork_lattice.genesis().send(&key, Amount::nano(2000));
     node1.process_active(fork.clone());
-    assert_timely2(|| node1.active.is_active_hash(&fork.hash()));
+    assert_timely2(|| node1.is_active_hash(&fork.hash()));
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![fork.hash()]));
 
@@ -858,7 +858,7 @@ fn dropped_cleanup() {
     assert!(node.is_active_root(&qual_root));
 
     // Now simulate dropping the election
-    node.active.erase(&qual_root);
+    node.active.write().unwrap().erase(&qual_root);
     // An election was recently dropped
     assert_timely_eq2(
         || node.get_stat("active_elections_dropped", "manual", Direction::In),
@@ -874,7 +874,7 @@ fn dropped_cleanup() {
     start_election(&node, &hash);
     node.active.force_confirm(&hash);
     assert_timely2(|| node.ledger.confirmed().block_exists(&hash));
-    node.active.erase(&qual_root);
+    node.active.write().unwrap().erase(&qual_root);
 
     // The filter should not have been cleared
     assert!(node.network_filter.apply(&block_bytes).1);
@@ -1217,7 +1217,7 @@ fn vote_replays() {
     );
 
     // Removing blocks as recently confirmed makes every vote indeterminate
-    node.active.clear_recently_confirmed();
+    node.active.write().unwrap().clear_recently_confirmed();
 
     assert_eq!(
         node.vote_processor

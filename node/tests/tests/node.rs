@@ -188,7 +188,7 @@ fn deferred_dependent_elections() {
     });
 
     start_election(&node1, &open.hash());
-    node1.active.erase(&open.qualified_root());
+    node1.active.write().unwrap().erase(&open.qualified_root());
     assert_eq!(node1.is_active_root(&open.qualified_root()), false);
 
     node1.process_local(open.clone().into()).unwrap();
@@ -197,8 +197,8 @@ fn deferred_dependent_elections() {
         node1.is_active_root(&open.qualified_root())
     });
 
-    node1.active.erase(&open.qualified_root());
-    node1.active.erase(&send2.qualified_root());
+    node1.active.write().unwrap().erase(&open.qualified_root());
+    node1.active.write().unwrap().erase(&send2.qualified_root());
     assert!(!node1.is_active_root(&open.qualified_root()));
     assert!(!node1.is_active_root(&send2.qualified_root()));
 
@@ -2345,8 +2345,7 @@ fn epoch_conflict_confirm() {
     // Start elections on node0 for conflicting change and epoch_open blocks (those two blocks have the same root)
     activate_hashes(&node0, &[change.hash(), epoch_open.hash()]);
     assert_timely2(|| {
-        node0.active.is_active_hash(&change.hash())
-            && node0.active.is_active_hash(&epoch_open.hash())
+        node0.is_active_hash(&change.hash()) && node0.is_active_hash(&epoch_open.hash())
     });
 
     // Make node1 a representative so it can vote for both blocks
@@ -2932,7 +2931,7 @@ fn dependency_graph() {
 
         // Ensure that active blocks have their ancestors confirmed
         let error = dependency_graph.iter().any(|entry| {
-            if node.active.is_active_hash(entry.0) {
+            if node.is_active_hash(entry.0) {
                 for ancestor in entry.1 {
                     if !node.block_confirmed(ancestor) {
                         return true;

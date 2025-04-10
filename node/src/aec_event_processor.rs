@@ -10,7 +10,8 @@ use crate::{
     consensus::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
         ActiveElections, AecCooldownReason, AecEvent, BlockVoter, BootstrapElectionActivator,
-        LocalVotesRemover, VoteCache, VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue,
+        ForkProcessor, LocalVotesRemover, VoteCache, VoteCacheProcessor, VoteProcessor,
+        VoteRebroadcastQueue,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -18,6 +19,7 @@ use crate::{
     NodeEvent,
 };
 use rsnano_network::Channel;
+use rsnano_stats::{Sample, Stats};
 
 /// Processes events from the active election container (AEC)
 pub(crate) struct AecEventProcessor {
@@ -38,24 +40,31 @@ pub(crate) struct AecEventProcessor {
     pub(crate) rep_crawler: Arc<RepCrawler>,
     pub(crate) clock: Arc<SteadyClock>,
     pub(crate) local_votes_remover: LocalVotesRemover,
+    pub(crate) stats: Arc<Stats>,
+    pub(crate) fork_processor: Arc<ForkProcessor>,
 }
 
 impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
     fn cool_down(&mut self) {
         self.active_elections
+            .write()
+            .unwrap()
             .set_cooldown(true, AecCooldownReason::AecEventQueueFull);
         self.vote_processor.cool_down();
     }
 
     fn recovered(&mut self) {
         self.active_elections
+            .write()
+            .unwrap()
             .set_cooldown(false, AecCooldownReason::AecEventQueueFull);
         self.vote_processor.recovered();
     }
 
     fn process(&mut self, event: AecEvent) {
         match event {
-            AecEvent::ElectionStarted(hash) => {
+            AecEvent::ElectionStarted(hash, root) => {
+                self.fork_processor.try_add_cached_forks(&root);
                 self.bootstrap_election_activator.election_started(hash);
                 self.block_voter.try_vote(&hash);
                 self.vote_cache_processor.trigger(hash);
@@ -69,6 +78,15 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 self.confirming_set.add(election.clone());
             }
             AecEvent::ElectionEnded(election, priority) => {
+                let now = self.clock.now();
+                let elapsed = election.start().elapsed(now);
+                // Track election duration
+                self.stats.sample(
+                    Sample::ActiveElectionDuration,
+                    elapsed.as_millis() as i64,
+                    (0, 1000 * 60 * 10),
+                ); // 0-10 minutes range
+
                 for (hash, block) in election.candidate_blocks() {
                     // Notify observers about dropped elections & blocks lost confirmed elections
                     if !election.is_confirmed() || *hash != election.winner().hash() {

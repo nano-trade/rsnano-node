@@ -79,7 +79,9 @@ impl HintedScheduler {
         confirming_set: Arc<ConfirmingSet>,
         online_reps: Arc<Mutex<OnlineReps>>,
     ) -> Self {
-        let max_elections = active_elections.max_len() * config.hinted_limit_percentage / 100;
+        let max_elections =
+            active_elections.read().unwrap().max_len() * config.hinted_limit_percentage / 100;
+
         let notification_threshold =
             max_elections * config.vacancy_threshold_percent as usize / 100;
 

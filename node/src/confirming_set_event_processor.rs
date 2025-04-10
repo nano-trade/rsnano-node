@@ -12,11 +12,15 @@ pub(crate) struct ConfirmingSetEventProcessor {
 impl BackpressureEventProcessor<ConfirmingSetEvent> for ConfirmingSetEventProcessor {
     fn cool_down(&mut self) {
         self.active_elections
+            .write()
+            .unwrap()
             .set_cooldown(true, AecCooldownReason::ConfirmingSetEventQueueFull);
     }
 
     fn recovered(&mut self) {
         self.active_elections
+            .write()
+            .unwrap()
             .set_cooldown(false, AecCooldownReason::ConfirmingSetEventQueueFull);
     }
 
@@ -28,10 +32,14 @@ impl BackpressureEventProcessor<ConfirmingSetEvent> for ConfirmingSetEventProces
             }
             ConfirmingSetEvent::NearFull => {
                 self.active_elections
+                    .write()
+                    .unwrap()
                     .set_cooldown(true, AecCooldownReason::ConfirmingSetFull);
             }
             ConfirmingSetEvent::Recovered => {
                 self.active_elections
+                    .write()
+                    .unwrap()
                     .set_cooldown(false, AecCooldownReason::ConfirmingSetFull);
             }
         }

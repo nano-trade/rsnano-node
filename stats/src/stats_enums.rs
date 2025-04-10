@@ -249,7 +249,6 @@ pub enum DetailType {
     VoteNew,
     VoteProcessed,
     VoteCached,
-    ElectionBlockConflict,
     ElectionRestart,
     ElectionNotConfirmed,
     ElectionHintedOverflow,

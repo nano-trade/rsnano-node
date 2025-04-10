@@ -10,6 +10,7 @@ use super::{
     winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElections, BlockVoter,
     ConfirmationSolicitor,
 };
+use rsnano_nullable_clock::SteadyClock;
 
 /// Every 300ms tries to transitions election state and send votes + blocks
 pub struct AecTicker {
@@ -21,11 +22,15 @@ pub struct AecTicker {
     pub(crate) block_voter: Arc<BlockVoter>,
     pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
     pub(crate) confirm_req_sender: ConfirmReqSender,
+    pub(crate) clock: Arc<SteadyClock>,
 }
 
 impl Runnable for AecTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        self.active_elections.transition_time();
+        self.active_elections
+            .write()
+            .unwrap()
+            .transition_time(self.clock.now());
 
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
 
@@ -73,7 +78,10 @@ impl Runnable for AecTicker {
             }
         }
 
-        self.active_elections.erase_ended_elections();
+        self.active_elections
+            .write()
+            .unwrap()
+            .erase_ended_elections();
 
         solicitor.flush();
     }
