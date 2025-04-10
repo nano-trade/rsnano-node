@@ -9,12 +9,14 @@ use super::{
     election::{ConfirmedElection, ElectionResult},
     ActiveElections, AecEvent,
 };
+use rsnano_nullable_clock::SteadyClock;
 
 pub(crate) struct DependentElectionsConfirmer {
     pub(crate) stats: Arc<Stats>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
     pub(crate) active_elections: Arc<ActiveElections>,
     pub(crate) event_sender: BackpressureSender<AecEvent>,
+    pub(crate) clock: Arc<SteadyClock>,
 }
 
 impl DependentElectionsConfirmer {
@@ -34,9 +36,12 @@ impl DependentElectionsConfirmer {
             }
         }
 
+        let now = self.clock.now();
         let confirmed = self
             .active_elections
-            .confirm_dependent_elections(confirmed_blocks_with_election);
+            .write()
+            .unwrap()
+            .confirm_dependent_elections(confirmed_blocks_with_election, now);
 
         for election in confirmed {
             self.stats

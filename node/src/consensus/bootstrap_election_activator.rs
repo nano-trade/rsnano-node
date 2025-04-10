@@ -19,7 +19,12 @@ impl BootstrapElectionActivator {
             return;
         }
 
-        if self.active_elections.transition_active_hash(&hash) {
+        if self
+            .active_elections
+            .write()
+            .unwrap()
+            .transition_active_hash(&hash)
+        {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
         }

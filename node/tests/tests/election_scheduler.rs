@@ -326,9 +326,12 @@ mod election_scheduler {
         node.confirm(blocks[howmany_blocks - 1].hash());
 
         // Attempt to start priority election for second block
-        let _ = node
-            .active
-            .insert(block.clone(), ElectionBehavior::Priority, None);
+        let _ = node.active.write().unwrap().insert(
+            block.clone(),
+            ElectionBehavior::Priority,
+            None,
+            node.steady_clock.now(),
+        );
 
         // Verify priority transition
         assert_eq!(

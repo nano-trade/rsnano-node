@@ -533,8 +533,6 @@ impl Node {
 
         let active_elections = ActiveElections::new(
             config.active_elections.clone(),
-            stats.clone(),
-            ledger.rep_weights.clone(),
             base_latency,
             steady_clock.clone(),
         );
@@ -554,6 +552,7 @@ impl Node {
             ledger.clone(),
             online_reps.clone(),
             steady_clock.clone(),
+            rep_weights.clone(),
             current_network == Networks::NanoDevNetwork,
         );
 
@@ -1103,6 +1102,7 @@ impl Node {
             confirming_set: confirming_set.clone(),
             active_elections: active_elections.clone(),
             event_sender: aec_sender.clone(),
+            clock: steady_clock.clone(),
         };
 
         let fork_cache_updater = ForkCacheUpdater::new(fork_cache.clone());

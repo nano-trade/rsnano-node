@@ -158,7 +158,7 @@ mod votes {
         ));
 
         // Pretend we've waited the timeout
-        node1.active.change_vote_timestamp(
+        node1.active.write().unwrap().change_vote_timestamp(
             &send1.qualified_root(),
             &DEV_GENESIS_PUB_KEY,
             SystemTime::now() - Duration::from_secs(20),
@@ -184,7 +184,7 @@ mod votes {
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
         // Also resend the old vote, and see if we respect the timestamp
-        node1.active.change_vote_timestamp(
+        node1.active.write().unwrap().change_vote_timestamp(
             &send1.qualified_root(),
             &DEV_GENESIS_PUB_KEY,
             SystemTime::now() - Duration::from_secs(20),

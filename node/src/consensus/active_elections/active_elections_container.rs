@@ -257,10 +257,47 @@ impl ActiveElectionsContainer {
         self.election_for_root(&root)
     }
 
-    pub(super) fn election_for_block_mut(
+    pub fn transition_active_hash(&mut self, block_hash: &BlockHash) -> bool {
+        let Some(election) = self.election_for_block_mut(block_hash) else {
+            return false;
+        };
+        election.transition_active();
+        true
+    }
+
+    pub fn remove_votes<'a>(
         &mut self,
-        block_hash: &BlockHash,
-    ) -> Option<&mut Election> {
+        root: &QualifiedRoot,
+        voters: impl IntoIterator<Item = &'a PublicKey>,
+    ) {
+        let Some(election) = self.election_for_root_mut(root) else {
+            return;
+        };
+        for voter in voters {
+            election.remove_vote(voter);
+        }
+    }
+
+    // TODO: Delete!
+    pub fn transition_active(&mut self, root: &QualifiedRoot) {
+        self.election_for_root_mut(root)
+            .unwrap()
+            .transition_active();
+    }
+
+    // TODO: Delete!
+    pub fn change_vote_timestamp(
+        &mut self,
+        root: &QualifiedRoot,
+        voter: &PublicKey,
+        new_timestamp: SystemTime,
+    ) {
+        self.election_for_root_mut(root)
+            .expect("No election found for given root")
+            .change_vote_timestamp(voter, new_timestamp);
+    }
+
+    fn election_for_block_mut(&mut self, block_hash: &BlockHash) -> Option<&mut Election> {
         let root = self.vote_router.qualified_root(block_hash)?;
         self.roots.get_mut(&root).map(|i| &mut i.election)
     }
@@ -359,7 +396,7 @@ impl ActiveElectionsContainer {
         results
     }
 
-    pub(super) fn remove_recently_confirmed(&mut self, block_hash: &BlockHash) {
+    pub fn remove_recently_confirmed(&mut self, block_hash: &BlockHash) {
         self.recently_confirmed.erase(block_hash);
     }
 
@@ -416,9 +453,15 @@ impl ActiveElectionsContainer {
         online_weight: Amount,
         quorum_delta: Amount,
         now: Timestamp,
-    ) -> (HashMap<BlockHash, VoteCode>, Vec<AecEvent>) {
+    ) -> HashMap<BlockHash, VoteCode> {
+        let observer = &self.observer;
+        let notify = |ev: AecEvent| {
+            if let Some(o) = observer {
+                o.send(ev).unwrap();
+            }
+        };
+
         let mut results = HashMap::new();
-        let mut events = Vec::new();
         let mut vote_counted = false;
 
         for vote_summary in votes {
@@ -479,7 +522,7 @@ impl ActiveElectionsContainer {
                         if !vote_counted {
                             // send vote counted event only once!
                             vote_counted = true;
-                            events.push(AecEvent::VoteCounted(voter, source));
+                            notify(AecEvent::VoteCounted(voter, source));
                         }
 
                         // CONFIRM IF QUORUM:
@@ -491,7 +534,7 @@ impl ActiveElectionsContainer {
 
                             let winner_changed = election.winner().hash() != old_winner;
                             if winner_changed {
-                                events.push(AecEvent::WinnerChanged(
+                                notify(AecEvent::WinnerChanged(
                                     old_winner,
                                     election.winner().deref().clone(),
                                 ));
@@ -499,7 +542,7 @@ impl ActiveElectionsContainer {
 
                             if election.is_final() {
                                 if !old_final {
-                                    events.push(AecEvent::FinalPhaseStarted(
+                                    notify(AecEvent::FinalPhaseStarted(
                                         election.winner().hash(),
                                         election.qualified_root().clone(),
                                     ));
@@ -514,7 +557,7 @@ impl ActiveElectionsContainer {
                                         now,
                                         ElectionResult::ActiveConfirmedQuorum,
                                     );
-                                    events.push(AecEvent::ElectionConfirmed(confirmed_election));
+                                    notify(AecEvent::ElectionConfirmed(confirmed_election));
                                 }
                             }
                         }
@@ -533,7 +576,7 @@ impl ActiveElectionsContainer {
             }
         }
 
-        (results, events)
+        results
     }
 
     pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) -> Option<AecEvent> {

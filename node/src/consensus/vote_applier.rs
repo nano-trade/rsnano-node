@@ -8,7 +8,7 @@ use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
 
 use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, VoteSource};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{Ledger, RepWeightCache};
 
 use super::{ActiveElections, AecEvent};
 use crate::{consensus::election::VoteSummary, representatives::OnlineReps};
@@ -20,6 +20,7 @@ pub(crate) struct VoteApplier {
     ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
     clock: Arc<SteadyClock>,
+    rep_weights: Arc<RepWeightCache>,
     is_dev_network: bool,
 }
 
@@ -29,6 +30,7 @@ impl VoteApplier {
         ledger: Arc<Ledger>,
         online_reps: Arc<Mutex<OnlineReps>>,
         clock: Arc<SteadyClock>,
+        rep_weights: Arc<RepWeightCache>,
         is_dev_network: bool,
     ) -> Self {
         Self {
@@ -37,6 +39,7 @@ impl VoteApplier {
             ledger,
             online_reps,
             clock,
+            rep_weights,
             is_dev_network,
         }
     }
@@ -94,13 +97,15 @@ impl VoteApplier {
             vote.hashes.iter().any(|hash| active.is_active_hash(hash))
         };
 
+        let now = self.clock.now();
+
         if is_active {
             // Representative is defined as online if replying to live votes or rep_crawler queries.
             // The rep weights have to be updated before the votes are processed!
             self.online_reps
                 .lock()
                 .unwrap()
-                .vote_observed(vote.voter, self.clock.now());
+                .vote_observed(vote.voter, now);
         }
 
         let (online_weight, quorum_delta) = {
@@ -131,13 +136,18 @@ impl VoteApplier {
                 weight: voter_weight,
             });
 
-        let results = self.active_elections.apply_votes(
-            vote.voter,
-            vote_summaries,
-            source,
-            online_weight,
-            quorum_delta,
-        );
+        let results = {
+            let rep_weights = self.rep_weights.read();
+            self.active_elections.write().unwrap().apply_votes(
+                vote.voter,
+                vote_summaries,
+                source,
+                &rep_weights,
+                online_weight,
+                quorum_delta,
+                now,
+            )
+        };
 
         self.notify_vote_processed(vote, voter_weight, source, channel, &results);
         results

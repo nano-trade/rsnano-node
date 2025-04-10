@@ -28,7 +28,10 @@ impl BackpressureEventProcessor<ConfirmingSetEvent> for ConfirmingSetEventProces
         match event {
             ConfirmingSetEvent::ConfirmationFailed(block_hash) => {
                 // Do some cleanup due to this block never being processed
-                self.active_elections.remove_recently_confirmed(&block_hash);
+                self.active_elections
+                    .write()
+                    .unwrap()
+                    .remove_recently_confirmed(&block_hash);
             }
             ConfirmingSetEvent::NearFull => {
                 self.active_elections

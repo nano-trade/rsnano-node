@@ -95,7 +95,7 @@ impl ManualScheduler {
                         .insert(block, ElectionBehavior::Manual, None, now)
                         .is_ok()
                     {
-                        self.active.transition_active_hash(&hash);
+                        self.active.write().unwrap().transition_active_hash(&hash);
                     }
                 } else {
                     drop(guard);
