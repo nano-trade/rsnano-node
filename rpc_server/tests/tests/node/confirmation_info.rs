@@ -12,7 +12,7 @@ fn confirmation_info() {
     let send = lattice.genesis().send(Account::zero(), 100);
     node.process_active(send.clone());
 
-    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send.qualified_root()));
 
     let server = setup_rpc_client_and_server(node.clone(), false);
 

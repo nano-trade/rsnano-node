@@ -34,7 +34,7 @@ mod votes {
             .manual
             .push(send1.clone().into(), None);
 
-        assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+        assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
         let vote1 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
@@ -139,7 +139,7 @@ mod votes {
             .send_all_except(&key2, Amount::MAX / 2 - Amount::nano(1000));
 
         node1.active.try_add_fork(&send2, Amount::zero());
-        assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+        assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
         let vote2 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
             Vote::TIMESTAMP_MIN * 2,

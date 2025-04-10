@@ -74,7 +74,7 @@ fn add_old() {
     let send1 = lattice.genesis().send_max(&key1);
     node.process(send1.clone());
     start_election(&node, &send1.hash());
-    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send1.qualified_root()));
     let vote1 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN * 2,
@@ -123,7 +123,7 @@ fn add_cooldown() {
     let send1 = lattice.genesis().send_max(&key1);
     node.process(send1.clone());
     start_election(&node, &send1.hash());
-    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send1.qualified_root()));
     let vote1 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN * 1,

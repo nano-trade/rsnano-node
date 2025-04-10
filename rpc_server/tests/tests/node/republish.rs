@@ -14,12 +14,12 @@ fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     // Create and process send block
     let send = lattice.genesis().send(&key, 100);
     node.process_active(send.clone());
-    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send.qualified_root()));
 
     // Create and process open block
     let open = lattice.account(&key).receive(&send);
     node.process_active(open.clone());
-    assert_timely2(|| node.active.is_active_root(&open.qualified_root()));
+    assert_timely2(|| node.is_active_root(&open.qualified_root()));
 
     open.hash()
 }

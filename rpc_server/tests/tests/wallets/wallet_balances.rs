@@ -10,7 +10,7 @@ fn send_block(node: Arc<Node>, account: Account) {
     let send1 = lattice.genesis().send(account, 1);
 
     node.process_active(send1.clone());
-    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send1.qualified_root()));
 }
 
 #[test]

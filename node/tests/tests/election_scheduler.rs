@@ -142,7 +142,7 @@ mod election_scheduler {
             .priority
             .activate(&node.ledger.any(), &*DEV_GENESIS_ACCOUNT);
 
-        assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+        assert_timely2(|| node.is_active_root(&send1.qualified_root()));
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod election_scheduler {
             .activate(&node.ledger.any(), &*DEV_GENESIS_ACCOUNT);
 
         // Assert that the election is created within 5 seconds
-        assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+        assert_timely2(|| node.is_active_root(&send1.qualified_root()));
     }
 
     #[test]
@@ -223,7 +223,7 @@ mod election_scheduler {
         node.election_schedulers
             .priority
             .activate(&node.ledger.any(), &DEV_GENESIS_ACCOUNT);
-        assert_timely2(|| node.active.is_active_root(&block1.qualified_root()));
+        assert_timely2(|| node.is_active_root(&block1.qualified_root()));
 
         let block2 = lattice.account(&key).send(&key, Amount::nano(1000));
         node.process(block2.clone());
@@ -233,11 +233,11 @@ mod election_scheduler {
             .priority
             .activate(&node.ledger.any(), &key.account());
         assert_timely_eq2(|| node.election_schedulers.priority.len(), 1);
-        assert_eq!(node.active.is_active_root(&block2.qualified_root()), false);
+        assert_eq!(node.is_active_root(&block2.qualified_root()), false);
 
         // Election confirmed, next in queue should begin
         node.active.force_confirm(&block1.hash());
-        assert_timely2(|| node.active.is_active_root(&block2.qualified_root()));
+        assert_timely2(|| node.is_active_root(&block2.qualified_root()));
         assert!(node.election_schedulers.priority.is_empty());
     }
 
@@ -315,6 +315,6 @@ mod election_scheduler {
                 .behavior(),
             ElectionBehavior::Priority
         );
-        assert!(node.active.is_active_root(&block.qualified_root()));
+        assert!(node.is_active_root(&block.qualified_root()));
     }
 }

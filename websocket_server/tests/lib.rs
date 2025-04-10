@@ -53,7 +53,7 @@ fn started_election() {
         let send1 = lattice.genesis().send_max(&key1);
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
         node1.inbound_message_queue.put(publish1, channel1);
-        assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+        assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
         let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
             panic!("timeout");
@@ -91,7 +91,7 @@ fn stopped_election() {
         let send1 = lattice.genesis().send_max(&key1);
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
         node1.inbound_message_queue.put(publish1, channel1);
-        assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+        assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
         let active = node1.active.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))
             .await

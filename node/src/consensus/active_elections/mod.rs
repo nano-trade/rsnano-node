@@ -117,10 +117,6 @@ impl ActiveElections {
         self.container.write()
     }
 
-    pub fn len(&self) -> usize {
-        self.container.read().unwrap().len()
-    }
-
     pub fn max_len(&self) -> usize {
         self.container.read().unwrap().max_len()
     }
@@ -134,10 +130,6 @@ impl ActiveElections {
         if let Some(ev) = ev {
             self.notify(ev);
         }
-    }
-
-    pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
-        self.container.read().unwrap().is_active_root(root)
     }
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {

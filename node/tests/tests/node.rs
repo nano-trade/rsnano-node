@@ -174,8 +174,8 @@ fn deferred_dependent_elections() {
     assert_timely2(|| node1.block_exists(&send2.hash()));
 
     assert_never(Duration::from_millis(500), || {
-        node1.active.is_active_root(&open.qualified_root())
-            || node1.active.is_active_root(&send2.qualified_root())
+        node1.is_active_root(&open.qualified_root())
+            || node1.is_active_root(&send2.qualified_root())
     });
 
     assert_timely2(|| node2.block_exists(&open.hash()));
@@ -184,34 +184,31 @@ fn deferred_dependent_elections() {
     node1.process_local(open.clone().into()).unwrap();
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.is_active_root(&open.qualified_root())
+        node1.is_active_root(&open.qualified_root())
     });
 
     start_election(&node1, &open.hash());
     node1.active.erase(&open.qualified_root());
-    assert_eq!(node1.active.is_active_root(&open.qualified_root()), false);
+    assert_eq!(node1.is_active_root(&open.qualified_root()), false);
 
     node1.process_local(open.clone().into()).unwrap();
 
     assert_never(std::time::Duration::from_millis(500), || {
-        node1.active.is_active_root(&open.qualified_root())
+        node1.is_active_root(&open.qualified_root())
     });
 
     node1.active.erase(&open.qualified_root());
     node1.active.erase(&send2.qualified_root());
-    assert!(!node1.active.is_active_root(&open.qualified_root()));
-    assert!(!node1.active.is_active_root(&send2.qualified_root()));
+    assert!(!node1.is_active_root(&open.qualified_root()));
+    assert!(!node1.is_active_root(&send2.qualified_root()));
 
     node1.active.force_confirm(&send1.hash());
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
-    assert_timely2(|| node1.active.is_active_root(&open.qualified_root()));
-    assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&open.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
 
     node1.process_local(receive.clone().into()).unwrap();
-    assert_eq!(
-        node1.active.is_active_root(&receive.qualified_root()),
-        false
-    );
+    assert_eq!(node1.is_active_root(&receive.qualified_root()), false);
 
     node1.active.force_confirm(&open.hash());
     assert_timely2(|| node1.block_confirmed(&open.hash()));
@@ -221,7 +218,7 @@ fn deferred_dependent_elections() {
         .dependents_confirmed_for_unsaved_block(&receive));
 
     assert_never(Duration::from_millis(500), || {
-        node1.active.is_active_root(&receive.qualified_root())
+        node1.is_active_root(&receive.qualified_root())
     });
 
     node1.ledger.rollback(&receive.hash()).unwrap();
@@ -233,7 +230,7 @@ fn deferred_dependent_elections() {
     });
 
     assert_never(Duration::from_millis(500), || {
-        node1.active.is_active_root(&receive.qualified_root())
+        node1.is_active_root(&receive.qualified_root())
     });
 
     assert_eq!(
@@ -243,12 +240,12 @@ fn deferred_dependent_elections() {
 
     node1.process_local(fork.clone().into()).unwrap();
     assert_never(Duration::from_millis(500), || {
-        node1.active.is_active_root(&receive.qualified_root())
+        node1.is_active_root(&receive.qualified_root())
     });
 
     node1.active.force_confirm(&send2.hash());
     assert_timely2(|| node1.block_confirmed(&send2.hash()));
-    assert_timely2(|| node1.active.is_active_root(&receive.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&receive.qualified_root()));
 }
 
 #[test]
@@ -406,7 +403,7 @@ fn confirm_quorum() {
         )
         .unwrap();
 
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     let votes = node1
         .active
@@ -491,7 +488,11 @@ fn no_voting() {
         )
         .unwrap();
 
-    assert_timely_eq(Duration::from_secs(10), || node0.active.len(), 0);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || node0.active.read().unwrap().len(),
+        0,
+    );
     assert_eq!(
         node0
             .stats
@@ -572,7 +573,7 @@ fn bootstrap_fork_open() {
 
     // Start election for open block which is necessary to resolve the fork
     start_election(&node1, &open1.hash());
-    assert_timely2(|| node1.active.is_active_root(&open1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&open1.qualified_root()));
 
     // Allow node0 to vote on its fork
 
@@ -625,7 +626,7 @@ fn rep_self_vote() {
     // Confirm both blocks, allowing voting on the upcoming block
     start_election(&node0, &open_big.hash());
 
-    assert_timely2(|| node0.active.is_active_root(&open_big.qualified_root()));
+    assert_timely2(|| node0.is_active_root(&open_big.qualified_root()));
     node0.active.force_confirm(&open_big.hash());
 
     // Insert representatives into the node to allow voting
@@ -787,8 +788,8 @@ fn fork_publish() {
     let send2 = fork_lattice.genesis().send(&key2, 100);
     node1.process_active(send1.clone());
     node1.process_active(send2.clone());
-    assert_timely_eq2(|| node1.active.len(), 1);
-    assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+    assert_timely_eq2(|| node1.active.read().unwrap().len(), 1);
+    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
     // Wait until the genesis rep activated & makes vote
     assert_timely_eq2(
         || {
@@ -837,7 +838,7 @@ fn fork_publish_inactive() {
 
     node.process_active(send1.clone());
     assert_timely2(|| node.block_exists(&send1.hash()));
-    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send1.qualified_root()));
 
     assert_eq!(
         node.process_local(send2.clone()).unwrap(),
@@ -899,7 +900,11 @@ fn unlock_search() {
         "balance not updated",
     );
 
-    assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || node.active.read().unwrap().len(),
+        0,
+    );
 
     node.wallets
         .insert_adhoc2(&wallet_id, &key2.raw_key(), true)
@@ -969,8 +974,8 @@ fn search_receivable_confirmed() {
 
     node.wallets.search_receivable_wallet(wallet_id).unwrap();
 
-    assert_timely2(|| !node.active.is_active_root(&send1.qualified_root()));
-    assert_timely2(|| !node.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| !node.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| !node.is_active_root(&send2.qualified_root()));
 
     assert_timely_eq2(
         || node.balance(&key2.account()),
@@ -1025,8 +1030,8 @@ fn search_receivable_pruned() {
         .unwrap();
 
     // Confirmation
-    assert_timely(Duration::from_secs(10), || {
-        node1.active.len() == 0 && node2.active.len() == 0
+    assert_timely2(|| {
+        node1.active.read().unwrap().len() == 0 && node2.active.read().unwrap().len() == 0
     });
     assert_timely2(|| node1.ledger.confirmed().block_exists(&send2.hash()));
     assert_timely_eq2(|| node2.ledger.confirmed_count(), 3);
@@ -1520,7 +1525,7 @@ fn local_block_broadcast() {
     node1.process_local(send1).unwrap();
 
     assert_never(Duration::from_millis(500), || {
-        node1.active.is_active_root(&qualified_root)
+        node1.is_active_root(&qualified_root)
     });
 
     // Wait until a broadcast is attempted
@@ -1704,9 +1709,9 @@ fn fork_open() {
         channel.clone(),
     );
 
-    assert_timely2(|| node.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send1.qualified_root()));
     node.active.force_confirm(&send1.hash());
-    assert_timely_eq2(|| node.active.len(), 0);
+    assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
 
     // register key for genesis account, not sure why we do this, it seems needless,
     // since the genesis account at this stage has zero voting weight
@@ -1720,7 +1725,11 @@ fn fork_open() {
         Message::Publish(Publish::new_forward(open1.clone())),
         channel.clone(),
     );
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node.active.read().unwrap().len(),
+        1,
+    );
 
     // create 2nd open block, which is a fork of open1 block
     // create the 1st open block to receive send1, which should be regarded as the winner just because it is first
@@ -1729,7 +1738,7 @@ fn fork_open() {
         Message::Publish(Publish::new_forward(open2.clone())),
         channel.clone(),
     );
-    assert_timely2(|| node.active.is_active_root(&open2.qualified_root()));
+    assert_timely2(|| node.is_active_root(&open2.qualified_root()));
 
     // we expect to find 2 blocks in the election and we expect the first block to be the winner just because it was first
     assert_timely_eq2(
@@ -1756,7 +1765,7 @@ fn fork_open() {
 
     // wait for a second and check that the election did not get confirmed
     sleep(Duration::from_millis(1000));
-    assert!(node.active.is_active_root(&open2.qualified_root()));
+    assert!(node.is_active_root(&open2.qualified_root()));
 
     // check that only the first block is saved to the ledger
     assert_timely2(|| node.block_exists(&open1.hash()));
@@ -1813,7 +1822,11 @@ fn online_reps_election() {
     let send1 = lattice.genesis().send(&key, Amount::nano(1000));
 
     node.process_active(send1.clone());
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node.active.read().unwrap().len(),
+        1,
+    );
 
     // Process vote for ongoing election
     let vote = Arc::new(Vote::new(
@@ -1855,12 +1868,12 @@ fn vote_republish() {
     // process send1 first, this will make sure send1 goes into the ledger and an election is started
     node1.process_active(send1.clone());
     assert_timely2(|| node2.block_exists(&send1.hash()));
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
-    assert_timely2(|| node2.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node2.is_active_root(&send1.qualified_root()));
 
     // now process send2, send2 will not go in the ledger because only the first block of a fork goes in the ledger
     node1.process_active(send2.clone());
-    assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
 
     // send2 cannot be synced because it is not in the ledger of node1, it is only in the election object in RAM on node1
     assert_eq!(node1.block_exists(&send2.hash()), false);
@@ -1905,13 +1918,13 @@ fn vote_by_hash_republish() {
 
     // give block send1 to node1 and check that an election for send1 starts on both nodes
     node1.process_active(send1.clone());
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
-    assert_timely2(|| node2.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node2.is_active_root(&send1.qualified_root()));
 
     // give block send2 to node1 and wait until the block is received and processed by node1
     node1.network_filter.clear_all();
     node1.process_active(send2.clone());
-    assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
 
     // construct a vote for send2 in order to overturn send1
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
@@ -1948,7 +1961,7 @@ fn fork_election_invalid_block_signature() {
         Message::Publish(Publish::new_forward(send1.clone())),
         channel.clone(),
     );
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send3)),
@@ -2007,11 +2020,15 @@ fn confirm_back() {
     start_election(&node, &send1.hash());
     start_election(&node, &open.hash());
     start_election(&node, &send2.hash());
-    assert_eq!(node.active.len(), 3);
+    assert_eq!(node.active.read().unwrap().len(), 3);
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
     node.vote_processor_queue
         .enqueue(vote, None, VoteSource::Live, None);
-    assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || node.active.read().unwrap().len(),
+        0,
+    );
 }
 
 #[test]
@@ -2045,7 +2062,7 @@ fn rollback_vote_self() {
 
     // process forked blocks, send2 will be the winner because it was first and there are no votes yet
     node.process_active(send2.clone());
-    assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send2.qualified_root()));
     node.process_active(fork.clone());
     assert_timely_eq2(
         || {
@@ -2364,7 +2381,7 @@ fn node_receive_quorum() {
 
     assert_timely_msg(
         Duration::from_secs(10),
-        || node1.active.is_active_root(&send.qualified_root()),
+        || node1.is_active_root(&send.qualified_root()),
         "election not found",
     );
 
@@ -2485,7 +2502,7 @@ fn fork_open_flip() {
     // give block open1 to node1, manually trigger an election for open1 and ensure it is in the ledger
     let open1 = node1.process(open1);
     node1.election_schedulers.manual.push(open1.clone(), None);
-    assert_timely2(|| node1.active.is_active_root(&open1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&open1.qualified_root()));
     node1.active.transition_active(&open1.qualified_root());
 
     // create node2, with blocks send1 and open2 pre-initialised in the ledger,
@@ -2499,11 +2516,11 @@ fn fork_open_flip() {
     // ensure open2 is in node2 ledger (and therefore has sideband) and manually trigger an election for open2
     assert_timely2(|| node2.block_exists(&open2.hash()));
     node2.election_schedulers.manual.push(open2.clone(), None);
-    assert_timely2(|| node2.active.is_active_root(&open2.qualified_root()));
+    assert_timely2(|| node2.is_active_root(&open2.qualified_root()));
     node2.active.transition_active(&open2.qualified_root());
 
-    assert_timely_eq2(|| node1.active.len(), 2);
-    assert_timely_eq2(|| node2.active.len(), 2);
+    assert_timely_eq2(|| node1.active.read().unwrap().len(), 2);
+    assert_timely_eq2(|| node2.active.read().unwrap().len(), 2);
 
     // allow node1 to vote and wait for open1 to be confirmed on node1
     node1
@@ -2727,7 +2744,7 @@ fn block_confirm() {
     // Confirm send1 on node2 so it can vote for send2
     start_election(&node2, &hash1);
 
-    assert_timely2(|| node2.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node2.is_active_root(&send1.qualified_root()));
 
     // Make node2 genesis representative so it can vote
     node2
@@ -2807,7 +2824,7 @@ fn dependency_graph_frontier() {
     // node1 can vote, but only on the first block
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
     assert_timely(Duration::from_secs(10), || {
-        node2.active.is_active_root(&gen_send1.qualified_root())
+        node2.is_active_root(&gen_send1.qualified_root())
     });
     start_election(&node1, &gen_send1.hash());
     assert_timely_eq(
@@ -2911,7 +2928,7 @@ fn dependency_graph() {
     start_election(&node, &gen_send1.hash());
     assert_timely(Duration::from_secs(15), || {
         // Not many blocks should be active simultaneously
-        assert!(node.active.len() < 6);
+        assert!(node.active.read().unwrap().len() < 6);
 
         // Ensure that active blocks have their ancestors confirmed
         let error = dependency_graph.iter().any(|entry| {
@@ -2928,7 +2945,9 @@ fn dependency_graph() {
         error || node.ledger.confirmed_count() == node.ledger.block_count()
     });
     assert_eq!(node.ledger.confirmed_count(), node.ledger.block_count());
-    assert_timely(Duration::from_secs(5), || node.active.len() == 0);
+    assert_timely(Duration::from_secs(5), || {
+        node.active.read().unwrap().len() == 0
+    });
 }
 
 #[test]
@@ -2946,12 +2965,12 @@ fn fork_keep() {
     let send2 = fork_lattice.genesis().send(&key2, 100);
     node1.process_active(send1.clone());
     node2.process_active(send1.clone());
-    assert_timely_eq2(|| node1.active.len(), 1);
-    assert_timely_eq2(|| node2.active.len(), 1);
+    assert_timely_eq2(|| node1.active.read().unwrap().len(), 1);
+    assert_timely_eq2(|| node2.active.read().unwrap().len(), 1);
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
     // Fill node with forked blocks
     node1.process_active(send2.clone());
-    assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
     node2.process_active(send2.clone());
     assert!(node1.block_exists(&send1.hash()));
     assert!(node2.block_exists(&send1.hash()));

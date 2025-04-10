@@ -645,7 +645,7 @@ fn cannot_vote() {
 
     // With an ongoing election
     node.election_schedulers.add_manual(send2.clone());
-    assert_timely2(|| node.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send2.qualified_root()));
 
     node.request_aggregator.request(request.clone());
 

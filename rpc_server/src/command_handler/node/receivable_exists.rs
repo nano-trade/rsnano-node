@@ -59,7 +59,7 @@ fn block_confirmed(
     // This just checks it's not currently undergoing an active transaction
     if !include_only_confirmed {
         if let Some(block) = any.get_block(hash) {
-            return !node.active.is_active_root(&block.qualified_root());
+            return !node.is_active_root(&block.qualified_root());
         }
     }
 

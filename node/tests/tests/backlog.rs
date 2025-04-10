@@ -49,5 +49,9 @@ fn election_activation() {
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let send = lattice.genesis().send(&key, Amount::nano(1000));
     node.process(send);
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node.active.read().unwrap().len(),
+        1,
+    );
 }

@@ -14,9 +14,9 @@ fn start_stop() {
     let key1 = PrivateKey::new();
     let send1 = lattice.genesis().send(&key1, Amount::MAX);
     node1.process(send1.clone());
-    assert_eq!(node1.active.len(), 0);
+    assert_eq!(node1.active.read().unwrap().len(), 0);
     start_election(&node1, &send1.hash());
-    assert_eq!(node1.active.len(), 1);
+    assert_eq!(node1.active.read().unwrap().len(), 1);
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn add_existing() {
     start_election(&node1, &send1.hash());
 
     // wait for election to be started before processing send2
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
     let key2 = PrivateKey::new();
@@ -50,9 +50,9 @@ fn add_existing() {
         .block_processor
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
-    assert!(node1.active.is_active_root(&send1.qualified_root()));
+    assert!(node1.is_active_root(&send1.qualified_root()));
     assert_timely(Duration::from_secs(5), || {
-        node1.active.is_active_root(&send2.qualified_root())
+        node1.is_active_root(&send2.qualified_root())
     });
 }
 
@@ -81,6 +81,6 @@ fn add_two() {
     node.process(send_b.clone());
     start_elections(&node, &[send_a.hash(), send_b.hash()], false);
 
-    assert!(node.active.is_active_root(&send_a.qualified_root()));
-    assert!(node.active.is_active_root(&send_b.qualified_root()));
+    assert!(node.is_active_root(&send_a.qualified_root()));
+    assert!(node.is_active_root(&send_b.qualified_root()));
 }

@@ -66,9 +66,13 @@ fn confirmed_history() {
 
         // Confirm send1
         node.active.force_confirm(&send1.hash());
-        assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
+        assert_timely_eq(
+            Duration::from_secs(10),
+            || node.active.read().unwrap().len(),
+            0,
+        );
         assert_eq!(node.recently_cemented.lock().unwrap().len(), 0);
-        assert_eq!(node.active.len(), 0);
+        assert_eq!(node.active.read().unwrap().len(), 0);
 
         assert_eq!(node.ledger.confirmed().block_exists(&send.hash()), false);
 
@@ -104,7 +108,11 @@ fn confirmed_history() {
 
     assert_timely2(|| node.ledger.confirmed().block_exists(&send.hash()));
 
-    assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || node.active.read().unwrap().len(),
+        0,
+    );
     assert_timely_eq(
         Duration::from_secs(10),
         || {
@@ -119,7 +127,7 @@ fn confirmed_history() {
 
     // Each block that's confirmed is in the recently_cemented history
     assert_timely_eq2(|| node.recently_cemented.lock().unwrap().len(), 2);
-    assert_eq!(node.active.len(), 0);
+    assert_eq!(node.active.read().unwrap().len(), 0);
 
     // Confirm the callback is not called under this circumstance
     assert_timely_eq(

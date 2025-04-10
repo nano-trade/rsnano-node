@@ -29,7 +29,7 @@ fn send_block(node: Arc<Node>, account: Account, amount: Amount) -> Block {
     .into();
 
     node.process_active(send.clone());
-    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send.qualified_root()));
 
     send
 }

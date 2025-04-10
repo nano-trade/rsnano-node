@@ -16,8 +16,8 @@ use rsnano_core::{
     utils::{
         backpressure_channel, ContainerInfo, ContainerInfoFactory, ContainerInfoProvider, Peer,
     },
-    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, Vote,
-    VoteCode, WorkNonce,
+    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, QualifiedRoot, Root,
+    SavedBlock, Vote, VoteCode, WorkNonce,
 };
 use rsnano_ledger::{
     AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
@@ -1362,6 +1362,10 @@ impl Node {
     pub fn blocks_confirmed(&self, blocks: &[Block]) -> bool {
         let confirmed = self.ledger.confirmed();
         blocks.iter().all(|b| confirmed.block_exists(&b.hash()))
+    }
+
+    pub fn is_active_root(&self, root: &QualifiedRoot) -> bool {
+        self.active.read().unwrap().is_active_root(root)
     }
 
     pub fn flood_block_many(

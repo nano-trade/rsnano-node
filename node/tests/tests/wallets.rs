@@ -134,13 +134,13 @@ fn search_receivable() {
         node.process(send.clone());
 
         // Pending search should start an election
-        assert_eq!(node.active.len(), 0);
+        assert_eq!(node.active.read().unwrap().len(), 0);
         if search_all {
             node.wallets.search_receivable_all();
         } else {
             node.wallets.search_receivable_wallet(wallet_id).unwrap();
         }
-        assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
+        assert_timely2(|| node.is_active_root(&send.qualified_root()));
 
         // Erase the key so the confirmation does not trigger an automatic receive
         node.wallets
@@ -151,7 +151,7 @@ fn search_receivable() {
         node.active.force_confirm(&send.hash());
 
         assert_timely(Duration::from_secs(5), || {
-            node.block_confirmed(&send.hash()) && node.active.len() == 0
+            node.block_confirmed(&send.hash()) && node.active.read().unwrap().len() == 0
         });
 
         // Re-insert the key

@@ -30,7 +30,7 @@ pub fn activate_one() {
 
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
-    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
+    assert_timely2(|| node.is_active_root(&block.qualified_root()));
 
     assert_eq!(
         node.active
@@ -67,7 +67,7 @@ pub fn activate_one_zero_conf() {
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
 
-    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
+    assert_timely2(|| node.is_active_root(&block.qualified_root()));
 
     assert_eq!(
         node.active

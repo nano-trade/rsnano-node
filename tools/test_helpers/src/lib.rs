@@ -405,7 +405,7 @@ pub fn start_election(node: &Node, hash: &BlockHash) {
     let block = node.block(hash).unwrap();
     node.election_schedulers.add_manual(block.clone());
     // wait for the election to appear
-    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
+    assert_timely2(|| node.is_active_root(&block.qualified_root()));
     node.active.transition_active(&block.qualified_root());
 }
 
@@ -652,7 +652,7 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
     .into();
 
     node.process_active(send.clone());
-    assert_timely2(|| node.active.is_active_root(&send.qualified_root()));
+    assert_timely2(|| node.is_active_root(&send.qualified_root()));
 
     send
 }

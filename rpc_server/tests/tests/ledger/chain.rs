@@ -34,7 +34,7 @@ fn chain() {
         )
         .unwrap();
 
-    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
+    assert_timely2(|| node.is_active_root(&block.qualified_root()));
 
     let result = node.runtime.block_on(async {
         server
@@ -81,7 +81,7 @@ fn chain_limit() {
         )
         .unwrap();
 
-    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
+    assert_timely2(|| node.is_active_root(&block.qualified_root()));
 
     let result = node.runtime.block_on(async {
         server
@@ -127,7 +127,7 @@ fn chain_offset() {
         )
         .unwrap();
 
-    assert_timely2(|| node.active.is_active_root(&block.qualified_root()));
+    assert_timely2(|| node.is_active_root(&block.qualified_root()));
 
     let args = ChainArgs::builder(block.hash(), u64::MAX).offset(1).build();
 

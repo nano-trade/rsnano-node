@@ -53,7 +53,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .unwrap();
     assert_timely_eq(Duration::from_secs(15), || node2.ledger.block_count(), 4);
 
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1
@@ -115,7 +115,7 @@ fn continuous_voting() {
     // Create a block that should be staying in AEC but not get confirmed
     let send2 = lattice.genesis().send(&key1, 1);
     node1.process(send2.clone());
-    assert_timely2(|| node1.active.is_active_root(&send2.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
 
     // Ensure votes are broadcasted in continuous manner
     assert_timely(Duration::from_secs(5), || {
@@ -149,7 +149,7 @@ fn quorum_minimum_confirm_fail() {
     );
 
     node1.process_active(send1.clone());
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1
@@ -188,7 +188,7 @@ fn quorum_minimum_confirm_success() {
     );
 
     node1.process_active(send1.clone());
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1
@@ -223,7 +223,7 @@ fn quorum_minimum_flip_fail() {
 
     // Process send1 and wait until its election appears
     node1.process_active(send1.clone());
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
@@ -267,7 +267,7 @@ fn quorum_minimum_flip_success() {
 
     // Process send1 and wait until its election appears
     node1.process_active(send1.clone());
-    assert_timely2(|| node1.active.is_active_root(&send1.qualified_root()));
+    assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
