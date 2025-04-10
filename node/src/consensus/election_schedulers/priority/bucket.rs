@@ -76,7 +76,7 @@ impl Bucket {
                 return false;
             };
 
-            candidate_prio = highest.time_priority;
+            candidate_prio = highest.priority.time;
             election_count = guard.elections.len();
             highest_election = guard.elections.highest_priority();
         }
@@ -118,11 +118,10 @@ impl Bucket {
     pub fn push(&self, priority: BlockPriority, block: SavedBlock) -> bool {
         let hash = block.hash();
         let mut guard = self.data.lock().unwrap();
-        let inserted = guard.queue.insert(BlockEntry::new(block, priority.time));
+        let inserted = guard.queue.insert(BlockEntry::new(block, priority));
         if guard.queue.len() > self.config.max_blocks {
             if let Some(removed) = guard.queue.pop_lowest_prio() {
-                inserted
-                    && !(removed.time_priority == priority.time && removed.block.hash() == hash)
+                inserted && !(removed.priority == priority && removed.block.hash() == hash)
             } else {
                 inserted
             }
@@ -162,7 +161,7 @@ impl BucketExt for Arc<Bucket> {
             };
 
             block = top.block;
-            priority = top.time_priority;
+            priority = top.priority.time;
 
             guard.elections.insert(BucketElection {
                 root: block.qualified_root(),

@@ -1,4 +1,4 @@
-use rsnano_core::{utils::TimePriority, BlockHash, SavedBlock};
+use rsnano_core::{utils::BlockPriority, BlockHash, SavedBlock};
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
@@ -6,17 +6,13 @@ use std::{
 
 #[derive(Debug, Eq)]
 pub(super) struct BlockEntry {
-    /// a lower timestamp means a higher priority!
-    pub time_priority: TimePriority,
+    pub priority: BlockPriority,
     pub block: SavedBlock,
 }
 
 impl BlockEntry {
-    pub fn new(block: SavedBlock, priority: TimePriority) -> Self {
-        Self {
-            time_priority: priority,
-            block,
-        }
+    pub fn new(block: SavedBlock, priority: BlockPriority) -> Self {
+        Self { priority, block }
     }
 
     pub fn hash(&self) -> BlockHash {
@@ -26,7 +22,7 @@ impl BlockEntry {
 
 impl Ord for BlockEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        let prio_order = self.time_priority.cmp(&other.time_priority);
+        let prio_order = self.priority.cmp(&other.priority);
         match prio_order {
             Ordering::Equal => self.block.hash().cmp(&other.block.hash()),
             _ => prio_order,
@@ -42,7 +38,7 @@ impl PartialOrd for BlockEntry {
 
 impl PartialEq for BlockEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.time_priority == other.time_priority && self.block.hash() == other.block.hash()
+        self.priority == other.priority && self.block.hash() == other.block.hash()
     }
 }
 
@@ -96,7 +92,7 @@ impl OrderedBlocks {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{utils::UnixTimestamp, PrivateKey};
+    use rsnano_core::{utils::UnixTimestamp, Amount, PrivateKey};
 
     #[test]
     fn empty() {
@@ -197,7 +193,7 @@ mod tests {
 
     fn create_entry(time: UnixTimestamp, key: impl Into<PrivateKey>) -> (BlockHash, BlockEntry) {
         let entry = BlockEntry {
-            time_priority: time.into(),
+            priority: BlockPriority::new(Amount::nano(1), time.into()),
             block: SavedBlock::new_test_instance_with_key(key),
         };
         let hash = entry.block.hash();

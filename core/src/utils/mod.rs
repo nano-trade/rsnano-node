@@ -413,7 +413,7 @@ impl From<TimePriority> for UnixTimestamp {
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Default, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Copy, Clone, Default, PartialOrd, Ord, Debug)]
 pub struct BlockPriority {
     pub balance: Amount,
     pub time: TimePriority,
