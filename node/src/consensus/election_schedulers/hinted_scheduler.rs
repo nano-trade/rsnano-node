@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Condvar, Mutex,
+        Arc, Condvar, Mutex, RwLock,
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -14,9 +14,11 @@ use rsnano_core::{utils::ContainerInfo, Amount, BlockHash};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{ActiveElections, VoteCache};
+use super::VoteCache;
 use crate::{
-    cementation::ConfirmingSet, consensus::election::ElectionBehavior, representatives::OnlineReps,
+    cementation::ConfirmingSet,
+    consensus::{election::ElectionBehavior, ActiveElectionsContainer},
+    representatives::OnlineReps,
 };
 use rsnano_nullable_clock::SteadyClock;
 
@@ -56,7 +58,7 @@ impl Default for HintedSchedulerConfig {
 pub struct HintedScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
     config: HintedSchedulerConfig,
-    active_elections: Arc<ActiveElections>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
@@ -74,7 +76,7 @@ pub struct HintedScheduler {
 impl HintedScheduler {
     pub fn new(
         config: HintedSchedulerConfig,
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use rsnano_core::{utils::BackpressureSender, BlockHash, MaybeSavedBlock, SavedBlock};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
@@ -7,14 +7,14 @@ use crate::cementation::ConfirmingSet;
 
 use super::{
     election::{ConfirmedElection, ElectionResult},
-    ActiveElections, AecEvent,
+    ActiveElectionsContainer, AecEvent,
 };
 use rsnano_nullable_clock::SteadyClock;
 
 pub(crate) struct DependentElectionsConfirmer {
     pub(crate) stats: Arc<Stats>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
-    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     pub(crate) event_sender: BackpressureSender<AecEvent>,
     pub(crate) clock: Arc<SteadyClock>,
 }

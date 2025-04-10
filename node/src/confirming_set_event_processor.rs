@@ -1,12 +1,12 @@
 use crate::{
     cementation::ConfirmingSetEvent,
-    consensus::{ActiveElections, AecCooldownReason},
+    consensus::{ActiveElectionsContainer, AecCooldownReason},
     utils::BackpressureEventProcessor,
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub(crate) struct ConfirmingSetEventProcessor {
-    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
 }
 
 impl BackpressureEventProcessor<ConfirmingSetEvent> for ConfirmingSetEventProcessor {

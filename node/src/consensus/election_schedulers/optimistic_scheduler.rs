@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Condvar, Mutex,
+        Arc, Condvar, Mutex, RwLock,
     },
     thread::JoinHandle,
     time::Instant,
@@ -14,9 +14,10 @@ use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeight
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::ActiveElections;
 use crate::{
-    cementation::ConfirmingSet, config::NetworkConstants, consensus::election::ElectionBehavior,
+    cementation::ConfirmingSet,
+    config::NetworkConstants,
+    consensus::{election::ElectionBehavior, ActiveElectionsContainer},
 };
 use rsnano_nullable_clock::SteadyClock;
 
@@ -55,7 +56,7 @@ pub struct OptimisticScheduler {
     condition: Condvar,
     candidates: Mutex<OrderedCandidates>,
     stats: Arc<Stats>,
-    active_elections: Arc<ActiveElections>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     network_constants: NetworkConstants,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
@@ -67,7 +68,7 @@ impl OptimisticScheduler {
     pub fn new(
         config: OptimisticSchedulerConfig,
         stats: Arc<Stats>,
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         network_constants: NetworkConstants,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,

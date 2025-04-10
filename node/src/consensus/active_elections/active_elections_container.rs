@@ -5,7 +5,10 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{BackpressureSender, BlockPriority, ContainerInfo, UnixMillisTimestamp},
+    utils::{
+        BackpressureSender, BlockPriority, ContainerInfo, ContainerInfoProvider,
+        UnixMillisTimestamp,
+    },
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -214,7 +217,7 @@ impl ActiveElectionsContainer {
         }
     }
 
-    pub(super) fn stop(&mut self) {
+    pub fn stop(&mut self) {
         // destroy send queue so that the receiver thread will be stopped too
         drop(self.observer.take());
         self.stopped = true;
@@ -404,32 +407,6 @@ impl ActiveElectionsContainer {
         self.roots.len()
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
-        ContainerInfo::builder()
-            .leaf("roots", self.roots.len(), RootContainer::ELEMENT_SIZE)
-            .leaf(
-                "normal",
-                self.count_by_behavior(ElectionBehavior::Priority),
-                0,
-            )
-            .leaf(
-                "hinted".to_string(),
-                self.count_by_behavior(ElectionBehavior::Hinted),
-                0,
-            )
-            .leaf(
-                "optimistic".to_string(),
-                self.count_by_behavior(ElectionBehavior::Optimistic),
-                0,
-            )
-            .node(
-                "recently_confirmed",
-                self.recently_confirmed.container_info(),
-            )
-            .node("vote_router", self.vote_router.container_info())
-            .finish()
-    }
-
     /// Calculates minimum time delay between subsequent votes when processing non-final votes
     pub fn cooldown_time(rep_weight: Amount, online_weight: Amount) -> Duration {
         if rep_weight > online_weight / 20 {
@@ -579,16 +556,17 @@ impl ActiveElectionsContainer {
         results
     }
 
-    pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) -> Option<AecEvent> {
-        let root = self.vote_router.qualified_root(block_hash)?;
-        let entry = self.roots.get_mut(&root)?;
+    pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) {
+        let Some(root) = self.vote_router.qualified_root(block_hash) else {
+            panic!("Force confirm failed, because no active election was found");
+        };
+
+        let entry = self.roots.get_mut(&root).unwrap();
         let election = &mut entry.election;
         if election.force_confirm() {
             let confirmed_election =
                 election.into_confirmed_election(now, ElectionResult::ActiveConfirmedQuorum);
-            Some(AecEvent::ElectionConfirmed(confirmed_election))
-        } else {
-            None
+            self.notify(AecEvent::ElectionConfirmed(confirmed_election));
         }
     }
 
@@ -622,6 +600,34 @@ impl StatsSource for ActiveElectionsContainer {
 
         self.vote_counter.collect_stats(result);
         self.stopped_counter.collect_stats(result);
+    }
+}
+
+impl ContainerInfoProvider for ActiveElectionsContainer {
+    fn container_info(&self) -> ContainerInfo {
+        ContainerInfo::builder()
+            .leaf("roots", self.roots.len(), RootContainer::ELEMENT_SIZE)
+            .leaf(
+                "normal",
+                self.count_by_behavior(ElectionBehavior::Priority),
+                0,
+            )
+            .leaf(
+                "hinted".to_string(),
+                self.count_by_behavior(ElectionBehavior::Hinted),
+                0,
+            )
+            .leaf(
+                "optimistic".to_string(),
+                self.count_by_behavior(ElectionBehavior::Optimistic),
+                0,
+            )
+            .node(
+                "recently_confirmed",
+                self.recently_confirmed.container_info(),
+            )
+            .node("vote_router", self.vote_router.container_info())
+            .finish()
     }
 }
 

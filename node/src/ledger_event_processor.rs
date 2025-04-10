@@ -1,4 +1,4 @@
-use std::sync::{mpsc::SyncSender, Arc};
+use std::sync::{mpsc::SyncSender, Arc, RwLock};
 
 use rsnano_ledger::LedgerEvent;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -9,8 +9,8 @@ use crate::{
     cementation::ConfirmingSet,
     config::NodeFlags,
     consensus::{
-        election_schedulers::ElectionSchedulers, ActiveElections, DependentElectionsConfirmer,
-        ForkCacheUpdater, ForkProcessor, LocalVoteHistory,
+        election_schedulers::ElectionSchedulers, ActiveElectionsContainer,
+        DependentElectionsConfirmer, ForkCacheUpdater, ForkProcessor, LocalVoteHistory,
     },
     utils::BackpressureEventProcessor,
     NodeEvent,
@@ -27,7 +27,7 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) dependent_elections_confirmer: DependentElectionsConfirmer,
     pub(crate) bootstrapper: Arc<Bootstrapper>,
     pub(crate) vote_history: Arc<LocalVoteHistory>,
-    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) fork_cache_updater: ForkCacheUpdater,
     pub(crate) fork_processor: Arc<ForkProcessor>,
@@ -76,7 +76,17 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
                     .confirmed(confirmed.iter().map(|i| i.1));
             }
             LedgerEvent::BlocksRolledBack(rolled_back) => {
-                self.active_elections.rolled_back(&rolled_back);
+                {
+                    let mut active = self.active_elections.write().unwrap();
+                    for result in rolled_back.iter() {
+                        for block in &result.rolled_back {
+                            // Stop all rolled back active transactions except initial
+                            if block.qualified_root() != result.target_root {
+                                active.erase(&block.qualified_root());
+                            }
+                        }
+                    }
+                }
 
                 // Unblock rolled back accounts as the dependency is no longer valid
                 self.bounded_backlog.erase_hashes(rolled_back.hashes());

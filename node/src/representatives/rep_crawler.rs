@@ -23,7 +23,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use super::{InsertResult, OnlineReps};
 use crate::{
     config::{NetworkParams, NodeConfig},
-    consensus::ActiveElections,
+    consensus::ActiveElectionsContainer,
     transport::{
         keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
         MessageSender,
@@ -45,7 +45,7 @@ pub struct RepCrawler {
     steady_clock: Arc<SteadyClock>,
     message_sender: Mutex<MessageSender>,
     preconfigured_peers: Arc<PreconfiguredPeersKeepalive>,
-    active_elections: Arc<ActiveElections>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     tokio: tokio::runtime::Handle,
 }
 
@@ -63,7 +63,7 @@ impl RepCrawler {
         steady_clock: Arc<SteadyClock>,
         message_sender: MessageSender,
         keepalive_publisher: Arc<KeepalivePublisher>,
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();

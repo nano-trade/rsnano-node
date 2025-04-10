@@ -416,7 +416,7 @@ pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {
     for hash in hashes {
         start_election(node, hash);
         if forced {
-            node.active.force_confirm(hash);
+            node.force_confirm(hash);
         }
     }
 }

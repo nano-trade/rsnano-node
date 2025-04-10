@@ -1,10 +1,10 @@
-use super::{ActiveElections, LocalVoteHistory};
+use super::{ActiveElectionsContainer, LocalVoteHistory};
 use rsnano_core::{BlockHash, QualifiedRoot};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub(crate) struct LocalVotesRemover {
     pub(crate) vote_history: Arc<LocalVoteHistory>,
-    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
 }
 
 impl LocalVotesRemover {

@@ -10,12 +10,12 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::{Ledger, RepWeightCache};
 
-use super::{ActiveElections, AecEvent};
+use super::{ActiveElectionsContainer, AecEvent};
 use crate::{consensus::election::VoteSummary, representatives::OnlineReps};
 
 /// Applies a vote to an election
 pub(crate) struct VoteApplier {
-    active_elections: Arc<ActiveElections>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     event_senders: RwLock<Vec<BackpressureSender<AecEvent>>>,
     ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
@@ -26,7 +26,7 @@ pub(crate) struct VoteApplier {
 
 impl VoteApplier {
     pub(crate) fn new(
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         ledger: Arc<Ledger>,
         online_reps: Arc<Mutex<OnlineReps>>,
         clock: Arc<SteadyClock>,

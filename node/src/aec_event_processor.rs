@@ -1,4 +1,4 @@
-use std::sync::{mpsc::SyncSender, Arc, Mutex};
+use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock};
 
 use rsnano_core::{utils::MemoryStream, Block, Vote, VoteCode, VoteSource};
 use rsnano_messages::NetworkFilter;
@@ -9,9 +9,9 @@ use crate::{
     cementation::ConfirmingSet,
     consensus::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
-        ActiveElections, AecCooldownReason, AecEvent, BlockVoter, BootstrapElectionActivator,
-        ForkProcessor, LocalVotesRemover, VoteCache, VoteCacheProcessor, VoteProcessor,
-        VoteRebroadcastQueue,
+        ActiveElectionsContainer, AecCooldownReason, AecEvent, BlockVoter,
+        BootstrapElectionActivator, ForkProcessor, LocalVotesRemover, VoteCache,
+        VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -36,7 +36,7 @@ pub(crate) struct AecEventProcessor {
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
-    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     pub(crate) rep_crawler: Arc<RepCrawler>,
     pub(crate) clock: Arc<SteadyClock>,
     pub(crate) local_votes_remover: LocalVotesRemover,

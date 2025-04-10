@@ -7,7 +7,7 @@ pub use hinted_scheduler::*;
 pub use manual_scheduler::*;
 pub use optimistic_scheduler::*;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use rsnano_core::{
     utils::{BlockPriority, ContainerInfo, ContainerInfoProvider},
@@ -17,7 +17,7 @@ use rsnano_ledger::{AnySet, BlockStatus, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{Stats, StatsCollection, StatsSource};
 
-use super::{ActiveElections, VoteCache};
+use super::{ActiveElectionsContainer, VoteCache};
 use crate::{
     cementation::ConfirmingSet,
     config::{NetworkConstants, NodeConfig},
@@ -40,7 +40,7 @@ impl ElectionSchedulers {
     pub fn new(
         config: NodeConfig,
         network_constants: NetworkConstants,
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,

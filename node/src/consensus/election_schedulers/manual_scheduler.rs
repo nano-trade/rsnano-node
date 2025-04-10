@@ -1,15 +1,14 @@
 use std::{
     collections::VecDeque,
     mem::size_of,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
 };
 
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::ActiveElections;
-use crate::consensus::election::ElectionBehavior;
+use crate::consensus::{election::ElectionBehavior, ActiveElectionsContainer};
 use rsnano_nullable_clock::SteadyClock;
 
 pub struct ManualScheduler {
@@ -17,12 +16,16 @@ pub struct ManualScheduler {
     condition: Condvar,
     mutex: Mutex<ManualSchedulerImpl>,
     stats: Arc<Stats>,
-    active: Arc<ActiveElections>,
+    active: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
 }
 
 impl ManualScheduler {
-    pub fn new(stats: Arc<Stats>, active: Arc<ActiveElections>, clock: Arc<SteadyClock>) -> Self {
+    pub fn new(
+        stats: Arc<Stats>,
+        active: Arc<RwLock<ActiveElectionsContainer>>,
+        clock: Arc<SteadyClock>,
+    ) -> Self {
         Self {
             thread: Mutex::new(None),
             condition: Condvar::new(),

@@ -7,14 +7,14 @@ use crate::{config::NetworkParams, representatives::OnlineReps, transport::Messa
 
 use super::{
     confirm_req_sender::ConfirmReqSender, election::ElectionState,
-    winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElections, BlockVoter,
+    winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElectionsContainer, BlockVoter,
     ConfirmationSolicitor,
 };
 use rsnano_nullable_clock::SteadyClock;
 
 /// Every 300ms tries to transitions election state and send votes + blocks
 pub struct AecTicker {
-    pub(crate) active_elections: Arc<ActiveElections>,
+    pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     pub(crate) message_flooder: MessageFlooder,
     pub(crate) network_params: NetworkParams,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,

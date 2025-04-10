@@ -9,13 +9,13 @@ use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_ledger::Ledger;
 use rsnano_network::Network;
 
-use crate::{consensus::ActiveElections, representatives::OnlineReps};
+use crate::{consensus::ActiveElectionsContainer, representatives::OnlineReps};
 
 pub struct Monitor {
     ledger: Arc<Ledger>,
     network: Arc<RwLock<Network>>,
     online_reps: Arc<Mutex<OnlineReps>>,
-    active: Arc<ActiveElections>,
+    active: Arc<RwLock<ActiveElectionsContainer>>,
     last_time: Option<Instant>,
     last_blocks_confirmed: u64,
     last_blocks_total: u64,
@@ -26,7 +26,7 @@ impl Monitor {
         ledger: Arc<Ledger>,
         network: Arc<RwLock<Network>>,
         online_peers: Arc<Mutex<OnlineReps>>,
-        active: Arc<ActiveElections>,
+        active: Arc<RwLock<ActiveElectionsContainer>>,
     ) -> Self {
         Self {
             ledger,

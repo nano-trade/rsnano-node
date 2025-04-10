@@ -50,11 +50,11 @@ use crate::{
     confirming_set_event_processor::ConfirmingSetEventProcessor,
     consensus::{
         election::ConfirmedElection, election_schedulers::ElectionSchedulers,
-        get_bootstrap_weights, log_bootstrap_weights, ActiveElections, AecTicker, BlockVoter,
-        BootstrapElectionActivator, ConfirmReqSender, CurrentRepTiers, DependentElectionsConfirmer,
-        ForkCache, ForkCacheUpdater, ForkProcessor, LocalVoteHistory, LocalVotesRemover,
-        RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
+        BlockVoter, BootstrapElectionActivator, ConfirmReqSender, CurrentRepTiers,
+        DependentElectionsConfirmer, ForkCache, ForkCacheUpdater, ForkProcessor, LocalVoteHistory,
+        LocalVotesRemover, RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup,
+        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
         VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
@@ -118,7 +118,7 @@ pub struct Node {
     pub block_processor: Arc<BlockProcessor>,
     pub wallets: Arc<Wallets>,
     pub vote_generators: Arc<VoteGenerators>,
-    pub active: Arc<ActiveElections>,
+    pub active: Arc<RwLock<ActiveElectionsContainer>>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
     pub rep_crawler: Arc<RepCrawler>,
@@ -531,13 +531,10 @@ impl Node {
         let aec_sender_clone = aec_sender.clone();
         event_queues_info.add_leaf("aec", move || aec_sender_clone.len());
 
-        let active_elections = ActiveElections::new(
-            config.active_elections.clone(),
-            base_latency,
-            steady_clock.clone(),
-        );
+        let mut active_elections =
+            ActiveElectionsContainer::new(config.active_elections.clone(), base_latency);
         active_elections.set_observer(aec_sender.clone());
-        let active_elections = Arc::new(active_elections);
+        let active_elections = Arc::new(RwLock::new(active_elections));
 
         let block_voter = Arc::new(BlockVoter::new(
             stats.clone(),
@@ -1391,6 +1388,17 @@ impl Node {
         self.block_flooder.flood_block_many(blocks, callback, delay);
     }
 
+    pub fn force_confirm(&self, hash: &BlockHash) {
+        assert_eq!(
+            self.network_params.network.current_network,
+            Networks::NanoDevNetwork
+        );
+        self.active
+            .write()
+            .unwrap()
+            .force_confirm(hash, self.steady_clock.now());
+    }
+
     pub fn get_stat(&self, stat: &'static str, detail: &'static str, dir: Direction) -> u64 {
         self.stats_collector.collect().get_dir(stat, detail, dir)
     }
@@ -1539,7 +1547,7 @@ impl Node {
         self.rep_tiers_calculator.stop();
         self.election_schedulers.stop();
         self.aec_ticker.stop();
-        self.active.stop();
+        self.active.write().unwrap().stop();
         self.vote_generators.stop();
         self.confirming_set.stop();
         self.telemetry.stop();

@@ -1,13 +1,13 @@
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, RwLock,
 };
 
 use super::{
     bucket_elections::{BucketElection, BucketElections},
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
-use crate::consensus::{election::ElectionBehavior, ActiveElections, AecInsertError};
+use crate::consensus::{election::ElectionBehavior, ActiveElectionsContainer, AecInsertError};
 use rsnano_core::{
     utils::{BlockPriority, TimePriority},
     Block, BlockHash, QualifiedRoot, SavedBlock,
@@ -41,7 +41,7 @@ impl Default for PriorityBucketConfig {
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
     config: PriorityBucketConfig,
-    active_elections: Arc<ActiveElections>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     data: Mutex<BucketData>,
     clock: Arc<SteadyClock>,
 }
@@ -49,7 +49,7 @@ pub struct Bucket {
 impl Bucket {
     pub fn new(
         config: PriorityBucketConfig,
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         stats: Arc<BucketStats>,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -213,9 +213,12 @@ struct BucketData {
 }
 
 impl BucketData {
-    fn cancel_election_with_lowest_prio(&mut self, active_elections: &ActiveElections) {
+    fn cancel_election_with_lowest_prio(
+        &mut self,
+        active_elections: &RwLock<ActiveElectionsContainer>,
+    ) {
         if let Some(entry) = self.elections.entry_with_highest_priority() {
-            active_elections.cancel(&entry.root);
+            active_elections.write().unwrap().cancel(&entry.root);
             self.stats.cancelled.fetch_add(1, Ordering::Relaxed);
         }
     }

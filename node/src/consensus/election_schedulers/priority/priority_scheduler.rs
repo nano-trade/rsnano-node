@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::Duration,
 };
@@ -14,7 +14,7 @@ use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{Bucket, BucketExt, BucketStats, Bucketing, PriorityBucketConfig};
-use crate::consensus::ActiveElections;
+use crate::consensus::ActiveElectionsContainer;
 use rsnano_nullable_clock::SteadyClock;
 
 pub struct PriorityScheduler {
@@ -32,7 +32,7 @@ impl PriorityScheduler {
     pub(crate) fn new(
         config: PriorityBucketConfig,
         stats: Arc<Stats>,
-        active: Arc<ActiveElections>,
+        active: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
     ) -> Self {
         let bucketing = Bucketing::default();

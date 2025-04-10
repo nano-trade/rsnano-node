@@ -148,7 +148,7 @@ fn search_receivable() {
             .unwrap();
 
         // Now confirm the election
-        node.active.force_confirm(&send.hash());
+        node.force_confirm(&send.hash());
 
         assert_timely(Duration::from_secs(5), || {
             node.block_confirmed(&send.hash()) && node.active.read().unwrap().len() == 0

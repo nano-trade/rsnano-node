@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
 
@@ -7,7 +7,9 @@ use rsnano_core::{BlockHash, Networks, Root};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::consensus::{bounded_hash_map::BoundedHashMap, election::VoteType, ActiveElections};
+use crate::consensus::{
+    bounded_hash_map::BoundedHashMap, election::VoteType, ActiveElectionsContainer,
+};
 
 use super::VoteGenerators;
 
@@ -15,7 +17,7 @@ use super::VoteGenerators;
 pub(crate) struct BlockVoter {
     stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
-    active_elections: Arc<ActiveElections>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
     last_votes: Mutex<BoundedHashMap<(BlockHash, VoteType), Timestamp>>,
     vote_broadcast_interval: Duration,
@@ -25,7 +27,7 @@ impl BlockVoter {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
-        active_elections: Arc<ActiveElections>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
         network: Networks,
     ) -> Self {
