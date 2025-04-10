@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use rsnano_core::{utils::UnixMillisTimestamp, BlockHash, Root};
+use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message, Publish};
 use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 
@@ -100,28 +100,26 @@ impl ConfirmationSolicitor {
     pub fn add(&mut self, election: &Election) -> bool {
         debug_assert!(self.prepared);
         let mut added = false;
-        let mut count = 0;
+        let mut rep_request_count = 0;
         let winner = election.winner();
-        let hash = winner.hash();
         let mut to_remove = Vec::new();
         for rep in &self.representative_requests {
-            if count >= self.max_election_requests {
+            if rep_request_count >= self.max_election_requests {
                 break;
             }
             let mut full_queue = false;
-            let existing = election.votes().get(&rep.rep_key);
-            let exists = existing.is_some();
-            let is_final = if let Some(existing) = existing {
-                !election.has_quorum() || existing.timestamp == UnixMillisTimestamp::MAX
+            let existing_vote = election.votes().get(&rep.rep_key);
+            let is_final = if let Some(vote) = existing_vote {
+                !election.has_quorum() || vote.is_final_vote()
             } else {
                 false
             };
-            let different = if let Some(existing) = existing {
-                existing.hash != hash
+            let different_hash = if let Some(existing) = existing_vote {
+                existing.hash != winner.hash()
             } else {
                 false
             };
-            if !exists || !is_final || different {
+            if existing_vote.is_none() || !is_final || different_hash {
                 let should_drop = rep.channel.should_drop(TrafficType::ConfirmationRequests);
 
                 if !should_drop {
@@ -130,9 +128,11 @@ impl ConfirmationSolicitor {
                         .requests
                         .entry(rep_channel.channel_id())
                         .or_insert_with(|| (rep_channel, Vec::new()));
+
                     request_queue.push((winner.hash(), winner.root()));
-                    if !different {
-                        count += 1;
+
+                    if !different_hash {
+                        rep_request_count += 1;
                     }
                     added = true;
                 } else {

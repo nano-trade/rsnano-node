@@ -55,7 +55,7 @@ impl Default for HintedSchedulerConfig {
 pub struct HintedScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
     config: HintedSchedulerConfig,
-    active: Arc<ActiveElections>,
+    active_elections: Arc<ActiveElections>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
@@ -72,14 +72,14 @@ pub struct HintedScheduler {
 impl HintedScheduler {
     pub fn new(
         config: HintedSchedulerConfig,
-        active: Arc<ActiveElections>,
+        active_elections: Arc<ActiveElections>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,
         confirming_set: Arc<ConfirmingSet>,
         online_reps: Arc<Mutex<OnlineReps>>,
     ) -> Self {
-        let max_elections = active.max_len() * config.hinted_limit_percentage / 100;
+        let max_elections = active_elections.max_len() * config.hinted_limit_percentage / 100;
         let notification_threshold =
             max_elections * config.vacancy_threshold_percent as usize / 100;
 
@@ -87,7 +87,7 @@ impl HintedScheduler {
             thread: Mutex::new(None),
             config,
             condition: Condvar::new(),
-            active,
+            active_elections,
             ledger,
             stats,
             vote_cache,
@@ -119,7 +119,7 @@ impl HintedScheduler {
     }
 
     fn aec_vacancy(&self) -> i64 {
-        let active = self.active.read();
+        let active = self.active_elections.read();
         let vacancy =
             self.max_elections as i64 - active.count_by_behavior(ElectionBehavior::Hinted) as i64;
         min(vacancy, active.vacancy())
@@ -182,7 +182,7 @@ impl HintedScheduler {
 
                 // Try to insert it into AEC as hinted election
                 let inserted = self
-                    .active
+                    .active_elections
                     .insert(block, ElectionBehavior::Hinted, None)
                     .is_ok();
 

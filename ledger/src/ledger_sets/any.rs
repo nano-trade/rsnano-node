@@ -1,7 +1,8 @@
 use rsnano_core::{
-    block_priority, utils::TimePriority, Account, AccountInfo, Amount, Block, BlockHash,
-    DependentBlocks, DetailedBlock, PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root,
-    SavedBlock,
+    block_priority,
+    utils::{BlockPriority, TimePriority},
+    Account, AccountInfo, Amount, Block, BlockHash, DependentBlocks, DetailedBlock, PendingInfo,
+    PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
 };
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
@@ -37,7 +38,7 @@ pub trait AnySet: LedgerSet {
     /// to handle full account balance send cases.
     /// Returned timestamp is the previous block timestamp or the current timestamp
     /// if there's no previous block.
-    fn block_priority(&self, block: &SavedBlock) -> (Amount, TimePriority);
+    fn block_priority(&self, block: &SavedBlock) -> BlockPriority;
 
     fn previous_block(&self, block: &SavedBlock) -> Option<SavedBlock>;
     fn get_pending(&self, key: &PendingKey) -> Option<PendingInfo>;
@@ -224,7 +225,7 @@ impl<'a> AnySet for OwningAnySet<'a> {
         self.borrowing_set().block_successor_by_qualified_root(root)
     }
 
-    fn block_priority(&self, block: &SavedBlock) -> (Amount, TimePriority) {
+    fn block_priority(&self, block: &SavedBlock) -> BlockPriority {
         self.borrowing_set().block_priority(block)
     }
 
@@ -432,7 +433,7 @@ impl<'a> AnySet for BorrowingAnySet<'a> {
         }
     }
 
-    fn block_priority(&self, block: &SavedBlock) -> (Amount, TimePriority) {
+    fn block_priority(&self, block: &SavedBlock) -> BlockPriority {
         let previous_block = self.previous_block(block);
         block_priority(block, previous_block.as_ref())
     }

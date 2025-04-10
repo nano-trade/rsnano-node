@@ -13,6 +13,7 @@ pub use fair_queue::*;
 pub use peer::*;
 pub use stream::*;
 
+use crate::Amount;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
     ops::{Add, Mul},
@@ -409,5 +410,31 @@ impl From<UnixTimestamp> for TimePriority {
 impl From<TimePriority> for UnixTimestamp {
     fn from(value: TimePriority) -> Self {
         value.0
+    }
+}
+
+#[derive(PartialEq, Eq, Copy, Clone, Default, PartialOrd, Ord)]
+pub struct BlockPriority {
+    pub balance: Amount,
+    pub time: TimePriority,
+}
+
+impl BlockPriority {
+    pub fn new(balance: Amount, time: TimePriority) -> Self {
+        Self { balance, time }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn block_priority_order() {
+        let a = BlockPriority::new(Amount::from(100), TimePriority::new(5));
+        let b = BlockPriority::new(Amount::from(100), TimePriority::new(6));
+        let c = BlockPriority::new(Amount::from(101), TimePriority::new(4));
+        assert!(a > b);
+        assert!(c > a);
     }
 }

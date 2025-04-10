@@ -65,6 +65,10 @@ impl ActiveElectionsContainer {
         }
     }
 
+    pub fn max_len(&self) -> usize {
+        self.max_elections
+    }
+
     pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
         match behavior {
             ElectionBehavior::Manual => self.manual_count,

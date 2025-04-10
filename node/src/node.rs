@@ -540,7 +540,7 @@ impl Node {
             base_latency,
             steady_clock.clone(),
         );
-        active_elections.set_event_sink(aec_sender.clone());
+        active_elections.set_observer(aec_sender.clone());
         let active_elections = Arc::new(active_elections);
 
         let block_voter = Arc::new(BlockVoter::new(

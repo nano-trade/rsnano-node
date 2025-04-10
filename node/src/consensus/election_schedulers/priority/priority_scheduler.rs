@@ -120,11 +120,11 @@ impl PriorityScheduler {
             return false; // Not activated
         }
 
-        let (priority_balance, priority_timestamp) = any.block_priority(&block);
+        let priority = any.block_priority(&block);
 
         let added = self
-            .find_bucket(priority_balance)
-            .push(priority_timestamp, block.into());
+            .find_bucket(priority.balance)
+            .push(priority.time, block.into());
 
         if added {
             self.stats
@@ -132,8 +132,8 @@ impl PriorityScheduler {
             trace!(
                 account = account.encode_account(),
                 time = %account_info.modified,
-                priority_balance = ?priority_balance,
-                priority_timestamp = ?priority_timestamp,
+                priority_balance = ?priority.balance,
+                priority_timestamp = ?priority.time,
                 "block activated"
             );
             self.condition.notify_all();

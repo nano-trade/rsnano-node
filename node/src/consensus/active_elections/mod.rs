@@ -78,7 +78,7 @@ pub struct ActiveElections {
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
     rep_weights: Arc<RepWeightCache>,
-    event_sender: RwLock<Option<BackpressureSender<AecEvent>>>,
+    observer: RwLock<Option<BackpressureSender<AecEvent>>>,
     fork_cache: Arc<RwLock<ForkCache>>,
     vote_cache: Arc<Mutex<VoteCache>>,
 }
@@ -102,12 +102,12 @@ impl ActiveElections {
             vote_cache,
             stats,
             clock,
-            event_sender: RwLock::new(None),
+            observer: RwLock::new(None),
         }
     }
 
-    pub fn set_event_sink(&self, sink: BackpressureSender<AecEvent>) {
-        *self.event_sender.write().unwrap() = Some(sink);
+    pub fn set_observer(&self, observer: BackpressureSender<AecEvent>) {
+        *self.observer.write().unwrap() = Some(observer);
     }
 
     pub fn read(&self) -> RwLockReadGuard<ActiveElectionsContainer> {
@@ -119,7 +119,7 @@ impl ActiveElections {
     }
 
     pub fn max_len(&self) -> usize {
-        self.max_elections
+        self.container.read().unwrap().max_len()
     }
 
     pub fn set_cooldown(&self, cool_down: bool, reason: AecCooldownReason) {
@@ -282,11 +282,11 @@ impl ActiveElections {
     pub fn stop(&self) {
         self.container.write().unwrap().stop();
         // destroy send queue so that the receiver thread will be stopped too
-        drop(self.event_sender.write().unwrap().take());
+        drop(self.observer.write().unwrap().take());
     }
 
     fn notify(&self, event: AecEvent) {
-        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
+        if let Some(sender) = self.observer.read().unwrap().as_ref() {
             sender.send(event).unwrap()
         }
     }
