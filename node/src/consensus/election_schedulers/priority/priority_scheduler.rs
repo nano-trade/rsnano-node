@@ -124,7 +124,7 @@ impl PriorityScheduler {
 
         let added = self
             .find_bucket(priority.balance)
-            .push(priority.time, block.into());
+            .push(priority, block.into());
 
         if added {
             self.stats

@@ -15,7 +15,7 @@ use std::{
 use tracing::debug;
 
 use rsnano_core::{
-    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
+    utils::{BackpressureSender, BlockPriority, ContainerInfo, ContainerInfoProvider},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
 };
 use rsnano_ledger::{BlockStatus, ProcessedResult, RepWeightCache, RollbackResults};
@@ -209,6 +209,16 @@ impl ActiveElections {
         if let Some(callback) = &entry.erased_callback {
             callback(&root);
         }
+    }
+
+    pub fn insert2(
+        &self,
+        block: SavedBlock,
+        election_behavior: ElectionBehavior,
+        priority: Option<BlockPriority>,
+        erased_callback: Option<ErasedCallback>,
+    ) -> Result<(), AecInsertError> {
+        self.insert(block, election_behavior, erased_callback)
     }
 
     pub fn insert(

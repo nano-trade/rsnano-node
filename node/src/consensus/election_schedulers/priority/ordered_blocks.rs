@@ -7,13 +7,16 @@ use std::{
 #[derive(Debug, Eq)]
 pub(super) struct BlockEntry {
     /// a lower timestamp means a higher priority!
-    pub priority: TimePriority,
+    pub time_priority: TimePriority,
     pub block: SavedBlock,
 }
 
 impl BlockEntry {
     pub fn new(block: SavedBlock, priority: TimePriority) -> Self {
-        Self { priority, block }
+        Self {
+            time_priority: priority,
+            block,
+        }
     }
 
     pub fn hash(&self) -> BlockHash {
@@ -23,7 +26,7 @@ impl BlockEntry {
 
 impl Ord for BlockEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        let prio_order = self.priority.cmp(&other.priority);
+        let prio_order = self.time_priority.cmp(&other.time_priority);
         match prio_order {
             Ordering::Equal => self.block.hash().cmp(&other.block.hash()),
             _ => prio_order,
@@ -39,7 +42,7 @@ impl PartialOrd for BlockEntry {
 
 impl PartialEq for BlockEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.priority == other.priority && self.block.hash() == other.block.hash()
+        self.time_priority == other.time_priority && self.block.hash() == other.block.hash()
     }
 }
 
@@ -194,7 +197,7 @@ mod tests {
 
     fn create_entry(time: UnixTimestamp, key: impl Into<PrivateKey>) -> (BlockHash, BlockEntry) {
         let entry = BlockEntry {
-            priority: time.into(),
+            time_priority: time.into(),
             block: SavedBlock::new_test_instance_with_key(key),
         };
         let hash = entry.block.hash();

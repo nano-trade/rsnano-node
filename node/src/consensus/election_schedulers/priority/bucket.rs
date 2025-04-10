@@ -8,7 +8,10 @@ use super::{
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
 use crate::consensus::{election::ElectionBehavior, ActiveElections, AecInsertError};
-use rsnano_core::{utils::TimePriority, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{
+    utils::{BlockPriority, TimePriority},
+    Block, BlockHash, QualifiedRoot, SavedBlock,
+};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,7 +76,7 @@ impl Bucket {
                 return false;
             };
 
-            candidate_prio = highest.priority;
+            candidate_prio = highest.time_priority;
             election_count = guard.elections.len();
             highest_election = guard.elections.highest_priority();
         }
@@ -112,13 +115,14 @@ impl Bucket {
         }
     }
 
-    pub fn push(&self, priority: TimePriority, block: SavedBlock) -> bool {
+    pub fn push(&self, priority: BlockPriority, block: SavedBlock) -> bool {
         let hash = block.hash();
         let mut guard = self.data.lock().unwrap();
-        let inserted = guard.queue.insert(BlockEntry::new(block, priority));
+        let inserted = guard.queue.insert(BlockEntry::new(block, priority.time));
         if guard.queue.len() > self.config.max_blocks {
             if let Some(removed) = guard.queue.pop_lowest_prio() {
-                inserted && !(removed.priority == priority && removed.block.hash() == hash)
+                inserted
+                    && !(removed.time_priority == priority.time && removed.block.hash() == hash)
             } else {
                 inserted
             }
@@ -158,7 +162,7 @@ impl BucketExt for Arc<Bucket> {
             };
 
             block = top.block;
-            priority = top.priority;
+            priority = top.time_priority;
 
             guard.elections.insert(BucketElection {
                 root: block.qualified_root(),
