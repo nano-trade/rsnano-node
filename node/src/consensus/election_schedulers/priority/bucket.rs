@@ -142,6 +142,10 @@ impl Bucket {
         let guard = self.data.lock().unwrap();
         guard.queue.iter().map(|i| i.block.clone().into()).collect()
     }
+
+    pub fn remove_election(&self, root: &QualifiedRoot) {
+        self.data.lock().unwrap().elections.erase(root);
+    }
 }
 
 pub(crate) trait BucketExt {
@@ -150,47 +154,25 @@ pub(crate) trait BucketExt {
 
 impl BucketExt for Arc<Bucket> {
     fn activate(&self) -> bool {
-        let block: SavedBlock;
-        let priority: BlockPriority;
-
-        {
-            let mut guard = self.data.lock().unwrap();
-
-            let Some(top) = guard.queue.pop_highest_prio() else {
-                return false; // Not activated;
-            };
-
-            block = top.block;
-            priority = top.priority;
-
-            guard.elections.insert(BucketElection {
-                root: block.qualified_root(),
-                priority: priority.time,
-            });
-        }
-
-        let self_w = Arc::downgrade(self);
-        let erase_callback = Box::new(move |root: &QualifiedRoot| {
-            let Some(self_l) = self_w.upgrade() else {
-                return;
-            };
-            let mut guard = self_l.data.lock().unwrap();
-            guard.elections.erase(root);
-        });
-
-        let root = block.qualified_root();
-
-        let result = self.active_elections.insert(
-            block,
-            ElectionBehavior::Priority,
-            Some(priority),
-            Some(erase_callback),
-        );
-
         let mut guard = self.data.lock().unwrap();
 
-        if result.is_err() {
-            guard.elections.erase(&root);
+        let Some(top) = guard.queue.pop_highest_prio() else {
+            return false; // Not activated;
+        };
+
+        let block = top.block;
+        let priority = top.priority;
+        let root = block.qualified_root();
+
+        let result =
+            self.active_elections
+                .insert(block, ElectionBehavior::Priority, Some(priority), None);
+
+        if result.is_ok() {
+            guard.elections.insert(BucketElection {
+                root,
+                priority: priority.time,
+            });
         }
 
         match result {

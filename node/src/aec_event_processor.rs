@@ -63,19 +63,33 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     tx.send(NodeEvent::ElectionStarted(hash)).unwrap();
                 }
             }
-            AecEvent::ElectionStopped(hash) => {
-                if let Some(tx) = &self.node_observer {
-                    tx.send(NodeEvent::ElectionStopped(hash)).unwrap();
-                }
-            }
             AecEvent::ElectionConfirmed(election) => {
                 self.block_processor
                     .reprocess_election_winner(&election.winner);
                 self.confirming_set.add(election.clone());
             }
+            AecEvent::ElectionEnded(election, priority) => {
+                for (hash, block) in election.candidate_blocks() {
+                    // Notify observers about dropped elections & blocks lost confirmed elections
+                    if !election.is_confirmed() || *hash != election.winner().hash() {
+                        if let Some(tx) = &self.node_observer {
+                            tx.send(NodeEvent::ElectionStopped(*hash)).unwrap();
+                        }
+                    }
+
+                    if !election.is_confirmed() {
+                        self.clear_network_filter(block);
+                    }
+
+                    if let Some(priority) = priority {
+                        self.election_schedulers
+                            .remove_priority_election(priority, election.qualified_root());
+                    }
+                }
+            }
             AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
             AecEvent::BlockDiscarded(block) => {
-                self.clear_network_filter(block);
+                self.clear_network_filter(&block);
             }
             AecEvent::WinnerChanged(previous_winner, new_winner) => {
                 self.local_votes_remover
@@ -128,7 +142,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
 }
 
 impl AecEventProcessor {
-    fn clear_network_filter(&mut self, block: Block) {
+    fn clear_network_filter(&mut self, block: &Block) {
         let mut buf = MemoryStream::new();
         block.serialize_without_block_type(&mut buf);
         self.network_filter.clear_bytes(buf.as_bytes());

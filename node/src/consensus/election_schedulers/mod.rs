@@ -10,8 +10,8 @@ pub use optimistic_scheduler::*;
 use std::sync::{Arc, Mutex};
 
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoProvider},
-    Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
+    utils::{BlockPriority, ContainerInfo, ContainerInfoProvider},
+    Account, AccountInfo, BlockHash, ConfirmationHeightInfo, QualifiedRoot, SavedBlock,
 };
 use rsnano_ledger::{AnySet, BlockStatus, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -131,6 +131,10 @@ impl ElectionSchedulers {
         for (block, _) in confirmed {
             self.priority.activate_successors(&any, block);
         }
+    }
+
+    pub fn remove_priority_election(&self, priority: BlockPriority, root: &QualifiedRoot) {
+        self.priority.remove_election(priority, root)
     }
 
     pub fn start(&self) {

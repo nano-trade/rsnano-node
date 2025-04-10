@@ -24,7 +24,7 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{
-    election::{AddForkResult, ConfirmedElection, ElectionBehavior, VoteSummary},
+    election::{AddForkResult, ConfirmedElection, Election, ElectionBehavior, VoteSummary},
     ForkCache, VoteCache,
 };
 pub use active_elections_container::*;
@@ -48,11 +48,12 @@ impl Default for ActiveElectionsConfig {
     }
 }
 
-#[derive(Clone)]
 pub enum AecEvent {
     ElectionStarted(BlockHash),
-    ElectionStopped(BlockHash),
     ElectionConfirmed(ConfirmedElection),
+
+    /// Ended ether confirmed or unconfirmed
+    ElectionEnded(Election, Option<BlockPriority>),
 
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
@@ -74,7 +75,6 @@ pub enum AecEvent {
 
 pub struct ActiveElections {
     container: RwLock<ActiveElectionsContainer>,
-    max_elections: usize,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
     rep_weights: Arc<RepWeightCache>,
@@ -96,7 +96,6 @@ impl ActiveElections {
         let max_elections = config.max_elections;
         Self {
             container: RwLock::new(ActiveElectionsContainer::new(config, base_latency)),
-            max_elections,
             rep_weights,
             fork_cache,
             vote_cache,
@@ -175,22 +174,7 @@ impl ActiveElections {
 
     fn handle_removed_election(&self, entry: Entry) {
         self.add_stats(&entry);
-
-        let election = &entry.election;
-        let winner_hash = election.winner().hash();
-        let is_confirmed = election.is_confirmed();
-        let blocks = election.candidate_blocks().clone();
-
-        for (hash, block) in blocks {
-            // Notify observers about dropped elections & blocks lost confirmed elections
-            if !is_confirmed || hash != winner_hash {
-                self.notify(AecEvent::ElectionStopped(hash));
-            }
-
-            if !is_confirmed {
-                self.notify(AecEvent::BlockDiscarded(block.into()));
-            }
-        }
+        self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
 
     fn add_stats(&self, entry: &Entry) {

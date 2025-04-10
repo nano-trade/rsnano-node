@@ -7,8 +7,8 @@ use std::{
 use tracing::trace;
 
 use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
-    SavedBlock,
+    utils::{BlockPriority, ContainerInfo},
+    Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, QualifiedRoot, SavedBlock,
 };
 use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
@@ -218,6 +218,10 @@ impl PriorityScheduler {
             }
         }
         result
+    }
+
+    pub fn remove_election(&self, priority: BlockPriority, root: &QualifiedRoot) {
+        self.find_bucket(priority.balance).remove_election(root)
     }
 
     pub fn container_info(&self) -> ContainerInfo {
