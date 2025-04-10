@@ -201,7 +201,7 @@ impl ActiveElections {
         election_behavior: ElectionBehavior,
         priority: Option<BlockPriority>,
         erased_callback: Option<ErasedCallback>,
-    ) -> Result<(), AecInsertError> {
+    ) -> Result<bool, AecInsertError> {
         let hash = block.hash();
         let root = block.qualified_root();
 
@@ -213,7 +213,7 @@ impl ActiveElections {
             self.clock.now(),
         );
 
-        if result.is_ok() {
+        if matches!(result, Ok(true)) {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::Started);
             self.stats

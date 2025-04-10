@@ -98,7 +98,7 @@ impl ActiveElectionsContainer {
         priority: Option<BlockPriority>,
         erased_callback: Option<ErasedCallback>,
         now: Timestamp,
-    ) -> Result<(), AecInsertError> {
+    ) -> Result<bool, AecInsertError> {
         if self.stopped {
             return Err(AecInsertError::Stopped);
         }
@@ -122,7 +122,7 @@ impl ActiveElectionsContainer {
                 *self.count_by_behavior_mut(previous_behavior) -= 1;
                 *self.count_by_behavior_mut(election_behavior) += 1;
             }
-            return Err(AecInsertError::Duplicate);
+            return Ok(false);
         }
 
         let election = Election::new(block, election_behavior, self.base_latency, now);
@@ -137,7 +137,7 @@ impl ActiveElectionsContainer {
         // Keep track of election count by election type
         *self.count_by_behavior_mut(election_behavior) += 1;
         self.vote_router.connect(hash, root);
-        Ok(())
+        Ok(true)
     }
 
     pub(super) fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> AddForkResult {
