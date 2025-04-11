@@ -17,6 +17,7 @@ mod votes {
     use super::*;
     use rsnano_core::VoteTimestamp;
     use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
+    use rsnano_node::consensus::ReceivedVote;
     use std::time::SystemTime;
     use test_helpers::start_election;
 
@@ -43,23 +44,25 @@ mod votes {
             vec![send1.hash()],
         ));
         assert_eq!(
-            node1
-                .vote_processor
-                .vote_blocking(&vote1.into(), None, VoteSource::Live),
+            node1.vote_processor.vote_blocking(
+                &ReceivedVote::new(vote1.into(), VoteSource::Live).into(),
+                None
+            ),
             VoteCode::Vote
         );
-        let vote2 = Arc::new(Vote::new(
-            &DEV_GENESIS_KEY,
-            Vote::TIMESTAMP_MIN * 2,
-            0,
-            vec![send1.hash()],
-        ));
+        let vote2 = ReceivedVote::new(
+            Arc::new(Vote::new(
+                &DEV_GENESIS_KEY,
+                Vote::TIMESTAMP_MIN * 2,
+                0,
+                vec![send1.hash()],
+            )),
+            VoteSource::Live,
+        );
 
         // Ignored due to vote cooldown
         assert_eq!(
-            node1
-                .vote_processor
-                .vote_blocking(&vote2.into(), None, VoteSource::Live),
+            node1.vote_processor.vote_blocking(&vote2.into(), None),
             VoteCode::Ignored
         );
 
@@ -105,15 +108,20 @@ mod votes {
             .send_all_except(&key1, Amount::MAX / 2 - Amount::nano(1000));
         node1.process(send1.clone());
         start_election(&node1, &send1.hash());
-        let vote1 = Arc::new(Vote::new(
-            &DEV_GENESIS_KEY,
-            Vote::TIMESTAMP_MIN,
-            0,
-            vec![send1.hash()],
-        ));
+
+        let vote1 = ReceivedVote::new(
+            Arc::new(Vote::new(
+                &DEV_GENESIS_KEY,
+                Vote::TIMESTAMP_MIN,
+                0,
+                vec![send1.hash()],
+            )),
+            VoteSource::Live,
+        );
+
         node1
             .vote_processor
-            .vote_blocking(&vote1.clone().into(), None, VoteSource::Live);
+            .vote_blocking(&vote1.clone().into(), None);
         // Block is already processed from vote
         node1
             .active
@@ -150,12 +158,15 @@ mod votes {
             .try_add_fork(&send2, Amount::zero());
 
         assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
-        let vote2 = Arc::new(Vote::new(
-            &DEV_GENESIS_KEY,
-            Vote::TIMESTAMP_MIN * 2,
-            0,
-            vec![send2.hash()],
-        ));
+        let vote2 = ReceivedVote::new(
+            Arc::new(Vote::new(
+                &DEV_GENESIS_KEY,
+                Vote::TIMESTAMP_MIN * 2,
+                0,
+                vec![send2.hash()],
+            )),
+            VoteSource::Live,
+        );
 
         // Pretend we've waited the timeout
         node1.active.write().unwrap().change_vote_timestamp(
@@ -165,9 +176,7 @@ mod votes {
         );
 
         assert_eq!(
-            node1
-                .vote_processor
-                .vote_blocking(&vote2.into(), None, VoteSource::Live),
+            node1.vote_processor.vote_blocking(&vote2.into(), None),
             VoteCode::Vote
         );
         assert_eq!(
@@ -191,9 +200,7 @@ mod votes {
         );
 
         assert_eq!(
-            node1
-                .vote_processor
-                .vote_blocking(&vote1.into(), None, VoteSource::Live),
+            node1.vote_processor.vote_blocking(&vote1.into(), None),
             VoteCode::Replay
         );
 

@@ -6,17 +6,16 @@ use std::{
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
 
-use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteCode, VoteSource};
 use rsnano_ledger::{Ledger, RepWeightCache};
 
-use super::{ActiveElectionsContainer, AecEvent, FilteredVote};
+use super::{ActiveElectionsContainer, AecEvent, FilteredVote, ReceivedVote};
 use crate::representatives::OnlineReps;
 
 /// Applies a vote to an election
 pub(crate) struct VoteApplier {
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     event_senders: RwLock<Vec<BackpressureSender<AecEvent>>>,
-    ledger: Arc<Ledger>,
     online_reps: Arc<Mutex<OnlineReps>>,
     clock: Arc<SteadyClock>,
     rep_weights: Arc<RepWeightCache>,
@@ -26,7 +25,6 @@ pub(crate) struct VoteApplier {
 impl VoteApplier {
     pub(crate) fn new(
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
-        ledger: Arc<Ledger>,
         online_reps: Arc<Mutex<OnlineReps>>,
         clock: Arc<SteadyClock>,
         rep_weights: Arc<RepWeightCache>,
@@ -35,7 +33,6 @@ impl VoteApplier {
         Self {
             active_elections,
             event_senders: RwLock::new(Vec::new()),
-            ledger,
             online_reps,
             clock,
             rep_weights,
@@ -58,7 +55,6 @@ impl VoteApplier {
     pub fn vote(
         &self,
         vote: &FilteredVote,
-        source: VoteSource,
         channel: Option<Arc<Channel>>,
     ) -> HashMap<BlockHash, VoteCode> {
         debug_assert!(vote.validate().is_ok());
@@ -95,27 +91,26 @@ impl VoteApplier {
         let results = {
             let rep_weights = self.rep_weights.read();
             let mut active = self.active_elections.write().unwrap();
-            active.apply_vote(vote, source, &rep_weights, quorum_specs, now)
+            active.apply_vote(vote, &rep_weights, quorum_specs, now)
         };
 
-        self.notify_vote_processed(&vote.vote, voter_weight, source, channel, &results);
+        self.notify_vote_processed(&vote, voter_weight, channel, &results);
         results
     }
 
     fn notify_vote_processed(
         &self,
-        vote: &Arc<Vote>,
+        vote: &ReceivedVote,
         voter_weight: Amount,
-        source: VoteSource,
         channel: Option<Arc<Channel>>,
         results: &HashMap<BlockHash, VoteCode>,
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
             sender
                 .send(AecEvent::VoteProcessed(
-                    vote.clone(),
+                    vote.vote.clone(),
                     voter_weight,
-                    source,
+                    vote.source,
                     channel.clone(),
                     results.clone(),
                 ))

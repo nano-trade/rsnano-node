@@ -32,7 +32,7 @@ pub(crate) use confirm_req_sender::*;
 pub use confirmation_solicitor::ConfirmationSolicitor;
 pub(crate) use confirmed_election_cache::*;
 pub(crate) use dependent_elections_confirmer::*;
-pub use filtered_vote::FilteredVote;
+pub use filtered_vote::*;
 pub(crate) use fork_cache::*;
 pub(crate) use fork_cache_updater::*;
 pub(crate) use fork_processor::ForkProcessor;

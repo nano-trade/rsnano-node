@@ -2,7 +2,11 @@ use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{Amount, PrivateKey, Vote, VoteSource, DEV_GENESIS_KEY};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet};
-use rsnano_node::{config::NodeConfig, consensus::election::ElectionBehavior, wallets::WalletsExt};
+use rsnano_node::{
+    config::NodeConfig,
+    consensus::{election::ElectionBehavior, ReceivedVote},
+    wallets::WalletsExt,
+};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_timely, assert_timely2, assert_timely_eq, get_available_port, setup_chain,
@@ -55,10 +59,11 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
 
     assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
-    let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1
-        .vote_processor
-        .vote_blocking(&vote1.into(), None, VoteSource::Live);
+    let vote1 = ReceivedVote::new(
+        Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()])),
+        VoteSource::Live,
+    );
+    node1.vote_processor.vote_blocking(&vote1.into(), None);
 
     let channel = node1
         .network
@@ -68,8 +73,13 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .unwrap()
         .clone();
 
-    let vote2 = Arc::new(Vote::new_final(&key1, vec![send1.hash()]));
-    node1.rep_crawler.force_process2(vote2.clone(), channel);
+    let vote2 = ReceivedVote::new(
+        Arc::new(Vote::new_final(&key1, vec![send1.hash()])),
+        VoteSource::Live,
+    );
+    node1
+        .rep_crawler
+        .force_process2(vote2.vote.clone(), channel);
 
     assert_eq!(
         node1
@@ -87,9 +97,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .lock()
         .unwrap()
         .set_online(config.online_weight_minimum + Amount::raw(20));
-    node1
-        .vote_processor
-        .vote_blocking(&vote2.into(), None, VoteSource::Live);
+    node1.vote_processor.vote_blocking(&vote2.into(), None);
     assert_timely2(|| node1.ledger.confirmed().block_exists(&send1.hash()));
 }
 
@@ -151,10 +159,11 @@ fn quorum_minimum_confirm_fail() {
     node1.process_active(send1.clone());
     assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
-    let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1
-        .vote_processor
-        .vote_blocking(&vote.into(), None, VoteSource::Live);
+    let vote = ReceivedVote::new(
+        Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()])),
+        VoteSource::Live,
+    );
+    node1.vote_processor.vote_blocking(&vote.into(), None);
 
     // Give the election a chance to confirm
     std::thread::sleep(Duration::from_secs(1));
@@ -190,10 +199,11 @@ fn quorum_minimum_confirm_success() {
     node1.process_active(send1.clone());
     assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
-    let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
-    node1
-        .vote_processor
-        .vote_blocking(&vote.into(), None, VoteSource::Live);
+    let vote = ReceivedVote::new(
+        Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()])),
+        VoteSource::Live,
+    );
+    node1.vote_processor.vote_blocking(&vote.into(), None);
 
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
 }
@@ -231,10 +241,11 @@ fn quorum_minimum_flip_fail() {
 
     // Genesis generates a final vote for send2 but it should not be enough to reach quorum
     // due to the online_weight_minimum being so high
-    let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node1
-        .vote_processor
-        .vote_blocking(&vote.into(), None, VoteSource::Live);
+    let vote = ReceivedVote::new(
+        Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()])),
+        VoteSource::Live,
+    );
+    node1.vote_processor.vote_blocking(&vote.into(), None);
 
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
@@ -274,10 +285,11 @@ fn quorum_minimum_flip_success() {
     assert_timely2(|| node1.is_active_hash(&send2.hash()));
 
     // Genesis generates a final vote for send2
-    let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    node1
-        .vote_processor
-        .vote_blocking(&vote.into(), None, VoteSource::Live);
+    let vote = ReceivedVote::new(
+        Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()])),
+        VoteSource::Live,
+    );
+    node1.vote_processor.vote_blocking(&vote.into(), None);
 
     // Wait for the election to be confirmed
     assert_timely2(|| node1.block_confirmed(&send2.hash()));

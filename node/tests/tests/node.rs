@@ -14,7 +14,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{AecEvent, AggregatorRequest, FilteredVote},
+    consensus::{AecEvent, AggregatorRequest, FilteredVote, ReceivedVote},
     wallets::WalletsExt,
     work::WorkRequest,
 };
@@ -1779,12 +1779,15 @@ fn online_reps_rep_crawler() {
     flags.disable_rep_crawler = true;
     let node = system.build_node().flags(flags).finish();
 
-    let vote: FilteredVote = Arc::new(Vote::new(
-        &DEV_GENESIS_KEY,
-        UnixMillisTimestamp::now(),
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ))
+    let vote: FilteredVote = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &DEV_GENESIS_KEY,
+            UnixMillisTimestamp::now(),
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+    )
     .into();
 
     assert_eq!(
@@ -1795,7 +1798,7 @@ fn online_reps_rep_crawler() {
     // Without rep crawler
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote, Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote, Some(channel.clone()));
     assert_eq!(
         Amount::zero(),
         node.online_reps.lock().unwrap().online_weight()
@@ -1804,8 +1807,7 @@ fn online_reps_rep_crawler() {
     // After inserting to rep crawler
     node.rep_crawler
         .force_query(*DEV_GENESIS_HASH, channel.channel_id());
-    node.vote_processor
-        .vote_blocking(&vote, Some(channel), VoteSource::Live);
+    node.vote_processor.vote_blocking(&vote, Some(channel));
 
     assert_eq!(
         Amount::MAX,
@@ -1845,8 +1847,10 @@ fn online_reps_election() {
     );
 
     let channel = make_fake_channel(&node);
-    node.vote_processor
-        .vote_blocking(&vote.into(), Some(channel), VoteSource::Live);
+    node.vote_processor.vote_blocking(
+        &ReceivedVote::new(vote.into(), VoteSource::Live).into(),
+        Some(channel),
+    );
 
     assert_eq!(
         Amount::MAX - Amount::nano(1000),
@@ -2091,8 +2095,10 @@ fn rollback_vote_self() {
             0,
             vec![fork.hash()],
         ));
-        node.vote_processor
-            .vote_blocking(&vote.into(), None, VoteSource::Live);
+        node.vote_processor.vote_blocking(
+            &ReceivedVote::new(vote.into(), VoteSource::Live).into(),
+            None,
+        );
 
         // The winner changed
         assert_eq!(

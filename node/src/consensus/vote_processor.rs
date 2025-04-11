@@ -15,7 +15,7 @@ use rsnano_core::{utils::BackpressureSender, BlockHash, Vote, VoteCode, VoteSour
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{AecEvent, FilteredVote, VoteApplier, VoteProcessorQueue};
+use super::{AecEvent, FilteredVote, ReceivedVote, VoteApplier, VoteProcessorQueue};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteProcessorConfig {
@@ -116,8 +116,9 @@ impl VoteProcessor {
 
             for (_, (vote, source, channel, filter)) in &batch {
                 let filter = filter.unwrap_or_default();
-                let filtered_vote = FilteredVote::new(vote.clone(), filter);
-                self.vote_blocking(&filtered_vote, channel.clone(), *source);
+                let received_vote = ReceivedVote::new(vote.clone(), *source);
+                let filtered_vote = FilteredVote::new(received_vote.clone(), filter);
+                self.vote_blocking(&filtered_vote, channel.clone());
             }
 
             self.total_processed
@@ -135,15 +136,10 @@ impl VoteProcessor {
         }
     }
 
-    pub fn vote_blocking(
-        &self,
-        vote: &FilteredVote,
-        channel: Option<Arc<Channel>>,
-        source: VoteSource,
-    ) -> VoteCode {
+    pub fn vote_blocking(&self, vote: &FilteredVote, channel: Option<Arc<Channel>>) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let vote_results = self.vote_applier.vote(vote, source, channel.clone());
+            let vote_results = self.vote_applier.vote(vote, channel.clone());
 
             result = aggregate_vote_results(&vote_results);
         }

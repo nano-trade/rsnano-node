@@ -382,7 +382,6 @@ impl ActiveElectionsContainer {
     pub fn apply_vote(
         &mut self,
         vote: &FilteredVote,
-        source: VoteSource,
         rep_weights: &RepWeights,
         quorum_specs: QuorumSpecs,
         now: Timestamp,
@@ -408,7 +407,7 @@ impl ActiveElectionsContainer {
             if let Some(root) = root {
                 let entry = self.roots.get_mut(&root).unwrap();
                 let vote_code =
-                    apply_helper.apply_vote(vote, &mut entry.election, *block_hash, source);
+                    apply_helper.apply_vote(vote, &mut entry.election, *block_hash, vote.source);
 
                 results.insert(*block_hash, vote_code);
             } else {

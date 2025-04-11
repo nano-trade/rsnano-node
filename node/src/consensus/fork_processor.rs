@@ -46,7 +46,7 @@ impl ForkProcessor {
         let mut tally = Amount::zero();
         let weights = self.rep_weights.read();
         for vote in votes {
-            tally += weights.get(&vote.voter).cloned().unwrap_or_default();
+            tally += weights.weight(&vote.voter);
         }
         tally
     }

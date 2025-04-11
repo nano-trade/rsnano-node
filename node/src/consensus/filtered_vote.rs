@@ -1,14 +1,34 @@
-use rsnano_core::{BlockHash, Vote};
+use rsnano_core::{BlockHash, Vote, VoteSource};
 use std::{ops::Deref, sync::Arc};
+
+#[derive(Clone)]
+pub struct ReceivedVote {
+    pub vote: Arc<Vote>,
+    pub source: VoteSource,
+}
+
+impl ReceivedVote {
+    pub fn new(vote: Arc<Vote>, source: VoteSource) -> Self {
+        Self { vote, source }
+    }
+}
+
+impl Deref for ReceivedVote {
+    type Target = Vote;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vote
+    }
+}
 
 /// A vote where only one given block hash is counted
 pub struct FilteredVote {
-    pub vote: Arc<Vote>,
+    pub vote: ReceivedVote,
     pub filter: BlockHash,
 }
 
 impl FilteredVote {
-    pub(crate) fn new(vote: Arc<Vote>, filter: BlockHash) -> Self {
+    pub fn new(vote: ReceivedVote, filter: BlockHash) -> Self {
         Self { vote, filter }
     }
 
@@ -24,15 +44,15 @@ impl FilteredVote {
 }
 
 impl Deref for FilteredVote {
-    type Target = Vote;
+    type Target = ReceivedVote;
 
     fn deref(&self) -> &Self::Target {
         &self.vote
     }
 }
 
-impl From<Arc<Vote>> for FilteredVote {
-    fn from(value: Arc<Vote>) -> Self {
+impl From<ReceivedVote> for FilteredVote {
+    fn from(value: ReceivedVote) -> Self {
         Self::new(value, BlockHash::zero())
     }
 }

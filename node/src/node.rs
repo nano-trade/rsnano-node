@@ -547,7 +547,6 @@ impl Node {
 
         let vote_applier = VoteApplier::new(
             active_elections.clone(),
-            ledger.clone(),
             online_reps.clone(),
             steady_clock.clone(),
             rep_weights.clone(),
