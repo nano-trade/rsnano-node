@@ -139,7 +139,6 @@ impl VoteApplier {
         let results = {
             let rep_weights = self.rep_weights.read();
             self.active_elections.write().unwrap().apply_votes(
-                vote.voter,
                 vote_summaries,
                 source,
                 &rep_weights,

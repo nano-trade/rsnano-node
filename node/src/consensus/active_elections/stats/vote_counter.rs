@@ -4,7 +4,7 @@ use strum::{EnumCount, IntoEnumIterator};
 use rsnano_core::VoteSource;
 
 #[derive(Default)]
-pub(super) struct VoteCounter {
+pub(crate) struct VoteCounter {
     votes: u64,
     by_source: [u64; VoteSource::COUNT],
 }

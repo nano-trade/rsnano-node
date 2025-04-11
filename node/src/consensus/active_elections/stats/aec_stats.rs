@@ -9,7 +9,7 @@ use strum::{EnumCount, IntoEnumIterator};
 
 #[derive(Default)]
 pub(crate) struct AecStats {
-    vote_counter: VoteCounter,
+    pub vote_counter: VoteCounter,
     stopped_counter: StoppedCounter,
     pub ticked: u64,
     pub conflicts: u64,

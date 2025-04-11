@@ -1,4 +1,5 @@
 mod active_elections_container;
+mod apply_vote_helper;
 mod cooldown_controller;
 mod recently_confirmed_cache;
 mod root_container;

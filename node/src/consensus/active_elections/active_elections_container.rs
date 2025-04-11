@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    ops::Deref,
     time::{Duration, SystemTime},
 };
 
@@ -16,6 +15,7 @@ use crate::consensus::election::{
 };
 
 use super::{
+    apply_vote_helper::ApplyVoteHelper,
     cooldown_controller::{AecCooldownReason, CooldownController, CooldownResult},
     recently_confirmed_cache::RecentlyConfirmedCache,
     stats::AecStats,
@@ -388,7 +388,6 @@ impl ActiveElectionsContainer {
 
     pub fn apply_votes(
         &mut self,
-        voter: PublicKey,
         votes: impl IntoIterator<Item = VoteSummary>,
         source: VoteSource,
         rep_weights: &HashMap<PublicKey, Amount>,
@@ -396,13 +395,6 @@ impl ActiveElectionsContainer {
         quorum_delta: Amount,
         now: Timestamp,
     ) -> HashMap<BlockHash, VoteCode> {
-        let observer = &self.observer;
-        let notify = |ev: AecEvent| {
-            if let Some(o) = observer {
-                o.send(ev).unwrap();
-            }
-        };
-
         let mut results = HashMap::new();
         let mut vote_counted = false;
 
@@ -451,57 +443,18 @@ impl ActiveElectionsContainer {
                     }
 
                     if vote_code == VoteCode::Invalid {
-                        election.add_vote(
-                            vote_summary.voter,
-                            vote_summary.timestamp,
-                            vote_summary.hash,
-                        );
+                        let mut apply_helper = ApplyVoteHelper {
+                            election,
+                            recently_confirmed: &mut self.recently_confirmed,
+                            observer: &self.observer,
+                            now,
+                            rep_weights,
+                            quorum_delta,
+                            vote_counter: &mut self.stats.vote_counter,
+                            vote_counted: &mut vote_counted,
+                        };
 
-                        self.stats.voted(source);
-                        if !vote_counted {
-                            // send vote counted event only once!
-                            vote_counted = true;
-                            notify(AecEvent::VoteCounted(voter, source));
-                        }
-
-                        // CONFIRM IF QUORUM:
-                        if !election.is_confirmed() {
-                            let old_winner = election.winner().hash();
-                            let old_final = election.is_final();
-
-                            election.update_tallies(&rep_weights, quorum_delta);
-
-                            let winner_changed = election.winner().hash() != old_winner;
-                            if winner_changed {
-                                notify(AecEvent::WinnerChanged(
-                                    old_winner,
-                                    election.winner().deref().clone(),
-                                ));
-                            }
-
-                            if election.is_final() {
-                                if !old_final {
-                                    notify(AecEvent::FinalPhaseStarted(
-                                        election.winner().hash(),
-                                        election.qualified_root().clone(),
-                                    ));
-                                }
-                                if election.is_confirmed() {
-                                    self.recently_confirmed.put(
-                                        election.qualified_root().clone(),
-                                        election.winner().hash(),
-                                    );
-
-                                    let confirmed_election = election.into_confirmed_election(
-                                        now,
-                                        ConfirmationType::ActiveConfirmedQuorum,
-                                    );
-                                    notify(AecEvent::ElectionConfirmed(confirmed_election));
-                                }
-                            }
-                        }
-
-                        vote_code = VoteCode::Vote;
+                        vote_code = apply_helper.add_vote(&vote_summary, source);
                     }
                 }
 
