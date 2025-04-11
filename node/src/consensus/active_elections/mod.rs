@@ -46,7 +46,6 @@ pub enum AecEvent {
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),
     BlockConfirmed(SavedBlock, ConfirmedElection),
-    VoteCounted(PublicKey, VoteSource),
     /// old winner + new winner block
     WinnerChanged(BlockHash, Block),
 

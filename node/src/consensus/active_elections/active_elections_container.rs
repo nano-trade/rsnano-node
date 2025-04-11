@@ -5,7 +5,7 @@ use std::{
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
-    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
@@ -14,7 +14,6 @@ use crate::{
     consensus::{
         election::{
             AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior,
-            VoteSummary,
         },
         filtered_vote::FilteredVote,
     },
@@ -379,7 +378,7 @@ impl ActiveElectionsContainer {
         self.recently_confirmed.erase(block_hash);
     }
 
-    pub fn apply_votes(
+    pub fn apply_vote(
         &mut self,
         vote: &FilteredVote,
         source: VoteSource,
@@ -388,7 +387,15 @@ impl ActiveElectionsContainer {
         now: Timestamp,
     ) -> HashMap<BlockHash, VoteCode> {
         let mut results = HashMap::new();
-        let mut vote_counted = false;
+
+        let mut apply_helper = ApplyVoteHelper {
+            recently_confirmed: &mut self.recently_confirmed,
+            vote_counter: &mut self.stats.vote_counter,
+            observer: &self.observer,
+            now,
+            rep_weights,
+            quorum_specs,
+        };
 
         for block_hash in vote.filtered_blocks() {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
@@ -399,24 +406,12 @@ impl ActiveElectionsContainer {
             let root = self.vote_router.qualified_root(block_hash);
             if let Some(root) = root {
                 let entry = self.roots.get_mut(&root).unwrap();
-                let election = &mut entry.election;
-
-                let mut apply_helper = ApplyVoteHelper {
-                    election,
-                    recently_confirmed: &mut self.recently_confirmed,
-                    observer: &self.observer,
-                    now,
-                    rep_weights,
-                    quorum_specs: quorum_specs.clone(),
-                    vote_counter: &mut self.stats.vote_counter,
-                    vote_counted: &mut vote_counted,
-                };
-
-                let vote_code = apply_helper.apply_vote(vote, *block_hash, source);
+                let vote_code =
+                    apply_helper.apply_vote(vote, &mut entry.election, *block_hash, source);
 
                 results.insert(*block_hash, vote_code);
             } else {
-                if self.was_recently_confirmed(block_hash) {
+                if apply_helper.recently_confirmed.hash_exists(block_hash) {
                     results.insert(*block_hash, VoteCode::Late);
                 } else {
                     results.insert(*block_hash, VoteCode::Indeterminate);

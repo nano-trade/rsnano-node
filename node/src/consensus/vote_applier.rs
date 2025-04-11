@@ -11,7 +11,7 @@ use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, 
 use rsnano_ledger::{Ledger, RepWeightCache};
 
 use super::{ActiveElectionsContainer, AecEvent, FilteredVote};
-use crate::{consensus::election::VoteSummary, representatives::OnlineReps};
+use crate::representatives::OnlineReps;
 
 /// Applies a vote to an election
 pub(crate) struct VoteApplier {
@@ -65,13 +65,7 @@ impl VoteApplier {
         debug_assert!(vote.validate().is_ok());
 
         let minimum_pr_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
-        let voter_weight = self
-            .ledger
-            .rep_weights
-            .read()
-            .get(&vote.voter)
-            .cloned()
-            .unwrap_or_default();
+        let voter_weight = self.rep_weights.weight(&vote.voter);
 
         if !self.is_dev_network && voter_weight <= minimum_pr_weight {
             // Ignore votes from reps below min PR weight!
@@ -83,7 +77,8 @@ impl VoteApplier {
 
         let is_active = {
             let active = self.active_elections.read().unwrap();
-            vote.hashes.iter().any(|hash| active.is_active_hash(hash))
+            vote.filtered_blocks()
+                .any(|hash| active.is_active_hash(hash))
         };
 
         let now = self.clock.now();
@@ -101,7 +96,7 @@ impl VoteApplier {
         let results = {
             let rep_weights = self.rep_weights.read();
             let mut active = self.active_elections.write().unwrap();
-            active.apply_votes(vote, source, &rep_weights, quorum_specs, now)
+            active.apply_vote(vote, source, &rep_weights, quorum_specs, now)
         };
 
         self.notify_vote_processed(&vote.vote, voter_weight, source, channel, &results);

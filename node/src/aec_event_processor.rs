@@ -116,15 +116,6 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 // Roll back the previous winner and add the new winner to the ledger
                 self.block_processor.force(new_winner.clone().into());
             }
-            AecEvent::VoteCounted(voter, source) => {
-                if source != VoteSource::Cache {
-                    // Representative is defined as online if replying to live votes or rep_crawler queries
-                    self.online_reps
-                        .lock()
-                        .unwrap()
-                        .vote_observed(voter, self.clock.now());
-                }
-            }
             AecEvent::VoteProcessed(vote, voter_weight, source, channel, results) => {
                 // Cache the votes that didn't match any election
                 if source != VoteSource::Cache {
