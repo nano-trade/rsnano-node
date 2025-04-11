@@ -68,7 +68,7 @@ impl ActiveElectionsContainer {
         self.count_by_behavior[behavior as usize]
     }
 
-    pub fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
+    fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
         &mut self.count_by_behavior[behavior as usize]
     }
 
@@ -90,7 +90,6 @@ impl ActiveElectionsContainer {
         let root = block.qualified_root();
 
         if self.recently_confirmed.root_exists(&root) {
-            // This block or a fork got recently confirmed, so there is no need for a new election.
             return Err(AecInsertError::RecentlyConfirmed);
         }
 
@@ -139,12 +138,9 @@ impl ActiveElectionsContainer {
             priority,
         });
 
-        // Keep track of election count by election type
         *self.count_by_behavior_mut(behavior) += 1;
         self.vote_router.connect(hash, root.clone());
-
-        self.stats.started_counter += 1;
-        self.stats.started_by_behavor[behavior as usize] += 1;
+        self.stats.started(behavior);
         self.notify(AecEvent::ElectionStarted(hash, root));
     }
 

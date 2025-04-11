@@ -17,6 +17,11 @@ pub(crate) struct AecStats {
 }
 
 impl AecStats {
+    pub fn started(&mut self, behavior: ElectionBehavior) {
+        self.started_counter += 1;
+        self.started_by_behavor[behavior as usize] += 1;
+    }
+
     pub fn stopped(&mut self, election: &Election) {
         self.stopped_counter.stopped(election);
     }

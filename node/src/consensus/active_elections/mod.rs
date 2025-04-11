@@ -64,5 +64,7 @@ pub enum AecEvent {
 pub enum AecInsertError {
     Stopped,
     Duplicate,
+
+    /// This block or a fork got recently confirmed, so there is no need for a new election.
     RecentlyConfirmed,
 }
