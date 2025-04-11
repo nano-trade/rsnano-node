@@ -36,7 +36,7 @@ impl Amount {
         }
     }
 
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self::raw(0)
     }
 

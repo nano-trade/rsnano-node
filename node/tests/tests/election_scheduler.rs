@@ -143,11 +143,14 @@ mod election_scheduler {
     use std::time::Duration;
 
     use super::*;
-    use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
+    use rsnano_core::{utils::BlockPriority, Amount, PrivateKey, DEV_GENESIS_KEY};
     use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT};
     use rsnano_node::{
         config::NodeConfig,
-        consensus::{election::ElectionBehavior, election_schedulers::OptimisticSchedulerConfig},
+        consensus::{
+            election::ElectionBehavior, election_schedulers::OptimisticSchedulerConfig,
+            AecInsertRequest,
+        },
     };
     use test_helpers::{setup_chains, setup_rep};
 
@@ -327,9 +330,7 @@ mod election_scheduler {
 
         // Attempt to start priority election for second block
         let _ = node.active.write().unwrap().insert(
-            block.clone(),
-            ElectionBehavior::Priority,
-            None,
+            AecInsertRequest::new_priority(block.clone(), BlockPriority::MIN),
             node.steady_clock.now(),
         );
 

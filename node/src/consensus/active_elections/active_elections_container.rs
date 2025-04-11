@@ -5,10 +5,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{
-        BackpressureSender, BlockPriority, ContainerInfo, ContainerInfoProvider,
-        UnixMillisTimestamp,
-    },
+    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixMillisTimestamp},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -19,11 +16,12 @@ use crate::consensus::election::{
 };
 
 use super::{
-    cooldown_controller::{AecCooldownReason, CooldownController},
+    cooldown_controller::{AecCooldownReason, CooldownController, CooldownResult},
     recently_confirmed_cache::RecentlyConfirmedCache,
     stats::AecStats,
     vote_router::VoteRouter,
-    ActiveElectionsConfig, AecEvent, AecInsertError, Entry, RootContainer,
+    ActiveElectionsConfig, ActiveElectionsInfo, AecEvent, AecInsertError, AecInsertRequest, Entry,
+    RootContainer,
 };
 use strum::EnumCount;
 
@@ -78,69 +76,75 @@ impl ActiveElectionsContainer {
 
     pub fn insert(
         &mut self,
-        block: SavedBlock,
-        behavior: ElectionBehavior,
-        priority: Option<BlockPriority>,
+        request: AecInsertRequest,
         now: Timestamp,
     ) -> Result<(), AecInsertError> {
-        if self.stopped {
-            return Err(AecInsertError::Stopped);
-        }
+        self.ensure_not_stopped()?;
+        self.ensure_not_recently_confirmed(&request)?;
 
-        let root = block.qualified_root();
-
-        if self.recently_confirmed.root_exists(&root) {
-            return Err(AecInsertError::RecentlyConfirmed);
-        }
-
-        if !self.try_upgrade_existing_election(&root, behavior, priority)? {
-            self.insert_new_election(block, behavior, priority, now);
+        if !self.try_upgrade_existing_election(&request)? {
+            self.insert_new_election(request, now);
         }
 
         Ok(())
     }
 
+    fn ensure_not_stopped(&self) -> Result<(), AecInsertError> {
+        if self.stopped {
+            Err(AecInsertError::Stopped)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn ensure_not_recently_confirmed(
+        &self,
+        request: &AecInsertRequest,
+    ) -> Result<(), AecInsertError> {
+        let root = request.block.qualified_root();
+
+        if self.recently_confirmed.root_exists(&root) {
+            return Err(AecInsertError::RecentlyConfirmed);
+        }
+        Ok(())
+    }
+
     fn try_upgrade_existing_election(
         &mut self,
-        root: &QualifiedRoot,
-        new_behavior: ElectionBehavior,
-        priority: Option<BlockPriority>,
+        request: &AecInsertRequest,
     ) -> Result<bool, AecInsertError> {
-        let Some(existing) = self.roots.get_mut(&root) else {
+        let Some(existing) = self.roots.get_mut(&request.block.qualified_root()) else {
+            // Nothing upgraded - it's a new election
             return Ok(false);
         };
 
         let previous_behavior = existing.election.behavior();
-        let upgraded = existing.election.maybe_upgrade_to(new_behavior);
-        if !upgraded {
-            return Err(AecInsertError::Duplicate);
+        let upgraded = existing.election.maybe_upgrade_to(request.behavior);
+
+        if upgraded {
+            existing.priority = request.priority;
+            *self.count_by_behavior_mut(previous_behavior) -= 1;
+            *self.count_by_behavior_mut(request.behavior) += 1;
+            Ok(true)
+        } else {
+            Err(AecInsertError::Duplicate)
         }
-        existing.priority = priority;
-        *self.count_by_behavior_mut(previous_behavior) -= 1;
-        *self.count_by_behavior_mut(new_behavior) += 1;
-        Ok(upgraded)
     }
 
-    fn insert_new_election(
-        &mut self,
-        block: SavedBlock,
-        behavior: ElectionBehavior,
-        priority: Option<BlockPriority>,
-        now: Timestamp,
-    ) {
-        let root = block.qualified_root();
-        let hash = block.hash();
-        let election = Election::new(block, behavior, self.base_latency, now);
+    fn insert_new_election(&mut self, request: AecInsertRequest, now: Timestamp) {
+        let root = request.block.qualified_root();
+        let hash = request.block.hash();
+        let election = Election::new(request.block, request.behavior, self.base_latency, now);
 
         self.roots.insert(Entry {
             root: root.clone(),
             election,
-            priority,
+            priority: request.priority,
         });
 
-        *self.count_by_behavior_mut(behavior) += 1;
+        *self.count_by_behavior_mut(request.behavior) += 1;
         self.vote_router.connect(hash, root.clone());
-        self.stats.started(behavior);
+        self.stats.started(request.behavior);
         self.notify(AecEvent::ElectionStarted(hash, root));
     }
 
@@ -187,18 +191,15 @@ impl ActiveElectionsContainer {
     }
 
     pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) {
-        let was_cooling_down_before = self.cooldown.is_cooling_down();
-        self.cooldown.set_cooldown(cool_down, reason);
-        let cooling_down = self.cooldown.is_cooling_down();
-
-        if cooling_down && !was_cooling_down_before {
-            self.stats.cooldown_count += 1;
-        }
-
-        let recovered = !cooling_down && was_cooling_down_before;
-        if recovered {
-            self.stats.recover_count += 1;
-            self.notify(AecEvent::VacancyUpdated);
+        match self.cooldown.set_cooldown(cool_down, reason) {
+            CooldownResult::CooldownStarted => {
+                self.stats.cooldown_count += 1;
+            }
+            CooldownResult::Recovered => {
+                self.stats.recover_count += 1;
+                self.notify(AecEvent::VacancyUpdated);
+            }
+            CooldownResult::Unchanged => {}
         }
     }
 
@@ -600,13 +601,4 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
             .node("vote_router", self.vote_router.container_info())
             .finish()
     }
-}
-
-#[derive(Default)]
-pub struct ActiveElectionsInfo {
-    pub max_elections: usize,
-    pub total: usize,
-    pub priority: usize,
-    pub hinted: usize,
-    pub optimistic: usize,
 }

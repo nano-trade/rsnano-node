@@ -8,7 +8,7 @@ use std::{
 use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::consensus::{election::ElectionBehavior, ActiveElectionsContainer};
+use crate::consensus::{election::ElectionBehavior, ActiveElectionsContainer, AecInsertRequest};
 use rsnano_nullable_clock::SteadyClock;
 
 pub struct ManualScheduler {
@@ -95,7 +95,7 @@ impl ManualScheduler {
                         .active
                         .write()
                         .unwrap()
-                        .insert(block, ElectionBehavior::Manual, None, now)
+                        .insert(AecInsertRequest::new_manual(block), now)
                         .is_ok()
                     {
                         self.active.write().unwrap().transition_active_hash(&hash);

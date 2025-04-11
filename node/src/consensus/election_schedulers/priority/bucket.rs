@@ -7,7 +7,9 @@ use super::{
     bucket_elections::{BucketElection, BucketElections},
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
-use crate::consensus::{election::ElectionBehavior, ActiveElectionsContainer, AecInsertError};
+use crate::consensus::{
+    election::ElectionBehavior, ActiveElectionsContainer, AecInsertError, AecInsertRequest,
+};
 use rsnano_core::{
     utils::{BlockPriority, TimePriority},
     Block, BlockHash, QualifiedRoot, SavedBlock,
@@ -169,12 +171,11 @@ impl BucketExt for Arc<Bucket> {
         let root = block.qualified_root();
 
         let now = self.clock.now();
-        let result = self.active_elections.write().unwrap().insert(
-            block,
-            ElectionBehavior::Priority,
-            Some(priority),
-            now,
-        );
+        let result = self
+            .active_elections
+            .write()
+            .unwrap()
+            .insert(AecInsertRequest::new_priority(block, priority), now);
 
         match result {
             Ok(()) => {

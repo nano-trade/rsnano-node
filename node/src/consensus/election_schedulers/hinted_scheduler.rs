@@ -17,7 +17,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::VoteCache;
 use crate::{
     cementation::ConfirmingSet,
-    consensus::{election::ElectionBehavior, ActiveElectionsContainer},
+    consensus::{election::ElectionBehavior, ActiveElectionsContainer, AecInsertRequest},
     representatives::OnlineReps,
 };
 use rsnano_nullable_clock::SteadyClock;
@@ -194,7 +194,7 @@ impl HintedScheduler {
                     .active_elections
                     .write()
                     .unwrap()
-                    .insert(block, ElectionBehavior::Hinted, None, now)
+                    .insert(AecInsertRequest::new_hinted(block), now)
                     .is_ok();
 
                 self.stats.inc(

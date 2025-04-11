@@ -372,14 +372,21 @@ pub trait Runnable: Send {
 }
 
 /// Lower timestamps have a higher priority
-#[derive(PartialEq, Eq, Copy, Clone, Default)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub struct TimePriority(UnixTimestamp);
 
 impl TimePriority {
-    pub const ZERO: TimePriority = TimePriority::new(0);
+    // highest timestamp means lowest priority!
+    pub const MIN: TimePriority = TimePriority::new(u64::MAX);
 
     pub const fn new(timestamp: u64) -> Self {
         Self(UnixTimestamp::new(timestamp))
+    }
+}
+
+impl Default for TimePriority {
+    fn default() -> Self {
+        Self::MIN
     }
 }
 
@@ -420,7 +427,9 @@ pub struct BlockPriority {
 }
 
 impl BlockPriority {
-    pub fn new(balance: Amount, time: TimePriority) -> Self {
+    pub const MIN: BlockPriority = BlockPriority::new(Amount::zero(), TimePriority::MIN);
+
+    pub const fn new(balance: Amount, time: TimePriority) -> Self {
         Self { balance, time }
     }
 }

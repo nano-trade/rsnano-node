@@ -26,14 +26,31 @@ impl CooldownController {
         self.cool_down
     }
 
-    pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) {
+    pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) -> CooldownResult {
+        let was_cooling_down_before = self.is_cooling_down();
+
         // Update the specific source state
         let index = reason as usize;
         self.source_states[index] = cool_down;
 
         // Update overall cooldown state - true if any source is cooling down
         self.cool_down = self.source_states.iter().any(|&state| state);
+
+        if self.is_cooling_down() && !was_cooling_down_before {
+            CooldownResult::CooldownStarted
+        } else if !self.is_cooling_down() && was_cooling_down_before {
+            CooldownResult::Recovered
+        } else {
+            CooldownResult::Unchanged
+        }
     }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum CooldownResult {
+    CooldownStarted,
+    Recovered,
+    Unchanged,
 }
 
 #[cfg(test)]
@@ -49,7 +66,8 @@ mod tests {
     #[test]
     fn one_cooldown() {
         let mut controller = CooldownController::new();
-        controller.set_cooldown(true, AecCooldownReason::ConfirmingSetFull);
+        let result = controller.set_cooldown(true, AecCooldownReason::ConfirmingSetFull);
+        assert_eq!(result, CooldownResult::CooldownStarted);
         assert_eq!(controller.is_cooling_down(), true);
     }
 
@@ -57,7 +75,8 @@ mod tests {
     fn end_cooldown() {
         let mut controller = CooldownController::new();
         controller.set_cooldown(true, AecCooldownReason::ConfirmingSetFull);
-        controller.set_cooldown(false, AecCooldownReason::ConfirmingSetFull);
+        let result = controller.set_cooldown(false, AecCooldownReason::ConfirmingSetFull);
+        assert_eq!(result, CooldownResult::Recovered);
         assert_eq!(controller.is_cooling_down(), false);
     }
 
@@ -65,7 +84,8 @@ mod tests {
     fn mutliple_sources_different_cooldowns() {
         let mut controller = CooldownController::new();
         controller.set_cooldown(true, AecCooldownReason::ConfirmingSetFull);
-        controller.set_cooldown(false, AecCooldownReason::AecEventQueueFull);
+        let result = controller.set_cooldown(false, AecCooldownReason::AecEventQueueFull);
+        assert_eq!(result, CooldownResult::Unchanged);
         assert_eq!(controller.is_cooling_down(), true);
     }
 }

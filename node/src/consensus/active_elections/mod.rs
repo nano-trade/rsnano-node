@@ -13,7 +13,7 @@ use rsnano_core::{
 };
 use rsnano_network::Channel;
 
-use super::election::{ConfirmedElection, Election};
+use super::election::{ConfirmedElection, Election, ElectionBehavior};
 pub use active_elections_container::*;
 pub use cooldown_controller::AecCooldownReason;
 use root_container::{Entry, RootContainer};
@@ -67,4 +67,49 @@ pub enum AecInsertError {
 
     /// This block or a fork got recently confirmed, so there is no need for a new election.
     RecentlyConfirmed,
+}
+
+#[derive(Default)]
+pub struct ActiveElectionsInfo {
+    pub max_elections: usize,
+    pub total: usize,
+    pub priority: usize,
+    pub hinted: usize,
+    pub optimistic: usize,
+}
+
+pub struct AecInsertRequest {
+    pub block: SavedBlock,
+    pub behavior: ElectionBehavior,
+    pub priority: Option<BlockPriority>,
+}
+
+impl AecInsertRequest {
+    fn new(block: SavedBlock, behavior: ElectionBehavior) -> Self {
+        Self {
+            block,
+            behavior,
+            priority: None,
+        }
+    }
+
+    pub fn new_hinted(block: SavedBlock) -> Self {
+        Self::new(block, ElectionBehavior::Hinted)
+    }
+
+    pub fn new_optimistic(block: SavedBlock) -> Self {
+        Self::new(block, ElectionBehavior::Optimistic)
+    }
+
+    pub fn new_manual(block: SavedBlock) -> Self {
+        Self::new(block, ElectionBehavior::Manual)
+    }
+
+    pub fn new_priority(block: SavedBlock, priority: BlockPriority) -> Self {
+        Self {
+            block,
+            behavior: ElectionBehavior::Priority,
+            priority: Some(priority),
+        }
+    }
 }

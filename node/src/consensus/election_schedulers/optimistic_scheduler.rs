@@ -17,7 +17,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use crate::{
     cementation::ConfirmingSet,
     config::NetworkConstants,
-    consensus::{election::ElectionBehavior, ActiveElectionsContainer},
+    consensus::{election::ElectionBehavior, ActiveElectionsContainer, AecInsertRequest},
 };
 use rsnano_nullable_clock::SteadyClock;
 
@@ -224,7 +224,7 @@ impl OptimisticScheduler {
                     .active_elections
                     .write()
                     .unwrap()
-                    .insert(block, ElectionBehavior::Optimistic, None, now)
+                    .insert(AecInsertRequest::new_optimistic(block), now)
                     .is_ok();
 
                 if inserted {

@@ -71,7 +71,7 @@ mod tests {
         let elections = BucketElections::default();
         assert_eq!(elections.len(), 0);
         assert_eq!(elections.entry_with_highest_priority(), None);
-        assert_eq!(elections.highest_priority(), TimePriority::ZERO);
+        assert_eq!(elections.highest_priority(), TimePriority::MIN);
     }
 
     #[test]
