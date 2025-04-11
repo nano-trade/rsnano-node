@@ -176,15 +176,12 @@ impl BucketExt for Arc<Bucket> {
             now,
         );
 
-        if result.is_ok() {
-            guard.elections.insert(BucketElection {
-                root,
-                priority: priority.time,
-            });
-        }
-
         match result {
-            Ok(_) => {
+            Ok(()) => {
+                guard.elections.insert(BucketElection {
+                    root,
+                    priority: priority.time,
+                });
                 guard.stats.activate_success.fetch_add(1, Ordering::Relaxed);
             }
             Err(AecInsertError::Duplicate) => {

@@ -21,34 +21,23 @@ use crate::consensus::election::{
 use super::{
     cooldown_controller::{AecCooldownReason, CooldownController},
     recently_confirmed_cache::RecentlyConfirmedCache,
-    stopped_counter::StoppedCounter,
-    vote_counter::VoteCounter,
+    stats::AecStats,
     vote_router::VoteRouter,
     ActiveElectionsConfig, AecEvent, AecInsertError, Entry, RootContainer,
 };
-use strum::{EnumCount, IntoEnumIterator};
+use strum::EnumCount;
 
 pub struct ActiveElectionsContainer {
     roots: RootContainer,
     observer: Option<BackpressureSender<AecEvent>>,
     stopped: bool,
-    manual_count: usize,
-    priority_count: usize,
-    hinted_count: usize,
-    optimistic_count: usize,
+    count_by_behavior: [usize; ElectionBehavior::COUNT],
     base_latency: Duration,
     vote_router: VoteRouter,
     recently_confirmed: RecentlyConfirmedCache,
     cooldown: CooldownController,
     max_elections: usize,
-    vote_counter: VoteCounter,
-    stopped_counter: StoppedCounter,
-    ticked: u64,
-    cooldown_count: u64,
-    recover_count: u64,
-    conflict_counter: u64,
-    started_counter: u64,
-    started_by_behavor: [u64; ElectionBehavior::COUNT],
+    stats: AecStats,
 }
 
 impl ActiveElectionsContainer {
@@ -58,22 +47,12 @@ impl ActiveElectionsContainer {
             vote_router: VoteRouter::new(),
             observer: None,
             stopped: false,
-            manual_count: 0,
-            priority_count: 0,
-            hinted_count: 0,
-            optimistic_count: 0,
+            count_by_behavior: Default::default(),
             base_latency,
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
             cooldown: CooldownController::new(),
             max_elections: config.max_elections,
-            vote_counter: VoteCounter::new(),
-            stopped_counter: StoppedCounter::new(),
-            ticked: 0,
-            cooldown_count: 0,
-            recover_count: 0,
-            conflict_counter: 0,
-            started_counter: 0,
-            started_by_behavor: Default::default(),
+            stats: Default::default(),
         }
     }
 
@@ -86,21 +65,11 @@ impl ActiveElectionsContainer {
     }
 
     pub fn count_by_behavior(&self, behavior: ElectionBehavior) -> usize {
-        match behavior {
-            ElectionBehavior::Manual => self.manual_count,
-            ElectionBehavior::Priority => self.priority_count,
-            ElectionBehavior::Hinted => self.hinted_count,
-            ElectionBehavior::Optimistic => self.optimistic_count,
-        }
+        self.count_by_behavior[behavior as usize]
     }
 
     pub fn count_by_behavior_mut(&mut self, behavior: ElectionBehavior) -> &mut usize {
-        match behavior {
-            ElectionBehavior::Manual => &mut self.manual_count,
-            ElectionBehavior::Priority => &mut self.priority_count,
-            ElectionBehavior::Hinted => &mut self.hinted_count,
-            ElectionBehavior::Optimistic => &mut self.optimistic_count,
-        }
+        &mut self.count_by_behavior[behavior as usize]
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Election> {
@@ -110,15 +79,14 @@ impl ActiveElectionsContainer {
     pub fn insert(
         &mut self,
         block: SavedBlock,
-        election_behavior: ElectionBehavior,
+        behavior: ElectionBehavior,
         priority: Option<BlockPriority>,
         now: Timestamp,
-    ) -> Result<bool, AecInsertError> {
+    ) -> Result<(), AecInsertError> {
         if self.stopped {
             return Err(AecInsertError::Stopped);
         }
 
-        let hash = block.hash();
         let root = block.qualified_root();
 
         if self.recently_confirmed.root_exists(&root) {
@@ -126,21 +94,44 @@ impl ActiveElectionsContainer {
             return Err(AecInsertError::RecentlyConfirmed);
         }
 
-        let existing = self.roots.get_mut(&root);
-
-        if let Some(existing) = existing {
-            // Try upgrading to priority election to enable immediate vote broadcasting.
-            let previous_behavior = existing.election.behavior();
-            let upgraded = existing.election.maybe_upgrade_to(election_behavior);
-            if upgraded {
-                existing.priority = priority;
-                *self.count_by_behavior_mut(previous_behavior) -= 1;
-                *self.count_by_behavior_mut(election_behavior) += 1;
-            }
-            return Ok(false);
+        if !self.try_upgrade_existing_election(&root, behavior, priority)? {
+            self.insert_new_election(block, behavior, priority, now);
         }
 
-        let election = Election::new(block, election_behavior, self.base_latency, now);
+        Ok(())
+    }
+
+    fn try_upgrade_existing_election(
+        &mut self,
+        root: &QualifiedRoot,
+        new_behavior: ElectionBehavior,
+        priority: Option<BlockPriority>,
+    ) -> Result<bool, AecInsertError> {
+        let Some(existing) = self.roots.get_mut(&root) else {
+            return Ok(false);
+        };
+
+        let previous_behavior = existing.election.behavior();
+        let upgraded = existing.election.maybe_upgrade_to(new_behavior);
+        if !upgraded {
+            return Err(AecInsertError::Duplicate);
+        }
+        existing.priority = priority;
+        *self.count_by_behavior_mut(previous_behavior) -= 1;
+        *self.count_by_behavior_mut(new_behavior) += 1;
+        Ok(upgraded)
+    }
+
+    fn insert_new_election(
+        &mut self,
+        block: SavedBlock,
+        behavior: ElectionBehavior,
+        priority: Option<BlockPriority>,
+        now: Timestamp,
+    ) {
+        let root = block.qualified_root();
+        let hash = block.hash();
+        let election = Election::new(block, behavior, self.base_latency, now);
 
         self.roots.insert(Entry {
             root: root.clone(),
@@ -149,14 +140,12 @@ impl ActiveElectionsContainer {
         });
 
         // Keep track of election count by election type
-        *self.count_by_behavior_mut(election_behavior) += 1;
+        *self.count_by_behavior_mut(behavior) += 1;
         self.vote_router.connect(hash, root.clone());
 
-        self.started_counter += 1;
-        self.started_by_behavor[election_behavior as usize] += 1;
+        self.stats.started_counter += 1;
+        self.stats.started_by_behavor[behavior as usize] += 1;
         self.notify(AecEvent::ElectionStarted(hash, root));
-
-        Ok(true)
     }
 
     pub fn try_add_fork(&mut self, fork: &Block, fork_tally: Amount) -> bool {
@@ -185,7 +174,7 @@ impl ActiveElectionsContainer {
 
         if added {
             self.vote_router.connect(fork.hash(), fork.qualified_root());
-            self.conflict_counter += 1;
+            self.stats.conflict_counter += 1;
         }
 
         added
@@ -207,12 +196,12 @@ impl ActiveElectionsContainer {
         let cooling_down = self.cooldown.is_cooling_down();
 
         if cooling_down && !was_cooling_down_before {
-            self.cooldown_count += 1;
+            self.stats.cooldown_count += 1;
         }
 
         let recovered = !cooling_down && was_cooling_down_before;
         if recovered {
-            self.recover_count += 1;
+            self.stats.recover_count += 1;
             self.notify(AecEvent::VacancyUpdated);
         }
     }
@@ -241,7 +230,7 @@ impl ActiveElectionsContainer {
     }
 
     pub fn transition_time(&mut self, now: Timestamp) {
-        self.ticked += 1;
+        self.stats.ticked += 1;
         for entry in self.roots.iter_mut() {
             entry.election.transition_time(now);
         }
@@ -309,9 +298,9 @@ impl ActiveElectionsContainer {
         ActiveElectionsInfo {
             max_elections: self.max_elections,
             total: self.roots.len(),
-            priority: self.priority_count,
-            hinted: self.hinted_count,
-            optimistic: self.optimistic_count,
+            priority: self.count_by_behavior(ElectionBehavior::Priority),
+            hinted: self.count_by_behavior(ElectionBehavior::Hinted),
+            optimistic: self.count_by_behavior(ElectionBehavior::Optimistic),
         }
     }
 
@@ -344,7 +333,7 @@ impl ActiveElectionsContainer {
         // Keep track of election count by election type
         *self.count_by_behavior_mut(election.behavior()) -= 1;
 
-        self.stopped_counter.stopped(&entry.election);
+        self.stats.stopped(&entry.election);
         self.vote_router.disconnect_election(&election);
         self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
@@ -495,7 +484,7 @@ impl ActiveElectionsContainer {
                             vote_summary.hash,
                         );
 
-                        self.vote_counter.count(source);
+                        self.stats.voted(source);
                         if !vote_counted {
                             // send vote counted event only once!
                             vote_counted = true;
@@ -585,21 +574,7 @@ impl ActiveElectionsContainer {
 
 impl StatsSource for ActiveElectionsContainer {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        result.insert("active_elections", "loop", self.ticked);
-        result.insert("active_elections", "cooldown", self.cooldown_count);
-        result.insert("active_elections", "recovered", self.recover_count);
-        result.insert("active_elections", "block_conflict", self.conflict_counter);
-        result.insert("active_elections", "started", self.started_counter);
-        for behavior in ElectionBehavior::iter() {
-            result.insert(
-                "active_elections_started",
-                behavior.as_str(),
-                self.started_by_behavor[behavior as usize],
-            );
-        }
-
-        self.vote_counter.collect_stats(result);
-        self.stopped_counter.collect_stats(result);
+        self.stats.collect_stats(result);
     }
 }
 

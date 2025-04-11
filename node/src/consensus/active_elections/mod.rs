@@ -2,8 +2,7 @@ mod active_elections_container;
 mod cooldown_controller;
 mod recently_confirmed_cache;
 mod root_container;
-mod stopped_counter;
-mod vote_counter;
+mod stats;
 mod vote_router;
 
 use std::{collections::HashMap, sync::Arc};
@@ -59,22 +58,6 @@ pub enum AecEvent {
     ),
     FinalPhaseStarted(BlockHash, QualifiedRoot),
     VacancyUpdated,
-}
-
-pub struct ApplyVoteResult {
-    pub voted_block: BlockHash,
-    pub vote_result: VoteCode,
-    pub events: Vec<AecEvent>,
-}
-
-impl ApplyVoteResult {
-    pub fn new(voted_block: BlockHash, vote_result: VoteCode) -> Self {
-        Self {
-            voted_block,
-            vote_result,
-            events: Vec::new(),
-        }
-    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]

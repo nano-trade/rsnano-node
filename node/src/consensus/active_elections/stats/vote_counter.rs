@@ -3,6 +3,7 @@ use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_core::VoteSource;
 
+#[derive(Default)]
 pub(super) struct VoteCounter {
     votes: u64,
     by_source: [u64; VoteSource::COUNT],
@@ -10,10 +11,7 @@ pub(super) struct VoteCounter {
 
 impl VoteCounter {
     pub(super) fn new() -> Self {
-        Self {
-            votes: 0,
-            by_source: [0; VoteSource::COUNT],
-        }
+        Self::default()
     }
 
     #[allow(dead_code)]

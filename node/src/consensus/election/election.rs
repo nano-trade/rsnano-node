@@ -217,7 +217,7 @@ impl Election {
 
     pub fn maybe_upgrade_to(&mut self, new_behavior: ElectionBehavior) -> bool {
         if new_behavior != ElectionBehavior::Priority {
-            // Only upgrades to priority elections are allowed!
+            // Only upgrades to priority elections are allowed to enable immediate vote broadcasting!
             return false;
         }
 
