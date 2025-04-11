@@ -10,7 +10,7 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, Vote, VoteCode, VoteSource};
 use rsnano_ledger::{Ledger, RepWeightCache};
 
-use super::{ActiveElectionsContainer, AecEvent};
+use super::{ActiveElectionsContainer, AecEvent, FilteredVote};
 use crate::{consensus::election::VoteSummary, representatives::OnlineReps};
 
 /// Applies a vote to an election
@@ -58,23 +58,11 @@ impl VoteApplier {
     /// This eliminates duplicate processing when triggering votes from the vote_cache as the result of a specific election being created.
     pub fn vote(
         &self,
-        vote: &Arc<Vote>,
+        vote: &FilteredVote,
         source: VoteSource,
         channel: Option<Arc<Channel>>,
-        filter: BlockHash,
     ) -> HashMap<BlockHash, VoteCode> {
         debug_assert!(vote.validate().is_ok());
-        // If present, filter should be set to one of the hashes in the vote
-        debug_assert!(filter.is_zero() || vote.hashes.iter().any(|h| *h == filter));
-
-        let relevant_hashes = vote.hashes.iter().filter(|h| {
-            // Ignore votes for other hashes if a filter is set
-            if !filter.is_zero() && **h != filter {
-                false
-            } else {
-                true
-            }
-        });
 
         let minimum_pr_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
         let voter_weight = self
@@ -87,7 +75,8 @@ impl VoteApplier {
 
         if !self.is_dev_network && voter_weight <= minimum_pr_weight {
             // Ignore votes from reps below min PR weight!
-            return relevant_hashes
+            return vote
+                .filtered_blocks()
                 .map(|h| (*h, VoteCode::Indeterminate))
                 .collect();
         }
@@ -111,17 +100,11 @@ impl VoteApplier {
 
         let results = {
             let rep_weights = self.rep_weights.read();
-            self.active_elections.write().unwrap().apply_votes(
-                vote,
-                &filter,
-                source,
-                &rep_weights,
-                quorum_specs,
-                now,
-            )
+            let mut active = self.active_elections.write().unwrap();
+            active.apply_votes(vote, source, &rep_weights, quorum_specs, now)
         };
 
-        self.notify_vote_processed(vote, voter_weight, source, channel, &results);
+        self.notify_vote_processed(&vote.vote, voter_weight, source, channel, &results);
         results
     }
 

@@ -11,8 +11,12 @@ use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use crate::{
-    consensus::election::{
-        AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior, VoteSummary,
+    consensus::{
+        election::{
+            AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior,
+            VoteSummary,
+        },
+        filtered_vote::FilteredVote,
     },
     representatives::QuorumSpecs,
 };
@@ -377,8 +381,7 @@ impl ActiveElectionsContainer {
 
     pub fn apply_votes(
         &mut self,
-        vote: &Vote,
-        filter: &BlockHash,
+        vote: &FilteredVote,
         source: VoteSource,
         rep_weights: &HashMap<PublicKey, Amount>,
         quorum_specs: QuorumSpecs,
@@ -387,14 +390,9 @@ impl ActiveElectionsContainer {
         let mut results = HashMap::new();
         let mut vote_counted = false;
 
-        for block_hash in &vote.hashes {
+        for block_hash in vote.filtered_blocks() {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
             if results.contains_key(block_hash) {
-                continue;
-            }
-
-            if !filter.is_zero() && block_hash != filter {
-                // Ignore votes for other hashes if a filter is set
                 continue;
             }
 

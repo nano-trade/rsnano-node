@@ -15,7 +15,7 @@ use rsnano_core::{utils::BackpressureSender, BlockHash, Vote, VoteCode, VoteSour
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{AecEvent, VoteApplier, VoteProcessorQueue};
+use super::{AecEvent, FilteredVote, VoteApplier, VoteProcessorQueue};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteProcessorConfig {
@@ -115,7 +115,9 @@ impl VoteProcessor {
             let start = Instant::now();
 
             for (_, (vote, source, channel, filter)) in &batch {
-                self.vote_blocking(vote, channel.clone(), *source, *filter);
+                let filter = filter.unwrap_or_default();
+                let filtered_vote = FilteredVote::new(vote.clone(), filter);
+                self.vote_blocking(&filtered_vote, channel.clone(), *source);
             }
 
             self.total_processed
@@ -135,17 +137,13 @@ impl VoteProcessor {
 
     pub fn vote_blocking(
         &self,
-        vote: &Arc<Vote>,
+        vote: &FilteredVote,
         channel: Option<Arc<Channel>>,
         source: VoteSource,
-        filter: Option<BlockHash>,
     ) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let filter = filter.unwrap_or_default();
-            let vote_results = self
-                .vote_applier
-                .vote(vote, source, channel.clone(), filter);
+            let vote_results = self.vote_applier.vote(vote, source, channel.clone());
 
             result = aggregate_vote_results(&vote_results);
         }

@@ -2,7 +2,11 @@ use rsnano_core::{
     Amount, PrivateKey, Signature, Vote, VoteCode, VoteSource, VoteTimestamp, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_node::{config::NodeFlags, consensus::RepTier, wallets::WalletsExt};
+use rsnano_node::{
+    config::NodeFlags,
+    consensus::{FilteredVote, RepTier},
+    wallets::WalletsExt,
+};
 use rsnano_stats::{DetailType, Direction, StatType};
 use std::{
     sync::Arc,
@@ -31,21 +35,21 @@ fn codes() {
     let mut vote_invalid = vote.clone();
     vote_invalid.signature = Signature::new();
 
-    let vote = Arc::new(vote);
-    let vote_invalid = Arc::new(vote_invalid);
+    let vote: FilteredVote = Arc::new(vote).into();
+    let vote_invalid: FilteredVote = Arc::new(vote_invalid).into();
 
     // Invalid signature
     assert_eq!(
         VoteCode::Invalid,
         node.vote_processor
-            .vote_blocking(&vote_invalid, None, VoteSource::Live, None)
+            .vote_blocking(&vote_invalid, None, VoteSource::Live)
     );
 
     // No ongoing election (vote goes to vote cache)
     assert_eq!(
         VoteCode::Indeterminate,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live, None)
+            .vote_blocking(&vote, None, VoteSource::Live)
     );
 
     assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 1);
@@ -58,21 +62,21 @@ fn codes() {
     assert_eq!(
         VoteCode::Vote,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live, None)
+            .vote_blocking(&vote, None, VoteSource::Live)
     );
 
     // Processing the same vote is a replay
     assert_eq!(
         VoteCode::Replay,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live, None)
+            .vote_blocking(&vote, None, VoteSource::Live)
     );
 
     // Invalid takes precedence
     assert_eq!(
         VoteCode::Invalid,
         node.vote_processor
-            .vote_blocking(&vote_invalid, None, VoteSource::Live, None)
+            .vote_blocking(&vote_invalid, None, VoteSource::Live)
     );
 
     // Once the election is removed (confirmed / dropped) the vote is again indeterminate
@@ -84,7 +88,7 @@ fn codes() {
     assert_eq!(
         VoteCode::Indeterminate,
         node.vote_processor
-            .vote_blocking(&vote, None, VoteSource::Live, None)
+            .vote_blocking(&vote, None, VoteSource::Live)
     );
 }
 

@@ -35,10 +35,9 @@ fn check_signature() {
     assert_eq!(
         VoteCode::Invalid,
         node.vote_processor.vote_blocking(
-            &Arc::new(vote1.clone()),
+            &Arc::new(vote1.clone()).into(),
             Some(channel.clone()),
             VoteSource::Live,
-            None
         )
     );
 
@@ -46,19 +45,17 @@ fn check_signature() {
     assert_eq!(
         VoteCode::Vote,
         node.vote_processor.vote_blocking(
-            &Arc::new(vote1.clone()),
+            &Arc::new(vote1.clone()).into(),
             Some(channel.clone()),
             VoteSource::Live,
-            None
         )
     );
     assert_eq!(
         VoteCode::Replay,
         node.vote_processor.vote_blocking(
-            &Arc::new(vote1.clone()),
+            &Arc::new(vote1.clone()).into(),
             Some(channel.clone()),
             VoteSource::Live,
-            None
         )
     );
 }
@@ -83,7 +80,7 @@ fn add_old() {
     ));
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote1, Some(channel.clone()), VoteSource::Live, None);
+        .vote_blocking(&vote1.into(), Some(channel.clone()), VoteSource::Live);
 
     let key2 = PrivateKey::new();
     let send2 = fork_lattice.genesis().send_max(&key2);
@@ -101,7 +98,7 @@ fn add_old() {
     );
 
     node.vote_processor
-        .vote_blocking(&vote2, Some(channel), VoteSource::Live, None);
+        .vote_blocking(&vote2.into(), Some(channel), VoteSource::Live);
 
     let active = node.active.read().unwrap();
     let election = active.election_for_root(&send1.qualified_root()).unwrap();
@@ -132,7 +129,7 @@ fn add_cooldown() {
     ));
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote1, Some(channel.clone()), VoteSource::Live, None);
+        .vote_blocking(&vote1.into(), Some(channel.clone()), VoteSource::Live);
 
     let key2 = PrivateKey::new();
     let send2 = fork_lattice.genesis().send_max(&key2);
@@ -144,7 +141,7 @@ fn add_cooldown() {
     ));
 
     node.vote_processor
-        .vote_blocking(&vote2, Some(channel), VoteSource::Live, None);
+        .vote_blocking(&vote2.into(), Some(channel), VoteSource::Live);
 
     let active = node.active.read().unwrap();
     let election1 = active.election_for_root(&send1.qualified_root()).unwrap();
