@@ -6,13 +6,14 @@ use std::{
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixMillisTimestamp},
-    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
+    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
+    VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use crate::consensus::election::{
-    AddForkResult, ConfirmedElection, Election, ElectionBehavior, ElectionResult, VoteSummary,
+    AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior, VoteSummary,
 };
 
 use super::{
@@ -48,7 +49,7 @@ impl ActiveElectionsContainer {
             count_by_behavior: Default::default(),
             base_latency,
             recently_confirmed: RecentlyConfirmedCache::new(config.confirmation_cache),
-            cooldown: CooldownController::new(),
+            cooldown: CooldownController::default(),
             max_elections: config.max_elections,
             stats: Default::default(),
         }
@@ -174,7 +175,7 @@ impl ActiveElectionsContainer {
 
         if added {
             self.vote_router.connect(fork.hash(), fork.qualified_root());
-            self.stats.conflict_counter += 1;
+            self.stats.conflicts += 1;
         }
 
         added
@@ -191,15 +192,9 @@ impl ActiveElectionsContainer {
     }
 
     pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) {
-        match self.cooldown.set_cooldown(cool_down, reason) {
-            CooldownResult::CooldownStarted => {
-                self.stats.cooldown_count += 1;
-            }
-            CooldownResult::Recovered => {
-                self.stats.recover_count += 1;
-                self.notify(AecEvent::VacancyUpdated);
-            }
-            CooldownResult::Unchanged => {}
+        let result = self.cooldown.set_cooldown(cool_down, reason);
+        if result == CooldownResult::Recovered {
+            self.notify(AecEvent::VacancyUpdated);
         }
     }
 
@@ -237,7 +232,7 @@ impl ActiveElectionsContainer {
         self.roots.get(root).map(|i| &i.election)
     }
 
-    pub fn election_for_root_mut(&mut self, root: &QualifiedRoot) -> Option<&mut Election> {
+    fn election_for_root_mut(&mut self, root: &QualifiedRoot) -> Option<&mut Election> {
         self.roots.get_mut(root).map(|i| &mut i.election)
     }
 
@@ -246,7 +241,7 @@ impl ActiveElectionsContainer {
         self.election_for_root(&root)
     }
 
-    pub fn transition_active_hash(&mut self, block_hash: &BlockHash) -> bool {
+    pub fn transition_active(&mut self, block_hash: &BlockHash) -> bool {
         let Some(election) = self.election_for_block_mut(block_hash) else {
             return false;
         };
@@ -268,13 +263,6 @@ impl ActiveElectionsContainer {
     }
 
     // TODO: Delete!
-    pub fn transition_active(&mut self, root: &QualifiedRoot) {
-        self.election_for_root_mut(root)
-            .unwrap()
-            .transition_active();
-    }
-
-    // TODO: Delete!
     pub fn change_vote_timestamp(
         &mut self,
         root: &QualifiedRoot,
@@ -289,16 +277,6 @@ impl ActiveElectionsContainer {
     fn election_for_block_mut(&mut self, block_hash: &BlockHash) -> Option<&mut Election> {
         let root = self.vote_router.qualified_root(block_hash)?;
         self.roots.get_mut(&root).map(|i| &mut i.election)
-    }
-
-    pub fn info(&self) -> ActiveElectionsInfo {
-        ActiveElectionsInfo {
-            max_elections: self.max_elections,
-            total: self.roots.len(),
-            priority: self.count_by_behavior(ElectionBehavior::Priority),
-            hinted: self.count_by_behavior(ElectionBehavior::Hinted),
-            optimistic: self.count_by_behavior(ElectionBehavior::Optimistic),
-        }
     }
 
     pub fn erase_ended_elections(&mut self) {
@@ -335,62 +313,64 @@ impl ActiveElectionsContainer {
         self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
 
+    /// Dependent elections are implicitly confirmed when their block is cemented
     pub fn confirm_dependent_elections(
         &mut self,
-        confirmed_blocks: Vec<(SavedBlock, Option<ConfirmedElection>)>,
+        confirmed: Vec<(SavedBlock, Option<ConfirmedElection>)>,
         now: Timestamp,
-    ) -> Vec<ConfirmedElection> {
-        let mut results = Vec::new();
+    ) {
+        for (confirmed_block, source_election) in confirmed {
+            let confirmed_election =
+                self.confirm_dependent_election(&confirmed_block, source_election, now);
 
-        for (block, source_election) in confirmed_blocks {
-            let mut dependent_election = self.roots.get_mut(&block.qualified_root());
-
-            // Distinguishes replay votes, cannot be determined if the block is not in any election
-            // Dependent elections are implicitly confirmed when their block is cemented
-            if let Some(election) = &mut dependent_election {
-                // TRY CONFIRM
-                // TODO: This should either confirm or cancel the election
-                let winner_hash = election.election.winner().hash();
-                if winner_hash == block.hash() {
-                    election.election.force_confirm();
-                }
-            }
-
-            // Check if the currently confirmed block was part of an election that triggered the confirmation
-            if let Some(source) = source_election {
-                if source.winner.hash() == block.hash() {
-                    // This is the block that was directly confirmed by the source election.
-                    // The election is already confirmed, so there is nothing to do.
-                    continue;
-                }
-            }
-
-            let mut confirmed_election = ConfirmedElection::new(block.clone());
-            let mut handled = false;
-            if let Some(dep_el) = dependent_election {
-                if dep_el.election.is_confirmed() {
-                    confirmed_election = dep_el
-                        .election
-                        .into_confirmed_election(now, ElectionResult::ActiveConfirmationHeight);
-                    handled = true;
-                }
-            }
-
-            if !handled {
-                confirmed_election.result = ElectionResult::InactiveConfirmationHeight;
-            }
-
-            results.push(confirmed_election);
+            self.block_confirmed(confirmed_block, confirmed_election);
         }
-        results
+    }
+
+    fn confirm_dependent_election(
+        &mut self,
+        confirmed_block: &SavedBlock,
+        source_election: Option<ConfirmedElection>,
+        now: Timestamp,
+    ) -> ConfirmedElection {
+        // Check if the currently confirmed block was part of an election that triggered
+        // the block confirmation
+        if let Some(source) = source_election {
+            if confirmed_block.hash() == source.winner.hash() {
+                // This is the block that was directly confirmed by the source election.
+                // The election is already confirmed, so there is nothing to do.
+                return source;
+            }
+        }
+
+        let Some(corresponding) = self.roots.get_mut(&confirmed_block.qualified_root()) else {
+            return ConfirmedElection::new(
+                confirmed_block.clone(),
+                ConfirmationType::InactiveConfirmationHeight,
+            );
+        };
+
+        if corresponding.election.winner().hash() == confirmed_block.hash() {
+            corresponding.election.force_confirm();
+            corresponding
+                .election
+                .into_confirmed_election(now, ConfirmationType::ActiveConfirmationHeight)
+        } else {
+            corresponding.election.cancel();
+            ConfirmedElection::new(
+                confirmed_block.clone(),
+                ConfirmationType::ActiveConfirmationHeight,
+            )
+        }
+    }
+
+    fn block_confirmed(&mut self, block: SavedBlock, election: ConfirmedElection) {
+        self.stats.block_confirmations[election.confirmation_type as usize] += 1;
+        self.notify(AecEvent::BlockConfirmed(block, election));
     }
 
     pub fn remove_recently_confirmed(&mut self, block_hash: &BlockHash) {
         self.recently_confirmed.erase(block_hash);
-    }
-
-    pub fn len(&self) -> usize {
-        self.roots.len()
     }
 
     /// Calculates minimum time delay between subsequent votes when processing non-final votes
@@ -518,7 +498,7 @@ impl ActiveElectionsContainer {
 
                                     let confirmed_election = election.into_confirmed_election(
                                         now,
-                                        ElectionResult::ActiveConfirmedQuorum,
+                                        ConfirmationType::ActiveConfirmedQuorum,
                                     );
                                     notify(AecEvent::ElectionConfirmed(confirmed_election));
                                 }
@@ -551,7 +531,7 @@ impl ActiveElectionsContainer {
         let election = &mut entry.election;
         if election.force_confirm() {
             let confirmed_election =
-                election.into_confirmed_election(now, ElectionResult::ActiveConfirmedQuorum);
+                election.into_confirmed_election(now, ConfirmationType::ActiveConfirmedQuorum);
             self.notify(AecEvent::ElectionConfirmed(confirmed_election));
         }
     }
@@ -559,6 +539,20 @@ impl ActiveElectionsContainer {
     pub fn cancel(&mut self, root: &QualifiedRoot) {
         if let Some(entry) = self.roots.get_mut(root) {
             entry.election.cancel();
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.roots.len()
+    }
+
+    pub fn info(&self) -> ActiveElectionsInfo {
+        ActiveElectionsInfo {
+            max_elections: self.max_elections,
+            total: self.roots.len(),
+            priority: self.count_by_behavior(ElectionBehavior::Priority),
+            hinted: self.count_by_behavior(ElectionBehavior::Hinted),
+            optimistic: self.count_by_behavior(ElectionBehavior::Optimistic),
         }
     }
 
@@ -571,6 +565,7 @@ impl ActiveElectionsContainer {
 
 impl StatsSource for ActiveElectionsContainer {
     fn collect_stats(&self, result: &mut StatsCollection) {
+        self.cooldown.collect_stats(result);
         self.stats.collect_stats(result);
     }
 }

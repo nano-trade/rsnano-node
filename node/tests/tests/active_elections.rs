@@ -1292,34 +1292,16 @@ fn active_inactive() {
     assert_timely2(|| node.block_confirmed(&send2.hash()));
     assert_timely2(|| node.block_confirmed(&send.hash()));
 
+    assert_timely_eq2(|| node.stats().get("confirmation_observer", "inactive"), 1);
     assert_timely_eq2(
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::InactiveConfHeight,
-                Direction::Out,
-            )
-        },
-        1,
-    );
-    assert_timely_eq2(
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveQuorum,
-                Direction::Out,
-            )
-        },
+        || node.stats().get("confirmation_observer", "active_quorum"),
         1,
     );
     assert_always_eq(
         Duration::from_millis(50),
         || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveConfHeight,
-                Direction::Out,
-            )
+            node.stats()
+                .get("confirmation_observer", "active_conf_height")
         },
         0,
     );
@@ -1347,34 +1329,16 @@ fn activate_inactive() {
     assert_timely2(|| node.block_confirmed(&send2.hash()));
     assert_timely2(|| node.block_confirmed(&send.hash()));
 
+    assert_timely_eq2(|| node.stats().get("confirmation_observer", "inactive"), 1);
     assert_timely_eq2(
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::InactiveConfHeight,
-                Direction::Out,
-            )
-        },
-        1,
-    );
-    assert_timely_eq2(
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveQuorum,
-                Direction::Out,
-            )
-        },
+        || node.stats().get("confirmation_observer", "active_quorum"),
         1,
     );
     assert_always_eq(
         Duration::from_millis(50),
         || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveConfHeight,
-                Direction::Out,
-            )
+            node.stats()
+                .get("confirmation_observer", "active_conf_height")
         },
         0,
     );

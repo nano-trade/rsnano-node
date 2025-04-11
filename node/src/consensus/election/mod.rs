@@ -1,8 +1,8 @@
 mod block_tallies;
+mod confirmed_election;
 mod election;
-mod election_result;
 mod election_state;
 
+pub use confirmed_election::*;
 pub use election::*;
-pub use election_result::*;
 pub use election_state::*;

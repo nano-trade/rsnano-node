@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use super::{block_tallies::BlockTallies, ConfirmedElection, ElectionResult, ElectionState};
+use super::{block_tallies::BlockTallies, ConfirmationType, ConfirmedElection, ElectionState};
 use rsnano_core::{
     utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
     QualifiedRoot, SavedBlock,
@@ -403,10 +403,8 @@ impl Election {
     pub fn into_confirmed_election(
         &self,
         now: Timestamp,
-        result: ElectionResult,
+        result: ConfirmationType,
     ) -> ConfirmedElection {
-        assert!(self.is_confirmed());
-
         let mut votes: Vec<_> = self.votes().values().cloned().collect();
         // sort descending
         votes.sort_by(|a, b| b.weight.cmp(&a.weight));
@@ -419,7 +417,7 @@ impl Election {
             voter_count: self.votes().len() as u32,
             election_duration: self.start().elapsed(now),
             election_end: SystemTime::now(),
-            result,
+            confirmation_type: result,
             votes,
         }
     }

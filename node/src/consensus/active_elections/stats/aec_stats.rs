@@ -1,5 +1,8 @@
 use super::{stopped_counter::StoppedCounter, vote_counter::VoteCounter};
-use crate::consensus::election::{Election, ElectionBehavior};
+use crate::consensus::{
+    active_elections::AEC_STAT_KEY,
+    election::{ConfirmationType, Election, ElectionBehavior},
+};
 use rsnano_core::VoteSource;
 use rsnano_stats::{StatsCollection, StatsSource};
 use strum::{EnumCount, IntoEnumIterator};
@@ -9,16 +12,15 @@ pub(crate) struct AecStats {
     vote_counter: VoteCounter,
     stopped_counter: StoppedCounter,
     pub ticked: u64,
-    pub cooldown_count: u64,
-    pub recover_count: u64,
-    pub conflict_counter: u64,
-    pub started_counter: u64,
+    pub conflicts: u64,
+    pub started: u64,
     pub started_by_behavor: [u64; ElectionBehavior::COUNT],
+    pub block_confirmations: [usize; ConfirmationType::COUNT],
 }
 
 impl AecStats {
     pub fn started(&mut self, behavior: ElectionBehavior) {
-        self.started_counter += 1;
+        self.started += 1;
         self.started_by_behavor[behavior as usize] += 1;
     }
 
@@ -33,16 +35,23 @@ impl AecStats {
 
 impl StatsSource for AecStats {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        result.insert("active_elections", "loop", self.ticked);
-        result.insert("active_elections", "cooldown", self.cooldown_count);
-        result.insert("active_elections", "recovered", self.recover_count);
-        result.insert("active_elections", "block_conflict", self.conflict_counter);
-        result.insert("active_elections", "started", self.started_counter);
+        result.insert(AEC_STAT_KEY, "loop", self.ticked);
+        result.insert(AEC_STAT_KEY, "block_conflict", self.conflicts);
+        result.insert(AEC_STAT_KEY, "started", self.started);
+
         for behavior in ElectionBehavior::iter() {
             result.insert(
                 "active_elections_started",
                 behavior.as_str(),
                 self.started_by_behavor[behavior as usize],
+            );
+        }
+
+        for conf_type in ConfirmationType::iter() {
+            result.insert(
+                "confirmation_observer",
+                conf_type.as_str(),
+                self.block_confirmations[conf_type as usize],
             );
         }
 

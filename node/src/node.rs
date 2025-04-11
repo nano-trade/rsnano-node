@@ -1095,10 +1095,8 @@ impl Node {
         spawn_backpressure_processor("AEC ev proc", aec_receiver, aec_event_processor);
 
         let dependent_elections_confirmer = DependentElectionsConfirmer {
-            stats: stats.clone(),
             confirming_set: confirming_set.clone(),
             active_elections: active_elections.clone(),
-            event_sender: aec_sender.clone(),
             clock: steady_clock.clone(),
         };
 

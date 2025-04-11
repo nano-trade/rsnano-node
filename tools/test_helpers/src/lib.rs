@@ -409,7 +409,7 @@ pub fn start_election(node: &Node, hash: &BlockHash) {
     node.active
         .write()
         .unwrap()
-        .transition_active(&block.qualified_root());
+        .transition_active(&block.hash());
 }
 
 pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {

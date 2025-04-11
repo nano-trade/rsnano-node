@@ -17,10 +17,6 @@ pub(super) struct StoppedCounter {
 }
 
 impl StoppedCounter {
-    pub(super) fn new() -> Self {
-        Default::default()
-    }
-
     pub(crate) fn stopped(&mut self, election: &Election) {
         self.stopped += 1;
         if election.is_confirmed() {
@@ -91,7 +87,7 @@ mod tests {
     #[test]
     fn collect_stats_empty() {
         let mut stats = StatsCollection::new();
-        let stopped_counter = StoppedCounter::new();
+        let stopped_counter = StoppedCounter::default();
 
         stopped_counter.collect_stats(&mut stats);
 
@@ -108,7 +104,7 @@ mod tests {
     #[test]
     fn stop_election() {
         let mut stats = StatsCollection::new();
-        let mut stopped_counter = StoppedCounter::new();
+        let mut stopped_counter = StoppedCounter::default();
         let election = Election::new_test_instance_with(SavedBlock::new_test_instance());
 
         stopped_counter.stopped(&election);
@@ -122,7 +118,7 @@ mod tests {
     #[test]
     fn stop_multiple_elections() {
         let mut stats = StatsCollection::new();
-        let mut stopped_counter = StoppedCounter::new();
+        let mut stopped_counter = StoppedCounter::default();
         let election1 = Election::new_test_instance_with(SavedBlock::new_test_instance());
         let election2 = Election::new(
             SavedBlock::new_test_receive_block(),

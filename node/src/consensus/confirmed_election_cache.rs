@@ -59,6 +59,7 @@ mod tests {
     use rsnano_core::{PrivateKey, SavedBlock};
 
     use super::*;
+    use crate::consensus::election::ConfirmationType;
 
     #[test]
     fn empty() {
@@ -132,6 +133,9 @@ mod tests {
     fn create_election(key: impl Into<PrivateKey>) -> (BlockHash, ConfirmedElection) {
         let block = SavedBlock::new_test_instance_with_key(key);
         let winner_hash = block.hash();
-        (winner_hash, ConfirmedElection::new(block))
+        (
+            winner_hash,
+            ConfirmedElection::new(block, ConfirmationType::InactiveConfirmationHeight),
+        )
     }
 }

@@ -98,7 +98,7 @@ impl ManualScheduler {
                         .insert(AecInsertRequest::new_manual(block), now)
                         .is_ok()
                     {
-                        self.active.write().unwrap().transition_active_hash(&hash);
+                        self.active.write().unwrap().transition_active(&hash);
                     }
                 } else {
                     drop(guard);

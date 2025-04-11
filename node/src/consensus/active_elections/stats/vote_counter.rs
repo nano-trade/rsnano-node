@@ -10,10 +10,6 @@ pub(super) struct VoteCounter {
 }
 
 impl VoteCounter {
-    pub(super) fn new() -> Self {
-        Self::default()
-    }
-
     #[allow(dead_code)]
     pub fn votes(&self) -> u64 {
         self.votes
@@ -49,7 +45,7 @@ mod tests {
 
     #[test]
     fn nothing_counted() {
-        let counter = VoteCounter::new();
+        let counter = VoteCounter::default();
         assert_eq!(counter.votes(), 0);
         assert_eq!(counter.votes_by(VoteSource::Live), 0);
         assert_eq!(counter.votes_by(VoteSource::Cache), 0);
@@ -58,7 +54,7 @@ mod tests {
 
     #[test]
     fn count_one_vote() {
-        let mut counter = VoteCounter::new();
+        let mut counter = VoteCounter::default();
 
         counter.count(VoteSource::Live);
 
@@ -70,7 +66,7 @@ mod tests {
 
     #[test]
     fn count_multiple_votes() {
-        let mut counter = VoteCounter::new();
+        let mut counter = VoteCounter::default();
 
         counter.count(VoteSource::Live);
         counter.count(VoteSource::Live);
@@ -85,7 +81,7 @@ mod tests {
     #[test]
     fn collect_stats() {
         let mut stats = StatsCollection::new();
-        let mut counter = VoteCounter::new();
+        let mut counter = VoteCounter::default();
         counter.count(VoteSource::Live);
         counter.count(VoteSource::Live);
         counter.count(VoteSource::Rebroadcast);

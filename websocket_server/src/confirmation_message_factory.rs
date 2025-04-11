@@ -31,7 +31,7 @@ impl ConfirmationMessageFactory<'_> {
     }
 
     fn confirmation_type(&self) -> String {
-        self.election.result.as_str().to_string()
+        self.election.confirmation_type.as_str().to_string()
     }
 
     fn subtype(&self) -> String {
@@ -92,7 +92,7 @@ impl ConfirmationMessageFactory<'_> {
 
 #[cfg(test)]
 mod tests {
-    use rsnano_node::consensus::election::ElectionResult;
+    use rsnano_node::consensus::election::ConfirmationType;
 
     use crate::ConfirmationJsonOptions;
 
@@ -104,8 +104,9 @@ mod tests {
         let options = ConfirmationOptions::new(ConfirmationJsonOptions::default());
         let block = SavedBlock::new_test_instance();
         let amount = Amount::nano(123);
-        let mut election = ConfirmedElection::new(block.clone());
-        election.result = ElectionResult::InactiveConfirmationHeight;
+        let mut election =
+            ConfirmedElection::new(block.clone(), ConfirmationType::InactiveConfirmationHeight);
+        election.confirmation_type = ConfirmationType::InactiveConfirmationHeight;
         let factory = ConfirmationMessageFactory {
             ledger: &ledger,
             options: &options,
@@ -142,7 +143,10 @@ mod tests {
             options: &options,
             block: &block,
             amount: &amount,
-            election: &ConfirmedElection::new(block.clone()),
+            election: &ConfirmedElection::new(
+                block.clone(),
+                ConfirmationType::InactiveConfirmationHeight,
+            ),
         };
 
         let message = factory.create_message();

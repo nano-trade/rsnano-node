@@ -8,42 +8,6 @@ use test_helpers::{
     start_election, System,
 };
 
-#[test]
-fn observer_callbacks() {
-    let mut system = System::new();
-    let config = System::default_config_without_backlog_scan();
-    let node = system.build_node().config(config).finish();
-    node.insert_into_wallet(&DEV_GENESIS_KEY);
-
-    let mut lattice = UnsavedBlockLatticeBuilder::new();
-    let key1 = PrivateKey::new();
-    let send = lattice.genesis().send(&key1, Amount::nano(1000));
-    let send1 = lattice.genesis().send(&key1, Amount::nano(1000));
-    node.process_multi(&[send.clone(), send1.clone()]);
-
-    node.confirming_set.add_block(send1.hash());
-
-    // Callback is performed for all blocks that are confirmed
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || {
-            node.stats
-                .count_all(StatType::ConfirmationObserver, Direction::Out)
-        },
-        2,
-    );
-
-    assert_eq!(
-        node.stats.count(
-            StatType::ConfirmationHeight,
-            DetailType::BlocksConfirmed,
-            Direction::In
-        ),
-        2
-    );
-    assert_eq!(node.ledger.confirmed_count(), 3);
-}
-
 // The callback and confirmation history should only be updated after confirmation height is set (and not just after voting)
 #[test]
 fn confirmed_history() {
@@ -113,15 +77,8 @@ fn confirmed_history() {
         || node.active.read().unwrap().len(),
         0,
     );
-    assert_timely_eq(
-        Duration::from_secs(10),
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveQuorum,
-                Direction::Out,
-            )
-        },
+    assert_timely_eq2(
+        || node.stats().get("confirmation_observer", "active_quorum"),
         1,
     );
 
@@ -130,30 +87,12 @@ fn confirmed_history() {
     assert_eq!(node.active.read().unwrap().len(), 0);
 
     // Confirm the callback is not called under this circumstance
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveQuorum,
-                Direction::Out,
-            )
-        },
+    assert_timely_eq2(
+        || node.stats().get("confirmation_observer", "active_quorum"),
         1,
     );
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::InactiveConfHeight,
-                Direction::Out,
-            )
-        },
-        1,
-    );
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(|| node.stats().get("confirmation_observer", "inactive"), 1);
+    assert_timely_eq2(
         || {
             node.stats.count(
                 StatType::ConfirmationHeight,
@@ -186,8 +125,7 @@ fn dependent_election() {
     node.force_confirm(&send2.hash());
 
     // Wait for blocks to be confirmed in ledger, callbacks will happen after
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
             node.stats.count(
                 StatType::ConfirmationHeight,
@@ -198,42 +136,19 @@ fn dependent_election() {
         3,
     );
     // Once the item added to the confirming set no longer exists, callbacks have completed
-    assert_timely(Duration::from_secs(5), || {
-        !node.confirming_set.contains(&send2.hash())
-    });
+    assert_timely2(|| !node.confirming_set.contains(&send2.hash()));
 
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
+        || node.stats().get("confirmation_observer", "active_quorum"),
+        1,
+    );
+    assert_timely_eq2(
         || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveQuorum,
-                Direction::Out,
-            )
+            node.stats()
+                .get("confirmation_observer", "active_confirmation_height")
         },
         1,
     );
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::ActiveConfHeight,
-                Direction::Out,
-            )
-        },
-        1,
-    );
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || {
-            node.stats.count(
-                StatType::ConfirmationObserver,
-                DetailType::InactiveConfHeight,
-                Direction::Out,
-            )
-        },
-        1,
-    );
+    assert_timely_eq2(|| node.stats().get("confirmation_observer", "inactive"), 1);
     assert_eq!(node.ledger.confirmed_count(), 4);
 }

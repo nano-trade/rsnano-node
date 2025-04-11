@@ -2506,7 +2506,7 @@ fn fork_open_flip() {
         .active
         .write()
         .unwrap()
-        .transition_active(&open1.qualified_root());
+        .transition_active(&open1.hash());
 
     // create node2, with blocks send1 and open2 pre-initialised in the ledger,
     // so that block open1 cannot possibly get in the ledger before open2 via background sync
@@ -2524,7 +2524,7 @@ fn fork_open_flip() {
         .active
         .write()
         .unwrap()
-        .transition_active(&open2.qualified_root());
+        .transition_active(&open2.hash());
 
     assert_timely_eq2(|| node1.active.read().unwrap().len(), 2);
     assert_timely_eq2(|| node2.active.read().unwrap().len(), 2);

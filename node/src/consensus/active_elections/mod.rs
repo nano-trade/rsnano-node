@@ -113,3 +113,5 @@ impl AecInsertRequest {
         }
     }
 }
+
+const AEC_STAT_KEY: &'static str = "active_elections";

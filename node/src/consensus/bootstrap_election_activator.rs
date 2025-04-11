@@ -23,7 +23,7 @@ impl BootstrapElectionActivator {
             .active_elections
             .write()
             .unwrap()
-            .transition_active_hash(&hash)
+            .transition_active(&hash)
         {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
