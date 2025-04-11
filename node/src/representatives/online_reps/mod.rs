@@ -159,6 +159,13 @@ impl OnlineReps {
         Amount::raw(delta.as_u128())
     }
 
+    pub fn quorum_specs(&self) -> QuorumSpecs {
+        QuorumSpecs {
+            online_weight: self.trended_or_minimum_weight(),
+            quorum_delta: self.quorum_delta(),
+        }
+    }
+
     pub fn on_rep_request(&mut self, channel_id: ChannelId, now: Timestamp) {
         // Find and update the timestamp on all reps available on the endpoint (a single host may have multiple reps)
         self.peered_reps.modify_by_channel(channel_id, |rep| {
@@ -328,6 +335,28 @@ pub struct OnlineRepInfo {
 impl PeeredRepInfo {
     pub fn channel_id(&self) -> ChannelId {
         self.channel.channel_id()
+    }
+}
+
+#[derive(Clone)]
+pub struct QuorumSpecs {
+    pub online_weight: Amount,
+    pub quorum_delta: Amount,
+}
+
+impl QuorumSpecs {
+    /// Calculates minimum time delay between subsequent votes when processing non-final votes
+    pub fn cooldown_time(&self, rep_weight: Amount) -> Duration {
+        if rep_weight > self.online_weight / 20 {
+            // Reps with more than 5% weight
+            Duration::from_secs(1)
+        } else if rep_weight > self.online_weight / 100 {
+            // Reps with more than 1% weight
+            Duration::from_secs(5)
+        } else {
+            // The rest of smaller reps
+            Duration::from_secs(15)
+        }
     }
 }
 

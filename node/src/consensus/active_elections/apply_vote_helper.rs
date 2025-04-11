@@ -1,8 +1,14 @@
 use super::{recently_confirmed_cache::RecentlyConfirmedCache, stats::VoteCounter, AecEvent};
-use crate::consensus::election::{ConfirmationType, Election, VoteSummary};
-use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, PublicKey, VoteCode, VoteSource};
+use crate::{
+    consensus::election::{ConfirmationType, Election},
+    representatives::QuorumSpecs,
+};
+use rsnano_core::{
+    utils::{BackpressureSender, UnixMillisTimestamp},
+    Amount, BlockHash, PublicKey, Vote, VoteCode, VoteSource,
+};
 use rsnano_nullable_clock::Timestamp;
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, ops::Deref, time::SystemTime};
 
 pub(super) struct ApplyVoteHelper<'a> {
     pub election: &'a mut Election,
@@ -10,15 +16,52 @@ pub(super) struct ApplyVoteHelper<'a> {
     pub observer: &'a Option<BackpressureSender<AecEvent>>,
     pub now: Timestamp,
     pub rep_weights: &'a HashMap<PublicKey, Amount>,
-    pub quorum_delta: Amount,
+    pub quorum_specs: QuorumSpecs,
     pub vote_counter: &'a mut VoteCounter,
     pub vote_counted: &'a mut bool,
 }
 
 impl<'a> ApplyVoteHelper<'a> {
-    pub fn add_vote(&mut self, vote: &VoteSummary, source: VoteSource) -> VoteCode {
+    pub fn apply_vote(
+        &mut self,
+        vote: &Vote,
+        block_hash: BlockHash,
+        source: VoteSource,
+    ) -> VoteCode {
+        let rep_weight = self
+            .rep_weights
+            .get(&vote.voter)
+            .cloned()
+            .unwrap_or_default();
+
+        if let Some(last_vote) = self.election.votes().get(&vote.voter) {
+            if last_vote.timestamp > vote.timestamp() {
+                return VoteCode::Replay;
+            } else if last_vote.timestamp == vote.timestamp() && !(last_vote.hash < block_hash) {
+                return VoteCode::Replay;
+            }
+
+            let max_vote = vote.timestamp() == UnixMillisTimestamp::MAX
+                && last_vote.timestamp < vote.timestamp();
+
+            let mut past_cooldown = true;
+            // Only cooldown live votes
+            if source != VoteSource::Cache {
+                let cooldown = self.quorum_specs.cooldown_time(rep_weight);
+                past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
+            }
+
+            if !max_vote && !past_cooldown {
+                return VoteCode::Ignored;
+            }
+        }
+
+        self.add_vote(vote, block_hash, source)
+    }
+
+    fn add_vote(&mut self, vote: &Vote, block_hash: BlockHash, source: VoteSource) -> VoteCode {
         self.election
-            .add_vote(vote.voter, vote.timestamp, vote.hash);
+            .add_vote(vote.voter, vote.timestamp(), block_hash);
 
         self.vote_counter.count(source);
 
@@ -41,7 +84,7 @@ impl<'a> ApplyVoteHelper<'a> {
         let old_final = self.election.is_final();
 
         self.election
-            .update_tallies(self.rep_weights, self.quorum_delta);
+            .update_tallies(self.rep_weights, self.quorum_specs.quorum_delta);
 
         self.notify_winner_changed(old_winner);
 

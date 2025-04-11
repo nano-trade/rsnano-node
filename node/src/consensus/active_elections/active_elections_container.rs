@@ -4,14 +4,17 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixMillisTimestamp},
-    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
+    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
 
-use crate::consensus::election::{
-    AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior, VoteSummary,
+use crate::{
+    consensus::election::{
+        AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior, VoteSummary,
+    },
+    representatives::QuorumSpecs,
 };
 
 use super::{
@@ -240,6 +243,11 @@ impl ActiveElectionsContainer {
         self.election_for_root(&root)
     }
 
+    fn election_for_block_mut(&mut self, block_hash: &BlockHash) -> Option<&mut Election> {
+        let root = self.vote_router.qualified_root(block_hash)?;
+        self.roots.get_mut(&root).map(|i| &mut i.election)
+    }
+
     pub fn transition_active(&mut self, block_hash: &BlockHash) -> bool {
         let Some(election) = self.election_for_block_mut(block_hash) else {
             return false;
@@ -271,11 +279,6 @@ impl ActiveElectionsContainer {
         self.election_for_root_mut(root)
             .expect("No election found for given root")
             .change_vote_timestamp(voter, new_timestamp);
-    }
-
-    fn election_for_block_mut(&mut self, block_hash: &BlockHash) -> Option<&mut Election> {
-        let root = self.vote_router.qualified_root(block_hash)?;
-        self.roots.get_mut(&root).map(|i| &mut i.election)
     }
 
     pub fn erase_ended_elections(&mut self) {
@@ -372,98 +375,53 @@ impl ActiveElectionsContainer {
         self.recently_confirmed.erase(block_hash);
     }
 
-    /// Calculates minimum time delay between subsequent votes when processing non-final votes
-    fn cooldown_time(rep_weight: Amount, online_weight: Amount) -> Duration {
-        if rep_weight > online_weight / 20 {
-            // Reps with more than 5% weight
-            Duration::from_secs(1)
-        } else if rep_weight > online_weight / 100 {
-            // Reps with more than 1% weight
-            Duration::from_secs(5)
-        } else {
-            // The rest of smaller reps
-            Duration::from_secs(15)
-        }
-    }
-
     pub fn apply_votes(
         &mut self,
-        votes: impl IntoIterator<Item = VoteSummary>,
+        vote: &Vote,
+        filter: &BlockHash,
         source: VoteSource,
         rep_weights: &HashMap<PublicKey, Amount>,
-        online_weight: Amount,
-        quorum_delta: Amount,
+        quorum_specs: QuorumSpecs,
         now: Timestamp,
     ) -> HashMap<BlockHash, VoteCode> {
         let mut results = HashMap::new();
         let mut vote_counted = false;
 
-        for vote_summary in votes {
+        for block_hash in &vote.hashes {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-            if results.contains_key(&vote_summary.hash) {
+            if results.contains_key(block_hash) {
                 continue;
             }
 
-            let root = self.vote_router.qualified_root(&vote_summary.hash);
+            if !filter.is_zero() && block_hash != filter {
+                // Ignore votes for other hashes if a filter is set
+                continue;
+            }
+
+            let root = self.vote_router.qualified_root(block_hash);
             if let Some(root) = root {
                 let entry = self.roots.get_mut(&root).unwrap();
                 let election = &mut entry.election;
 
-                let mut vote_code = VoteCode::Invalid;
-                let rep_weight = rep_weights
-                    .get(&vote_summary.voter)
-                    .cloned()
-                    .unwrap_or_default();
+                let mut apply_helper = ApplyVoteHelper {
+                    election,
+                    recently_confirmed: &mut self.recently_confirmed,
+                    observer: &self.observer,
+                    now,
+                    rep_weights,
+                    quorum_specs: quorum_specs.clone(),
+                    vote_counter: &mut self.stats.vote_counter,
+                    vote_counted: &mut vote_counted,
+                };
 
-                if vote_code == VoteCode::Invalid {
-                    if let Some(last_vote) = election.votes().get(&vote_summary.voter) {
-                        if last_vote.timestamp > vote_summary.timestamp {
-                            vote_code = VoteCode::Replay;
-                        } else if last_vote.timestamp == vote_summary.timestamp
-                            && !(last_vote.hash < vote_summary.hash)
-                        {
-                            vote_code = VoteCode::Replay;
-                        }
+                let vote_code = apply_helper.apply_vote(vote, *block_hash, source);
 
-                        if vote_code == VoteCode::Invalid {
-                            let max_vote = vote_summary.timestamp == UnixMillisTimestamp::MAX
-                                && last_vote.timestamp < vote_summary.timestamp;
-
-                            let mut past_cooldown = true;
-                            // Only cooldown live votes
-                            if source != VoteSource::Cache {
-                                let cooldown = Self::cooldown_time(rep_weight, online_weight);
-                                past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
-                            }
-
-                            if !max_vote && !past_cooldown {
-                                vote_code = VoteCode::Ignored;
-                            }
-                        }
-                    }
-
-                    if vote_code == VoteCode::Invalid {
-                        let mut apply_helper = ApplyVoteHelper {
-                            election,
-                            recently_confirmed: &mut self.recently_confirmed,
-                            observer: &self.observer,
-                            now,
-                            rep_weights,
-                            quorum_delta,
-                            vote_counter: &mut self.stats.vote_counter,
-                            vote_counted: &mut vote_counted,
-                        };
-
-                        vote_code = apply_helper.add_vote(&vote_summary, source);
-                    }
-                }
-
-                results.insert(vote_summary.hash, vote_code);
+                results.insert(*block_hash, vote_code);
             } else {
-                if self.was_recently_confirmed(&vote_summary.hash) {
-                    results.insert(vote_summary.hash, VoteCode::Late);
+                if self.was_recently_confirmed(block_hash) {
+                    results.insert(*block_hash, VoteCode::Late);
                 } else {
-                    results.insert(vote_summary.hash, VoteCode::Indeterminate);
+                    results.insert(*block_hash, VoteCode::Indeterminate);
                 }
             }
         }

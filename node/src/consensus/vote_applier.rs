@@ -99,51 +99,24 @@ impl VoteApplier {
 
         let now = self.clock.now();
 
-        if is_active {
-            // Representative is defined as online if replying to live votes or rep_crawler queries.
-            // The rep weights have to be updated before the votes are processed!
-            self.online_reps
-                .lock()
-                .unwrap()
-                .vote_observed(vote.voter, now);
-        }
-
-        let (online_weight, quorum_delta) = {
-            let online_reps = self.online_reps.lock().unwrap();
-            (
-                online_reps.trended_or_minimum_weight(),
-                online_reps.quorum_delta(),
-            )
+        let quorum_specs = {
+            let mut online = self.online_reps.lock().unwrap();
+            if is_active {
+                // Representative is defined as online if replying to live votes or rep_crawler queries.
+                // The rep weights have to be updated before the votes are processed!
+                online.vote_observed(vote.voter, now);
+            }
+            online.quorum_specs()
         };
-        let sys_now = SystemTime::now();
-
-        let vote_summaries = vote
-            .hashes
-            .iter()
-            .filter(|h| {
-                // Ignore votes for other hashes if a filter is set
-                if !filter.is_zero() && **h != filter {
-                    false
-                } else {
-                    true
-                }
-            })
-            .map(|hash| VoteSummary {
-                voter: vote.voter,
-                time: sys_now,
-                timestamp: vote.timestamp(),
-                hash: *hash,
-                weight: voter_weight,
-            });
 
         let results = {
             let rep_weights = self.rep_weights.read();
             self.active_elections.write().unwrap().apply_votes(
-                vote_summaries,
+                vote,
+                &filter,
                 source,
                 &rep_weights,
-                online_weight,
-                quorum_delta,
+                quorum_specs,
                 now,
             )
         };
