@@ -6,8 +6,7 @@ use std::{
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixMillisTimestamp},
-    Amount, Block, BlockHash, MaybeSavedBlock, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
-    VoteSource,
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
@@ -313,7 +312,7 @@ impl ActiveElectionsContainer {
         self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
 
-    /// Dependent elections are implicitly confirmed when their block is cemented
+    /// Dependent elections are implicitly confirmed when their block is confirmed
     pub fn confirm_dependent_elections(
         &mut self,
         confirmed: Vec<(SavedBlock, Option<ConfirmedElection>)>,
@@ -374,7 +373,7 @@ impl ActiveElectionsContainer {
     }
 
     /// Calculates minimum time delay between subsequent votes when processing non-final votes
-    pub fn cooldown_time(rep_weight: Amount, online_weight: Amount) -> Duration {
+    fn cooldown_time(rep_weight: Amount, online_weight: Amount) -> Duration {
         if rep_weight > online_weight / 20 {
             // Reps with more than 5% weight
             Duration::from_secs(1)
@@ -441,10 +440,7 @@ impl ActiveElectionsContainer {
                             let mut past_cooldown = true;
                             // Only cooldown live votes
                             if source != VoteSource::Cache {
-                                let cooldown = ActiveElectionsContainer::cooldown_time(
-                                    rep_weight,
-                                    online_weight,
-                                );
+                                let cooldown = Self::cooldown_time(rep_weight, online_weight);
                                 past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
                             }
 
