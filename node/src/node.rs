@@ -21,6 +21,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{
     AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
+    RepWeights,
 };
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
@@ -280,7 +281,7 @@ impl Node {
         {
             get_bootstrap_weights(current_network)
         } else {
-            (0, HashMap::new())
+            (0, RepWeights::new())
         };
 
         let rep_weights = Arc::new(RepWeightCache::with_bootstrap_weights(

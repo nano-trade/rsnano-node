@@ -5,18 +5,19 @@ use crate::{
 };
 use rsnano_core::{
     utils::{BackpressureSender, UnixMillisTimestamp},
-    Amount, BlockHash, PublicKey, Vote, VoteCode, VoteSource,
+    BlockHash, Vote, VoteCode, VoteSource,
 };
+use rsnano_ledger::RepWeights;
 use rsnano_nullable_clock::Timestamp;
-use std::{collections::HashMap, ops::Deref, time::SystemTime};
+use std::{ops::Deref, time::SystemTime};
 
 pub(super) struct ApplyVoteHelper<'a> {
     pub recently_confirmed: &'a mut RecentlyConfirmedCache,
-    pub observer: &'a Option<BackpressureSender<AecEvent>>,
-    pub now: Timestamp,
-    pub rep_weights: &'a HashMap<PublicKey, Amount>,
-    pub quorum_specs: QuorumSpecs,
     pub vote_counter: &'a mut VoteCounter,
+    pub observer: &'a Option<BackpressureSender<AecEvent>>,
+    pub rep_weights: &'a RepWeights,
+    pub quorum_specs: QuorumSpecs,
+    pub now: Timestamp,
 }
 
 impl<'a> ApplyVoteHelper<'a> {
@@ -27,11 +28,7 @@ impl<'a> ApplyVoteHelper<'a> {
         block_hash: BlockHash,
         source: VoteSource,
     ) -> VoteCode {
-        let rep_weight = self
-            .rep_weights
-            .get(&vote.voter)
-            .cloned()
-            .unwrap_or_default();
+        let rep_weight = self.rep_weights.weight(&vote.voter);
 
         if let Some(last_vote) = election.votes().get(&vote.voter) {
             if last_vote.timestamp > vote.timestamp() {

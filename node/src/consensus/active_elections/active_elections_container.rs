@@ -29,6 +29,7 @@ use super::{
     ActiveElectionsConfig, ActiveElectionsInfo, AecEvent, AecInsertError, AecInsertRequest, Entry,
     RootContainer,
 };
+use rsnano_ledger::RepWeights;
 use strum::EnumCount;
 
 pub struct ActiveElectionsContainer {
@@ -382,7 +383,7 @@ impl ActiveElectionsContainer {
         &mut self,
         vote: &FilteredVote,
         source: VoteSource,
-        rep_weights: &HashMap<PublicKey, Amount>,
+        rep_weights: &RepWeights,
         quorum_specs: QuorumSpecs,
         now: Timestamp,
     ) -> HashMap<BlockHash, VoteCode> {
@@ -392,9 +393,9 @@ impl ActiveElectionsContainer {
             recently_confirmed: &mut self.recently_confirmed,
             vote_counter: &mut self.stats.vote_counter,
             observer: &self.observer,
-            now,
             rep_weights,
             quorum_specs,
+            now,
         };
 
         for block_hash in vote.filtered_blocks() {

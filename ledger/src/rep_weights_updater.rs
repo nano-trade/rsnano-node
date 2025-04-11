@@ -1,4 +1,4 @@
-use crate::RepWeightCache;
+use crate::{RepWeightCache, RepWeights};
 use rsnano_core::{Amount, PublicKey};
 use rsnano_store_lmdb::{LmdbRepWeightStore, LmdbWriteTransaction};
 use std::collections::HashMap;
@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 /// Updates the representative weights in the ledger and in the in-memory cache
 pub struct RepWeightsUpdater {
-    weight_cache: Arc<RwLock<HashMap<PublicKey, Amount>>>,
+    weight_cache: Arc<RwLock<RepWeights>>,
     store: Arc<LmdbRepWeightStore>,
     min_weight: Amount,
 }

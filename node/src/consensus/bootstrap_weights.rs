@@ -1,9 +1,8 @@
-use rsnano_core::{Account, Amount, Networks, PublicKey};
-use rsnano_ledger::RepWeightCache;
-use std::collections::HashMap;
+use rsnano_core::{Account, Amount, Networks};
+use rsnano_ledger::{RepWeightCache, RepWeights};
 use tracing::info;
 
-pub(crate) fn get_bootstrap_weights(network: Networks) -> (u64, HashMap<PublicKey, Amount>) {
+pub(crate) fn get_bootstrap_weights(network: Networks) -> (u64, RepWeights) {
     let buffer = get_bootstrap_weights_text(network);
     deserialize_bootstrap_weights(buffer)
 }
@@ -16,8 +15,8 @@ fn get_bootstrap_weights_text(network: Networks) -> &'static str {
     }
 }
 
-fn deserialize_bootstrap_weights(buffer: &str) -> (u64, HashMap<PublicKey, Amount>) {
-    let mut weights = HashMap::new();
+fn deserialize_bootstrap_weights(buffer: &str) -> (u64, RepWeights) {
+    let mut weights = RepWeights::new();
     let mut first_line = true;
     let mut max_blocks = 0;
     for line in buffer.lines() {

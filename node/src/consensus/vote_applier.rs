@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, RwLock},
-    time::SystemTime,
 };
 
 use rsnano_network::Channel;
