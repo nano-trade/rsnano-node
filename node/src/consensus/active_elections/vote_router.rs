@@ -4,6 +4,7 @@ use crate::consensus::election::Election;
 use rsnano_core::{utils::ContainerInfo, BlockHash, QualifiedRoot};
 
 /// This class routes votes to their associated election
+#[derive(Default)]
 pub(crate) struct VoteRouter {
     // Mapping of block hashes to elections.
     // Election already contains the associated block
@@ -12,9 +13,7 @@ pub(crate) struct VoteRouter {
 
 impl VoteRouter {
     pub fn new() -> Self {
-        Self {
-            elections: HashMap::new(),
-        }
+        Default::default()
     }
 
     /// Add a route for 'hash' to an election by its qualified root

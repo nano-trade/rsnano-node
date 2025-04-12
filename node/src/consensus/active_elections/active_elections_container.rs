@@ -25,7 +25,6 @@ use super::{
     cooldown_controller::{AecCooldownReason, CooldownController, CooldownResult},
     recently_confirmed_cache::RecentlyConfirmedCache,
     stats::AecStats,
-    vote_router::VoteRouter,
     ActiveElectionsConfig, ActiveElectionsInfo, AecEvent, AecInsertError, AecInsertRequest, Entry,
     RootContainer,
 };
@@ -38,7 +37,6 @@ pub struct ActiveElectionsContainer {
     stopped: bool,
     count_by_behavior: [usize; ElectionBehavior::COUNT],
     base_latency: Duration,
-    vote_router: VoteRouter,
     recently_confirmed: RecentlyConfirmedCache,
     cooldown: CooldownController,
     max_elections: usize,
@@ -49,7 +47,6 @@ impl ActiveElectionsContainer {
     pub fn new(config: ActiveElectionsConfig, base_latency: Duration) -> Self {
         Self {
             roots: RootContainer::default(),
-            vote_router: VoteRouter::new(),
             observer: None,
             stopped: false,
             count_by_behavior: Default::default(),
@@ -150,7 +147,6 @@ impl ActiveElectionsContainer {
         });
 
         *self.count_by_behavior_mut(request.behavior) += 1;
-        self.vote_router.connect(hash, root.clone());
         self.stats.started(request.behavior);
         self.notify(AecEvent::ElectionStarted(hash, root));
     }
@@ -167,7 +163,7 @@ impl ActiveElectionsContainer {
                 true
             }
             AddForkResult::Replaced(removed) => {
-                self.vote_router.disconnect(&removed.hash());
+                self.roots.vote_router.disconnect(&removed.hash());
                 self.notify(AecEvent::BlockDiscarded(removed.into()));
                 self.notify(AecEvent::BlockAddedToElection(fork.hash()));
                 true
@@ -180,7 +176,9 @@ impl ActiveElectionsContainer {
         };
 
         if added {
-            self.vote_router.connect(fork.hash(), fork.qualified_root());
+            self.roots
+                .vote_router
+                .connect(fork.hash(), fork.qualified_root());
             self.stats.conflicts += 1;
         }
 
@@ -216,7 +214,7 @@ impl ActiveElectionsContainer {
     }
 
     pub fn is_active_hash(&self, block_hash: &BlockHash) -> bool {
-        self.vote_router.is_active(block_hash)
+        self.roots.vote_router.is_active(block_hash)
     }
 
     pub fn was_recently_confirmed(&self, block_hash: &BlockHash) -> bool {
@@ -235,25 +233,15 @@ impl ActiveElectionsContainer {
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<&Election> {
-        self.roots.get(root).map(|i| &i.election)
-    }
-
-    fn election_for_root_mut(&mut self, root: &QualifiedRoot) -> Option<&mut Election> {
-        self.roots.get_mut(root).map(|i| &mut i.election)
+        self.roots.election_for_root(root)
     }
 
     pub fn election_for_block(&self, block_hash: &BlockHash) -> Option<&Election> {
-        let root = self.vote_router.qualified_root(block_hash)?;
-        self.election_for_root(&root)
-    }
-
-    fn election_for_block_mut(&mut self, block_hash: &BlockHash) -> Option<&mut Election> {
-        let root = self.vote_router.qualified_root(block_hash)?;
-        self.roots.get_mut(&root).map(|i| &mut i.election)
+        self.roots.election_for_block(block_hash)
     }
 
     pub fn transition_active(&mut self, block_hash: &BlockHash) -> bool {
-        let Some(election) = self.election_for_block_mut(block_hash) else {
+        let Some(election) = self.roots.election_for_block_mut(block_hash) else {
             return false;
         };
         election.transition_active();
@@ -265,7 +253,7 @@ impl ActiveElectionsContainer {
         root: &QualifiedRoot,
         voters: impl IntoIterator<Item = &'a PublicKey>,
     ) {
-        let Some(election) = self.election_for_root_mut(root) else {
+        let Some(election) = self.roots.election_for_root_mut(root) else {
             return;
         };
         for voter in voters {
@@ -280,7 +268,8 @@ impl ActiveElectionsContainer {
         voter: &PublicKey,
         new_timestamp: SystemTime,
     ) {
-        self.election_for_root_mut(root)
+        self.roots
+            .election_for_root_mut(root)
             .expect("No election found for given root")
             .change_vote_timestamp(voter, new_timestamp);
     }
@@ -315,7 +304,6 @@ impl ActiveElectionsContainer {
         *self.count_by_behavior_mut(election.behavior()) -= 1;
 
         self.stats.stopped(&entry.election);
-        self.vote_router.disconnect_election(&election);
         self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
     }
 
@@ -403,11 +391,8 @@ impl ActiveElectionsContainer {
                 continue;
             }
 
-            let root = self.vote_router.qualified_root(block_hash);
-            if let Some(root) = root {
-                let entry = self.roots.get_mut(&root).unwrap();
-                let vote_code =
-                    apply_helper.apply_vote(vote, &mut entry.election, *block_hash, vote.source);
+            if let Some(election) = self.roots.election_for_block_mut(block_hash) {
+                let vote_code = apply_helper.apply_vote(vote, election, *block_hash, vote.source);
 
                 results.insert(*block_hash, vote_code);
             } else {
@@ -423,12 +408,9 @@ impl ActiveElectionsContainer {
     }
 
     pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) {
-        let Some(root) = self.vote_router.qualified_root(block_hash) else {
+        let Some(election) = self.roots.election_for_block_mut(block_hash) else {
             panic!("Force confirm failed, because no active election was found");
         };
-
-        let entry = self.roots.get_mut(&root).unwrap();
-        let election = &mut entry.election;
         if election.force_confirm() {
             let confirmed_election =
                 election.into_confirmed_election(now, ConfirmationType::ActiveConfirmedQuorum);
@@ -493,7 +475,7 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
                 "recently_confirmed",
                 self.recently_confirmed.container_info(),
             )
-            .node("vote_router", self.vote_router.container_info())
+            .node("vote_router", self.roots.vote_router.container_info())
             .finish()
     }
 }
