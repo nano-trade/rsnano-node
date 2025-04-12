@@ -35,20 +35,20 @@ fn codes() {
     let mut vote_invalid = vote.clone();
     vote_invalid.signature = Signature::new();
 
-    let vote: FilteredVote = ReceivedVote::new(Arc::new(vote), VoteSource::Live).into();
+    let vote: FilteredVote = ReceivedVote::new(Arc::new(vote), VoteSource::Live, None).into();
     let vote_invalid: FilteredVote =
-        ReceivedVote::new(Arc::new(vote_invalid), VoteSource::Live).into();
+        ReceivedVote::new(Arc::new(vote_invalid), VoteSource::Live, None).into();
 
     // Invalid signature
     assert_eq!(
         VoteCode::Invalid,
-        node.vote_processor.vote_blocking(&vote_invalid, None)
+        node.vote_processor.vote_blocking(&vote_invalid)
     );
 
     // No ongoing election (vote goes to vote cache)
     assert_eq!(
         VoteCode::Indeterminate,
-        node.vote_processor.vote_blocking(&vote, None)
+        node.vote_processor.vote_blocking(&vote)
     );
 
     assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 1);
@@ -58,21 +58,15 @@ fn codes() {
     // First vote from an account for an ongoing election
     start_election(&node, &blocks[0].hash());
     assert_timely2(|| node.is_active_root(&blocks[0].qualified_root()));
-    assert_eq!(
-        VoteCode::Vote,
-        node.vote_processor.vote_blocking(&vote, None)
-    );
+    assert_eq!(VoteCode::Vote, node.vote_processor.vote_blocking(&vote));
 
     // Processing the same vote is a replay
-    assert_eq!(
-        VoteCode::Replay,
-        node.vote_processor.vote_blocking(&vote, None)
-    );
+    assert_eq!(VoteCode::Replay, node.vote_processor.vote_blocking(&vote));
 
     // Invalid takes precedence
     assert_eq!(
         VoteCode::Invalid,
-        node.vote_processor.vote_blocking(&vote_invalid, None)
+        node.vote_processor.vote_blocking(&vote_invalid)
     );
 
     // Once the election is removed (confirmed / dropped) the vote is again indeterminate
@@ -83,7 +77,7 @@ fn codes() {
         .erase(&blocks[0].qualified_root()));
     assert_eq!(
         VoteCode::Indeterminate,
-        node.vote_processor.vote_blocking(&vote, None)
+        node.vote_processor.vote_blocking(&vote)
     );
 }
 

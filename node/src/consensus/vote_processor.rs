@@ -116,9 +116,9 @@ impl VoteProcessor {
 
             for (_, (vote, source, channel, filter)) in &batch {
                 let filter = filter.unwrap_or_default();
-                let received_vote = ReceivedVote::new(vote.clone(), *source);
+                let received_vote = ReceivedVote::new(vote.clone(), *source, channel.clone());
                 let filtered_vote = FilteredVote::new(received_vote.clone(), filter);
-                self.vote_blocking(&filtered_vote, channel.clone());
+                self.vote_blocking(&filtered_vote);
             }
 
             self.total_processed
@@ -136,10 +136,10 @@ impl VoteProcessor {
         }
     }
 
-    pub fn vote_blocking(&self, vote: &FilteredVote, channel: Option<Arc<Channel>>) -> VoteCode {
+    pub fn vote_blocking(&self, vote: &FilteredVote) -> VoteCode {
         let mut result = VoteCode::Invalid;
         if vote.validate().is_ok() {
-            let vote_results = self.vote_applier.vote(vote, channel.clone());
+            let vote_results = self.vote_applier.vote(vote);
 
             result = aggregate_vote_results(&vote_results);
         }

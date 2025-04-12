@@ -6,15 +6,16 @@ mod root_container;
 mod stats;
 mod vote_router;
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use rsnano_core::{
-    utils::BlockPriority, Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, Vote,
-    VoteCode, VoteSource,
+    utils::BlockPriority, Amount, Block, BlockHash, QualifiedRoot, SavedBlock, VoteCode,
 };
-use rsnano_network::Channel;
 
-use super::election::{ConfirmedElection, Election, ElectionBehavior};
+use super::{
+    election::{ConfirmedElection, Election, ElectionBehavior},
+    ReceivedVote,
+};
 pub use active_elections_container::*;
 pub use cooldown_controller::AecCooldownReason;
 use root_container::{Entry, RootContainer};
@@ -49,13 +50,7 @@ pub enum AecEvent {
     /// old winner + new winner block
     WinnerChanged(BlockHash, Block),
 
-    VoteProcessed(
-        Arc<Vote>,
-        Amount,
-        VoteSource,
-        Option<Arc<Channel>>,
-        HashMap<BlockHash, VoteCode>,
-    ),
+    VoteProcessed(ReceivedVote, Amount, HashMap<BlockHash, VoteCode>),
     FinalPhaseStarted(BlockHash, QualifiedRoot),
     VacancyUpdated,
 }

@@ -356,7 +356,7 @@ fn vote_by_hash_bundle() {
 
     let mut max_hashes = 0;
     while let Ok(e) = rx.recv() {
-        if let AecEvent::VoteProcessed(vote, _, _, _, _) = e {
+        if let AecEvent::VoteProcessed(vote, _, _) = e {
             max_hashes = max(max_hashes, vote.hashes.len());
 
             if max_hashes >= 3 {
@@ -1779,6 +1779,9 @@ fn online_reps_rep_crawler() {
     flags.disable_rep_crawler = true;
     let node = system.build_node().flags(flags).finish();
 
+    // Without rep crawler
+    let channel = make_fake_channel(&node);
+
     let vote: FilteredVote = ReceivedVote::new(
         Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
@@ -1787,6 +1790,7 @@ fn online_reps_rep_crawler() {
             vec![*DEV_GENESIS_HASH],
         )),
         VoteSource::Live,
+        Some(channel.clone()),
     )
     .into();
 
@@ -1795,10 +1799,7 @@ fn online_reps_rep_crawler() {
         node.online_reps.lock().unwrap().online_weight()
     );
 
-    // Without rep crawler
-    let channel = make_fake_channel(&node);
-    node.vote_processor
-        .vote_blocking(&vote, Some(channel.clone()));
+    node.vote_processor.vote_blocking(&vote);
     assert_eq!(
         Amount::zero(),
         node.online_reps.lock().unwrap().online_weight()
@@ -1807,7 +1808,7 @@ fn online_reps_rep_crawler() {
     // After inserting to rep crawler
     node.rep_crawler
         .force_query(*DEV_GENESIS_HASH, channel.channel_id());
-    node.vote_processor.vote_blocking(&vote, Some(channel));
+    node.vote_processor.vote_blocking(&vote);
 
     assert_eq!(
         Amount::MAX,
@@ -1847,10 +1848,8 @@ fn online_reps_election() {
     );
 
     let channel = make_fake_channel(&node);
-    node.vote_processor.vote_blocking(
-        &ReceivedVote::new(vote.into(), VoteSource::Live).into(),
-        Some(channel),
-    );
+    node.vote_processor
+        .vote_blocking(&ReceivedVote::new(vote.into(), VoteSource::Live, Some(channel)).into());
 
     assert_eq!(
         Amount::MAX - Amount::nano(1000),
@@ -2095,10 +2094,8 @@ fn rollback_vote_self() {
             0,
             vec![fork.hash()],
         ));
-        node.vote_processor.vote_blocking(
-            &ReceivedVote::new(vote.into(), VoteSource::Live).into(),
-            None,
-        );
+        node.vote_processor
+            .vote_blocking(&ReceivedVote::new(vote.into(), VoteSource::Live, None).into());
 
         // The winner changed
         assert_eq!(
@@ -2177,15 +2174,19 @@ fn rep_crawler_rep_remove() {
     let channel_rep1 = make_fake_channel(&searching_node);
 
     // Ensure Rep1 is found by the rep_crawler after receiving a vote from it
-    let vote_rep1 = Arc::new(Vote::new(
-        &key_rep1,
-        UnixMillisTimestamp::ZERO,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
-    searching_node
-        .rep_crawler
-        .force_process2(vote_rep1, channel_rep1.clone());
+    let vote_rep1 = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &key_rep1,
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+        Some(channel_rep1.clone()),
+    );
+
+    searching_node.rep_crawler.force_process2(vote_rep1);
+
     assert_timely_eq(
         Duration::from_secs(5),
         || {
@@ -2234,15 +2235,18 @@ fn rep_crawler_rep_remove() {
         .clone();
 
     // genesis_rep should be found as principal representative after receiving a vote from it
-    let vote_genesis_rep = Arc::new(Vote::new(
-        &DEV_GENESIS_KEY,
-        UnixMillisTimestamp::ZERO,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
-    searching_node
-        .rep_crawler
-        .force_process2(vote_genesis_rep, channel_genesis_rep);
+    let vote_genesis_rep = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &DEV_GENESIS_KEY,
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+        Some(channel_genesis_rep),
+    );
+
+    searching_node.rep_crawler.force_process2(vote_genesis_rep);
 
     assert_timely_eq(
         Duration::from_secs(10),
@@ -2283,15 +2287,18 @@ fn rep_crawler_rep_remove() {
         .clone();
 
     // Rep2 should be found as a principal representative after receiving a vote from it
-    let vote_rep2 = Arc::new(Vote::new(
-        &key_rep2,
-        UnixMillisTimestamp::ZERO,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
-    searching_node
-        .rep_crawler
-        .force_process2(vote_rep2, channel_rep2);
+    let vote_rep2 = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &key_rep2,
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+        Some(channel_rep2),
+    );
+
+    searching_node.rep_crawler.force_process2(vote_rep2);
 
     assert_timely_eq(
         Duration::from_secs(10),

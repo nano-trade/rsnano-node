@@ -44,10 +44,9 @@ mod votes {
             vec![send1.hash()],
         ));
         assert_eq!(
-            node1.vote_processor.vote_blocking(
-                &ReceivedVote::new(vote1.into(), VoteSource::Live).into(),
-                None
-            ),
+            node1
+                .vote_processor
+                .vote_blocking(&ReceivedVote::new(vote1.into(), VoteSource::Live, None).into(),),
             VoteCode::Vote
         );
         let vote2 = ReceivedVote::new(
@@ -58,11 +57,12 @@ mod votes {
                 vec![send1.hash()],
             )),
             VoteSource::Live,
+            None,
         );
 
         // Ignored due to vote cooldown
         assert_eq!(
-            node1.vote_processor.vote_blocking(&vote2.into(), None),
+            node1.vote_processor.vote_blocking(&vote2.into()),
             VoteCode::Ignored
         );
 
@@ -117,11 +117,10 @@ mod votes {
                 vec![send1.hash()],
             )),
             VoteSource::Live,
+            None,
         );
 
-        node1
-            .vote_processor
-            .vote_blocking(&vote1.clone().into(), None);
+        node1.vote_processor.vote_blocking(&vote1.clone().into());
         // Block is already processed from vote
         node1
             .active
@@ -166,6 +165,7 @@ mod votes {
                 vec![send2.hash()],
             )),
             VoteSource::Live,
+            None,
         );
 
         // Pretend we've waited the timeout
@@ -176,7 +176,7 @@ mod votes {
         );
 
         assert_eq!(
-            node1.vote_processor.vote_blocking(&vote2.into(), None),
+            node1.vote_processor.vote_blocking(&vote2.into()),
             VoteCode::Vote
         );
         assert_eq!(
@@ -200,7 +200,7 @@ mod votes {
         );
 
         assert_eq!(
-            node1.vote_processor.vote_blocking(&vote1.into(), None),
+            node1.vote_processor.vote_blocking(&vote1.into()),
             VoteCode::Replay
         );
 

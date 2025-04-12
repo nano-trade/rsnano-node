@@ -23,7 +23,7 @@ use rsnano_stats::{DetailType, Direction, Sample, StatType, Stats};
 use super::{InsertResult, OnlineReps};
 use crate::{
     config::{NetworkParams, NodeConfig},
-    consensus::ActiveElectionsContainer,
+    consensus::{ActiveElectionsContainer, ReceivedVote},
     transport::{
         keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
         MessageSender,
@@ -112,8 +112,8 @@ impl RepCrawler {
 
     /// Called when a non-replay vote arrives that might be of interest to rep crawler.
     /// @return true, if the vote was of interest and was processed, this indicates that the rep is likely online and voting
-    pub fn process(&self, vote: &Arc<Vote>, channel: Option<&Arc<Channel>>) -> bool {
-        let Some(channel) = channel.cloned() else {
+    pub fn process(&self, vote: &ReceivedVote) -> bool {
+        let Some(channel) = vote.channel.clone() else {
             return false;
         };
         let mut guard = self.rep_crawler_impl.lock().unwrap();
@@ -144,7 +144,7 @@ impl RepCrawler {
                     (0, query_timeout.as_millis() as i64),
                 );
 
-                responses.push_back((channel.clone(), Arc::clone(&vote)));
+                responses.push_back(vote.clone());
                 query.replies += 1;
                 self.condition.notify_all();
                 processed = true;
@@ -194,10 +194,10 @@ impl RepCrawler {
     }
 
     // Only for tests
-    pub fn force_process2(&self, vote: Arc<Vote>, channel: Arc<Channel>) {
+    pub fn force_process2(&self, vote: ReceivedVote) {
         assert!(self.network_params.network.is_dev_network());
         let mut guard = self.rep_crawler_impl.lock().unwrap();
-        guard.responses.push_back((channel, vote));
+        guard.responses.push_back(vote);
     }
 
     // Only for tests
@@ -321,7 +321,10 @@ impl RepCrawler {
         );
 
         // TODO: Is it really faster to repeatedly lock/unlock the mutex for each response?
-        for (channel, vote) in responses {
+        for vote in responses {
+            let Some(channel) = vote.channel.clone() else {
+                continue;
+            };
             let rep_weight = self.ledger.weight(&vote.voter);
             if rep_weight < minimum {
                 debug!(
@@ -429,7 +432,7 @@ struct RepCrawlerImpl {
     query_timeout: Duration,
     stopped: bool,
     last_query: Option<Instant>,
-    responses: BoundedVecDeque<(Arc<Channel>, Arc<Vote>)>,
+    responses: BoundedVecDeque<ReceivedVote>,
 
     /// Freshly established connections that should be queried asap
     prioritized: Vec<Arc<Channel>>,

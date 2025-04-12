@@ -397,10 +397,8 @@ fn inactive_votes_cache_existing_vote() {
 
     let cached = node.vote_cache.lock().unwrap().find(&send.hash());
     assert_eq!(cached.len(), 1);
-    node.vote_processor.vote_blocking(
-        &ReceivedVote::new(cached[0].clone(), VoteSource::Live).into(),
-        None,
-    );
+    node.vote_processor
+        .vote_blocking(&ReceivedVote::new(cached[0].clone(), VoteSource::Live, None).into());
 
     // Check that election data is not changed
     let active = node.active.read().unwrap();
@@ -1136,37 +1134,39 @@ fn vote_replays() {
     let vote_send1: FilteredVote = ReceivedVote::new(
         Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()])),
         VoteSource::Live,
+        None,
     )
     .into();
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote_send1, None),
+        node.vote_processor.vote_blocking(&vote_send1),
         VoteCode::Vote
     );
-    let code = node.vote_processor.vote_blocking(&vote_send1, None);
+    let code = node.vote_processor.vote_blocking(&vote_send1);
     assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
 
     // Wait until the election is removed, at which point the vote is considered late since it's been recently confirmed
     assert_timely_eq2(|| node.active.read().unwrap().len(), 1);
-    let code = node.vote_processor.vote_blocking(&vote_send1, None);
+    let code = node.vote_processor.vote_blocking(&vote_send1);
     assert_eq!(code, VoteCode::Late);
 
     // Open new account
     let vote_open1: FilteredVote = ReceivedVote::new(
         Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![open1.hash()])),
         VoteSource::Live,
+        None,
     )
     .into();
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote_open1, None),
+        node.vote_processor.vote_blocking(&vote_open1),
         VoteCode::Vote
     );
-    let code = node.vote_processor.vote_blocking(&vote_open1, None);
+    let code = node.vote_processor.vote_blocking(&vote_open1);
     assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
 
     assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
 
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote_open1, None),
+        node.vote_processor.vote_blocking(&vote_open1),
         VoteCode::Late
     );
     assert_eq!(node.ledger.weight(&key.public_key()), Amount::nano(1000));
@@ -1181,6 +1181,7 @@ fn vote_replays() {
     let vote1_send2: FilteredVote = ReceivedVote::new(
         Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()])),
         VoteSource::Live,
+        None,
     )
     .into();
 
@@ -1192,32 +1193,33 @@ fn vote_replays() {
             vec![send2.hash()],
         )),
         VoteSource::Live,
+        None,
     )
     .into();
 
     // this vote cannot confirm the election
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote2_send2, None),
+        node.vote_processor.vote_blocking(&vote2_send2),
         VoteCode::Vote
     );
     assert_eq!(node.active.read().unwrap().len(), 1);
 
     // this vote confirms the election
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote1_send2, None),
+        node.vote_processor.vote_blocking(&vote1_send2),
         VoteCode::Vote
     );
 
     // This should still return replay or late, either because the election is still in the AEC or because it is recently confirmed
-    let code = node.vote_processor.vote_blocking(&vote1_send2, None);
+    let code = node.vote_processor.vote_blocking(&vote1_send2);
     assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
     assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote1_send2, None),
+        node.vote_processor.vote_blocking(&vote1_send2),
         VoteCode::Late
     );
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote2_send2, None),
+        node.vote_processor.vote_blocking(&vote2_send2),
         VoteCode::Late
     );
 
@@ -1225,19 +1227,19 @@ fn vote_replays() {
     node.active.write().unwrap().clear_recently_confirmed();
 
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote_send1, None),
+        node.vote_processor.vote_blocking(&vote_send1),
         VoteCode::Indeterminate
     );
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote_open1, None),
+        node.vote_processor.vote_blocking(&vote_open1),
         VoteCode::Indeterminate
     );
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote1_send2, None),
+        node.vote_processor.vote_blocking(&vote1_send2),
         VoteCode::Indeterminate
     );
     assert_eq!(
-        node.vote_processor.vote_blocking(&vote2_send2, None),
+        node.vote_processor.vote_blocking(&vote2_send2),
         VoteCode::Indeterminate
     );
 }

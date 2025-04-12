@@ -1,10 +1,13 @@
-use rsnano_core::{utils::UnixMillisTimestamp, Amount, PrivateKey, Vote, DEV_GENESIS_KEY};
+use rsnano_core::{
+    utils::UnixMillisTimestamp, Amount, PrivateKey, Vote, VoteSource, DEV_GENESIS_KEY,
+};
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelMode, TrafficType};
+use rsnano_node::consensus::ReceivedVote;
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, assert_timely_eq2, System};
 
@@ -109,28 +112,42 @@ fn rep_weight() {
         )
     };
 
-    let vote0 = Arc::new(Vote::new(
-        &DEV_GENESIS_KEY,
-        UnixMillisTimestamp::ZERO,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
-    let vote1 = Arc::new(Vote::new(
-        &key_non_pr,
-        UnixMillisTimestamp::ZERO,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
-    let vote2 = Arc::new(Vote::new(
-        &key_pr,
-        UnixMillisTimestamp::ZERO,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
+    let vote0 = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &DEV_GENESIS_KEY,
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+        Some(channel1.clone()),
+    );
 
-    node.rep_crawler.force_process2(vote0, channel1.clone());
-    node.rep_crawler.force_process2(vote1, channel2.clone());
-    node.rep_crawler.force_process2(vote2, channel3.clone());
+    let vote1 = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &key_non_pr,
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+        Some(channel2.clone()),
+    );
+
+    let vote2 = ReceivedVote::new(
+        Arc::new(Vote::new(
+            &key_pr,
+            UnixMillisTimestamp::ZERO,
+            0,
+            vec![*DEV_GENESIS_HASH],
+        )),
+        VoteSource::Live,
+        Some(channel3.clone()),
+    );
+
+    node.rep_crawler.force_process2(vote0);
+    node.rep_crawler.force_process2(vote1);
+    node.rep_crawler.force_process2(vote2);
 
     assert_timely_eq2(|| node.online_reps.lock().unwrap().peered_reps_count(), 2);
     // Make sure we get the rep with the most weight first

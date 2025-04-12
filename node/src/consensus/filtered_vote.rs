@@ -1,15 +1,21 @@
 use rsnano_core::{BlockHash, Vote, VoteSource};
+use rsnano_network::Channel;
 use std::{ops::Deref, sync::Arc};
 
 #[derive(Clone)]
 pub struct ReceivedVote {
     pub vote: Arc<Vote>,
     pub source: VoteSource,
+    pub channel: Option<Arc<Channel>>,
 }
 
 impl ReceivedVote {
-    pub fn new(vote: Arc<Vote>, source: VoteSource) -> Self {
-        Self { vote, source }
+    pub fn new(vote: Arc<Vote>, source: VoteSource, channel: Option<Arc<Channel>>) -> Self {
+        Self {
+            vote,
+            source,
+            channel,
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
     consensus::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
         ActiveElectionsContainer, AecCooldownReason, AecEvent, BlockVoter,
-        BootstrapElectionActivator, ForkProcessor, LocalVotesRemover, VoteCache,
+        BootstrapElectionActivator, ForkProcessor, LocalVotesRemover, ReceivedVote, VoteCache,
         VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
@@ -116,22 +116,24 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 // Roll back the previous winner and add the new winner to the ledger
                 self.block_processor.force(new_winner.clone().into());
             }
-            AecEvent::VoteProcessed(vote, voter_weight, source, channel, results) => {
+            AecEvent::VoteProcessed(vote, voter_weight, results) => {
                 // Cache the votes that didn't match any election
-                if source != VoteSource::Cache {
+                if vote.source != VoteSource::Cache {
                     self.vote_cache
                         .lock()
                         .unwrap()
-                        .insert(&vote, voter_weight, &results);
+                        .insert(&vote.vote, voter_weight, &results);
                 }
 
-                self.vote_rebroadcast_queue.try_enqueue(&vote, &results);
+                self.vote_rebroadcast_queue
+                    .try_enqueue(&vote.vote, &results);
 
                 let result = aggregate_vote_results(&results);
-                self.try_update_online_reps(&vote, result, source, channel);
+                self.try_update_online_reps(&vote, result);
 
                 if let Some(tx) = &self.node_observer {
-                    tx.send(NodeEvent::VoteProcessed(vote, result)).unwrap();
+                    tx.send(NodeEvent::VoteProcessed(vote.vote, result))
+                        .unwrap();
                 }
             }
             AecEvent::FinalPhaseStarted(hash, root) => {
@@ -157,13 +159,7 @@ impl AecEventProcessor {
         self.network_filter.clear_bytes(buf.as_bytes());
     }
 
-    fn try_update_online_reps(
-        &mut self,
-        vote: &Arc<Vote>,
-        result: VoteCode,
-        source: VoteSource,
-        channel: Option<Arc<Channel>>,
-    ) {
+    fn try_update_online_reps(&mut self, vote: &ReceivedVote, result: VoteCode) {
         // Track rep weight voting on live elections
         let mut should_observe = matches!(
             result,
@@ -171,8 +167,8 @@ impl AecEventProcessor {
         );
 
         // Ignore republished votes when rep crawling
-        if source == VoteSource::Live {
-            should_observe |= self.rep_crawler.process(vote, channel.as_ref());
+        if vote.source == VoteSource::Live {
+            should_observe |= self.rep_crawler.process(vote);
         }
 
         if should_observe {

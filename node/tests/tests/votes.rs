@@ -28,29 +28,32 @@ fn check_signature() {
     let send1 = lattice.genesis().send(&key1, 100);
     node.process(send1.clone());
     start_election(&node, &send1.hash());
+    let channel = make_fake_channel(&node);
     let mut vote1 = Vote::new(&DEV_GENESIS_KEY, Vote::TIMESTAMP_MIN, 0, vec![send1.hash()]);
     let good_signature = vote1.signature;
     vote1.signature = Signature::new();
-    let received_vote1 = ReceivedVote::new(Arc::new(vote1.clone()), VoteSource::Live);
-    let channel = make_fake_channel(&node);
+    let received_vote1 = ReceivedVote::new(
+        Arc::new(vote1.clone()),
+        VoteSource::Live,
+        Some(channel.clone()),
+    );
     assert_eq!(
         VoteCode::Invalid,
-        node.vote_processor
-            .vote_blocking(&received_vote1.into(), Some(channel.clone()),)
+        node.vote_processor.vote_blocking(&received_vote1.into())
     );
 
     vote1.signature = good_signature;
 
-    let received_vote2 = ReceivedVote::new(Arc::new(vote1), VoteSource::Live);
+    let received_vote2 =
+        ReceivedVote::new(Arc::new(vote1), VoteSource::Live, Some(channel.clone()));
     assert_eq!(
         VoteCode::Vote,
         node.vote_processor
-            .vote_blocking(&received_vote2.clone().into(), Some(channel.clone()),)
+            .vote_blocking(&received_vote2.clone().into())
     );
     assert_eq!(
         VoteCode::Replay,
-        node.vote_processor
-            .vote_blocking(&received_vote2.into(), Some(channel.clone()),)
+        node.vote_processor.vote_blocking(&received_vote2.into())
     );
 }
 
@@ -73,10 +76,8 @@ fn add_old() {
         vec![send1.hash()],
     ));
     let channel = make_fake_channel(&node);
-    node.vote_processor.vote_blocking(
-        &ReceivedVote::new(vote1, VoteSource::Live).into(),
-        Some(channel.clone()),
-    );
+    node.vote_processor
+        .vote_blocking(&ReceivedVote::new(vote1, VoteSource::Live, Some(channel.clone())).into());
 
     let key2 = PrivateKey::new();
     let send2 = fork_lattice.genesis().send_max(&key2);
@@ -93,10 +94,8 @@ fn add_old() {
         SystemTime::now() - Duration::from_secs(20),
     );
 
-    node.vote_processor.vote_blocking(
-        &ReceivedVote::new(vote2, VoteSource::Live).into(),
-        Some(channel),
-    );
+    node.vote_processor
+        .vote_blocking(&ReceivedVote::new(vote2, VoteSource::Live, Some(channel)).into());
 
     let active = node.active.read().unwrap();
     let election = active.election_for_root(&send1.qualified_root()).unwrap();
@@ -126,10 +125,8 @@ fn add_cooldown() {
         vec![send1.hash()],
     ));
     let channel = make_fake_channel(&node);
-    node.vote_processor.vote_blocking(
-        &ReceivedVote::new(vote1, VoteSource::Live).into(),
-        Some(channel.clone()),
-    );
+    node.vote_processor
+        .vote_blocking(&ReceivedVote::new(vote1, VoteSource::Live, Some(channel.clone())).into());
 
     let key2 = PrivateKey::new();
     let send2 = fork_lattice.genesis().send_max(&key2);
@@ -140,10 +137,8 @@ fn add_cooldown() {
         vec![send2.hash()],
     ));
 
-    node.vote_processor.vote_blocking(
-        &ReceivedVote::new(vote2, VoteSource::Live).into(),
-        Some(channel),
-    );
+    node.vote_processor
+        .vote_blocking(&ReceivedVote::new(vote2, VoteSource::Live, Some(channel)).into());
 
     let active = node.active.read().unwrap();
     let election1 = active.election_for_root(&send1.qualified_root()).unwrap();

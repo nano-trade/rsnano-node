@@ -3,11 +3,10 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
 
-use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteCode, VoteSource};
-use rsnano_ledger::{Ledger, RepWeightCache};
+use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteCode};
+use rsnano_ledger::RepWeightCache;
 
 use super::{ActiveElectionsContainer, AecEvent, FilteredVote, ReceivedVote};
 use crate::representatives::OnlineReps;
@@ -52,11 +51,7 @@ impl VoteApplier {
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     /// If 'filter' parameter is non-zero, only elections for the specified hash are notified.
     /// This eliminates duplicate processing when triggering votes from the vote_cache as the result of a specific election being created.
-    pub fn vote(
-        &self,
-        vote: &FilteredVote,
-        channel: Option<Arc<Channel>>,
-    ) -> HashMap<BlockHash, VoteCode> {
+    pub fn vote(&self, vote: &FilteredVote) -> HashMap<BlockHash, VoteCode> {
         debug_assert!(vote.validate().is_ok());
 
         let minimum_pr_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
@@ -94,7 +89,7 @@ impl VoteApplier {
             active.apply_vote(vote, &rep_weights, quorum_specs, now)
         };
 
-        self.notify_vote_processed(&vote, voter_weight, channel, &results);
+        self.notify_vote_processed(&vote, voter_weight, &results);
         results
     }
 
@@ -102,16 +97,13 @@ impl VoteApplier {
         &self,
         vote: &ReceivedVote,
         voter_weight: Amount,
-        channel: Option<Arc<Channel>>,
         results: &HashMap<BlockHash, VoteCode>,
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
             sender
                 .send(AecEvent::VoteProcessed(
-                    vote.vote.clone(),
+                    vote.clone(),
                     voter_weight,
-                    vote.source,
-                    channel.clone(),
                     results.clone(),
                 ))
                 .unwrap();

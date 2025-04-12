@@ -5,7 +5,7 @@ use std::{
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
-    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode, VoteSource,
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
