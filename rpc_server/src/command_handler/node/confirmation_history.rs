@@ -39,7 +39,7 @@ impl RpcCommandHandler {
                 average: if elections.is_empty() {
                     None
                 } else {
-                    Some((running_total.as_secs() / elections.len() as u64).into())
+                    Some((running_total.as_millis() as u64 / elections.len() as u64).into())
                 },
             },
             confirmations: elections,
