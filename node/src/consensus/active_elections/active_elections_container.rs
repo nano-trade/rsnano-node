@@ -495,7 +495,7 @@ mod tests {
         let container = ActiveElectionsContainer::default();
         assert_eq!(container.len(), 0);
         assert!(!container.is_active_root(&QualifiedRoot::new_test_instance()));
-        assert!(!container.is_active_hash(&BlockHash::new(1)));
+        assert!(!container.is_active_hash(&BlockHash::from(1)));
     }
 
     #[test]
