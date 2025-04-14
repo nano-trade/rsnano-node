@@ -488,14 +488,17 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use super::*;
+    use crate::consensus::ReceivedVote;
+    use rsnano_core::{PrivateKey, Vote, VoteSource};
 
     #[test]
     fn empty() {
         let container = ActiveElectionsContainer::default();
         assert_eq!(container.len(), 0);
         assert!(!container.is_active_root(&QualifiedRoot::new_test_instance()));
-        assert!(!container.is_active_hash(&BlockHash::new(1)));
+        assert!(!container.is_active_hash(&BlockHash::from(1)));
     }
 
     #[test]
@@ -512,5 +515,39 @@ mod tests {
             .unwrap();
 
         assert_eq!(container.len(), 1)
+    }
+
+    #[test]
+    fn confirm_election() {
+        let mut container = ActiveElectionsContainer::default();
+
+        let block = SavedBlock::new_test_instance();
+        let block_hash = block.hash();
+
+        let request = AecInsertRequest {
+            block,
+            behavior: ElectionBehavior::Priority,
+            priority: None,
+        };
+
+        container
+            .insert(request, Timestamp::new_test_instance())
+            .unwrap();
+
+        let rep_key = PrivateKey::from(1);
+        let vote = Arc::new(Vote::new_final(&rep_key, vec![block_hash]));
+        let received_vote = ReceivedVote::new(vote, VoteSource::Live, None);
+
+        let mut rep_weights = RepWeights::new();
+        rep_weights.insert(rep_key.public_key(), Amount::MAX);
+
+        let quorum_specs = QuorumSpecs {
+            online_weight: Amount::nano(100_000_000),
+            quorum_delta: Amount::nano(67_000_000),
+        };
+
+        container.apply_vote(&received_vote.into(), &rep_weights, quorum_specs, Timestamp::new_test_instance());
+
+        assert_eq!(container.election_for_block(&block_hash).unwrap().is_confirmed(), true);
     }
 }
