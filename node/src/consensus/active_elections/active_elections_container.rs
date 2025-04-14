@@ -445,6 +445,12 @@ impl ActiveElectionsContainer {
     }
 }
 
+impl Default for ActiveElectionsContainer {
+    fn default() -> Self {
+        Self::new(ActiveElectionsConfig::default(), Duration::from_secs(1))
+    }
+}
+
 impl StatsSource for ActiveElectionsContainer {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.cooldown.collect_stats(result);
@@ -477,5 +483,34 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
             )
             .node("vote_router", self.roots.vote_router.container_info())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty() {
+        let container = ActiveElectionsContainer::default();
+        assert_eq!(container.len(), 0);
+        assert!(!container.is_active_root(&QualifiedRoot::new_test_instance()));
+        assert!(!container.is_active_hash(&BlockHash::new(1)));
+    }
+
+    #[test]
+    fn insert_election() {
+        let mut container = ActiveElectionsContainer::default();
+        let request = AecInsertRequest {
+            block: SavedBlock::new_test_instance(),
+            behavior: ElectionBehavior::Priority,
+            priority: None,
+        };
+
+        container
+            .insert(request, Timestamp::new_test_instance())
+            .unwrap();
+
+        assert_eq!(container.len(), 1)
     }
 }
