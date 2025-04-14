@@ -35,6 +35,12 @@ impl VoteBroadcaster {
     pub fn broadcast(&self, vote: Arc<Vote>) {
         let ack = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote.deref().clone()));
 
+        let stat_type = if vote.is_final() {
+            StatType::VoteGeneratorFinal
+        } else {
+            StatType::VoteGenerator
+        };
+
         self.vote_processor_queue
             .enqueue(vote, None, VoteSource::Live, None);
 
@@ -44,13 +50,10 @@ impl VoteBroadcaster {
             .unwrap()
             .flood_prs_and_some_non_prs(&ack, TrafficType::Vote, 2.0);
 
+        self.stats
+            .add(stat_type, DetailType::SentPr, count.principal_reps as u64);
         self.stats.add(
-            StatType::VoteGenerator,
-            DetailType::SentPr,
-            count.principal_reps as u64,
-        );
-        self.stats.add(
-            StatType::VoteGenerator,
+            stat_type,
             DetailType::SentNonPr,
             count.non_principal_reps as u64,
         );
