@@ -85,7 +85,7 @@ fn add_old() {
         vec![send2.hash()],
     ));
 
-    node.active.write().unwrap().change_vote_timestamp(
+    node.active.write().unwrap().change_received_timestamp(
         &send1.qualified_root(),
         &DEV_GENESIS_PUB_KEY,
         node.steady_clock.now() - Duration::from_secs(20),

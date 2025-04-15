@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashMap, time::Duration};
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
@@ -262,7 +259,7 @@ impl ActiveElectionsContainer {
     }
 
     // TODO: Delete!
-    pub fn change_vote_timestamp(
+    pub fn change_received_timestamp(
         &mut self,
         root: &QualifiedRoot,
         voter: &PublicKey,
@@ -271,7 +268,7 @@ impl ActiveElectionsContainer {
         self.roots
             .election_for_root_mut(root)
             .expect("No election found for given root")
-            .change_vote_timestamp(voter, new_timestamp);
+            .change_received_timestamp(voter, new_timestamp);
     }
 
     pub fn erase_ended_elections(&mut self) {
@@ -490,7 +487,10 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
 mod tests {
     use super::*;
     use crate::consensus::ReceivedVote;
-    use rsnano_core::{PrivateKey, Vote, VoteSource};
+    use rsnano_core::{
+        utils::{BlockPriority, UnixMillisTimestamp},
+        PrivateKey, Vote, VoteSource,
+    };
     use std::sync::Arc;
 
     #[test]
@@ -527,31 +527,26 @@ mod tests {
         let request = AecInsertRequest {
             block,
             behavior: ElectionBehavior::Priority,
-            priority: None,
+            priority: Some(BlockPriority::new_test_instance()),
         };
 
-        container
-            .insert(request, Timestamp::new_test_instance())
-            .unwrap();
+        let now = Timestamp::new_test_instance();
+        container.insert(request, now).unwrap();
 
         let rep_key = PrivateKey::from(1);
-        let vote = Arc::new(Vote::new_final(&rep_key, vec![block_hash]));
-        let received_vote = ReceivedVote::new(vote, VoteSource::Live, None);
+        let received_vote = test_final_vote(&rep_key, block_hash);
 
         let mut rep_weights = RepWeights::new();
         rep_weights.insert(rep_key.public_key(), Amount::MAX);
 
-        let quorum_specs = QuorumSpecs {
-            online_weight: Amount::nano(100_000_000),
-            quorum_delta: Amount::nano(67_000_000),
-        };
-
-        container.apply_vote(
+        let result = container.apply_vote(
             &received_vote.into(),
             &rep_weights,
-            quorum_specs,
-            Timestamp::new_test_instance(),
+            QuorumSpecs::new_test_instance(),
+            now,
         );
+
+        assert_eq!(result.get(&block_hash), Some(&VoteCode::Vote));
 
         assert_eq!(
             container
@@ -560,5 +555,65 @@ mod tests {
                 .is_confirmed(),
             true
         );
+    }
+
+    #[test]
+    fn cool_down_live_vote() {
+        let mut container = ActiveElectionsContainer::default();
+
+        let block = SavedBlock::new_test_instance();
+        let block_hash = block.hash();
+        let start = Timestamp::new_test_instance();
+
+        let request = AecInsertRequest {
+            block,
+            behavior: ElectionBehavior::Priority,
+            priority: Some(BlockPriority::new_test_instance()),
+        };
+
+        container.insert(request, start).unwrap();
+
+        let rep_key = PrivateKey::from(1);
+
+        let mut rep_weights = RepWeights::new();
+        rep_weights.insert(rep_key.public_key(), Amount::nano(100_000));
+
+        let quorum_specs = QuorumSpecs::new_test_instance();
+
+        let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
+        let result = container.apply_vote(
+            &vote1.clone().into(),
+            &rep_weights,
+            quorum_specs.clone(),
+            start,
+        );
+        assert_eq!(result.get(&block_hash), Some(&VoteCode::Vote));
+
+        // vote2 is too close to vote1 and is therefore ignored
+        let vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(2000));
+        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        assert_eq!(result.get(&block_hash), Some(&VoteCode::Ignored));
+
+        let vote3 = test_vote(
+            &rep_key,
+            block_hash,
+            UnixMillisTimestamp::new(1000 + 15_000),
+        );
+        let result = container.apply_vote(&vote3.into(), &rep_weights, quorum_specs, start);
+        assert_eq!(result.get(&block_hash), Some(&VoteCode::Ignored));
+    }
+
+    fn test_vote(
+        rep_key: &PrivateKey,
+        block_hash: BlockHash,
+        created: UnixMillisTimestamp,
+    ) -> ReceivedVote {
+        let vote = Arc::new(Vote::new(rep_key, created, 0, vec![block_hash]));
+        ReceivedVote::new(vote, VoteSource::Live, None)
+    }
+
+    fn test_final_vote(rep_key: &PrivateKey, block_hash: BlockHash) -> ReceivedVote {
+        let vote = Arc::new(Vote::new_final(rep_key, vec![block_hash]));
+        ReceivedVote::new(vote, VoteSource::Live, None)
     }
 }

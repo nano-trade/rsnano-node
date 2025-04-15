@@ -358,6 +358,13 @@ impl QuorumSpecs {
             Duration::from_secs(15)
         }
     }
+
+    pub fn new_test_instance() -> Self {
+        QuorumSpecs {
+            online_weight: Amount::nano(100_000_000),
+            quorum_delta: Amount::nano(67_000_000),
+        }
+    }
 }
 
 #[cfg(test)]

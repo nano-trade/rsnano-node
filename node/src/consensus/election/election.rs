@@ -397,7 +397,7 @@ impl Election {
     }
 
     /// TODO: Remove as soon as possible
-    pub fn change_vote_timestamp(&mut self, voter: &PublicKey, new_timestamp: Timestamp) {
+    pub fn change_received_timestamp(&mut self, voter: &PublicKey, new_timestamp: Timestamp) {
         self.votes.get_mut(voter).unwrap().vote_received = new_timestamp;
     }
 

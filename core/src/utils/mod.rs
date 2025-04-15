@@ -432,6 +432,10 @@ impl BlockPriority {
     pub const fn new(balance: Amount, time: TimePriority) -> Self {
         Self { balance, time }
     }
+
+    pub fn new_test_instance() -> Self {
+        Self::new(Amount::nano(1), TimePriority::new(42))
+    }
 }
 
 #[cfg(test)]

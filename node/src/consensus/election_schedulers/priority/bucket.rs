@@ -73,9 +73,9 @@ impl Bucket {
         }
     }
 
-    fn election_slots_available(&self, election_count: usize) -> bool {
-        election_count < self.config.reserved_elections
-            || election_count < self.config.max_elections
+    fn election_slots_available(&self, started_elections: usize) -> bool {
+        started_elections < self.config.reserved_elections
+            || started_elections < self.config.max_elections
     }
 
     fn election_overfill(&self, aec_vacancy: i64) -> bool {
