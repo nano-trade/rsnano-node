@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{
     Amount, Epoch, PrivateKey, Signature, Vote, VoteCode, VoteSource, WalletId, DEV_GENESIS_KEY,
@@ -91,7 +88,7 @@ fn add_old() {
     node.active.write().unwrap().change_vote_timestamp(
         &send1.qualified_root(),
         &DEV_GENESIS_PUB_KEY,
-        SystemTime::now() - Duration::from_secs(20),
+        node.steady_clock.now() - Duration::from_secs(20),
     );
 
     node.vote_processor

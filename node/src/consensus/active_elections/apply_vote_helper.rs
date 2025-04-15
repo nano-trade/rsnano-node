@@ -9,7 +9,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::RepWeights;
 use rsnano_nullable_clock::Timestamp;
-use std::{ops::Deref, time::SystemTime};
+use std::ops::Deref;
 
 pub(super) struct ApplyVoteHelper<'a> {
     pub recently_confirmed: &'a mut RecentlyConfirmedCache,
@@ -31,20 +31,20 @@ impl<'a> ApplyVoteHelper<'a> {
         let rep_weight = self.rep_weights.weight(&vote.voter);
 
         if let Some(last_vote) = election.votes().get(&vote.voter) {
-            if last_vote.timestamp > vote.timestamp() {
+            if last_vote.vote_created > vote.timestamp() {
                 return VoteCode::Replay;
-            } else if last_vote.timestamp == vote.timestamp() && !(last_vote.hash < block_hash) {
+            } else if last_vote.vote_created == vote.timestamp() && !(last_vote.hash < block_hash) {
                 return VoteCode::Replay;
             }
 
             let max_vote = vote.timestamp() == UnixMillisTimestamp::MAX
-                && last_vote.timestamp < vote.timestamp();
+                && last_vote.vote_created < vote.timestamp();
 
             let mut past_cooldown = true;
             // Only cooldown live votes
             if source != VoteSource::Cache {
                 let cooldown = self.quorum_specs.cooldown_time(rep_weight);
-                past_cooldown = last_vote.time <= SystemTime::now() - cooldown;
+                past_cooldown = last_vote.vote_received <= self.now - cooldown;
             }
 
             if !max_vote && !past_cooldown {
@@ -62,7 +62,7 @@ impl<'a> ApplyVoteHelper<'a> {
         block_hash: BlockHash,
         source: VoteSource,
     ) -> VoteCode {
-        election.add_vote(vote.voter, vote.timestamp(), block_hash);
+        election.add_vote(vote.voter, block_hash, vote.timestamp(), self.now);
         self.vote_counter.count(source);
         self.confirm_if_quorum(election);
         VoteCode::Vote

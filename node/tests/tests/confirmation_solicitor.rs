@@ -137,8 +137,9 @@ fn different_hashes() {
     election.try_add_fork(&another_block, Amount::nano(1));
     election.add_vote(
         *DEV_GENESIS_PUB_KEY,
-        UnixMillisTimestamp::new(1),
         another_block.hash(),
+        UnixMillisTimestamp::new(1),
+        node2.steady_clock.now(),
     );
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election), true);
@@ -205,8 +206,9 @@ fn bypass_max_requests_cap() {
     for rep in &representatives {
         election.add_vote(
             rep.rep_key,
-            UnixMillisTimestamp::new(1),
             another_block.hash(),
+            UnixMillisTimestamp::new(1),
+            node2.steady_clock.now(),
         );
     }
     // Ensure the request and broadcast goes through

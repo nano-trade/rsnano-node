@@ -140,10 +140,18 @@ impl Election {
         &self.votes
     }
 
-    pub fn add_vote(&mut self, voter: PublicKey, timestamp: UnixMillisTimestamp, hash: BlockHash) {
+    pub fn add_vote(
+        &mut self,
+        voter: PublicKey,
+        hash: BlockHash,
+        vote_created: UnixMillisTimestamp,
+        vote_received: Timestamp,
+    ) {
         debug_assert!(self.candidate_blocks.contains_key(&hash));
-        self.votes
-            .insert(voter, VoteSummary::new(voter, timestamp, hash));
+        self.votes.insert(
+            voter,
+            VoteSummary::new(voter, hash, vote_created, vote_received),
+        );
     }
 
     pub fn winner_tally(&self) -> Amount {
@@ -173,7 +181,7 @@ impl Election {
             _ => {}
         }
 
-        if !self.state.has_ended() && self.time_to_live() < duration {
+        if !self.state.has_ended() && self.behavior.time_to_live() < duration {
             self.state = ElectionState::ExpiredUnconfirmed;
         }
     }
@@ -247,13 +255,6 @@ impl Election {
             true
         } else {
             false
-        }
-    }
-
-    fn time_to_live(&self) -> Duration {
-        match self.behavior {
-            ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
-            ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
         }
     }
 
@@ -396,8 +397,8 @@ impl Election {
     }
 
     /// TODO: Remove as soon as possible
-    pub fn change_vote_timestamp(&mut self, voter: &PublicKey, new_timestamp: SystemTime) {
-        self.votes.get_mut(voter).unwrap().time = new_timestamp;
+    pub fn change_vote_timestamp(&mut self, voter: &PublicKey, new_timestamp: Timestamp) {
+        self.votes.get_mut(voter).unwrap().vote_received = new_timestamp;
     }
 
     pub fn into_confirmed_election(
@@ -426,25 +427,30 @@ impl Election {
 #[derive(Clone)]
 pub struct VoteSummary {
     pub voter: PublicKey,
-    pub time: SystemTime, // TODO use Instant
-    pub timestamp: UnixMillisTimestamp,
+    pub vote_created: UnixMillisTimestamp,
+    pub vote_received: Timestamp, // TODO use Instant
     pub hash: BlockHash,
     pub weight: Amount,
 }
 
 impl VoteSummary {
-    pub fn new(voter: PublicKey, timestamp: UnixMillisTimestamp, hash: BlockHash) -> Self {
+    pub fn new(
+        voter: PublicKey,
+        hash: BlockHash,
+        vote_created: UnixMillisTimestamp,
+        vote_received: Timestamp,
+    ) -> Self {
         Self {
             voter,
-            time: SystemTime::now(),
-            timestamp,
+            vote_received,
+            vote_created,
             hash,
             weight: Amount::zero(),
         }
     }
 
     pub fn is_final_vote(&self) -> bool {
-        self.timestamp == UnixMillisTimestamp::MAX
+        self.vote_created == UnixMillisTimestamp::MAX
     }
 }
 
@@ -468,6 +474,13 @@ pub enum ElectionBehavior {
 }
 
 impl ElectionBehavior {
+    fn time_to_live(&self) -> Duration {
+        match self {
+            ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
+            ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             ElectionBehavior::Manual => "manual",

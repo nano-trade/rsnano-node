@@ -56,10 +56,6 @@ impl RepresentativeContainer {
         }
     }
 
-    pub fn insert(&mut self, entry: RepresentativeEntry) {
-        self.entries.insert(entry.representative, entry);
-    }
-
     pub fn remove(&mut self, rep: &PublicKey) {
         if let Some(removed) = self.entries.remove(rep) {
             remove_from_weight_index(&mut self.by_weight, removed.weight, rep);

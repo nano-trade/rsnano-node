@@ -16,6 +16,7 @@ pub(crate) struct RebroadcastHistory {
     config: RebroadcastHistoryConfig,
 }
 
+#[allow(dead_code)]
 impl RebroadcastHistory {
     pub(super) fn new(config: RebroadcastHistoryConfig) -> Self {
         Self {

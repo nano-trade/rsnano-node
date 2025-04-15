@@ -329,7 +329,7 @@ impl From<&VoteSummary> for JsonVoteSummary {
     fn from(v: &VoteSummary) -> Self {
         Self {
             representative: Account::from(v.voter).encode_account(),
-            timestamp: v.timestamp.to_string(),
+            timestamp: v.vote_created.to_string(),
             hash: v.hash.to_string(),
             weight: v.weight.to_string_dec(),
         }

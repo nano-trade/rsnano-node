@@ -18,7 +18,6 @@ mod votes {
     use rsnano_core::VoteTimestamp;
     use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
     use rsnano_node::consensus::ReceivedVote;
-    use std::time::SystemTime;
     use test_helpers::start_election;
 
     #[test]
@@ -138,7 +137,7 @@ mod votes {
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
-                .timestamp,
+                .vote_created,
             VoteTimestamp::TIMESTAMP_MIN
         );
 
@@ -172,7 +171,7 @@ mod votes {
         node1.active.write().unwrap().change_vote_timestamp(
             &send1.qualified_root(),
             &DEV_GENESIS_PUB_KEY,
-            SystemTime::now() - Duration::from_secs(20),
+            node1.steady_clock.now() - Duration::from_secs(20),
         );
 
         assert_eq!(
@@ -189,14 +188,14 @@ mod votes {
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
-                .timestamp,
+                .vote_created,
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
         // Also resend the old vote, and see if we respect the timestamp
         node1.active.write().unwrap().change_vote_timestamp(
             &send1.qualified_root(),
             &DEV_GENESIS_PUB_KEY,
-            SystemTime::now() - Duration::from_secs(20),
+            node1.steady_clock.now() - Duration::from_secs(20),
         );
 
         assert_eq!(
@@ -211,7 +210,7 @@ mod votes {
                 .votes()
                 .get(&DEV_GENESIS_PUB_KEY)
                 .unwrap()
-                .timestamp,
+                .vote_created,
             VoteTimestamp::TIMESTAMP_MIN * 2
         );
         let votes = election.votes().clone();

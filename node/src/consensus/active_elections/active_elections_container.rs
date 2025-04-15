@@ -266,7 +266,7 @@ impl ActiveElectionsContainer {
         &mut self,
         root: &QualifiedRoot,
         voter: &PublicKey,
-        new_timestamp: SystemTime,
+        new_timestamp: Timestamp,
     ) {
         self.roots
             .election_for_root_mut(root)
