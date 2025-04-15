@@ -1,5 +1,5 @@
 use rsnano_core::{
-    Amount, PrivateKey, Signature, Vote, VoteCode, VoteSource, VoteTimestamp, DEV_GENESIS_KEY,
+    Amount, PrivateKey, Signature, Vote, VoteError, VoteSource, VoteTimestamp, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{
@@ -41,13 +41,13 @@ fn codes() {
 
     // Invalid signature
     assert_eq!(
-        VoteCode::Invalid,
+        Err(VoteError::Invalid),
         node.vote_processor.vote_blocking(&vote_invalid)
     );
 
     // No ongoing election (vote goes to vote cache)
     assert_eq!(
-        VoteCode::Indeterminate,
+        Err(VoteError::Indeterminate),
         node.vote_processor.vote_blocking(&vote)
     );
 
@@ -58,14 +58,17 @@ fn codes() {
     // First vote from an account for an ongoing election
     start_election(&node, &blocks[0].hash());
     assert_timely2(|| node.is_active_root(&blocks[0].qualified_root()));
-    assert_eq!(VoteCode::Vote, node.vote_processor.vote_blocking(&vote));
+    assert_eq!(node.vote_processor.vote_blocking(&vote), Ok(()));
 
     // Processing the same vote is a replay
-    assert_eq!(VoteCode::Replay, node.vote_processor.vote_blocking(&vote));
+    assert_eq!(
+        Err(VoteError::Replay),
+        node.vote_processor.vote_blocking(&vote)
+    );
 
     // Invalid takes precedence
     assert_eq!(
-        VoteCode::Invalid,
+        Err(VoteError::Invalid),
         node.vote_processor.vote_blocking(&vote_invalid)
     );
 
@@ -75,8 +78,9 @@ fn codes() {
         .write()
         .unwrap()
         .erase(&blocks[0].qualified_root()));
+
     assert_eq!(
-        VoteCode::Indeterminate,
+        Err(VoteError::Indeterminate),
         node.vote_processor.vote_blocking(&vote)
     );
 }

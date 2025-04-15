@@ -15,7 +15,7 @@ use mock_instant::thread_local::Instant;
 
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
-    Amount, BlockHash, DescTallyKey, PublicKey, Vote, VoteCode,
+    Amount, BlockHash, DescTallyKey, PublicKey, Vote, VoteError,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -69,7 +69,7 @@ impl VoteCache {
         &mut self,
         vote: &Arc<Vote>,
         rep_weight: Amount,
-        results: &HashMap<BlockHash, VoteCode>,
+        results: &HashMap<BlockHash, Result<(), VoteError>>,
     ) {
         // Results map should be empty or have the same hashes as the vote
         debug_assert!(results.is_empty() || vote.hashes.iter().all(|h| results.contains_key(h)));
@@ -82,7 +82,7 @@ impl VoteCache {
         } else {
             for (hash, code) in results {
                 // Cache votes with a corresponding active election (indicated by `vote_code::vote`) in case that election gets dropped
-                if matches!(code, VoteCode::Vote | VoteCode::Indeterminate) {
+                if matches!(code, Ok(()) | Err(VoteError::Indeterminate)) {
                     self.insert_impl(vote, hash, rep_weight)
                 }
             }

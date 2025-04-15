@@ -5,7 +5,7 @@ use std::{
 
 use rsnano_nullable_clock::SteadyClock;
 
-use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteCode};
+use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteError};
 use rsnano_ledger::RepWeightCache;
 
 use super::{ActiveElectionsContainer, AecEvent, FilteredVote, ReceivedVote};
@@ -51,7 +51,7 @@ impl VoteApplier {
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     /// If 'filter' parameter is non-zero, only elections for the specified hash are notified.
     /// This eliminates duplicate processing when triggering votes from the vote_cache as the result of a specific election being created.
-    pub fn vote(&self, vote: &FilteredVote) -> HashMap<BlockHash, VoteCode> {
+    pub fn vote(&self, vote: &FilteredVote) -> HashMap<BlockHash, Result<(), VoteError>> {
         debug_assert!(vote.validate().is_ok());
 
         let minimum_pr_weight = self.online_reps.lock().unwrap().minimum_principal_weight();
@@ -61,7 +61,7 @@ impl VoteApplier {
             // Ignore votes from reps below min PR weight!
             return vote
                 .filtered_blocks()
-                .map(|h| (*h, VoteCode::Indeterminate))
+                .map(|h| (*h, Err(VoteError::Indeterminate)))
                 .collect();
         }
 
@@ -97,7 +97,7 @@ impl VoteApplier {
         &self,
         vote: &ReceivedVote,
         voter_weight: Amount,
-        results: &HashMap<BlockHash, VoteCode>,
+        results: &HashMap<BlockHash, Result<(), VoteError>>,
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
             sender

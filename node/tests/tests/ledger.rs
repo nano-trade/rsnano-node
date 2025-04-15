@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{
     Account, Amount, Block, BlockHash, Epoch, PrivateKey, QualifiedRoot, Signature, StateBlockArgs,
-    Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
+    Vote, VoteError, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, BlockSource, BlockStatus, LedgerSet,
@@ -42,12 +42,12 @@ mod votes {
             0,
             vec![send1.hash()],
         ));
-        assert_eq!(
-            node1
-                .vote_processor
-                .vote_blocking(&ReceivedVote::new(vote1.into(), VoteSource::Live, None).into(),),
-            VoteCode::Vote
-        );
+
+        node1
+            .vote_processor
+            .vote_blocking(&ReceivedVote::new(vote1.into(), VoteSource::Live, None).into())
+            .unwrap();
+
         let vote2 = ReceivedVote::new(
             Arc::new(Vote::new(
                 &DEV_GENESIS_KEY,
@@ -62,7 +62,7 @@ mod votes {
         // Ignored due to vote cooldown
         assert_eq!(
             node1.vote_processor.vote_blocking(&vote2.into()),
-            VoteCode::Ignored
+            Err(VoteError::Ignored)
         );
 
         assert_eq!(
@@ -174,10 +174,8 @@ mod votes {
             node1.steady_clock.now() - Duration::from_secs(20),
         );
 
-        assert_eq!(
-            node1.vote_processor.vote_blocking(&vote2.into()),
-            VoteCode::Vote
-        );
+        node1.vote_processor.vote_blocking(&vote2.into()).unwrap();
+
         assert_eq!(
             node1
                 .active
@@ -200,7 +198,7 @@ mod votes {
 
         assert_eq!(
             node1.vote_processor.vote_blocking(&vote1.into()),
-            VoteCode::Replay
+            Err(VoteError::Replay)
         );
 
         let active = node1.active.read().unwrap();

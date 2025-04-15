@@ -13,7 +13,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueue},
-    BlockHash, PublicKey, Signature, Vote, VoteCode,
+    BlockHash, PublicKey, Signature, Vote, VoteError,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -82,10 +82,14 @@ impl VoteRebroadcastQueue {
         }
     }
 
-    pub fn try_enqueue(&self, vote: &Arc<Vote>, results: &HashMap<BlockHash, VoteCode>) {
-        let should_rebroadcast = results.iter().any(|(_, code)| match code {
-            VoteCode::Vote => true,
-            VoteCode::Late => vote.is_final(),
+    pub fn try_enqueue(
+        &self,
+        vote: &Arc<Vote>,
+        results: &HashMap<BlockHash, Result<(), VoteError>>,
+    ) {
+        let should_rebroadcast = results.iter().any(|(_, res)| match res {
+            Ok(()) => true,
+            Err(VoteError::Late) => vote.is_final(),
             _ => false,
         });
 
@@ -390,10 +394,10 @@ mod tests {
         let queue = VoteRebroadcastQueue::build().finish();
         set_rep_tiers(&queue);
         let mut results = HashMap::new();
-        results.insert(BlockHash::from(1), VoteCode::Invalid);
-        results.insert(BlockHash::from(2), VoteCode::Replay);
-        results.insert(BlockHash::from(3), VoteCode::Indeterminate);
-        results.insert(BlockHash::from(4), VoteCode::Ignored);
+        results.insert(BlockHash::from(1), Err(VoteError::Invalid));
+        results.insert(BlockHash::from(2), Err(VoteError::Replay));
+        results.insert(BlockHash::from(3), Err(VoteError::Indeterminate));
+        results.insert(BlockHash::from(4), Err(VoteError::Ignored));
 
         queue.try_enqueue(&test_vote(), &results);
 
@@ -405,13 +409,13 @@ mod tests {
         let queue = VoteRebroadcastQueue::build().finish();
         set_rep_tiers(&queue);
         let mut results = HashMap::new();
-        results.insert(BlockHash::from(1), VoteCode::Invalid);
-        results.insert(BlockHash::from(2), VoteCode::Replay);
-        results.insert(BlockHash::from(3), VoteCode::Indeterminate);
-        results.insert(BlockHash::from(4), VoteCode::Ignored);
+        results.insert(BlockHash::from(1), Err(VoteError::Invalid));
+        results.insert(BlockHash::from(2), Err(VoteError::Replay));
+        results.insert(BlockHash::from(3), Err(VoteError::Indeterminate));
+        results.insert(BlockHash::from(4), Err(VoteError::Ignored));
 
         //This means a processed vote:
-        results.insert(BlockHash::from(5), VoteCode::Vote);
+        results.insert(BlockHash::from(5), Ok(()));
 
         queue.try_enqueue(&test_vote(), &results);
 

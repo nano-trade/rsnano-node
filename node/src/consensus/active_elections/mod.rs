@@ -9,7 +9,7 @@ mod vote_router;
 use std::collections::HashMap;
 
 use rsnano_core::{
-    utils::BlockPriority, Amount, Block, BlockHash, QualifiedRoot, SavedBlock, VoteCode,
+    utils::BlockPriority, Amount, Block, BlockHash, QualifiedRoot, SavedBlock, VoteError,
 };
 
 use super::{
@@ -50,7 +50,11 @@ pub enum AecEvent {
     /// old winner + new winner block
     WinnerChanged(BlockHash, Block),
 
-    VoteProcessed(ReceivedVote, Amount, HashMap<BlockHash, VoteCode>),
+    VoteProcessed(
+        ReceivedVote,
+        Amount,
+        HashMap<BlockHash, Result<(), VoteError>>,
+    ),
     FinalPhaseStarted(BlockHash, QualifiedRoot),
     VacancyUpdated,
 }

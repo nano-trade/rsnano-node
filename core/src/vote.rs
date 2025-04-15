@@ -27,7 +27,7 @@ impl VoteSource {
 }
 
 #[derive(FromPrimitive, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum VoteCode {
+pub enum VoteError {
     /// Vote is not signed correctly
     Invalid,
 
@@ -47,15 +47,15 @@ pub enum VoteCode {
     Ignored,
 }
 
-impl VoteCode {
+impl VoteError {
     pub fn as_str(&self) -> &'static str {
         match self {
-            VoteCode::Vote => "vote",
-            VoteCode::Late => "late",
-            VoteCode::Replay => "replay",
-            VoteCode::Indeterminate => "indeterminate",
-            VoteCode::Ignored => "ignored",
-            VoteCode::Invalid => "invalid",
+            VoteError::Vote => "vote",
+            VoteError::Late => "late",
+            VoteError::Replay => "replay",
+            VoteError::Indeterminate => "indeterminate",
+            VoteError::Ignored => "ignored",
+            VoteError::Invalid => "invalid",
         }
     }
 }

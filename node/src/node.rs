@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -17,7 +17,7 @@ use rsnano_core::{
         backpressure_channel, ContainerInfo, ContainerInfoFactory, ContainerInfoProvider, Peer,
     },
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, QualifiedRoot, Root,
-    SavedBlock, Vote, VoteCode, WorkNonce,
+    SavedBlock, Vote, VoteError, WorkNonce,
 };
 use rsnano_ledger::{
     AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
@@ -1604,7 +1604,7 @@ pub enum NodeEvent {
     ElectionStarted(BlockHash),
     ElectionStopped(BlockHash),
     BlockConfirmed(SavedBlock, ConfirmedElection),
-    VoteProcessed(Arc<Vote>, VoteCode),
+    VoteProcessed(Arc<Vote>, Result<(), VoteError>),
     BlocksProcessed(Vec<ProcessedResult>),
 }
 

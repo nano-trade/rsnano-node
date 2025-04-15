@@ -1,6 +1,6 @@
 use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock};
 
-use rsnano_core::{utils::MemoryStream, Block, Vote, VoteCode, VoteSource};
+use rsnano_core::{utils::MemoryStream, Block, Vote, VoteError, VoteSource};
 use rsnano_messages::NetworkFilter;
 use rsnano_nullable_clock::SteadyClock;
 
@@ -18,7 +18,6 @@ use crate::{
     utils::BackpressureEventProcessor,
     NodeEvent,
 };
-use rsnano_network::Channel;
 use rsnano_stats::{Sample, Stats};
 
 /// Processes events from the active election container (AEC)
@@ -159,11 +158,11 @@ impl AecEventProcessor {
         self.network_filter.clear_bytes(buf.as_bytes());
     }
 
-    fn try_update_online_reps(&mut self, vote: &ReceivedVote, result: VoteCode) {
+    fn try_update_online_reps(&mut self, vote: &ReceivedVote, result: Result<(), VoteError>) {
         // Track rep weight voting on live elections
         let mut should_observe = matches!(
             result,
-            VoteCode::Vote | VoteCode::Replay | VoteCode::Ignored
+            Ok(()) | Err(VoteError::Replay) | Err(VoteError::Ignored)
         );
 
         // Ignore republished votes when rep crawling

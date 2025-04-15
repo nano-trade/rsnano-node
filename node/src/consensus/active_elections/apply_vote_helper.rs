@@ -1,11 +1,14 @@
 use super::{recently_confirmed_cache::RecentlyConfirmedCache, stats::VoteCounter, AecEvent};
 use crate::{
-    consensus::election::{ConfirmationType, Election},
+    consensus::{
+        election::{ConfirmationType, Election},
+        ReceivedVote,
+    },
     representatives::QuorumSpecs,
 };
 use rsnano_core::{
     utils::{BackpressureSender, UnixMillisTimestamp},
-    BlockHash, Vote, VoteCode, VoteSource,
+    BlockHash, VoteError, VoteSource,
 };
 use rsnano_ledger::RepWeights;
 use rsnano_nullable_clock::Timestamp;
@@ -23,18 +26,17 @@ pub(super) struct ApplyVoteHelper<'a> {
 impl<'a> ApplyVoteHelper<'a> {
     pub fn apply_vote(
         &mut self,
-        vote: &Vote,
+        vote: &ReceivedVote,
         election: &mut Election,
         block_hash: BlockHash,
-        source: VoteSource,
-    ) -> VoteCode {
+    ) -> Result<(), VoteError> {
         let rep_weight = self.rep_weights.weight(&vote.voter);
 
         if let Some(last_vote) = election.votes().get(&vote.voter) {
             if last_vote.vote_created > vote.timestamp() {
-                return VoteCode::Replay;
+                return Err(VoteError::Replay);
             } else if last_vote.vote_created == vote.timestamp() && !(last_vote.hash < block_hash) {
-                return VoteCode::Replay;
+                return Err(VoteError::Replay);
             }
 
             let max_vote = vote.timestamp() == UnixMillisTimestamp::MAX
@@ -42,30 +44,24 @@ impl<'a> ApplyVoteHelper<'a> {
 
             let mut past_cooldown = true;
             // Only cooldown live votes
-            if source != VoteSource::Cache {
+            if vote.source != VoteSource::Cache {
                 let cooldown = self.quorum_specs.cooldown_time(rep_weight);
                 past_cooldown = last_vote.vote_received <= self.now - cooldown;
             }
 
             if !max_vote && !past_cooldown {
-                return VoteCode::Ignored;
+                return Err(VoteError::Ignored);
             }
         }
 
-        self.add_vote(vote, election, block_hash, source)
+        self.add_vote(vote, election, block_hash);
+        Ok(())
     }
 
-    fn add_vote(
-        &mut self,
-        vote: &Vote,
-        election: &mut Election,
-        block_hash: BlockHash,
-        source: VoteSource,
-    ) -> VoteCode {
+    fn add_vote(&mut self, vote: &ReceivedVote, election: &mut Election, block_hash: BlockHash) {
         election.add_vote(vote.voter, block_hash, vote.timestamp(), self.now);
-        self.vote_counter.count(source);
+        self.vote_counter.count(vote.source);
         self.confirm_if_quorum(election);
-        VoteCode::Vote
     }
 
     pub fn confirm_if_quorum(&mut self, election: &mut Election) {

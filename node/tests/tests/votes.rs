@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{
-    Amount, Epoch, PrivateKey, Signature, Vote, VoteCode, VoteSource, WalletId, DEV_GENESIS_KEY,
+    Amount, Epoch, PrivateKey, Signature, Vote, VoteError, VoteSource, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
@@ -35,7 +35,7 @@ fn check_signature() {
         Some(channel.clone()),
     );
     assert_eq!(
-        VoteCode::Invalid,
+        Err(VoteError::Invalid),
         node.vote_processor.vote_blocking(&received_vote1.into())
     );
 
@@ -43,13 +43,12 @@ fn check_signature() {
 
     let received_vote2 =
         ReceivedVote::new(Arc::new(vote1), VoteSource::Live, Some(channel.clone()));
+    assert!(node
+        .vote_processor
+        .vote_blocking(&received_vote2.clone().into())
+        .is_ok());
     assert_eq!(
-        VoteCode::Vote,
-        node.vote_processor
-            .vote_blocking(&received_vote2.clone().into())
-    );
-    assert_eq!(
-        VoteCode::Replay,
+        Err(VoteError::Replay),
         node.vote_processor.vote_blocking(&received_vote2.into())
     );
 }

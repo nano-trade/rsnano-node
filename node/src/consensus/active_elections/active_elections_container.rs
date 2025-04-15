@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
-    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteCode,
+    Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteError,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::{StatsCollection, StatsSource};
@@ -370,7 +370,7 @@ impl ActiveElectionsContainer {
         rep_weights: &RepWeights,
         quorum_specs: QuorumSpecs,
         now: Timestamp,
-    ) -> HashMap<BlockHash, VoteCode> {
+    ) -> HashMap<BlockHash, Result<(), VoteError>> {
         let mut results = HashMap::new();
 
         let mut apply_helper = ApplyVoteHelper {
@@ -389,14 +389,13 @@ impl ActiveElectionsContainer {
             }
 
             if let Some(election) = self.roots.election_for_block_mut(block_hash) {
-                let vote_code = apply_helper.apply_vote(vote, election, *block_hash, vote.source);
-
-                results.insert(*block_hash, vote_code);
+                let vote_result = apply_helper.apply_vote(vote, election, *block_hash);
+                results.insert(*block_hash, vote_result);
             } else {
                 if apply_helper.recently_confirmed.hash_exists(block_hash) {
-                    results.insert(*block_hash, VoteCode::Late);
+                    results.insert(*block_hash, Err(VoteError::Late));
                 } else {
-                    results.insert(*block_hash, VoteCode::Indeterminate);
+                    results.insert(*block_hash, Err(VoteError::Indeterminate));
                 }
             }
         }
@@ -546,7 +545,7 @@ mod tests {
             now,
         );
 
-        assert_eq!(result.get(&block_hash), Some(&VoteCode::Vote));
+        assert_eq!(result.get(&block_hash), Some(&Ok(())));
 
         assert_eq!(
             container
@@ -587,12 +586,12 @@ mod tests {
             quorum_specs.clone(),
             start,
         );
-        assert_eq!(result.get(&block_hash), Some(&VoteCode::Vote));
+        assert_eq!(result.get(&block_hash), Some(&Ok(())));
 
         // vote2 is too close to vote1 and is therefore ignored
         let vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(2000));
         let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
-        assert_eq!(result.get(&block_hash), Some(&VoteCode::Ignored));
+        assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Ignored)));
 
         let vote3 = test_vote(
             &rep_key,
@@ -600,7 +599,7 @@ mod tests {
             UnixMillisTimestamp::new(1000 + 15_000),
         );
         let result = container.apply_vote(&vote3.into(), &rep_weights, quorum_specs, start);
-        assert_eq!(result.get(&block_hash), Some(&VoteCode::Ignored));
+        assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Ignored)));
     }
 
     fn test_vote(

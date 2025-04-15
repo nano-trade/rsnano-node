@@ -11,7 +11,7 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{utils::BackpressureSender, BlockHash, Vote, VoteCode, VoteSource};
+use rsnano_core::{utils::BackpressureSender, BlockHash, Vote, VoteError, VoteSource};
 use rsnano_network::Channel;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -41,7 +41,7 @@ impl VoteProcessorConfig {
 }
 
 pub type VoteProcessedCallback2 =
-    Box<dyn Fn(&Arc<Vote>, Option<&Arc<Channel>>, VoteSource, VoteCode) + Send + Sync>;
+    Box<dyn Fn(&Arc<Vote>, Option<&Arc<Channel>>, VoteSource, VoteError) + Send + Sync>;
 
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
@@ -136,11 +136,10 @@ impl VoteProcessor {
         }
     }
 
-    pub fn vote_blocking(&self, vote: &FilteredVote) -> VoteCode {
-        let mut result = VoteCode::Invalid;
+    pub fn vote_blocking(&self, vote: &FilteredVote) -> Result<(), VoteError> {
+        let mut result = Err(VoteError::Invalid);
         if vote.validate().is_ok() {
             let vote_results = self.vote_applier.vote(vote);
-
             result = aggregate_vote_results(&vote_results);
         }
 
@@ -178,26 +177,28 @@ impl VoteProcessorExt for Arc<VoteProcessor> {
 }
 
 // Aggregate results for individual hashes
-pub fn aggregate_vote_results(results: &HashMap<BlockHash, VoteCode>) -> VoteCode {
+pub fn aggregate_vote_results(
+    results: &HashMap<BlockHash, Result<(), VoteError>>,
+) -> Result<(), VoteError> {
     let mut ignored = false;
     let mut replay = false;
     let mut processed = false;
     let mut late = false;
-    for (_, vote_code) in results {
-        ignored |= *vote_code == VoteCode::Ignored;
-        replay |= *vote_code == VoteCode::Replay;
-        processed |= *vote_code == VoteCode::Vote;
-        late |= *vote_code == VoteCode::Late;
+    for (_, res) in results {
+        ignored |= matches!(res, Err(VoteError::Ignored));
+        replay |= matches!(res, Err(VoteError::Replay));
+        processed |= res.is_ok();
+        late |= matches!(res, Err(VoteError::Late));
     }
     if ignored {
-        VoteCode::Ignored
+        Err(VoteError::Ignored)
     } else if replay {
-        VoteCode::Replay
+        Err(VoteError::Replay)
     } else if processed {
-        VoteCode::Vote
+        Ok(())
     } else if late {
-        VoteCode::Late
+        Err(VoteError::Late)
     } else {
-        VoteCode::Indeterminate
+        Err(VoteError::Indeterminate)
     }
 }

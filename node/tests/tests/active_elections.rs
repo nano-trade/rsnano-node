@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration, usize}
 
 use rsnano_core::{
     utils::{MemoryStream, UnixMillisTimestamp},
-    Account, Amount, PrivateKey, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
+    Account, Amount, PrivateKey, Vote, VoteError, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
@@ -1137,17 +1137,15 @@ fn vote_replays() {
         None,
     )
     .into();
-    assert_eq!(
-        node.vote_processor.vote_blocking(&vote_send1),
-        VoteCode::Vote
-    );
-    let code = node.vote_processor.vote_blocking(&vote_send1);
-    assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
+
+    node.vote_processor.vote_blocking(&vote_send1).unwrap();
+    let res = node.vote_processor.vote_blocking(&vote_send1);
+    assert!(matches!(res, Err(VoteError::Replay) | Err(VoteError::Late)));
 
     // Wait until the election is removed, at which point the vote is considered late since it's been recently confirmed
     assert_timely_eq2(|| node.active.read().unwrap().len(), 1);
-    let code = node.vote_processor.vote_blocking(&vote_send1);
-    assert_eq!(code, VoteCode::Late);
+    let res = node.vote_processor.vote_blocking(&vote_send1);
+    assert_eq!(res, Err(VoteError::Late));
 
     // Open new account
     let vote_open1: FilteredVote = ReceivedVote::new(
@@ -1156,18 +1154,15 @@ fn vote_replays() {
         None,
     )
     .into();
-    assert_eq!(
-        node.vote_processor.vote_blocking(&vote_open1),
-        VoteCode::Vote
-    );
-    let code = node.vote_processor.vote_blocking(&vote_open1);
-    assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
+    node.vote_processor.vote_blocking(&vote_open1).unwrap();
+    let res = node.vote_processor.vote_blocking(&vote_open1);
+    assert!(matches!(res, Err(VoteError::Replay) | Err(VoteError::Late)));
 
     assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
 
     assert_eq!(
         node.vote_processor.vote_blocking(&vote_open1),
-        VoteCode::Late
+        Err(VoteError::Late)
     );
     assert_eq!(node.ledger.weight(&key.public_key()), Amount::nano(1000));
 
@@ -1198,29 +1193,23 @@ fn vote_replays() {
     .into();
 
     // this vote cannot confirm the election
-    assert_eq!(
-        node.vote_processor.vote_blocking(&vote2_send2),
-        VoteCode::Vote
-    );
+    node.vote_processor.vote_blocking(&vote2_send2).unwrap();
     assert_eq!(node.active.read().unwrap().len(), 1);
 
     // this vote confirms the election
-    assert_eq!(
-        node.vote_processor.vote_blocking(&vote1_send2),
-        VoteCode::Vote
-    );
+    node.vote_processor.vote_blocking(&vote1_send2).unwrap();
 
     // This should still return replay or late, either because the election is still in the AEC or because it is recently confirmed
-    let code = node.vote_processor.vote_blocking(&vote1_send2);
-    assert!(matches!(code, VoteCode::Replay | VoteCode::Late));
+    let res = node.vote_processor.vote_blocking(&vote1_send2);
+    assert!(matches!(res, Err(VoteError::Replay) | Err(VoteError::Late)));
     assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
     assert_eq!(
         node.vote_processor.vote_blocking(&vote1_send2),
-        VoteCode::Late
+        Err(VoteError::Late)
     );
     assert_eq!(
         node.vote_processor.vote_blocking(&vote2_send2),
-        VoteCode::Late
+        Err(VoteError::Late)
     );
 
     // Removing blocks as recently confirmed makes every vote indeterminate
@@ -1228,19 +1217,19 @@ fn vote_replays() {
 
     assert_eq!(
         node.vote_processor.vote_blocking(&vote_send1),
-        VoteCode::Indeterminate
+        Err(VoteError::Indeterminate)
     );
     assert_eq!(
         node.vote_processor.vote_blocking(&vote_open1),
-        VoteCode::Indeterminate
+        Err(VoteError::Indeterminate)
     );
     assert_eq!(
         node.vote_processor.vote_blocking(&vote1_send2),
-        VoteCode::Indeterminate
+        Err(VoteError::Indeterminate)
     );
     assert_eq!(
         node.vote_processor.vote_blocking(&vote2_send2),
-        VoteCode::Indeterminate
+        Err(VoteError::Indeterminate)
     );
 }
 

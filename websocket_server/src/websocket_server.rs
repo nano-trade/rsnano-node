@@ -1,5 +1,5 @@
 use super::WebsocketListener;
-use rsnano_core::{Account, BlockHash, Vote, VoteCode};
+use rsnano_core::{Account, BlockHash, Vote, VoteError};
 use rsnano_ledger::{AnySet, BlockStatus, Ledger};
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
@@ -139,7 +139,7 @@ struct StoppedElection {
     hash: String,
 }
 
-pub fn vote_received(vote: &Vote, code: VoteCode) -> OutgoingMessageEnvelope {
+pub fn vote_received(vote: &Vote, result: Result<(), VoteError>) -> OutgoingMessageEnvelope {
     OutgoingMessageEnvelope::new(
         Topic::Vote,
         VoteReceived {
@@ -149,7 +149,11 @@ pub fn vote_received(vote: &Vote, code: VoteCode) -> OutgoingMessageEnvelope {
             timestamp: vote.timestamp().to_string(),
             duration: vote.duration_bits().to_string(),
             blocks: vote.hashes.iter().map(|h| h.to_string()).collect(),
-            vote_type: code.as_str().to_string(),
+            vote_type: match result {
+                Ok(()) => "vote",
+                Err(e) => e.as_str(),
+            }
+            .to_string(),
         },
     )
 }
