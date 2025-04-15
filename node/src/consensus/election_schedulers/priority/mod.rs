@@ -1,5 +1,6 @@
 mod bucket;
 mod bucket_elections;
+mod bucket_stats;
 mod bucketing;
 mod ordered_blocks;
 mod priority_scheduler;

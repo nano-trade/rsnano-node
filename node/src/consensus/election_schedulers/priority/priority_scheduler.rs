@@ -13,7 +13,7 @@ use rsnano_core::{
 use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
-use super::{Bucket, BucketStats, Bucketing, PriorityBucketConfig};
+use super::{bucket_stats::BucketStats, Bucket, Bucketing, PriorityBucketConfig};
 use crate::consensus::{ActiveElectionsContainer, AecInsertError};
 use rsnano_nullable_clock::SteadyClock;
 
