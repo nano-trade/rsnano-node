@@ -258,19 +258,6 @@ impl ActiveElectionsContainer {
         }
     }
 
-    // TODO: Delete!
-    pub fn change_received_timestamp(
-        &mut self,
-        root: &QualifiedRoot,
-        voter: &PublicKey,
-        new_timestamp: Timestamp,
-    ) {
-        self.roots
-            .election_for_root_mut(root)
-            .expect("No election found for given root")
-            .change_received_timestamp(voter, new_timestamp);
-    }
-
     pub fn erase_ended_elections(&mut self) {
         let removed = self.roots.drain_filter(|i| i.election.state().has_ended());
 
@@ -580,26 +567,122 @@ mod tests {
         let quorum_specs = QuorumSpecs::new_test_instance();
 
         let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
-        let result = container.apply_vote(
-            &vote1.clone().into(),
-            &rep_weights,
-            quorum_specs.clone(),
-            start,
-        );
+        let result = container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
 
         // vote2 is too close to vote1 and is therefore ignored
         let vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(2000));
-        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        let result = container.apply_vote(
+            &vote2.into(),
+            &rep_weights,
+            quorum_specs.clone(),
+            start + Duration::from_millis(100),
+        );
         assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Ignored)));
 
-        let vote3 = test_vote(
-            &rep_key,
-            block_hash,
-            UnixMillisTimestamp::new(1000 + 15_000),
+        let vote3 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(3000));
+        let result = container.apply_vote(
+            &vote3.into(),
+            &rep_weights,
+            quorum_specs,
+            start + Duration::from_secs(15),
         );
-        let result = container.apply_vote(&vote3.into(), &rep_weights, quorum_specs, start);
-        assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Ignored)));
+        assert_eq!(result.get(&block_hash), Some(&Ok(())));
+    }
+
+    #[test]
+    fn dont_cool_down_when_switched_to_final_vote() {
+        let mut container = ActiveElectionsContainer::default();
+
+        let block = SavedBlock::new_test_instance();
+        let block_hash = block.hash();
+        let start = Timestamp::new_test_instance();
+
+        let request = AecInsertRequest {
+            block,
+            behavior: ElectionBehavior::Priority,
+            priority: Some(BlockPriority::new_test_instance()),
+        };
+
+        container.insert(request, start).unwrap();
+
+        let rep_key = PrivateKey::from(1);
+
+        let mut rep_weights = RepWeights::new();
+        rep_weights.insert(rep_key.public_key(), Amount::nano(100_000));
+
+        let quorum_specs = QuorumSpecs::new_test_instance();
+
+        let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
+        container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+
+        let vote2 = test_final_vote(&rep_key, block_hash);
+        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        assert_eq!(result.get(&block_hash), Some(&Ok(())));
+    }
+
+    #[test]
+    fn dont_cool_down_when_vote_comes_from_cache() {
+        let mut container = ActiveElectionsContainer::default();
+
+        let block = SavedBlock::new_test_instance();
+        let block_hash = block.hash();
+        let start = Timestamp::new_test_instance();
+
+        let request = AecInsertRequest {
+            block,
+            behavior: ElectionBehavior::Priority,
+            priority: Some(BlockPriority::new_test_instance()),
+        };
+
+        container.insert(request, start).unwrap();
+
+        let rep_key = PrivateKey::from(1);
+
+        let mut rep_weights = RepWeights::new();
+        rep_weights.insert(rep_key.public_key(), Amount::nano(100_000));
+
+        let quorum_specs = QuorumSpecs::new_test_instance();
+
+        let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
+        container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+
+        let mut vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(2000));
+        vote2.source = VoteSource::Cache;
+
+        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        assert_eq!(result.get(&block_hash), Some(&Ok(())));
+    }
+
+    #[test]
+    fn ignore_votes_with_lower_timestamp() {
+        let mut container = ActiveElectionsContainer::default();
+
+        let block = SavedBlock::new_test_instance();
+        let block_hash = block.hash();
+        let start = Timestamp::new_test_instance();
+
+        let request = AecInsertRequest {
+            block,
+            behavior: ElectionBehavior::Priority,
+            priority: Some(BlockPriority::new_test_instance()),
+        };
+
+        container.insert(request, start).unwrap();
+
+        let rep_key = PrivateKey::from(1);
+
+        let mut rep_weights = RepWeights::new();
+        rep_weights.insert(rep_key.public_key(), Amount::nano(100_000));
+
+        let quorum_specs = QuorumSpecs::new_test_instance();
+
+        let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
+        container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+
+        let vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(500));
+        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Replay)));
     }
 
     fn test_vote(

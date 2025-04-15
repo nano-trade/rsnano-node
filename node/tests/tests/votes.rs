@@ -53,55 +53,6 @@ fn check_signature() {
     );
 }
 
-// Lower timestamps are ignored
-#[test]
-fn add_old() {
-    let mut system = System::new();
-    let node = system.make_node();
-    let mut lattice = UnsavedBlockLatticeBuilder::new();
-    let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
-    let key1 = PrivateKey::new();
-    let send1 = lattice.genesis().send_max(&key1);
-    node.process(send1.clone());
-    start_election(&node, &send1.hash());
-    assert_timely2(|| node.is_active_root(&send1.qualified_root()));
-    let vote1 = Arc::new(Vote::new(
-        &DEV_GENESIS_KEY,
-        Vote::TIMESTAMP_MIN * 2,
-        0,
-        vec![send1.hash()],
-    ));
-    let channel = make_fake_channel(&node);
-    node.vote_processor
-        .vote_blocking(&ReceivedVote::new(vote1, VoteSource::Live, Some(channel.clone())).into());
-
-    let key2 = PrivateKey::new();
-    let send2 = fork_lattice.genesis().send_max(&key2);
-    let vote2 = Arc::new(Vote::new(
-        &DEV_GENESIS_KEY,
-        Vote::TIMESTAMP_MIN * 1,
-        0,
-        vec![send2.hash()],
-    ));
-
-    node.active.write().unwrap().change_received_timestamp(
-        &send1.qualified_root(),
-        &DEV_GENESIS_PUB_KEY,
-        node.steady_clock.now() - Duration::from_secs(20),
-    );
-
-    node.vote_processor
-        .vote_blocking(&ReceivedVote::new(vote2, VoteSource::Live, Some(channel)).into());
-
-    let active = node.active.read().unwrap();
-    let election = active.election_for_root(&send1.qualified_root()).unwrap();
-    assert_eq!(1, election.vote_count());
-    let votes = election.votes();
-    assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
-    assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
-    assert_eq!(send1.hash(), election.winner().hash());
-}
-
 // The voting cooldown is respected
 #[test]
 fn add_cooldown() {
