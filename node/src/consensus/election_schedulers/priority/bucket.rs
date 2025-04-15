@@ -7,9 +7,7 @@ use super::{
     bucket_elections::{BucketElection, BucketElections},
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
-use crate::consensus::{
-    election::ElectionBehavior, ActiveElectionsContainer, AecInsertError, AecInsertRequest,
-};
+use crate::consensus::{ActiveElectionsContainer, AecInsertError, AecInsertRequest};
 use rsnano_core::{
     utils::{BlockPriority, TimePriority},
     Block, BlockHash, QualifiedRoot, SavedBlock,
@@ -152,14 +150,8 @@ impl Bucket {
     pub fn remove_election(&self, root: &QualifiedRoot) {
         self.data.lock().unwrap().elections.erase(root);
     }
-}
 
-pub(crate) trait BucketExt {
-    fn activate(&self) -> bool;
-}
-
-impl BucketExt for Arc<Bucket> {
-    fn activate(&self) -> bool {
+    pub fn activate(&self) -> bool {
         let mut guard = self.data.lock().unwrap();
 
         let Some(top) = guard.queue.pop_highest_prio() else {

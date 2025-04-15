@@ -488,10 +488,10 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
     use crate::consensus::ReceivedVote;
     use rsnano_core::{PrivateKey, Vote, VoteSource};
+    use std::sync::Arc;
 
     #[test]
     fn empty() {
@@ -546,8 +546,19 @@ mod tests {
             quorum_delta: Amount::nano(67_000_000),
         };
 
-        container.apply_vote(&received_vote.into(), &rep_weights, quorum_specs, Timestamp::new_test_instance());
+        container.apply_vote(
+            &received_vote.into(),
+            &rep_weights,
+            quorum_specs,
+            Timestamp::new_test_instance(),
+        );
 
-        assert_eq!(container.election_for_block(&block_hash).unwrap().is_confirmed(), true);
+        assert_eq!(
+            container
+                .election_for_block(&block_hash)
+                .unwrap()
+                .is_confirmed(),
+            true
+        );
     }
 }
