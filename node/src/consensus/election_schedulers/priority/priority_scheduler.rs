@@ -40,7 +40,7 @@ impl PriorityScheduler {
         let bucketing = Bucketing::default();
         let mut buckets = Vec::with_capacity(bucketing.bucket_count());
         for _ in 0..bucketing.bucket_count() {
-            buckets.push(Bucket::new(config.clone(), active_elections.clone()))
+            buckets.push(Bucket::new(config.clone()))
         }
 
         Self {
@@ -160,7 +160,8 @@ impl PriorityScheduler {
     }
 
     fn predicate(&self) -> bool {
-        self.buckets.iter().any(|b| b.available())
+        let vacancy = self.active_elections.read().unwrap().vacancy();
+        self.buckets.iter().any(|b| b.available(vacancy))
     }
 
     fn run(&self) {
@@ -178,7 +179,8 @@ impl PriorityScheduler {
 
                 let now = self.clock.now();
                 for bucket in &self.buckets {
-                    if bucket.available() {
+                    let aec_vacancy = self.active_elections.read().unwrap().vacancy();
+                    if bucket.available(aec_vacancy) {
                         if let Some(insert_req) = bucket.activate() {
                             let root = insert_req.block.qualified_root();
 
@@ -233,7 +235,8 @@ impl PriorityScheduler {
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Cleanup);
                 for bucket in &self.buckets {
-                    if let Some(root) = bucket.election_to_cancel() {
+                    let aec_vacancy = self.active_elections.read().unwrap().vacancy();
+                    if let Some(root) = bucket.election_to_cancel(aec_vacancy) {
                         self.active_elections.write().unwrap().cancel(&root);
                         self.bucket_stats.cancelled.fetch_add(1, Ordering::Relaxed);
                     }

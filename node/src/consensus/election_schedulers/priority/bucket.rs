@@ -1,13 +1,13 @@
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc, Mutex, RwLock,
+    Mutex,
 };
 
 use super::{
     bucket_elections::{BucketElection, BucketElections},
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
-use crate::consensus::{ActiveElectionsContainer, AecInsertRequest};
+use crate::consensus::AecInsertRequest;
 use rsnano_core::{utils::BlockPriority, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
 
@@ -37,18 +37,13 @@ impl Default for PriorityBucketConfig {
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
     config: PriorityBucketConfig,
-    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     data: Mutex<BucketData>,
 }
 
 impl Bucket {
-    pub fn new(
-        config: PriorityBucketConfig,
-        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
-    ) -> Self {
+    pub fn new(config: PriorityBucketConfig) -> Self {
         Self {
             config,
-            active_elections,
             data: Mutex::new(BucketData {
                 queue: Default::default(),
                 elections: Default::default(),
@@ -60,9 +55,7 @@ impl Bucket {
         self.data.lock().unwrap().queue.contains(hash)
     }
 
-    pub fn available(&self) -> bool {
-        let aec_vacancy = self.active_elections.read().unwrap().vacancy();
-
+    pub fn available(&self, aec_vacancy: i64) -> bool {
         let guard = self.data.lock().unwrap();
         let Some(highest) = guard.queue.highest_prio() else {
             // No blocks enqueued
@@ -93,19 +86,19 @@ impl Bucket {
             || election_count < self.config.max_elections
     }
 
-    fn election_overfill(&self, data: &BucketData) -> bool {
+    fn election_overfill(&self, data: &BucketData, aec_vacancy: i64) -> bool {
         if data.elections.len() < self.config.reserved_elections {
             false
         } else if data.elections.len() < self.config.max_elections {
-            self.active_elections.read().unwrap().vacancy() < 0
+            aec_vacancy < 0
         } else {
             true
         }
     }
 
-    pub fn election_to_cancel(&self) -> Option<QualifiedRoot> {
+    pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {
         let guard = self.data.lock().unwrap();
-        if self.election_overfill(&guard) {
+        if self.election_overfill(&guard, aec_vacancy) {
             guard.cancel_election_with_lowest_prio()
         } else {
             None
@@ -227,7 +220,7 @@ mod tests {
 
         assert_eq!(bucket.len(), 0);
         assert_eq!(bucket.contains(&BlockHash::from(1)), false);
-        assert_eq!(bucket.available(), false);
+        assert_eq!(bucket.available(123), false);
     }
 
     #[test]
@@ -240,7 +233,7 @@ mod tests {
 
         assert_eq!(bucket.len(), 1);
         assert_eq!(bucket.contains(&block.hash()), true);
-        assert_eq!(bucket.available(), true);
+        assert_eq!(bucket.available(123), true);
     }
 
     #[test]
@@ -321,8 +314,7 @@ mod tests {
     }
 
     fn create_fixture_with(args: FixtureArgs) -> Fixture {
-        let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
-        let bucket = Bucket::new(args.config, active_elections);
+        let bucket = Bucket::new(args.config);
 
         Fixture { bucket }
     }
