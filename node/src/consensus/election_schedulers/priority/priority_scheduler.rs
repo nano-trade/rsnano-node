@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{atomic::Ordering, Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::Duration,
 };
@@ -14,7 +14,7 @@ use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{Bucket, BucketStats, Bucketing, PriorityBucketConfig};
-use crate::consensus::ActiveElectionsContainer;
+use crate::consensus::{ActiveElectionsContainer, AecInsertError};
 use rsnano_nullable_clock::SteadyClock;
 
 pub struct PriorityScheduler {
@@ -25,26 +25,22 @@ pub struct PriorityScheduler {
     buckets: Vec<Bucket>,
     thread: Mutex<Option<JoinHandle<()>>>,
     cleanup_thread: Mutex<Option<JoinHandle<()>>>,
-    bucket_stats: Arc<BucketStats>,
+    bucket_stats: BucketStats,
+    clock: Arc<SteadyClock>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
 }
 
 impl PriorityScheduler {
     pub(crate) fn new(
         config: PriorityBucketConfig,
         stats: Arc<Stats>,
-        active: Arc<RwLock<ActiveElectionsContainer>>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
     ) -> Self {
         let bucketing = Bucketing::default();
         let mut buckets = Vec::with_capacity(bucketing.bucket_count());
-        let bucket_stats = Arc::new(BucketStats::default());
         for _ in 0..bucketing.bucket_count() {
-            buckets.push(Bucket::new(
-                config.clone(),
-                active.clone(),
-                bucket_stats.clone(),
-                clock.clone(),
-            ))
+            buckets.push(Bucket::new(config.clone(), active_elections.clone()))
         }
 
         Self {
@@ -55,7 +51,9 @@ impl PriorityScheduler {
             buckets,
             bucketing,
             stats,
-            bucket_stats,
+            bucket_stats: BucketStats::default(),
+            clock,
+            active_elections,
         }
     }
 
@@ -178,9 +176,41 @@ impl PriorityScheduler {
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Loop);
 
+                let now = self.clock.now();
                 for bucket in &self.buckets {
                     if bucket.available() {
-                        bucket.activate();
+                        if let Some(insert_req) = bucket.activate() {
+                            let root = insert_req.block.qualified_root();
+
+                            let result = self
+                                .active_elections
+                                .write()
+                                .unwrap()
+                                .insert(insert_req, now);
+
+                            if result.is_err() {
+                                bucket.remove_election(&root);
+                            }
+
+                            match result {
+                                Ok(()) => {
+                                    self.bucket_stats
+                                        .activate_success
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                Err(AecInsertError::Duplicate) => {
+                                    self.bucket_stats
+                                        .activate_failed_duplicate
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                Err(AecInsertError::RecentlyConfirmed) => {
+                                    self.bucket_stats
+                                        .activate_failed_confirmed
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                Err(AecInsertError::Stopped) => {}
+                            }
+                        }
                     }
                 }
 
@@ -203,7 +233,10 @@ impl PriorityScheduler {
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Cleanup);
                 for bucket in &self.buckets {
-                    bucket.update();
+                    if let Some(root) = bucket.election_to_cancel() {
+                        self.active_elections.write().unwrap().cancel(&root);
+                        self.bucket_stats.cancelled.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
 
                 stopped = self.stopped.lock().unwrap();

@@ -7,12 +7,8 @@ use super::{
     bucket_elections::{BucketElection, BucketElections},
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
-use crate::consensus::{ActiveElectionsContainer, AecInsertError, AecInsertRequest};
-use rsnano_core::{
-    utils::{BlockPriority, TimePriority},
-    Block, BlockHash, QualifiedRoot, SavedBlock,
-};
-use rsnano_nullable_clock::SteadyClock;
+use crate::consensus::{ActiveElectionsContainer, AecInsertRequest};
+use rsnano_core::{utils::BlockPriority, Block, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,15 +39,12 @@ pub struct Bucket {
     config: PriorityBucketConfig,
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     data: Mutex<BucketData>,
-    clock: Arc<SteadyClock>,
 }
 
 impl Bucket {
     pub fn new(
         config: PriorityBucketConfig,
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
-        stats: Arc<BucketStats>,
-        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             config,
@@ -59,9 +52,7 @@ impl Bucket {
             data: Mutex::new(BucketData {
                 queue: Default::default(),
                 elections: Default::default(),
-                stats,
             }),
-            clock,
         }
     }
 
@@ -70,36 +61,36 @@ impl Bucket {
     }
 
     pub fn available(&self) -> bool {
-        let candidate_prio: TimePriority;
-        let highest_election: TimePriority;
-        let election_count: usize;
+        let aec_vacancy = self.active_elections.read().unwrap().vacancy();
 
-        {
-            let guard = self.data.lock().unwrap();
-            let Some(highest) = guard.queue.highest_prio() else {
-                return false;
-            };
+        let guard = self.data.lock().unwrap();
+        let Some(highest) = guard.queue.highest_prio() else {
+            // No blocks enqueued
+            return false;
+        };
 
-            candidate_prio = highest.priority.time;
-            election_count = guard.elections.len();
-            highest_election = guard.elections.highest_priority();
-        }
+        let candidate_prio = highest.priority.time;
+        let started_elections = guard.elections.len();
+        let highest_election = guard.elections.highest_priority();
 
-        if election_count < self.config.reserved_elections
-            || election_count < self.config.max_elections
-        {
-            self.active_elections.read().unwrap().vacancy() > 0
-        } else if election_count > 0 {
+        if self.election_slots_available(started_elections) {
+            aec_vacancy > 0
+        } else if started_elections > 0 {
             // Compare to equal to drain duplicates
             if candidate_prio >= highest_election {
                 // Bound number of reprioritizations
-                election_count < self.config.max_elections * 2
+                started_elections < self.config.max_elections * 2
             } else {
                 false
             }
         } else {
             false
         }
+    }
+
+    fn election_slots_available(&self, election_count: usize) -> bool {
+        election_count < self.config.reserved_elections
+            || election_count < self.config.max_elections
     }
 
     fn election_overfill(&self, data: &BucketData) -> bool {
@@ -112,10 +103,12 @@ impl Bucket {
         }
     }
 
-    pub fn update(&self) {
-        let mut guard = self.data.lock().unwrap();
+    pub fn election_to_cancel(&self) -> Option<QualifiedRoot> {
+        let guard = self.data.lock().unwrap();
         if self.election_overfill(&guard) {
-            guard.cancel_election_with_lowest_prio(&self.active_elections);
+            guard.cancel_election_with_lowest_prio()
+        } else {
+            None
         }
     }
 
@@ -151,75 +144,48 @@ impl Bucket {
         self.data.lock().unwrap().elections.erase(root);
     }
 
-    pub fn activate(&self) -> bool {
+    pub fn activate(&self) -> Option<AecInsertRequest> {
         let mut guard = self.data.lock().unwrap();
 
         let Some(top) = guard.queue.pop_highest_prio() else {
-            return false; // Not activated;
+            return None; // Not activated;
         };
 
         let block = top.block;
         let priority = top.priority;
         let root = block.qualified_root();
 
-        let now = self.clock.now();
-        let result = self
-            .active_elections
-            .write()
-            .unwrap()
-            .insert(AecInsertRequest::new_priority(block, priority), now);
+        guard.elections.insert(BucketElection {
+            root,
+            priority: priority.time,
+        });
 
-        match result {
-            Ok(()) => {
-                guard.elections.insert(BucketElection {
-                    root,
-                    priority: priority.time,
-                });
-                guard.stats.activate_success.fetch_add(1, Ordering::Relaxed);
-            }
-            Err(AecInsertError::Duplicate) => {
-                guard
-                    .stats
-                    .activate_failed_duplicate
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            Err(AecInsertError::RecentlyConfirmed) => {
-                guard
-                    .stats
-                    .activate_failed_confirmed
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            Err(AecInsertError::Stopped) => {}
-        }
-
-        result.is_ok()
+        let insert_req = AecInsertRequest::new_priority(block, priority);
+        Some(insert_req)
     }
 }
 
 struct BucketData {
     queue: OrderedBlocks,
     elections: BucketElections,
-    stats: Arc<BucketStats>,
 }
 
 impl BucketData {
-    fn cancel_election_with_lowest_prio(
-        &mut self,
-        active_elections: &RwLock<ActiveElectionsContainer>,
-    ) {
+    fn cancel_election_with_lowest_prio(&self) -> Option<QualifiedRoot> {
         if let Some(entry) = self.elections.entry_with_highest_priority() {
-            active_elections.write().unwrap().cancel(&entry.root);
-            self.stats.cancelled.fetch_add(1, Ordering::Relaxed);
+            Some(entry.root.clone())
+        } else {
+            None
         }
     }
 }
 
 #[derive(Default)]
 pub struct BucketStats {
-    cancelled: AtomicUsize,
-    activate_success: AtomicUsize,
-    activate_failed_duplicate: AtomicUsize,
-    activate_failed_confirmed: AtomicUsize,
+    pub cancelled: AtomicUsize,
+    pub activate_success: AtomicUsize,
+    pub activate_failed_duplicate: AtomicUsize,
+    pub activate_failed_confirmed: AtomicUsize,
 }
 
 const STATS_KEY: &'static str = "election_bucket";
@@ -252,7 +218,7 @@ impl StatsSource for BucketStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::Amount;
+    use rsnano_core::{utils::TimePriority, Amount};
 
     #[test]
     fn construction() {
@@ -274,6 +240,7 @@ mod tests {
 
         assert_eq!(bucket.len(), 1);
         assert_eq!(bucket.contains(&block.hash()), true);
+        assert_eq!(bucket.available(), true);
     }
 
     #[test]
@@ -355,9 +322,7 @@ mod tests {
 
     fn create_fixture_with(args: FixtureArgs) -> Fixture {
         let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
-        let stats = Arc::new(BucketStats::default());
-        let clock = Arc::new(SteadyClock::new_null());
-        let bucket = Bucket::new(args.config, active_elections, stats, clock);
+        let bucket = Bucket::new(args.config, active_elections);
 
         Fixture { bucket }
     }
