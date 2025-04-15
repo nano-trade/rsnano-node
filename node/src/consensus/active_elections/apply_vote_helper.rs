@@ -1,15 +1,12 @@
 use super::{recently_confirmed_cache::RecentlyConfirmedCache, stats::VoteCounter, AecEvent};
 use crate::{
     consensus::{
-        election::{ConfirmationType, Election},
+        election::{ConfirmationType, Election, VoteSummary},
         ReceivedVote,
     },
     representatives::QuorumSpecs,
 };
-use rsnano_core::{
-    utils::{BackpressureSender, UnixMillisTimestamp},
-    BlockHash, VoteError, VoteSource,
-};
+use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteError, VoteSource};
 use rsnano_ledger::RepWeights;
 use rsnano_nullable_clock::Timestamp;
 use std::ops::Deref;
@@ -33,29 +30,34 @@ impl<'a> ApplyVoteHelper<'a> {
         let rep_weight = self.rep_weights.weight(&vote.voter);
 
         if let Some(last_vote) = election.votes().get(&vote.voter) {
-            if last_vote.vote_created > vote.timestamp() {
-                return Err(VoteError::Replay);
-            } else if last_vote.vote_created == vote.timestamp() && !(last_vote.hash < block_hash) {
-                return Err(VoteError::Replay);
-            }
+            last_vote.ensure_no_replay(vote, &block_hash)?;
 
-            let max_vote = vote.timestamp() == UnixMillisTimestamp::MAX
-                && last_vote.vote_created < vote.timestamp();
-
-            let mut past_cooldown = true;
-            // Only cooldown live votes
-            if vote.source != VoteSource::Cache {
-                let cooldown = self.quorum_specs.cooldown_time(rep_weight);
-                past_cooldown = last_vote.vote_received <= self.now - cooldown;
-            }
-
-            if !max_vote && !past_cooldown {
+            if self.should_cool_down(vote, last_vote, rep_weight) {
                 return Err(VoteError::Ignored);
             }
         }
 
         self.add_vote(vote, election, block_hash);
         Ok(())
+    }
+
+    fn should_cool_down(
+        &self,
+        vote: &ReceivedVote,
+        last_vote: &VoteSummary,
+        rep_weight: Amount,
+    ) -> bool {
+        if vote.source == VoteSource::Cache {
+            // Only cooldown live votes
+            return false;
+        }
+
+        if last_vote.has_switched_to_final_vote(vote) {
+            return false;
+        }
+
+        let cooldown = self.quorum_specs.cooldown_time(rep_weight);
+        last_vote.vote_received.elapsed(self.now) < cooldown
     }
 
     fn add_vote(&mut self, vote: &ReceivedVote, election: &mut Election, block_hash: BlockHash) {

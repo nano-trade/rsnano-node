@@ -5,9 +5,10 @@ use std::{
 };
 
 use super::{block_tallies::BlockTallies, ConfirmationType, ConfirmedElection, ElectionState};
+use crate::{consensus::ReceivedVote, representatives::QuorumSpecs};
 use rsnano_core::{
     utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
-    QualifiedRoot, SavedBlock,
+    QualifiedRoot, SavedBlock, Vote, VoteError, VoteSource,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
@@ -451,6 +452,24 @@ impl VoteSummary {
 
     pub fn is_final_vote(&self) -> bool {
         self.vote_created == UnixMillisTimestamp::MAX
+    }
+
+    pub fn ensure_no_replay(
+        &self,
+        new_vote: &Vote,
+        block_hash: &BlockHash,
+    ) -> Result<(), VoteError> {
+        if self.vote_created > new_vote.timestamp() {
+            Err(VoteError::Replay)
+        } else if self.vote_created == new_vote.timestamp() && self.hash >= *block_hash {
+            Err(VoteError::Replay)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn has_switched_to_final_vote(&self, new_vote: &Vote) -> bool {
+        new_vote.is_final() && self.vote_created < new_vote.timestamp()
     }
 }
 
