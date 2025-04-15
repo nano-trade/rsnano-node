@@ -248,3 +248,121 @@ impl StatsSource for BucketStats {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsnano_core::Amount;
+
+    #[test]
+    fn construction() {
+        let fixture = create_fixture();
+        let bucket = &fixture.bucket;
+
+        assert_eq!(bucket.len(), 0);
+        assert_eq!(bucket.contains(&BlockHash::from(1)), false);
+        assert_eq!(bucket.available(), false);
+    }
+
+    #[test]
+    fn insert_one() {
+        let fixture = create_fixture();
+        let bucket = &fixture.bucket;
+        let block = SavedBlock::new_test_instance();
+
+        assert!(bucket.push(test_priority(1000), block.clone()));
+
+        assert_eq!(bucket.len(), 1);
+        assert_eq!(bucket.contains(&block.hash()), true);
+    }
+
+    #[test]
+    fn insert_duplicate() {
+        let fixture = create_fixture();
+        let bucket = &fixture.bucket;
+        let block = SavedBlock::new_test_instance();
+
+        assert_eq!(bucket.push(test_priority(1000), block.clone()), true);
+        assert_eq!(bucket.push(test_priority(1000), block), false);
+        assert_eq!(bucket.len(), 1);
+    }
+
+    #[test]
+    fn insert_many() {
+        let fixture = create_fixture();
+        let bucket = &fixture.bucket;
+        let block0 = SavedBlock::new_test_instance_with_key(1);
+        let block1 = SavedBlock::new_test_instance_with_key(2);
+        let block2 = SavedBlock::new_test_instance_with_key(3);
+        let block3 = SavedBlock::new_test_instance_with_key(4);
+        assert!(bucket.push(test_priority(2000), block0.clone()));
+        assert!(bucket.push(test_priority(1001), block1.clone()));
+        assert!(bucket.push(test_priority(1000), block2.clone()));
+        assert!(bucket.push(test_priority(900), block3.clone()));
+
+        assert_eq!(bucket.len(), 4);
+        let blocks = bucket.blocks();
+        assert_eq!(blocks.len(), 4);
+        // Ensure correct order
+        assert_eq!(blocks[0], block3.into());
+        assert_eq!(blocks[1], block2.into());
+        assert_eq!(blocks[2], block1.into());
+        assert_eq!(blocks[3], block0.into());
+    }
+
+    #[test]
+    fn max_blocks() {
+        let fixture = create_fixture_with(FixtureArgs {
+            config: PriorityBucketConfig {
+                max_blocks: 2,
+                ..Default::default()
+            },
+        });
+        let bucket = &fixture.bucket;
+
+        let block0 = SavedBlock::new_test_instance_with_key(1);
+        let block1 = SavedBlock::new_test_instance_with_key(2);
+        let block2 = SavedBlock::new_test_instance_with_key(3);
+        let block3 = SavedBlock::new_test_instance_with_key(4);
+
+        assert_eq!(bucket.push(test_priority(2000), block0.clone()), true);
+        assert_eq!(bucket.push(test_priority(900), block1.clone()), true);
+        assert_eq!(bucket.push(test_priority(3000), block2.clone()), false);
+        assert_eq!(bucket.push(test_priority(1001), block3.clone()), true); // Evicts 2000
+        assert_eq!(bucket.contains(&block0.hash()), false);
+        assert_eq!(bucket.push(test_priority(1000), block0.clone()), true); // Evicts 1001
+        assert_eq!(bucket.contains(&block3.hash()), false);
+
+        assert_eq!(bucket.len(), 2);
+        let blocks = bucket.blocks();
+        // Ensure correct order
+        assert_eq!(blocks[0], block1.into());
+        assert_eq!(blocks[1], block0.into());
+    }
+
+    #[derive(Default)]
+    struct FixtureArgs {
+        config: PriorityBucketConfig,
+    }
+
+    struct Fixture {
+        bucket: Bucket,
+    }
+
+    fn create_fixture() -> Fixture {
+        create_fixture_with(FixtureArgs::default())
+    }
+
+    fn create_fixture_with(args: FixtureArgs) -> Fixture {
+        let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
+        let stats = Arc::new(BucketStats::default());
+        let clock = Arc::new(SteadyClock::new_null());
+        let bucket = Bucket::new(args.config, active_elections, stats, clock);
+
+        Fixture { bucket }
+    }
+
+    fn test_priority(time_prio: u64) -> BlockPriority {
+        BlockPriority::new(Amount::nano(1), TimePriority::new(time_prio))
+    }
+}
