@@ -9,16 +9,13 @@ use rsnano_ledger::{
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::ChannelId;
-use rsnano_node::config::NodeConfig;
 
 use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, start_elections, System};
 
 mod votes {
     use super::*;
-    use rsnano_core::VoteTimestamp;
     use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
     use rsnano_node::consensus::ReceivedVote;
-    use test_helpers::start_election;
 
     #[test]
     fn add_one() {
@@ -89,6 +86,7 @@ mod votes {
             send1.hash()
         );
     }
+}
 
 #[test]
 fn epoch_open_pending() {
