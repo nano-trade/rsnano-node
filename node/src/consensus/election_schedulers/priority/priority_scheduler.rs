@@ -22,7 +22,7 @@ pub struct PriorityScheduler {
     condition: Condvar,
     stats: Arc<Stats>,
     bucketing: Bucketing,
-    buckets: Vec<Bucket>,
+    buckets: Mutex<Vec<Bucket>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     cleanup_thread: Mutex<Option<JoinHandle<()>>>,
     bucket_stats: BucketStats,
@@ -48,7 +48,7 @@ impl PriorityScheduler {
             cleanup_thread: Mutex::new(None),
             stopped: Mutex::new(false),
             condition: Condvar::new(),
-            buckets,
+            buckets: Mutex::new(buckets),
             bucketing,
             stats,
             bucket_stats: BucketStats::default(),
@@ -79,7 +79,11 @@ impl PriorityScheduler {
     }
 
     pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.buckets.iter().any(|b| b.contains(hash))
+        self.buckets
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|b| b.contains(hash))
     }
 
     pub fn activate(&self, any: &impl AnySet, account: &Account) -> bool {
@@ -123,9 +127,11 @@ impl PriorityScheduler {
 
         let priority = any.block_priority(&block);
 
-        let added = self
-            .find_bucket(priority.balance)
-            .push(priority, block.into());
+        let added = {
+            let mut buckets = self.buckets.lock().unwrap();
+            self.find_bucket(&mut buckets, priority.balance)
+                .push(priority, block.into())
+        };
 
         if added {
             self.stats
@@ -146,13 +152,17 @@ impl PriorityScheduler {
         true // Activated
     }
 
-    fn find_bucket(&self, priority: Amount) -> &Bucket {
+    fn find_bucket<'a, 'b>(
+        &'a self,
+        buckets: &'b mut [Bucket],
+        priority: Amount,
+    ) -> &'b mut Bucket {
         let index = self.bucketing.bucket_index(priority);
-        &self.buckets[index]
+        &mut buckets[index]
     }
 
     pub fn len(&self) -> usize {
-        self.buckets.iter().map(|b| b.len()).sum()
+        self.buckets.lock().unwrap().iter().map(|b| b.len()).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -161,7 +171,11 @@ impl PriorityScheduler {
 
     fn predicate(&self) -> bool {
         let vacancy = self.active_elections.read().unwrap().vacancy();
-        self.buckets.iter().any(|b| b.available(vacancy))
+        self.buckets
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|b| b.available(vacancy))
     }
 
     fn run(&self) {
@@ -178,7 +192,8 @@ impl PriorityScheduler {
                     .inc(StatType::ElectionScheduler, DetailType::Loop);
 
                 let now = self.clock.now();
-                for bucket in &self.buckets {
+                let mut buckets = self.buckets.lock().unwrap();
+                for bucket in buckets.iter_mut() {
                     let aec_vacancy = self.active_elections.read().unwrap().vacancy();
                     if bucket.available(aec_vacancy) {
                         if let Some(insert_req) = bucket.activate() {
@@ -234,10 +249,11 @@ impl PriorityScheduler {
                 drop(stopped);
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Cleanup);
-                for bucket in &self.buckets {
-                    let aec_vacancy = self.active_elections.read().unwrap().vacancy();
-                    if let Some(root) = bucket.election_to_cancel(aec_vacancy) {
-                        self.active_elections.write().unwrap().cancel(&root);
+                let mut aec = self.active_elections.write().unwrap();
+                let mut buckets = self.buckets.lock().unwrap();
+                for bucket in buckets.iter_mut() {
+                    if let Some(root) = bucket.election_to_cancel(aec.vacancy()) {
+                        aec.cancel(&root);
                         self.bucket_stats.cancelled.fetch_add(1, Ordering::Relaxed);
                     }
                 }
@@ -260,14 +276,16 @@ impl PriorityScheduler {
     }
 
     pub fn remove_election(&self, priority: BlockPriority, root: &QualifiedRoot) {
-        self.find_bucket(priority.balance).remove_election(root)
+        let mut buckets = self.buckets.lock().unwrap();
+        self.find_bucket(&mut buckets, priority.balance)
+            .remove_election(root)
     }
 
     pub fn container_info(&self) -> ContainerInfo {
         let mut bucket_infos = ContainerInfo::builder();
         let mut election_infos = ContainerInfo::builder();
 
-        for (id, bucket) in self.buckets.iter().enumerate() {
+        for (id, bucket) in self.buckets.lock().unwrap().iter().enumerate() {
             bucket_infos = bucket_infos.leaf(id.to_string(), bucket.len(), 0);
             election_infos = election_infos.leaf(id.to_string(), bucket.election_count(), 0);
         }

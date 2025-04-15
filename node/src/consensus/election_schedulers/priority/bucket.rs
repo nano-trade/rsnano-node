@@ -1,14 +1,11 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Mutex,
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::{
     bucket_elections::{BucketElection, BucketElections},
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
 use crate::consensus::AecInsertRequest;
-use rsnano_core::{utils::BlockPriority, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{utils::BlockPriority, BlockHash, QualifiedRoot, SavedBlock};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,34 +34,32 @@ impl Default for PriorityBucketConfig {
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
     config: PriorityBucketConfig,
-    data: Mutex<BucketData>,
+    queue: OrderedBlocks,
+    elections: BucketElections,
 }
 
 impl Bucket {
     pub fn new(config: PriorityBucketConfig) -> Self {
         Self {
             config,
-            data: Mutex::new(BucketData {
-                queue: Default::default(),
-                elections: Default::default(),
-            }),
+            queue: Default::default(),
+            elections: Default::default(),
         }
     }
 
     pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.data.lock().unwrap().queue.contains(hash)
+        self.queue.contains(hash)
     }
 
     pub fn available(&self, aec_vacancy: i64) -> bool {
-        let guard = self.data.lock().unwrap();
-        let Some(highest) = guard.queue.highest_prio() else {
+        let Some(highest) = self.queue.highest_prio() else {
             // No blocks enqueued
             return false;
         };
 
         let candidate_prio = highest.priority.time;
-        let started_elections = guard.elections.len();
-        let highest_election = guard.elections.highest_priority();
+        let started_elections = self.elections.len();
+        let highest_election = self.elections.highest_priority();
 
         if self.election_slots_available(started_elections) {
             aec_vacancy > 0
@@ -86,10 +81,10 @@ impl Bucket {
             || election_count < self.config.max_elections
     }
 
-    fn election_overfill(&self, data: &BucketData, aec_vacancy: i64) -> bool {
-        if data.elections.len() < self.config.reserved_elections {
+    fn election_overfill(&self, aec_vacancy: i64) -> bool {
+        if self.elections.len() < self.config.reserved_elections {
             false
-        } else if data.elections.len() < self.config.max_elections {
+        } else if self.elections.len() < self.config.max_elections {
             aec_vacancy < 0
         } else {
             true
@@ -97,20 +92,18 @@ impl Bucket {
     }
 
     pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {
-        let guard = self.data.lock().unwrap();
-        if self.election_overfill(&guard, aec_vacancy) {
-            guard.cancel_election_with_lowest_prio()
+        if self.election_overfill(aec_vacancy) {
+            self.cancel_election_with_lowest_prio()
         } else {
             None
         }
     }
 
-    pub fn push(&self, priority: BlockPriority, block: SavedBlock) -> bool {
+    pub fn push(&mut self, priority: BlockPriority, block: SavedBlock) -> bool {
         let hash = block.hash();
-        let mut guard = self.data.lock().unwrap();
-        let inserted = guard.queue.insert(BlockEntry::new(block, priority));
-        if guard.queue.len() > self.config.max_blocks {
-            if let Some(removed) = guard.queue.pop_lowest_prio() {
+        let inserted = self.queue.insert(BlockEntry::new(block, priority));
+        if self.queue.len() > self.config.max_blocks {
+            if let Some(removed) = self.queue.pop_lowest_prio() {
                 inserted && !(removed.priority == priority && removed.block.hash() == hash)
             } else {
                 inserted
@@ -121,26 +114,23 @@ impl Bucket {
     }
 
     pub fn len(&self) -> usize {
-        self.data.lock().unwrap().queue.len()
+        self.queue.len()
     }
 
     pub fn election_count(&self) -> usize {
-        self.data.lock().unwrap().elections.len()
+        self.elections.len()
     }
 
-    pub fn blocks(&self) -> Vec<Block> {
-        let guard = self.data.lock().unwrap();
-        guard.queue.iter().map(|i| i.block.clone().into()).collect()
+    pub fn blocks(&self) -> impl Iterator<Item = &SavedBlock> {
+        self.queue.iter().map(|i| &i.block)
     }
 
-    pub fn remove_election(&self, root: &QualifiedRoot) {
-        self.data.lock().unwrap().elections.erase(root);
+    pub fn remove_election(&mut self, root: &QualifiedRoot) {
+        self.elections.erase(root);
     }
 
-    pub fn activate(&self) -> Option<AecInsertRequest> {
-        let mut guard = self.data.lock().unwrap();
-
-        let Some(top) = guard.queue.pop_highest_prio() else {
+    pub fn activate(&mut self) -> Option<AecInsertRequest> {
+        let Some(top) = self.queue.pop_highest_prio() else {
             return None; // Not activated;
         };
 
@@ -148,22 +138,14 @@ impl Bucket {
         let priority = top.priority;
         let root = block.qualified_root();
 
-        guard.elections.insert(BucketElection {
+        self.elections.insert(BucketElection {
             root,
             priority: priority.time,
         });
 
-        let insert_req = AecInsertRequest::new_priority(block, priority);
-        Some(insert_req)
+        Some(AecInsertRequest::new_priority(block, priority))
     }
-}
 
-struct BucketData {
-    queue: OrderedBlocks,
-    elections: BucketElections,
-}
-
-impl BucketData {
     fn cancel_election_with_lowest_prio(&self) -> Option<QualifiedRoot> {
         if let Some(entry) = self.elections.entry_with_highest_priority() {
             Some(entry.root.clone())
@@ -225,8 +207,8 @@ mod tests {
 
     #[test]
     fn insert_one() {
-        let fixture = create_fixture();
-        let bucket = &fixture.bucket;
+        let mut fixture = create_fixture();
+        let bucket = &mut fixture.bucket;
         let block = SavedBlock::new_test_instance();
 
         assert!(bucket.push(test_priority(1000), block.clone()));
@@ -238,8 +220,8 @@ mod tests {
 
     #[test]
     fn insert_duplicate() {
-        let fixture = create_fixture();
-        let bucket = &fixture.bucket;
+        let mut fixture = create_fixture();
+        let bucket = &mut fixture.bucket;
         let block = SavedBlock::new_test_instance();
 
         assert_eq!(bucket.push(test_priority(1000), block.clone()), true);
@@ -249,8 +231,8 @@ mod tests {
 
     #[test]
     fn insert_many() {
-        let fixture = create_fixture();
-        let bucket = &fixture.bucket;
+        let mut fixture = create_fixture();
+        let bucket = &mut fixture.bucket;
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
         let block2 = SavedBlock::new_test_instance_with_key(3);
@@ -261,24 +243,24 @@ mod tests {
         assert!(bucket.push(test_priority(900), block3.clone()));
 
         assert_eq!(bucket.len(), 4);
-        let blocks = bucket.blocks();
+        let blocks: Vec<_> = bucket.blocks().cloned().collect();
         assert_eq!(blocks.len(), 4);
         // Ensure correct order
-        assert_eq!(blocks[0], block3.into());
-        assert_eq!(blocks[1], block2.into());
-        assert_eq!(blocks[2], block1.into());
-        assert_eq!(blocks[3], block0.into());
+        assert_eq!(blocks[0], block3);
+        assert_eq!(blocks[1], block2);
+        assert_eq!(blocks[2], block1);
+        assert_eq!(blocks[3], block0);
     }
 
     #[test]
     fn max_blocks() {
-        let fixture = create_fixture_with(FixtureArgs {
+        let mut fixture = create_fixture_with(FixtureArgs {
             config: PriorityBucketConfig {
                 max_blocks: 2,
                 ..Default::default()
             },
         });
-        let bucket = &fixture.bucket;
+        let bucket = &mut fixture.bucket;
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
@@ -294,10 +276,10 @@ mod tests {
         assert_eq!(bucket.contains(&block3.hash()), false);
 
         assert_eq!(bucket.len(), 2);
-        let blocks = bucket.blocks();
+        let blocks: Vec<_> = bucket.blocks().cloned().collect();
         // Ensure correct order
-        assert_eq!(blocks[0], block1.into());
-        assert_eq!(blocks[1], block0.into());
+        assert_eq!(blocks[0], block1);
+        assert_eq!(blocks[1], block0);
     }
 
     #[derive(Default)]
