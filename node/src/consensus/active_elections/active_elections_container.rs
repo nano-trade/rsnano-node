@@ -358,9 +358,8 @@ impl ActiveElectionsContainer {
         quorum_specs: QuorumSpecs,
         now: Timestamp,
     ) -> HashMap<BlockHash, Result<(), VoteError>> {
-        let mut results = HashMap::new();
-
         let mut apply_helper = ApplyVoteHelper {
+            vote,
             recently_confirmed: &mut self.recently_confirmed,
             vote_counter: &mut self.stats.vote_counter,
             observer: &self.observer,
@@ -369,6 +368,7 @@ impl ActiveElectionsContainer {
             now,
         };
 
+        let mut results = HashMap::new();
         for block_hash in vote.filtered_blocks() {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
             if results.contains_key(block_hash) {
@@ -376,7 +376,7 @@ impl ActiveElectionsContainer {
             }
 
             if let Some(election) = self.roots.election_for_block_mut(block_hash) {
-                let vote_result = apply_helper.apply_vote(vote, election, *block_hash);
+                let vote_result = apply_helper.apply_vote(election, *block_hash);
                 results.insert(*block_hash, vote_result);
             } else {
                 if apply_helper.recently_confirmed.hash_exists(block_hash) {

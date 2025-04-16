@@ -2,7 +2,7 @@ use super::{recently_confirmed_cache::RecentlyConfirmedCache, stats::VoteCounter
 use crate::{
     consensus::{
         election::{ConfirmationType, Election, VoteSummary},
-        ReceivedVote,
+        FilteredVote,
     },
     representatives::QuorumSpecs,
 };
@@ -12,6 +12,7 @@ use rsnano_nullable_clock::Timestamp;
 use std::ops::Deref;
 
 pub(super) struct ApplyVoteHelper<'a> {
+    pub vote: &'a FilteredVote,
     pub recently_confirmed: &'a mut RecentlyConfirmedCache,
     pub vote_counter: &'a mut VoteCounter,
     pub observer: &'a Option<BackpressureSender<AecEvent>>,
@@ -23,36 +24,30 @@ pub(super) struct ApplyVoteHelper<'a> {
 impl<'a> ApplyVoteHelper<'a> {
     pub fn apply_vote(
         &mut self,
-        vote: &ReceivedVote,
         election: &mut Election,
         block_hash: BlockHash,
     ) -> Result<(), VoteError> {
-        let rep_weight = self.rep_weights.weight(&vote.voter);
+        let rep_weight = self.rep_weights.weight(&self.vote.voter);
 
-        if let Some(last_vote) = election.votes().get(&vote.voter) {
-            last_vote.ensure_no_replay(vote, &block_hash)?;
+        if let Some(last_vote) = election.votes().get(&self.vote.voter) {
+            last_vote.ensure_no_replay(self.vote, &block_hash)?;
 
-            if self.should_cool_down(vote, last_vote, rep_weight) {
+            if self.should_cool_down(last_vote, rep_weight) {
                 return Err(VoteError::Ignored);
             }
         }
 
-        self.add_vote(vote, election, block_hash);
+        self.add_vote(election, block_hash);
         Ok(())
     }
 
-    fn should_cool_down(
-        &self,
-        vote: &ReceivedVote,
-        last_vote: &VoteSummary,
-        rep_weight: Amount,
-    ) -> bool {
-        if vote.source == VoteSource::Cache {
+    fn should_cool_down(&self, last_vote: &VoteSummary, rep_weight: Amount) -> bool {
+        if self.vote.source == VoteSource::Cache {
             // Only cooldown live votes
             return false;
         }
 
-        if last_vote.has_switched_to_final_vote(vote) {
+        if last_vote.has_switched_to_final_vote(self.vote) {
             return false;
         }
 
@@ -60,9 +55,9 @@ impl<'a> ApplyVoteHelper<'a> {
         last_vote.vote_received.elapsed(self.now) < cooldown
     }
 
-    fn add_vote(&mut self, vote: &ReceivedVote, election: &mut Election, block_hash: BlockHash) {
-        election.add_vote(vote.voter, block_hash, vote.timestamp(), self.now);
-        self.vote_counter.count(vote.source);
+    fn add_vote(&mut self, election: &mut Election, block_hash: BlockHash) {
+        election.add_vote(self.vote.voter, block_hash, self.vote.timestamp(), self.now);
+        self.vote_counter.count(self.vote.source);
         self.confirm_if_quorum(election);
     }
 
