@@ -351,43 +351,18 @@ impl ActiveElectionsContainer {
         self.recently_confirmed.erase(block_hash);
     }
 
-    pub fn apply_vote(
+    pub fn apply_vote<'a>(
         &mut self,
-        vote: &FilteredVote,
-        rep_weights: &RepWeights,
-        quorum_specs: QuorumSpecs,
-        now: Timestamp,
+        args: ApplyVoteArgs<'a>,
     ) -> HashMap<BlockHash, Result<(), VoteError>> {
         let mut apply_helper = ApplyVoteHelper {
-            vote,
+            args: &args,
             recently_confirmed: &mut self.recently_confirmed,
             vote_counter: &mut self.stats.vote_counter,
             observer: &self.observer,
-            rep_weights,
-            quorum_specs,
-            now,
+            roots: &mut self.roots,
         };
-
-        let mut results = HashMap::new();
-        for block_hash in vote.filtered_blocks() {
-            // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-            if results.contains_key(block_hash) {
-                continue;
-            }
-
-            if let Some(election) = self.roots.election_for_block_mut(block_hash) {
-                let vote_result = apply_helper.apply_vote(election, *block_hash);
-                results.insert(*block_hash, vote_result);
-            } else {
-                if apply_helper.recently_confirmed.hash_exists(block_hash) {
-                    results.insert(*block_hash, Err(VoteError::Late));
-                } else {
-                    results.insert(*block_hash, Err(VoteError::Indeterminate));
-                }
-            }
-        }
-
-        results
+        apply_helper.apply_vote()
     }
 
     pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) {
@@ -469,6 +444,13 @@ impl ContainerInfoProvider for ActiveElectionsContainer {
     }
 }
 
+pub struct ApplyVoteArgs<'a> {
+    pub vote: &'a FilteredVote,
+    pub rep_weights: &'a RepWeights,
+    pub quorum_specs: &'a QuorumSpecs,
+    pub now: Timestamp,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -525,12 +507,12 @@ mod tests {
         let mut rep_weights = RepWeights::new();
         rep_weights.insert(rep_key.public_key(), Amount::MAX);
 
-        let result = container.apply_vote(
-            &received_vote.into(),
-            &rep_weights,
-            QuorumSpecs::new_test_instance(),
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &received_vote.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &QuorumSpecs::new_test_instance(),
             now,
-        );
+        });
 
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
 
@@ -567,26 +549,31 @@ mod tests {
         let quorum_specs = QuorumSpecs::new_test_instance();
 
         let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
-        let result = container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &vote1.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
 
         // vote2 is too close to vote1 and is therefore ignored
         let vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(2000));
-        let result = container.apply_vote(
-            &vote2.into(),
-            &rep_weights,
-            quorum_specs.clone(),
-            start + Duration::from_millis(100),
-        );
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &vote2.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start + Duration::from_millis(100),
+        });
         assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Ignored)));
 
         let vote3 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(3000));
-        let result = container.apply_vote(
-            &vote3.into(),
-            &rep_weights,
-            quorum_specs,
-            start + Duration::from_secs(15),
-        );
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &vote3.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start + Duration::from_secs(15),
+        });
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
     }
 
@@ -614,10 +601,20 @@ mod tests {
         let quorum_specs = QuorumSpecs::new_test_instance();
 
         let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
-        container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+        container.apply_vote(ApplyVoteArgs {
+            vote: &vote1.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
 
         let vote2 = test_final_vote(&rep_key, block_hash);
-        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &vote2.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
     }
 
@@ -645,12 +642,22 @@ mod tests {
         let quorum_specs = QuorumSpecs::new_test_instance();
 
         let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
-        container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+        container.apply_vote(ApplyVoteArgs {
+            vote: &vote1.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
 
         let mut vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(2000));
         vote2.source = VoteSource::Cache;
 
-        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &vote2.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
     }
 
@@ -678,10 +685,20 @@ mod tests {
         let quorum_specs = QuorumSpecs::new_test_instance();
 
         let vote1 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(1000));
-        container.apply_vote(&vote1.into(), &rep_weights, quorum_specs.clone(), start);
+        container.apply_vote(ApplyVoteArgs {
+            vote: &vote1.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
 
         let vote2 = test_vote(&rep_key, block_hash, UnixMillisTimestamp::new(500));
-        let result = container.apply_vote(&vote2.into(), &rep_weights, quorum_specs.clone(), start);
+        let result = container.apply_vote(ApplyVoteArgs {
+            vote: &vote2.into(),
+            rep_weights: &rep_weights,
+            quorum_specs: &quorum_specs,
+            now: start,
+        });
         assert_eq!(result.get(&block_hash), Some(&Err(VoteError::Replay)));
     }
 

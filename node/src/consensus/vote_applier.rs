@@ -9,7 +9,7 @@ use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteError};
 use rsnano_ledger::RepWeightCache;
 
 use super::{ActiveElectionsContainer, AecEvent, FilteredVote, ReceivedVote};
-use crate::representatives::OnlineReps;
+use crate::{consensus::ApplyVoteArgs, representatives::OnlineReps};
 
 /// Applies a vote to an election
 pub(crate) struct VoteApplier {
@@ -86,7 +86,12 @@ impl VoteApplier {
         let results = {
             let rep_weights = self.rep_weights.read();
             let mut active = self.active_elections.write().unwrap();
-            active.apply_vote(vote, &rep_weights, quorum_specs, now)
+            active.apply_vote(ApplyVoteArgs {
+                vote,
+                rep_weights: &rep_weights,
+                quorum_specs: &quorum_specs,
+                now,
+            })
         };
 
         self.notify_vote_processed(&vote, voter_weight, &results);
