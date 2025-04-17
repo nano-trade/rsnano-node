@@ -40,7 +40,7 @@ impl From<ConfirmationType> for DetailType {
 }
 
 /// Information about confirmed election
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConfirmedElection {
     pub winner: MaybeSavedBlock,
     pub tally: Amount,

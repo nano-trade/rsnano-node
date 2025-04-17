@@ -47,7 +47,7 @@ impl<'a> ApplyVoteHelper<'a> {
     }
 }
 
-pub(super) struct ApplyVoteToElectionHelper<'a> {
+struct ApplyVoteToElectionHelper<'a> {
     pub args: &'a ApplyVoteArgs<'a>,
     pub recently_confirmed: &'a mut RecentlyConfirmedCache,
     pub vote_counter: &'a mut VoteCounter,
@@ -58,6 +58,10 @@ pub(super) struct ApplyVoteToElectionHelper<'a> {
 
 impl<'a> ApplyVoteToElectionHelper<'a> {
     pub fn apply_vote(&mut self) -> Result<(), VoteError> {
+        if self.election.is_confirmed() {
+            return Err(VoteError::Late);
+        }
+
         let rep_weight = self.args.rep_weights.weight(&self.args.vote.voter);
 
         if let Some(last_vote) = self.election.votes().get(&self.args.vote.voter) {
@@ -98,10 +102,6 @@ impl<'a> ApplyVoteToElectionHelper<'a> {
     }
 
     pub fn confirm_if_quorum(&mut self) {
-        if self.election.is_confirmed() {
-            return;
-        }
-
         let old_winner = self.election.winner().hash();
         let old_final = self.election.is_final();
 
@@ -158,6 +158,386 @@ impl<'a> ApplyVoteToElectionHelper<'a> {
     fn notify(&self, event: AecEvent) {
         if let Some(o) = self.observer {
             o.send(event).unwrap();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        consensus::{
+            active_elections::root_container::Entry, election::ElectionBehavior, FilteredVote,
+            ReceivedVote,
+        },
+        representatives::QuorumSpecs,
+    };
+    use rsnano_core::{
+        utils::{backpressure_channel, UnixMillisTimestamp},
+        Block, PrivateKey, QualifiedRoot, SavedBlock, StateBlockArgs, Vote,
+    };
+    use rsnano_ledger::RepWeights;
+    use rsnano_nullable_clock::Timestamp;
+    use std::time::Duration;
+
+    #[test]
+    fn ignore_duplicate_block_hashes_in_vote() {
+        let mut fixture = Fixture::default();
+        fixture.add_active_election();
+
+        let result = fixture.apply_vote(vec![fixture.block_hash, fixture.block_hash]);
+
+        assert_eq!(result.get(&fixture.block_hash).unwrap(), &Ok(()));
+    }
+
+    #[test]
+    fn when_recently_confirmed_should_return_late_error() {
+        let mut fixture = Fixture::default();
+        fixture.add_recently_confirmed();
+
+        let result = fixture.apply_vote(vec![fixture.block_hash]);
+
+        assert_eq!(
+            result.get(&fixture.block_hash).unwrap(),
+            &Err(VoteError::Late)
+        );
+    }
+
+    #[test]
+    fn when_not_active_and_not_recently_confirmed_should_return_indeterminate() {
+        let mut fixture = Fixture::default();
+
+        let result = fixture.apply_vote(vec![fixture.block_hash]);
+
+        assert_eq!(
+            result.get(&fixture.block_hash).unwrap(),
+            &Err(VoteError::Indeterminate)
+        );
+    }
+
+    #[test]
+    fn ignore_vote_with_lower_timestamp() {
+        let mut fixture = FixtureForElection::default();
+        fixture.add_processed_vote(UnixMillisTimestamp::new(2000), Duration::ZERO);
+
+        let result = fixture.apply_vote_from(VoteSource::Live, UnixMillisTimestamp::new(1000));
+
+        assert_eq!(result, Err(VoteError::Replay));
+    }
+
+    #[test]
+    fn cool_down_live_vote() {
+        let mut fixture = FixtureForElection::default();
+        fixture.add_processed_vote(UnixMillisTimestamp::new(1000), Duration::from_millis(500));
+
+        let result = fixture.apply_vote_from(VoteSource::Live, UnixMillisTimestamp::new(2000));
+
+        assert_eq!(result, Err(VoteError::Ignored));
+    }
+
+    #[test]
+    fn dont_cool_down_when_enough_space_between_votes() {
+        let mut fixture = FixtureForElection::default();
+        fixture.add_processed_vote(UnixMillisTimestamp::new(1000), Duration::from_secs(15));
+
+        let result = fixture.apply_vote_from(VoteSource::Live, UnixMillisTimestamp::new(1100));
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn dont_cool_down_when_vote_comes_from_cache() {
+        let mut fixture = FixtureForElection::default();
+        fixture.add_processed_vote(UnixMillisTimestamp::new(1000), Duration::ZERO);
+
+        let result = fixture.apply_vote_from(VoteSource::Cache, UnixMillisTimestamp::new(1100));
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn dont_cool_down_when_switched_to_final_vote() {
+        let mut fixture = FixtureForElection::default();
+        fixture.add_processed_vote(UnixMillisTimestamp::new(1000), Duration::ZERO);
+
+        let result = fixture.apply_final_vote_from(VoteSource::Live);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn when_election_already_confirmed_should_return_late_error() {
+        let mut fixture = FixtureForElection::default();
+        fixture.election.force_confirm();
+
+        let result = fixture.apply_final_vote_from(VoteSource::Live);
+
+        assert_eq!(result, Err(VoteError::Late));
+    }
+
+    #[test]
+    fn notify_final_phase_started() {
+        let mut fixture = FixtureForElection::default();
+        fixture
+            .rep_weights
+            .insert(fixture.rep1_key.public_key(), Amount::MAX);
+
+        fixture
+            .apply_vote_from(VoteSource::Live, UnixMillisTimestamp::new(1000))
+            .unwrap();
+
+        assert_eq!(fixture.events.len(), 1);
+        let AecEvent::FinalPhaseStarted(hash, root) = &fixture.events[0] else {
+            panic!("no final phase started event");
+        };
+        assert_eq!(*hash, fixture.block.hash());
+        assert_eq!(*root, fixture.block.qualified_root());
+    }
+
+    #[test]
+    fn notify_winner_changed() {
+        let block = StateBlockArgs::new_test_instance();
+        let key = block.key.clone();
+
+        let fork: Block = StateBlockArgs {
+            representative: 999888777.into(),
+            ..block
+        }
+        .into();
+
+        let block = SavedBlock::new_test_instance_with(block.into());
+
+        let mut fixture = FixtureForElection::with_block(block.clone());
+        fixture.rep_weights.insert(key.public_key(), Amount::MAX);
+        fixture.election.try_add_fork(&fork, Amount::zero());
+
+        let vote = ReceivedVote::new(
+            Vote::new(&key, UnixMillisTimestamp::new(1000), 0, vec![fork.hash()]).into(),
+            VoteSource::Live,
+            None,
+        );
+
+        fixture.apply_vote(vote).unwrap();
+
+        assert_eq!(fixture.election.winner().hash(), fork.hash());
+        assert_eq!(fixture.events.len(), 2);
+        let AecEvent::WinnerChanged(old_winner, new_winner) = &fixture.events[0] else {
+            panic!("not a winner changed event");
+        };
+        assert_eq!(old_winner, &block.hash());
+        assert_eq!(new_winner, &fork);
+        let AecEvent::FinalPhaseStarted(hash, root) = &fixture.events[1] else {
+            panic!("no final phase started event");
+        };
+        assert_eq!(*hash, fork.hash());
+        assert_eq!(*root, fork.qualified_root());
+    }
+
+    #[test]
+    fn notify_election_confirmed() {
+        let mut fixture = FixtureForElection::default();
+        fixture
+            .rep_weights
+            .insert(fixture.rep1_key.public_key(), Amount::MAX);
+
+        fixture.apply_final_vote_from(VoteSource::Live).unwrap();
+
+        assert_eq!(fixture.events.len(), 2);
+
+        assert!(matches!(
+            fixture.events[0],
+            AecEvent::FinalPhaseStarted(_, _)
+        ));
+        assert!(matches!(fixture.events[1], AecEvent::ElectionConfirmed(_)));
+    }
+
+    // Test helpers:
+    //--------------------------------------------------------------------------------
+
+    struct Fixture {
+        block: SavedBlock,
+        root: QualifiedRoot,
+        block_hash: BlockHash,
+        roots: RootContainer,
+        recently_confirmed: RecentlyConfirmedCache,
+        rep_weights: RepWeights,
+    }
+
+    impl Fixture {
+        fn with_block(block: SavedBlock) -> Self {
+            let root = block.qualified_root();
+            let block_hash = block.hash();
+            Self {
+                block,
+                root,
+                block_hash,
+                roots: RootContainer::default(),
+                recently_confirmed: RecentlyConfirmedCache::default(),
+                rep_weights: RepWeights::new(),
+            }
+        }
+
+        fn add_active_election(&mut self) {
+            let election = Election::new_test_instance_with(self.block.clone());
+            self.roots.insert(Entry {
+                root: self.root.clone(),
+                election,
+                priority: None,
+            });
+        }
+
+        fn add_recently_confirmed(&mut self) {
+            self.recently_confirmed
+                .put(self.root.clone(), self.block_hash);
+        }
+
+        fn apply_vote(
+            &mut self,
+            hashes: Vec<BlockHash>,
+        ) -> HashMap<BlockHash, Result<(), VoteError>> {
+            let vote = Vote::new(
+                &PrivateKey::from(1),
+                UnixMillisTimestamp::new(1000),
+                0,
+                hashes,
+            );
+
+            let vote: FilteredVote = ReceivedVote::new(vote.into(), VoteSource::Live, None).into();
+            let quorum_specs = QuorumSpecs::new_test_instance();
+
+            let args = ApplyVoteArgs {
+                vote: &vote,
+                rep_weights: &self.rep_weights,
+                quorum_specs: &quorum_specs,
+                now: Timestamp::new_test_instance(),
+            };
+
+            let mut vote_counter = VoteCounter::default();
+
+            let mut helper = ApplyVoteHelper {
+                args: &args,
+                recently_confirmed: &mut self.recently_confirmed,
+                vote_counter: &mut vote_counter,
+                observer: &None,
+                roots: &mut self.roots,
+            };
+
+            helper.apply_vote()
+        }
+    }
+
+    impl Default for Fixture {
+        fn default() -> Self {
+            let block = SavedBlock::new_test_instance();
+            Self::with_block(block)
+        }
+    }
+
+    struct FixtureForElection {
+        now: Timestamp,
+        block: SavedBlock,
+        election: Election,
+        rep1_key: PrivateKey,
+        rep_weights: RepWeights,
+        events: Vec<AecEvent>,
+    }
+
+    impl FixtureForElection {
+        fn add_processed_vote(&mut self, created: UnixMillisTimestamp, received_ago: Duration) {
+            self.election.add_vote(
+                self.rep1_key.public_key(),
+                self.block.hash(),
+                created,
+                self.now - received_ago,
+            );
+        }
+
+        fn apply_vote_from(
+            &mut self,
+            source: VoteSource,
+            created: UnixMillisTimestamp,
+        ) -> Result<(), VoteError> {
+            let vote = ReceivedVote::new(
+                Vote::new(&self.rep1_key, created, 0, vec![self.block.hash()]).into(),
+                source,
+                None,
+            );
+
+            self.apply_vote(vote)
+        }
+
+        fn apply_final_vote_from(&mut self, source: VoteSource) -> Result<(), VoteError> {
+            let vote = ReceivedVote::new(
+                Vote::new_final(&self.rep1_key, vec![self.block.hash()]).into(),
+                source,
+                None,
+            );
+
+            self.apply_vote(vote)
+        }
+
+        fn apply_vote(&mut self, vote: impl Into<FilteredVote>) -> Result<(), VoteError> {
+            let vote = vote.into();
+
+            let quorum_specs = QuorumSpecs::new_test_instance();
+            let mut recently_confirmed = RecentlyConfirmedCache::default();
+            let mut vote_counter = VoteCounter::default();
+            let (tx, rx) = backpressure_channel(1024);
+
+            let result = {
+                ApplyVoteToElectionHelper {
+                    args: &ApplyVoteArgs {
+                        vote: &vote,
+                        rep_weights: &self.rep_weights,
+                        quorum_specs: &quorum_specs,
+                        now: Timestamp::new_test_instance(),
+                    },
+                    recently_confirmed: &mut recently_confirmed,
+                    vote_counter: &mut vote_counter,
+                    observer: &Some(tx),
+                    election: &mut self.election,
+                    block_hash: &vote.hashes[0],
+                }
+                .apply_vote()
+            };
+
+            while let Ok(ev) = rx.recv() {
+                self.events.push(ev);
+            }
+
+            result
+        }
+
+        fn with_block(block: SavedBlock) -> Self {
+            let now = Timestamp::new_test_instance();
+
+            let election = Election::new(
+                block.clone(),
+                ElectionBehavior::Priority,
+                Duration::from_secs(1),
+                now,
+            );
+
+            let rep1_key = PrivateKey::from(1);
+
+            let mut rep_weights = RepWeights::new();
+            rep_weights.insert(rep1_key.public_key(), Amount::nano(100_000));
+
+            Self {
+                now,
+                block,
+                election,
+                rep1_key,
+                events: Vec::new(),
+                rep_weights,
+            }
+        }
+    }
+
+    impl Default for FixtureForElection {
+        fn default() -> Self {
+            let block = SavedBlock::new_test_instance();
+            Self::with_block(block)
         }
     }
 }

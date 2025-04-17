@@ -5,10 +5,9 @@ use std::{
 };
 
 use super::{block_tallies::BlockTallies, ConfirmationType, ConfirmedElection, ElectionState};
-use crate::{consensus::ReceivedVote, representatives::QuorumSpecs};
 use rsnano_core::{
     utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
-    QualifiedRoot, SavedBlock, Vote, VoteError, VoteSource,
+    QualifiedRoot, SavedBlock, Vote, VoteError,
 };
 use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::DetailType;
@@ -425,7 +424,7 @@ impl Election {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VoteSummary {
     pub voter: PublicKey,
     pub vote_created: UnixMillisTimestamp,

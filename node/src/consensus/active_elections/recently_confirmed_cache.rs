@@ -70,3 +70,9 @@ impl RecentlyConfirmedCache {
         .into()
     }
 }
+
+impl Default for RecentlyConfirmedCache {
+    fn default() -> Self {
+        Self::new(1024 * 64)
+    }
+}

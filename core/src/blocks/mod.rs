@@ -405,6 +405,10 @@ impl SavedBlock {
 
     pub fn new_test_instance() -> Self {
         let block = Block::new_test_instance();
+        Self::new_test_instance_with(block)
+    }
+
+    pub fn new_test_instance_with(block: Block) -> Self {
         let sideband = Self::test_sideband(&block);
         Self::new(block, sideband)
     }
@@ -606,7 +610,7 @@ impl Deserialize for SavedBlock {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MaybeSavedBlock {
     Saved(SavedBlock),
     Unsaved(Block),
