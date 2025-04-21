@@ -1192,7 +1192,7 @@ fn search_receivable_multiple() {
 }
 
 #[test]
-fn auto_bootstrap_reverse() {
+fn auto_bootstrap() {
     let mut system = System::new();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -2383,68 +2383,6 @@ fn node_receive_quorum() {
         Duration::from_secs(10),
         || !node1.balance(&key.account()).is_zero(),
         "balance is still zero",
-    );
-}
-
-#[test]
-fn auto_bootstrap() {
-    let mut system = System::new();
-    let config = System::default_config_without_backlog_scan();
-
-    let node0 = system.build_node().config(config.clone()).finish();
-    let wallet_id = node0.wallets.wallet_ids()[0];
-    let key2 = PrivateKey::new();
-
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id, &key2.raw_key(), true)
-        .unwrap();
-
-    let send1 = node0
-        .wallets
-        .send_action2(
-            &wallet_id,
-            *DEV_GENESIS_ACCOUNT,
-            key2.account(),
-            node0.config.receive_minimum,
-            0.into(),
-            true,
-            None,
-        )
-        .unwrap();
-
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || node0.balance(&key2.account()) == node0.config.receive_minimum,
-        "balance not updated",
-    );
-
-    let node1 = system.make_node();
-
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || node1.balance(&key2.account()) == node0.config.receive_minimum,
-        "balance not synced",
-    );
-
-    assert!(node1.block_exists(&send1.hash()));
-
-    // Wait for block receive
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.ledger.block_count() == 3,
-        "block count not 3",
-    );
-
-    // Confirmation for all blocks
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.ledger.confirmed_count() == 3,
-        "cemented count not 3",
     );
 }
 
