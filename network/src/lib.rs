@@ -1,6 +1,10 @@
+#[macro_use]
+extern crate strum_macros;
+
 pub mod attempt_container;
 pub mod bandwidth_limiter;
 mod channel;
+mod channel_stats;
 mod dead_channel_cleanup;
 mod network;
 mod network_observer;
@@ -74,7 +78,9 @@ pub enum ChannelDirection {
     Outbound,
 }
 
-#[derive(FromPrimitive, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EnumCount, EnumIter, IntoStaticStr,
+)]
 pub enum TrafficType {
     Generic,
     /// Ascending bootstrap (asc_pull_ack, asc_pull_req) traffic

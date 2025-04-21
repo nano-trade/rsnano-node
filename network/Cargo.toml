@@ -24,3 +24,5 @@ tokio-util = "0"
 tokio = { version = "1", features = [
     "net",
 ] }
+strum = "0"
+strum_macros = "0"

@@ -1,4 +1,4 @@
-use crate::{NetworkObserver, TrafficType};
+use crate::{channel_stats::ChannelStats, TrafficType};
 use rsnano_core::utils::FairQueue;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -11,11 +11,11 @@ pub struct WriteQueue {
     notify_enqueued: Notify,
     notify_dequeued: Notify,
     closed: AtomicBool,
-    observer: Arc<dyn NetworkObserver>,
+    stats: Arc<ChannelStats>,
 }
 
 impl WriteQueue {
-    pub fn new(max_size: usize, observer: Arc<dyn NetworkObserver>) -> Self {
+    pub fn new(max_size: usize, stats: Arc<ChannelStats>) -> Self {
         Self {
             queue: Mutex::new(FairQueue::new(
                 move |_| max_size,
@@ -27,7 +27,7 @@ impl WriteQueue {
             notify_enqueued: Notify::new(),
             notify_dequeued: Notify::new(),
             closed: AtomicBool::new(false),
-            observer,
+            stats,
         }
     }
 
@@ -95,8 +95,11 @@ impl WriteQueue {
         }
 
         self.notify_dequeued.notify_one();
-        self.observer
-            .send_succeeded(entry.buffer.len(), traffic_type);
+        self.stats
+            .send_succeeded
+            .fetch_add(entry.buffer.len(), Ordering::Relaxed);
+        self.stats.sent_by_type[traffic_type as usize]
+            .fetch_add(entry.buffer.len(), Ordering::Relaxed);
         Some(entry)
     }
 

@@ -2,6 +2,7 @@ use super::ChannelDirection;
 use crate::{
     attempt_container::AttemptContainer,
     bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
+    channel_stats::ChannelStats,
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
     Channel, ChannelId, ChannelMode, DataReceiver, DataReceiverFactory, NetworkObserver,
@@ -13,6 +14,7 @@ use rsnano_core::{
     Networks, NodeId, ProtocolInfo,
 };
 use rsnano_nullable_clock::Timestamp;
+use rsnano_stats::{StatsCollection, StatsSource};
 use std::{
     cmp::max,
     collections::HashMap,
@@ -98,6 +100,7 @@ pub enum NetworkError {
 pub struct Network {
     next_channel_id: usize,
     channels: HashMap<ChannelId, Arc<Channel>>,
+    channel_stats: Arc<ChannelStats>,
     stopped: bool,
     new_realtime_channel_observers: Vec<Arc<dyn Fn(Arc<Channel>) + Send + Sync>>,
     attempts: AttemptContainer,
@@ -114,6 +117,7 @@ impl Network {
         Self {
             next_channel_id: 1,
             channels: HashMap::new(),
+            channel_stats: Arc::new(ChannelStats::default()),
             stopped: false,
             new_realtime_channel_observers: Vec::new(),
             attempts: Default::default(),
@@ -247,7 +251,7 @@ impl Network {
             self.config.protocol_info.version_min,
             now,
             self.bandwidth_limiter.clone(),
-            self.observer.clone(),
+            self.channel_stats.clone(),
         ));
         self.channels.insert(channel_id, channel.clone());
         self.observer.accepted(&peer_addr, direction);
@@ -719,7 +723,7 @@ fn create_loopback_channel(config: &NetworkConfig) -> Arc<Channel> {
         config.protocol_info.version_using,
         Timestamp::new_test_instance(),
         Arc::new(BandwidthLimiter::default()),
-        Arc::new(NullNetworkObserver::new()),
+        Arc::new(ChannelStats::default()),
     ));
     channel.set_mode(ChannelMode::Realtime);
     channel
@@ -743,6 +747,12 @@ impl ContainerInfoProvider for Network {
             .node("excluded_peers", self.excluded_peers.container_info())
             .node("bandwidth", self.bandwidth_limiter.container_info())
             .finish()
+    }
+}
+
+impl StatsSource for Network {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.channel_stats.collect_stats(result);
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::{
-    bandwidth_limiter::BandwidthLimiter, Channel, ChannelDirection, ChannelId, NullNetworkObserver,
+    bandwidth_limiter::BandwidthLimiter, channel_stats::ChannelStats, Channel, ChannelDirection,
+    ChannelId,
 };
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
@@ -42,7 +43,7 @@ impl TcpChannelAdapter {
                 u8::MAX,
                 Timestamp::new_test_instance(),
                 Arc::new(BandwidthLimiter::default()),
-                Arc::new(NullNetworkObserver::new()),
+                Arc::new(ChannelStats::default()),
             )),
             Arc::downgrade(&Arc::new(TcpStream::new_null())),
             Arc::new(SteadyClock::new_null()),

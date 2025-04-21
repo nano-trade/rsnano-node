@@ -3,7 +3,7 @@ use std::{net::SocketAddrV6, sync::Arc};
 use anyhow::Error;
 use tracing::{debug, trace};
 
-use rsnano_network::{Channel, ChannelDirection, NetworkError, NetworkObserver, TrafficType};
+use rsnano_network::{ChannelDirection, NetworkError, NetworkObserver, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 #[derive(Clone)]
@@ -16,56 +16,9 @@ impl NetworkStats {
 }
 
 impl NetworkObserver for NetworkStats {
-    fn send_succeeded(&self, buf_size: usize, traffic_type: TrafficType) {
-        self.0.add_dir_aggregate(
-            StatType::TrafficTcp,
-            DetailType::All,
-            Direction::Out,
-            buf_size as u64,
-        );
-        self.0.add_dir(
-            StatType::TrafficTcpType,
-            traffic_type.into(),
-            Direction::Out,
-            buf_size as u64,
-        );
-    }
-
     fn send_failed(&self) {
         self.0
             .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-    }
-
-    fn channel_timed_out(&self, channel: &Channel) {
-        self.0.inc_dir(
-            StatType::Tcp,
-            DetailType::TcpIoTimeoutDrop,
-            if channel.direction() == ChannelDirection::Inbound {
-                Direction::In
-            } else {
-                Direction::Out
-            },
-        );
-        debug!(
-            channel_id = %channel.channel_id(),
-            remote_addr = ?channel.peer_addr(),
-            mode = ?channel.mode(),
-            direction = ?channel.direction(),
-            "Closing channel due to timeout");
-    }
-
-    fn read_succeeded(&self, count: usize) {
-        self.0.add_dir(
-            StatType::TrafficTcp,
-            DetailType::All,
-            Direction::In,
-            count as u64,
-        );
-    }
-
-    fn read_failed(&self) {
-        self.0
-            .inc_dir(StatType::Tcp, DetailType::TcpReadError, Direction::In);
     }
 
     fn connection_attempt(&self, peer: &SocketAddrV6) {

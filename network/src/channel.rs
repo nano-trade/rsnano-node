@@ -16,10 +16,12 @@ use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use crate::{
     bandwidth_limiter::BandwidthLimiter,
+    channel_stats::ChannelStats,
     utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
     write_queue::{Entry, WriteQueue},
-    ChannelDirection, ChannelId, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
+    ChannelDirection, ChannelId, ChannelMode, TrafficType,
 };
+use tracing::debug;
 
 /// Default timeout in seconds
 const DEFAULT_TIMEOUT: u64 = 120;
@@ -52,13 +54,13 @@ pub struct Channel {
     write_queue: WriteQueue,
     cancel_token: CancellationToken,
     limiter: Arc<BandwidthLimiter>,
-    observer: Arc<dyn NetworkObserver>,
+    stats: Arc<ChannelStats>,
 }
 
 impl Channel {
     pub const MAX_QUEUE_SIZE: usize = 64;
 
-    pub fn new(
+    pub(crate) fn new(
         channel_id: ChannelId,
         local_addr: SocketAddrV6,
         peer_addr: SocketAddrV6,
@@ -66,7 +68,7 @@ impl Channel {
         protocol_version: u8,
         now: Timestamp,
         limiter: Arc<BandwidthLimiter>,
-        observer: Arc<dyn NetworkObserver>,
+        stats: Arc<ChannelStats>,
     ) -> Self {
         Self {
             channel_id,
@@ -89,10 +91,10 @@ impl Channel {
                     None
                 },
             }),
-            write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, observer.clone()),
+            write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, stats.clone()),
             cancel_token: CancellationToken::new(),
             limiter,
-            observer,
+            stats,
         }
     }
 
@@ -109,7 +111,7 @@ impl Channel {
             u8::MAX,
             Timestamp::new_test_instance(),
             Arc::new(BandwidthLimiter::default()),
-            Arc::new(NullNetworkObserver::new()),
+            Arc::new(ChannelStats::default()),
         )
     }
 
@@ -283,7 +285,15 @@ impl Channel {
         // if there is no activity for timeout seconds then disconnect
         let has_timed_out = (now - self.last_activity()) > self.timeout();
         if has_timed_out {
-            self.observer.channel_timed_out(&self);
+            self.stats.timed_out.fetch_add(1, Ordering::Relaxed);
+
+            debug!(
+            channel_id = %self.channel_id(),
+            remote_addr = ?self.peer_addr(),
+            mode = ?self.mode(),
+            direction = ?self.direction(),
+            "Closing channel due to timeout");
+
             self.set_timed_out(true);
             self.close();
         }
@@ -291,12 +301,14 @@ impl Channel {
     }
 
     pub fn read_succeeded(&self, count: usize, now: Timestamp) {
-        self.observer.read_succeeded(count);
+        self.stats
+            .read_succeeded
+            .fetch_add(count, Ordering::Relaxed);
         self.set_last_activity(now);
     }
 
     pub fn read_failed(&self) {
-        self.observer.read_failed();
+        self.stats.read_failed.fetch_add(1, Ordering::Relaxed);
         self.close();
     }
 }

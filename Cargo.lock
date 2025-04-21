@@ -4152,6 +4152,8 @@ dependencies = [
  "rsnano_stats",
  "serde",
  "serde_json",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
  "tokio",
  "tokio-util",
  "tracing",
