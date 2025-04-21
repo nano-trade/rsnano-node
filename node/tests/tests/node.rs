@@ -663,15 +663,8 @@ fn rep_self_vote() {
 fn fork_bootstrap_flip() {
     let mut system = System::new();
     let config1 = System::default_config_without_backlog_scan();
-    let mut node_flags = NodeFlags::default();
-    node_flags.disable_bootstrap_bulk_push_client = true;
-    node_flags.disable_lazy_bootstrap = true;
 
-    let node1 = system
-        .build_node()
-        .config(config1)
-        .flags(node_flags.clone())
-        .finish();
+    let node1 = system.build_node().config(config1).finish();
     let wallet_id1 = node1.wallets.wallet_ids()[0];
     node1
         .wallets
@@ -1202,15 +1195,8 @@ fn search_receivable_multiple() {
 fn auto_bootstrap_reverse() {
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
-    let mut node_flags = NodeFlags::default();
-    node_flags.disable_bootstrap_bulk_push_client = true;
-    node_flags.disable_lazy_bootstrap = true;
 
-    let node0 = system
-        .build_node()
-        .config(config.clone())
-        .flags(node_flags.clone())
-        .finish();
+    let node0 = system.build_node().config(config.clone()).finish();
     let wallet_id = node0.wallets.wallet_ids()[0];
     let key2 = PrivateKey::new();
 
@@ -2425,15 +2411,8 @@ fn node_receive_quorum() {
 fn auto_bootstrap() {
     let mut system = System::new();
     let config = System::default_config_without_backlog_scan();
-    let mut node_flags = NodeFlags::default();
-    node_flags.disable_bootstrap_bulk_push_client = true;
-    node_flags.disable_lazy_bootstrap = true;
 
-    let node0 = system
-        .build_node()
-        .config(config.clone())
-        .flags(node_flags.clone())
-        .finish();
+    let node0 = system.build_node().config(config.clone()).finish();
     let wallet_id = node0.wallets.wallet_ids()[0];
     let key2 = PrivateKey::new();
 

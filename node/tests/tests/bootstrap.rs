@@ -1,9 +1,6 @@
 use rsnano_core::{Account, PrivateKey};
 use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
-use rsnano_node::{
-    bootstrap::BootstrapConfig,
-    config::{NodeConfig, NodeFlags},
-};
+use rsnano_node::{bootstrap::BootstrapConfig, config::NodeConfig};
 use std::time::Duration;
 use test_helpers::{assert_always_eq, assert_timely, get_available_port, System};
 
@@ -63,10 +60,6 @@ fn trace_base() {
 #[test]
 fn frontier_scan() {
     let mut system = System::new();
-    let flags = NodeFlags {
-        disable_legacy_bootstrap: true,
-        ..Default::default()
-    };
 
     let config = NodeConfig {
         bootstrap: BootstrapConfig {
@@ -104,17 +97,13 @@ fn frontier_scan() {
     blocks.extend(opens);
     system.initialization_blocks = blocks.clone();
 
-    let node0 = system
-        .build_node()
-        .flags(flags.clone())
-        .config(config.clone())
-        .finish();
+    let node0 = system.build_node().config(config.clone()).finish();
     node0.process_multi(&updates);
 
     // No blocks should be broadcast to the other node
     let mut config2 = config.clone();
     config2.network.listening_port = System::default_config().network.listening_port;
-    let node1 = system.build_node().flags(flags).config(config2).finish();
+    let node1 = system.build_node().config(config2).finish();
 
     assert_always_eq(
         Duration::from_millis(100),
@@ -136,10 +125,6 @@ fn frontier_scan() {
 #[test]
 fn frontier_scan_pending() {
     let mut system = System::new();
-    let flags = NodeFlags {
-        disable_legacy_bootstrap: true,
-        ..Default::default()
-    };
 
     let config = NodeConfig {
         bootstrap: BootstrapConfig {
@@ -173,17 +158,13 @@ fn frontier_scan_pending() {
     blocks.extend(sends);
     system.initialization_blocks = blocks.clone();
 
-    let node0 = system
-        .build_node()
-        .flags(flags.clone())
-        .config(config.clone())
-        .finish();
+    let node0 = system.build_node().config(config.clone()).finish();
     node0.process_multi(&opens);
 
     // No blocks should be broadcast to the other node
     let mut config2 = config.clone();
     config2.network.listening_port = System::default_config().network.listening_port;
-    let node1 = system.build_node().flags(flags).config(config2).finish();
+    let node1 = system.build_node().config(config2).finish();
 
     assert_always_eq(
         Duration::from_millis(100),
@@ -206,10 +187,6 @@ fn frontier_scan_pending() {
 #[test]
 fn frontier_scan_cannot_prioritize() {
     let mut system = System::new();
-    let flags = NodeFlags {
-        disable_legacy_bootstrap: true,
-        ..Default::default()
-    };
 
     let config = NodeConfig {
         bootstrap: BootstrapConfig {
@@ -251,18 +228,14 @@ fn frontier_scan_cannot_prioritize() {
     blocks.extend(opens);
     system.initialization_blocks = blocks.clone();
 
-    let node0 = system
-        .build_node()
-        .flags(flags.clone())
-        .config(config.clone())
-        .finish();
+    let node0 = system.build_node().config(config.clone()).finish();
     node0.process_multi(&sends2);
     node0.process_multi(&opens2);
 
     // No blocks should be broadcast to the other node
     let mut config2 = config.clone();
     config2.network.listening_port = get_available_port();
-    let node1 = system.build_node().flags(flags).config(config2).finish();
+    let node1 = system.build_node().config(config2).finish();
 
     assert_always_eq(
         Duration::from_millis(100),

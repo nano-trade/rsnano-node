@@ -7,11 +7,6 @@ pub struct NodeFlags {
     pub rpc_config_overrides: Vec<String>,
     pub disable_activate_successors: bool,
     pub disable_backup: bool,
-    pub disable_lazy_bootstrap: bool,
-    pub disable_legacy_bootstrap: bool,
-    pub disable_wallet_bootstrap: bool,
-    pub disable_bootstrap_bulk_pull_server: bool,
-    pub disable_bootstrap_bulk_push_client: bool,
     pub disable_ongoing_bootstrap: bool, // For testing only
     pub disable_rep_crawler: bool,
     pub disable_request_loop: bool, // For testing only
@@ -40,11 +35,6 @@ impl NodeFlags {
             rpc_config_overrides: Vec::new(),
             disable_activate_successors: false,
             disable_backup: false,
-            disable_lazy_bootstrap: false,
-            disable_legacy_bootstrap: false,
-            disable_wallet_bootstrap: false,
-            disable_bootstrap_bulk_pull_server: false,
-            disable_bootstrap_bulk_push_client: false,
             disable_ongoing_bootstrap: false,
             disable_rep_crawler: false,
             disable_request_loop: false,

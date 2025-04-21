@@ -20,21 +20,6 @@ pub(crate) struct RunDaemonArgs {
     /// Turn off automatic wallet backup process
     #[arg(long)]
     disable_backup: bool,
-    /// Turn off use of lazy bootstrap
-    #[arg(long)]
-    disable_lazy_bootstrap: bool,
-    /// Turn off use of legacy bootstrap
-    #[arg(long)]
-    disable_legacy_bootstrap: bool,
-    /// Turn off use of wallet-based bootstrap
-    #[arg(long)]
-    disable_wallet_bootstrap: bool,
-    /// Disables the legacy bulk pull server for bootstrap operations
-    #[arg(long)]
-    disable_bootstrap_bulk_pull_server: bool,
-    /// Disables the legacy bulk push client for bootstrap operations
-    #[arg(long)]
-    disable_bootstrap_bulk_push_client: bool,
     /// Turn off the ability for ongoing bootstraps to occur
     #[arg(long)]
     disable_ongoing_bootstrap: bool,
@@ -106,11 +91,6 @@ impl RunDaemonArgs {
         let mut flags = NodeFlags::new();
         flags.disable_activate_successors = self.disable_activate_successors;
         flags.disable_backup = self.disable_backup;
-        flags.disable_lazy_bootstrap = self.disable_lazy_bootstrap;
-        flags.disable_legacy_bootstrap = self.disable_legacy_bootstrap;
-        flags.disable_wallet_bootstrap = self.disable_wallet_bootstrap;
-        flags.disable_bootstrap_bulk_pull_server = self.disable_bootstrap_bulk_pull_server;
-        flags.disable_bootstrap_bulk_push_client = self.disable_bootstrap_bulk_push_client;
         flags.disable_ongoing_bootstrap = self.disable_ongoing_bootstrap;
         flags.disable_rep_crawler = self.disable_rep_crawler;
         flags.disable_request_loop = self.disable_request_loop;
