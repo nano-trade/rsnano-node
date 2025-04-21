@@ -8,6 +8,7 @@ mod channel_stats;
 mod dead_channel_cleanup;
 mod network;
 mod network_observer;
+mod network_stats;
 mod peer_connector;
 pub mod peer_exclusion;
 mod tcp_channel_adapter;

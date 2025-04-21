@@ -3,6 +3,7 @@ use crate::{
     attempt_container::AttemptContainer,
     bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
     channel_stats::ChannelStats,
+    network_stats::NetworkStats,
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
     Channel, ChannelId, ChannelMode, DataReceiver, DataReceiverFactory, NetworkObserver,
@@ -19,7 +20,7 @@ use std::{
     cmp::max,
     collections::HashMap,
     net::{Ipv6Addr, SocketAddrV6},
-    sync::Arc,
+    sync::{atomic::Ordering, Arc},
     time::Duration,
 };
 use tracing::{debug, warn};
@@ -101,6 +102,7 @@ pub struct Network {
     next_channel_id: usize,
     channels: HashMap<ChannelId, Arc<Channel>>,
     channel_stats: Arc<ChannelStats>,
+    network_stats: NetworkStats,
     stopped: bool,
     new_realtime_channel_observers: Vec<Arc<dyn Fn(Arc<Channel>) + Send + Sync>>,
     attempts: AttemptContainer,
@@ -118,6 +120,7 @@ impl Network {
             next_channel_id: 1,
             channels: HashMap::new(),
             channel_stats: Arc::new(ChannelStats::default()),
+            network_stats: Default::default(),
             stopped: false,
             new_realtime_channel_observers: Vec::new(),
             attempts: Default::default(),
@@ -184,11 +187,15 @@ impl Network {
 
         if let Err(e) = self.validate_new_connection(&peer, ChannelDirection::Outbound, now) {
             self.remove_attempt(&peer);
-            self.observer.error(e, &peer, ChannelDirection::Outbound);
+            self.network_stats
+                .error(e, &peer, ChannelDirection::Outbound);
             return Err(e);
         }
 
-        self.observer.connection_attempt(&peer);
+        self.network_stats
+            .connection_attempts
+            .fetch_add(1, Ordering::Relaxed);
+        debug!(?peer, "Initiate outgoing connection");
         self.observer.merge_peer();
 
         Ok(())
@@ -238,7 +245,7 @@ impl Network {
     ) -> Result<Arc<Channel>, NetworkError> {
         let result = self.validate_new_connection(&peer_addr, direction, now);
         if let Err(e) = result {
-            self.observer.error(e, &peer_addr, direction);
+            self.network_stats.error(e, &peer_addr, direction);
         }
         result?;
 
@@ -254,7 +261,7 @@ impl Network {
             self.channel_stats.clone(),
         ));
         self.channels.insert(channel_id, channel.clone());
-        self.observer.accepted(&peer_addr, direction);
+        self.network_stats.accepted(&peer_addr, direction);
         Ok(channel)
     }
 
@@ -753,6 +760,7 @@ impl ContainerInfoProvider for Network {
 impl StatsSource for Network {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.channel_stats.collect_stats(result);
+        self.network_stats.collect_stats(result);
     }
 }
 

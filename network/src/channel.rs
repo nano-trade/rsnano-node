@@ -201,6 +201,10 @@ impl Channel {
         self.closed.load(Ordering::Relaxed)
     }
 
+    pub fn write_error(&self) {
+        self.stats.write_failed.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn close(&self) {
         let already_closed = self.closed.swap(true, Ordering::Relaxed);
         if already_closed {

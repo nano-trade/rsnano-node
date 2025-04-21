@@ -96,7 +96,7 @@ impl WriteQueue {
 
         self.notify_dequeued.notify_one();
         self.stats
-            .send_succeeded
+            .write_succeeded
             .fetch_add(entry.buffer.len(), Ordering::Relaxed);
         self.stats.sent_by_type[traffic_type as usize]
             .fetch_add(entry.buffer.len(), Ordering::Relaxed);

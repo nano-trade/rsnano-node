@@ -92,11 +92,13 @@ impl TcpChannelAdapter {
                                     continue;
                                 }
                                 Err(_) => {
+                                    channel.write_error();
                                     channel.close();
                                     return;
                                 }
                             },
                             Err(_) => {
+                                channel.write_error();
                                 channel.close();
                                 return;
                             }

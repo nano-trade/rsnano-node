@@ -309,16 +309,10 @@ pub enum DetailType {
     TcpWriteNoSocketDrop,
     TcpSilentConnectionDrop,
     TcpConnectError,
-    TcpWriteError,
 
     // tcp_listener
-    AcceptSuccess,
     AcceptFailure,
-    AcceptRejected,
     CloseError,
-    MaxPerIp,
-    MaxPerSubnetwork,
-    MaxAttempts,
     MaxAttemptsPerIp,
     Excluded,
     EraseDead,
@@ -326,9 +320,7 @@ pub enum DetailType {
     ConnectFailure,
     ConnectError,
     ConnectRejected,
-    ConnectSuccess,
     AttemptTimeout,
-    NotAPeer,
 
     // tcp_channels
     ChannelAccepted,
