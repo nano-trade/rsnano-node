@@ -1194,39 +1194,18 @@ fn search_receivable_multiple() {
 #[test]
 fn auto_bootstrap_reverse() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_scan();
 
-    let node0 = system.build_node().config(config.clone()).finish();
-    let wallet_id = node0.wallets.wallet_ids()[0];
-    let key2 = PrivateKey::new();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let destination = PrivateKey::new();
+    let amount = Amount::nano(1000);
+    let send = lattice.genesis().send(&destination, amount);
+    let receive = lattice.account(&destination).receive(&send);
 
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id, &key2.raw_key(), true)
-        .unwrap();
+    let node0 = system.make_node();
+    node0.process_and_confirm_multi(&[send, receive]);
 
     let node1 = system.make_node();
-
-    let send_result = node0.wallets.send_action2(
-        &wallet_id,
-        *DEV_GENESIS_ACCOUNT,
-        key2.account(),
-        node0.config.receive_minimum,
-        0.into(),
-        true,
-        None,
-    );
-    assert!(send_result.is_ok());
-
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || node1.balance(&key2.account()) == node0.config.receive_minimum,
-        "balance not synced",
-    );
+    assert_timely_eq2(|| node1.balance(&destination.account()), amount);
 }
 
 #[test]
