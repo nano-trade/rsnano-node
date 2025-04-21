@@ -310,22 +310,8 @@ pub enum DetailType {
     TcpSilentConnectionDrop,
     TcpConnectError,
 
-    // tcp_listener
-    AcceptFailure,
-    CloseError,
-    MaxAttemptsPerIp,
-    Excluded,
-    EraseDead,
-    ConnectInitiate,
-    ConnectFailure,
-    ConnectError,
-    ConnectRejected,
-    AttemptTimeout,
-
     // tcp_channels
     ChannelAccepted,
-    ChannelRejected,
-    ChannelDuplicate,
     Outdated,
 
     // tcp_server

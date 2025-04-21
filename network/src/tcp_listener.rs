@@ -1,4 +1,4 @@
-use crate::{ChannelDirection, NetworkObserver, TcpNetworkAdapter};
+use crate::{ChannelDirection, TcpNetworkAdapter};
 use async_trait::async_trait;
 use rsnano_nullable_tcp::TcpStream;
 use std::{
@@ -17,7 +17,6 @@ use tracing::{debug, error, warn};
 pub struct TcpListener {
     port: AtomicU16,
     network_adapter: Arc<TcpNetworkAdapter>,
-    network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     data: Mutex<TcpListenerData>,
     started: Condvar,
@@ -40,13 +39,11 @@ impl TcpListener {
     pub fn new(
         port: u16,
         network_adapter: Arc<TcpNetworkAdapter>,
-        network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
         Self {
             port: AtomicU16::new(port),
             network_adapter,
-            network_observer,
             data: Mutex::new(TcpListenerData {
                 started: false,
                 stopped: true,
@@ -143,7 +140,7 @@ impl TcpListenerExt for Arc<TcpListener> {
 
                 let Ok((stream, _)) = listener.accept().await else {
                     warn!("Could not accept incoming connection");
-                    self.network_observer.accept_failure();
+                    self.network_adapter.accept_failure();
                     continue;
                 };
 

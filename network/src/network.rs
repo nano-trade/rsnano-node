@@ -6,8 +6,8 @@ use crate::{
     network_stats::NetworkStats,
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
-    Channel, ChannelId, ChannelMode, DataReceiver, DataReceiverFactory, NetworkObserver,
-    NullDataReceiverFactory, NullNetworkObserver, TrafficType,
+    Channel, ChannelId, ChannelMode, DataReceiver, DataReceiverFactory, NullDataReceiverFactory,
+    TrafficType,
 };
 use rand::seq::SliceRandom;
 use rsnano_core::{
@@ -109,7 +109,6 @@ pub struct Network {
     config: NetworkConfig,
     excluded_peers: PeerExclusion,
     bandwidth_limiter: Arc<BandwidthLimiter>,
-    observer: Arc<dyn NetworkObserver>,
     data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
     loopback: Arc<Channel>,
 }
@@ -126,7 +125,6 @@ impl Network {
             attempts: Default::default(),
             excluded_peers: PeerExclusion::new(),
             bandwidth_limiter: Arc::new(BandwidthLimiter::new(config.limiter.clone())),
-            observer: Arc::new(NullNetworkObserver::new()),
             data_receiver_factory: Box::new(NullDataReceiverFactory::new()),
             loopback: create_loopback_channel(&config),
             config,
@@ -144,10 +142,6 @@ impl Network {
 
     pub fn bandwidth_limit(&self) -> usize {
         self.config.limiter.generic_limit
-    }
-
-    pub fn set_observer(&mut self, observer: Arc<dyn NetworkObserver>) {
-        self.observer = observer;
     }
 
     pub fn set_data_receiver_factory(
@@ -196,7 +190,9 @@ impl Network {
             .connection_attempts
             .fetch_add(1, Ordering::Relaxed);
         debug!(?peer, "Initiate outgoing connection");
-        self.observer.merge_peer();
+        self.network_stats
+            .merge_peer
+            .fetch_add(1, Ordering::Relaxed);
 
         Ok(())
     }
@@ -277,6 +273,26 @@ impl Network {
 
     pub fn set_listening_port(&mut self, port: u16) {
         self.config.listening_port = port
+    }
+
+    pub fn connect_error(&self, peer: SocketAddrV6, e: tokio::io::Error) {
+        self.network_stats
+            .connect_error
+            .fetch_add(1, Ordering::Relaxed);
+        debug!("Error connecting to: {} ({:?})", peer, e);
+    }
+
+    pub fn attempt_timeout(&self, peer: SocketAddrV6) {
+        self.network_stats
+            .attempt_timeout
+            .fetch_add(1, Ordering::Relaxed);
+        debug!("Connection attempt timed out: {}", peer);
+    }
+
+    pub fn accept_failure(&self) {
+        self.network_stats
+            .accept_failure
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn get(&self, channel_id: ChannelId) -> Option<&Arc<Channel>> {

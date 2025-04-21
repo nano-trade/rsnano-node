@@ -159,6 +159,18 @@ impl TcpNetworkAdapter {
             handle,
         )
     }
+
+    pub fn connect_error(&self, peer: SocketAddrV6, e: tokio::io::Error) {
+        self.network.read().unwrap().connect_error(peer, e);
+    }
+
+    pub fn attempt_timeout(&self, peer: SocketAddrV6) {
+        self.network.read().unwrap().attempt_timeout(peer);
+    }
+
+    pub fn accept_failure(&self) {
+        self.network.read().unwrap().accept_failure();
+    }
 }
 
 pub struct NetworkCleanup(Arc<TcpNetworkAdapter>);

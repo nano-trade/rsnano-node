@@ -67,7 +67,6 @@ use crate::{
     representatives::{
         OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
     },
-    stats::adapters::NetworkStats,
     telemetry::{
         rsnano_build_info, rsnano_version_string, TelementryConfig, TelementryExt, Telemetry,
         TelemetryFactory,
@@ -334,9 +333,7 @@ impl Node {
         }
         let inbound_message_queue = Arc::new(inbound_message_queue);
 
-        let network_observer = Arc::new(NetworkStats::new(stats.clone()));
-        let mut network = Network::new(config.network.clone());
-        network.set_observer(network_observer.clone());
+        let network = Network::new(config.network.clone());
         runtime.spawn(run_loopback_channel_adapter(
             network.loopback().clone(),
             node_id,
@@ -639,7 +636,6 @@ impl Node {
         let peer_connector = Arc::new(PeerConnector::new(
             config.tcp.connect_timeout,
             network_adapter.clone(),
-            network_observer.clone(),
             runtime.clone(),
         ));
 
@@ -680,7 +676,6 @@ impl Node {
         let tcp_listener = Arc::new(TcpListener::new(
             network.read().unwrap().listening_port(),
             network_adapter.clone(),
-            network_observer.clone(),
             runtime.clone(),
         ));
 

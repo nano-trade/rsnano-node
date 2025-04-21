@@ -14,6 +14,10 @@ pub(crate) struct NetworkStats {
     pub connection_attempts: AtomicUsize,
     connect_errors: ErrorStats,
     accept_errors: ErrorStats,
+    pub connect_error: AtomicUsize,
+    pub attempt_timeout: AtomicUsize,
+    pub merge_peer: AtomicUsize,
+    pub accept_failure: AtomicUsize,
 }
 
 impl Default for NetworkStats {
@@ -26,6 +30,10 @@ impl Default for NetworkStats {
             connection_attempts: Default::default(),
             connect_errors: ErrorStats::new(Direction::Out),
             accept_errors: ErrorStats::new(Direction::In),
+            connect_error: Default::default(),
+            attempt_timeout: Default::default(),
+            merge_peer: Default::default(),
+            accept_failure: Default::default(),
         }
     }
 }
@@ -88,6 +96,23 @@ impl StatsSource for NetworkStats {
             "connect_rejected",
             Direction::Out,
             self.connect_rejected.load(Relaxed),
+        );
+        result.insert_dir(
+            "tcp_listener",
+            "connect_error",
+            Direction::Out,
+            self.connect_error.load(Relaxed),
+        );
+        result.insert(
+            "tcp_listener",
+            "attempt_timeout",
+            self.attempt_timeout.load(Relaxed),
+        );
+        result.insert("network", "merge_peer", self.merge_peer.load(Relaxed));
+        result.insert(
+            "tcp_listener",
+            "accept_failure",
+            self.accept_failure.load(Relaxed),
         );
         self.connect_errors.collect_stats(result);
         self.accept_errors.collect_stats(result);

@@ -1,16 +1,14 @@
-use crate::{
-    ChannelDirection, NetworkError, NetworkObserver, NullNetworkObserver, TcpNetworkAdapter,
-};
+use crate::{ChannelDirection, NetworkError, TcpNetworkAdapter};
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{net::SocketAddrV6, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 /// Establishes a network connection to a given peer
 pub struct PeerConnector {
     connect_timeout: Duration,
     network_adapter: Arc<TcpNetworkAdapter>,
-    network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     cancel_token: CancellationToken,
     connect_listener: OutputListenerMt<SocketAddrV6>,
@@ -22,13 +20,11 @@ impl PeerConnector {
     pub fn new(
         connect_timeout: Duration,
         network_adapter: Arc<TcpNetworkAdapter>,
-        network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
         Self {
             connect_timeout,
             network_adapter,
-            network_observer,
             tokio,
             cancel_token: CancellationToken::new(),
             connect_listener: OutputListenerMt::new(),
@@ -39,7 +35,6 @@ impl PeerConnector {
         Self {
             connect_timeout: Self::DEFAULT_TIMEOUT,
             network_adapter: Arc::new(TcpNetworkAdapter::new_null(tokio.clone())),
-            network_observer: Arc::new(NullNetworkObserver::new()),
             tokio: tokio.clone(),
             cancel_token: CancellationToken::new(),
             connect_listener: OutputListenerMt::new(),
@@ -63,25 +58,17 @@ impl PeerConnector {
         let network_l = self.network_adapter.clone();
         let connect_timeout = self.connect_timeout;
         let cancel_token = self.cancel_token.clone();
-        let observer = self.network_observer.clone();
 
         self.tokio.spawn(async move {
             tokio::select! {
-                result =  connect_impl(peer, &network_l) =>{
-                    if let Err(e) = result {
-                        observer.connect_error(peer, e);
-                    }
-
+                _ =  connect_impl(peer, &network_l) => { },
+                _ = tokio::time::sleep(connect_timeout) => {
+                    network_l.attempt_timeout(peer);
                 },
-                _ = tokio::time::sleep(connect_timeout) =>{
-                    observer.attempt_timeout(peer);
-
-                }
-                _ = cancel_token.cancelled() =>{
-                    observer.attempt_cancelled(peer);
-
-                }
-            }
+                _ = cancel_token.cancelled() => {
+                    debug!("Connection attempt cancelled: {}", peer);
+                },
+            };
 
             network_l.remove_attempt(&peer);
         });
@@ -94,12 +81,15 @@ impl PeerConnector {
     }
 }
 
-async fn connect_impl(
-    peer: SocketAddrV6,
-    network_adapter: &TcpNetworkAdapter,
-) -> anyhow::Result<()> {
-    let tcp_stream = connect_stream(peer).await?;
-    network_adapter.add(tcp_stream, ChannelDirection::Outbound)
+async fn connect_impl(peer: SocketAddrV6, network_adapter: &TcpNetworkAdapter) {
+    match connect_stream(peer).await {
+        Ok(stream) => {
+            let _ = network_adapter.add(stream, ChannelDirection::Outbound);
+        }
+        Err(e) => {
+            network_adapter.connect_error(peer, e);
+        }
+    }
 }
 
 async fn connect_stream(peer: SocketAddrV6) -> tokio::io::Result<TcpStream> {
