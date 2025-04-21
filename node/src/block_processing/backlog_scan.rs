@@ -1,6 +1,9 @@
 use std::{
     cmp::max,
-    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Condvar, Mutex, MutexGuard, RwLock,
+    },
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -8,7 +11,7 @@ use std::{
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_network::bandwidth_limiter::RateLimiter;
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BacklogScanConfig {
@@ -35,7 +38,8 @@ impl Default for BacklogScanConfig {
 /// Continuously scan the ledger for unconfirmed blocks and activate them
 pub struct BacklogScan {
     ledger: Arc<Ledger>,
-    stats: Arc<Stats>,
+    stats: Arc<BacklogScanStats>,
+
     /// Callback called for each backlogged account
     unconfirmed_observers: Arc<RwLock<Vec<Box<dyn Fn(&[UnconfirmedInfo]) + Send + Sync>>>>,
     up_to_date_observers: Arc<RwLock<Vec<Box<dyn Fn(&[Account]) + Send + Sync>>>>,
@@ -49,11 +53,11 @@ pub struct BacklogScan {
 }
 
 impl BacklogScan {
-    pub(crate) fn new(config: BacklogScanConfig, ledger: Arc<Ledger>, stats: Arc<Stats>) -> Self {
+    pub(crate) fn new(config: BacklogScanConfig, ledger: Arc<Ledger>) -> Self {
         Self {
             config,
             ledger,
-            stats,
+            stats: Arc::new(Default::default()),
             unconfirmed_observers: Arc::new(RwLock::new(Vec::new())),
             up_to_date_observers: Arc::new(RwLock::new(Vec::new())),
             mutex: Arc::new(Mutex::new(BacklogScanFlags {
@@ -148,7 +152,7 @@ struct BacklogScanFlags {
 
 struct BacklogScanThread {
     ledger: Arc<Ledger>,
-    stats: Arc<Stats>,
+    stats: Arc<BacklogScanStats>,
     unconfirmed_observers: Arc<RwLock<Vec<Box<dyn Fn(&[UnconfirmedInfo]) + Send + Sync>>>>,
     up_to_date_observers: Arc<RwLock<Vec<Box<dyn Fn(&[Account]) + Send + Sync>>>>,
     config: BacklogScanConfig,
@@ -162,7 +166,7 @@ impl BacklogScanThread {
         let mut lock = self.mutex.lock().unwrap();
         while !lock.stopped {
             if self.predicate(&lock) {
-                self.stats.inc(StatType::BacklogScan, DetailType::Loop);
+                self.stats.looped.fetch_add(1, Ordering::Relaxed);
 
                 lock.triggered = false;
                 // Does a single iteration over all accounts
@@ -219,7 +223,7 @@ impl BacklogScanThread {
                         break;
                     }
 
-                    self.stats.inc(StatType::BacklogScan, DetailType::Total);
+                    self.stats.total.fetch_add(1, Ordering::Relaxed);
 
                     let conf_info = any.confirmed().get_conf_info(&account).unwrap_or_default();
 
@@ -242,12 +246,11 @@ impl BacklogScanThread {
             }
 
             self.stats
-                .add(StatType::BacklogScan, DetailType::Scanned, scanned as u64);
-            self.stats.add(
-                StatType::BacklogScan,
-                DetailType::Activated,
-                unconfirmed.len() as u64,
-            );
+                .scanned
+                .fetch_add(scanned as u64, Ordering::Relaxed);
+            self.stats
+                .activated
+                .fetch_add(unconfirmed.len() as u64, Ordering::Relaxed);
 
             // Notify about scanned and activated accounts without holding database transaction
             {
@@ -269,9 +272,40 @@ impl BacklogScanThread {
     }
 }
 
+impl StatsSource for BacklogScan {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.stats.collect_stats(result);
+    }
+}
+
 #[derive(Clone)]
 pub struct UnconfirmedInfo {
     pub account: Account,
     pub account_info: AccountInfo,
     pub conf_info: ConfirmationHeightInfo,
+}
+
+#[derive(Default)]
+struct BacklogScanStats {
+    looped: AtomicU64,
+    total: AtomicU64,
+    scanned: AtomicU64,
+    activated: AtomicU64,
+}
+
+impl StatsSource for BacklogScanStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert("backlog_scan", "loop", self.looped.load(Ordering::Relaxed));
+        result.insert("backlog_scan", "total", self.total.load(Ordering::Relaxed));
+        result.insert(
+            "backlog_scan",
+            "scanned",
+            self.scanned.load(Ordering::Relaxed),
+        );
+        result.insert(
+            "backlog_scan",
+            "activated",
+            self.activated.load(Ordering::Relaxed),
+        );
+    }
 }
