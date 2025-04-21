@@ -35,6 +35,14 @@ impl Default for BacklogScanConfig {
     }
 }
 
+impl BacklogScanConfig {
+    fn wait_time(&self) -> Duration {
+        let wait_time =
+            Duration::from_millis(1000 / max(self.rate_limit / self.batch_size, 1) as u64 / 2);
+        max(wait_time, Duration::from_millis(10))
+    }
+}
+
 /// Continuously scan the ledger for unconfirmed blocks and activate them
 pub struct BacklogScan {
     ledger: Arc<Ledger>,
@@ -191,90 +199,106 @@ impl BacklogScanThread {
         let mut next = Account::zero();
         let mut done = false;
         while !lock.stopped && !done {
-            // Wait for the rate limiter
-            while !self.limiter.should_pass(self.config.batch_size) {
-                let wait_time = Duration::from_millis(
-                    1000 / max(self.config.rate_limit / self.config.batch_size, 1) as u64 / 2,
-                );
-
-                lock = self
-                    .condition
-                    .wait_timeout_while(lock, max(wait_time, Duration::from_millis(10)), |i| {
-                        !i.stopped
-                    })
-                    .unwrap()
-                    .0;
-                if lock.stopped {
-                    return lock;
-                }
-            }
-
-            drop(lock);
-
-            let mut scanned = 0;
-            let mut up_to_date = Vec::new();
-            let mut unconfirmed = Vec::new();
-            {
-                let any = self.ledger.any();
-                let mut count = 0;
-                let mut it = any.accounts_range(next..);
-                while let Some((account, account_info)) = it.next() {
-                    if count >= self.config.batch_size {
-                        break;
-                    }
-
-                    self.stats.total.fetch_add(1, Ordering::Relaxed);
-
-                    let conf_info = any.confirmed().get_conf_info(&account).unwrap_or_default();
-
-                    let is_unconfirmed = conf_info.height < account_info.block_count;
-                    if is_unconfirmed {
-                        unconfirmed.push(UnconfirmedInfo {
-                            account,
-                            account_info,
-                            conf_info,
-                        });
-                    } else {
-                        up_to_date.push(account);
-                    }
-
-                    scanned += 1;
-                    next = account.inc_or_max();
-                    count += 1;
-                }
-                done = any.accounts_range(next..).next().is_none();
-            }
-
-            self.stats
-                .scanned
-                .fetch_add(scanned as u64, Ordering::Relaxed);
-            self.stats
-                .activated
-                .fetch_add(unconfirmed.len() as u64, Ordering::Relaxed);
-
-            // Notify about scanned and activated accounts without holding database transaction
-            {
-                let observers = self.up_to_date_observers.read().unwrap();
-                for observer in &*observers {
-                    observer(&up_to_date);
-                }
-            }
-            {
-                let observers = self.unconfirmed_observers.read().unwrap();
-                for observer in &*observers {
-                    observer(&unconfirmed);
-                }
-            }
-
+            self.wait_for_rate_limiter(lock);
+            let result = Self::scan_batch(&self.ledger, next, self.config.batch_size);
+            done = result.done;
+            next = result.next;
+            self.add_stats(&result);
+            self.notify_observers(result);
             lock = self.mutex.lock().unwrap();
         }
         lock
+    }
+
+    fn wait_for_rate_limiter<'a>(&'a self, mut lock: MutexGuard<'a, BacklogScanFlags>) {
+        // Wait for the rate limiter
+        while !self.limiter.should_pass(self.config.batch_size) {
+            lock = self
+                .condition
+                .wait_timeout_while(lock, self.config.wait_time(), |i| !i.stopped)
+                .unwrap()
+                .0;
+
+            if lock.stopped {
+                break;
+            }
+        }
+    }
+
+    fn scan_batch(ledger: &Ledger, next: Account, batch_size: usize) -> BacklogScanResult {
+        let mut result = BacklogScanResult {
+            next,
+            done: true,
+            ..Default::default()
+        };
+        let any = ledger.any();
+        let mut it = any.accounts_range(result.next..);
+        while let Some((account, account_info)) = it.next() {
+            let conf_info = any.confirmed().get_conf_info(&account).unwrap_or_default();
+            let is_confirmed = conf_info.height >= account_info.block_count;
+
+            if is_confirmed {
+                result.fully_confirmed.push(account);
+            } else {
+                result.unconfirmed.push(UnconfirmedInfo {
+                    account,
+                    account_info,
+                    conf_info,
+                });
+            }
+
+            result.next = account.inc_or_max();
+            if result.len() >= batch_size {
+                break;
+            }
+        }
+        result.done = it.next().is_none();
+        result
+    }
+
+    fn add_stats(&self, result: &BacklogScanResult) {
+        self.stats
+            .scanned
+            .fetch_add(result.len() as u64, Ordering::Relaxed);
+
+        self.stats
+            .activated
+            .fetch_add(result.unconfirmed.len() as u64, Ordering::Relaxed);
+    }
+
+    fn notify_observers(&self, result: BacklogScanResult) {
+        {
+            let observers = self.up_to_date_observers.read().unwrap();
+            for observer in &*observers {
+                observer(&result.fully_confirmed);
+            }
+        }
+        {
+            let observers = self.unconfirmed_observers.read().unwrap();
+            for observer in &*observers {
+                observer(&result.unconfirmed);
+            }
+        }
     }
 }
 
 impl StatsSource for BacklogScan {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.stats.collect_stats(result);
+    }
+}
+
+#[derive(Default)]
+pub struct BacklogScanResult {
+    fully_confirmed: Vec<Account>,
+    unconfirmed: Vec<UnconfirmedInfo>,
+    next: Account,
+    done: bool,
+}
+
+impl BacklogScanResult {
+    pub fn len(&self) -> usize {
+        self.fully_confirmed.len() + self.unconfirmed.len()
     }
 }
 
@@ -288,7 +312,6 @@ pub struct UnconfirmedInfo {
 #[derive(Default)]
 struct BacklogScanStats {
     looped: AtomicU64,
-    total: AtomicU64,
     scanned: AtomicU64,
     activated: AtomicU64,
 }
@@ -296,7 +319,6 @@ struct BacklogScanStats {
 impl StatsSource for BacklogScanStats {
     fn collect_stats(&self, result: &mut StatsCollection) {
         result.insert("backlog_scan", "loop", self.looped.load(Ordering::Relaxed));
-        result.insert("backlog_scan", "total", self.total.load(Ordering::Relaxed));
         result.insert(
             "backlog_scan",
             "scanned",
