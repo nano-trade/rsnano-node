@@ -2932,3 +2932,15 @@ fn bounded_backlog() {
     assert_timely_eq(Duration::from_secs(20), || node.ledger.block_count(), 11);
     // 10 + genesis
 }
+
+#[test]
+fn backlog_scan_election_activation() {
+    let mut system = System::new();
+    let node = system.make_node();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let send = lattice.genesis().send(Account::from(1), Amount::nano(1000));
+
+    node.process(send);
+
+    assert_timely_eq2(|| node.active.read().unwrap().len(), 1);
+}

@@ -125,7 +125,7 @@ pub struct Node {
     pub tcp_listener: Arc<TcpListener>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
-    pub backlog_scan: Arc<BacklogScan>,
+    pub backlog_scan: BacklogScan,
     bounded_backlog: Arc<BoundedBacklog>,
     pub bootstrapper: Arc<Bootstrapper>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
@@ -689,7 +689,7 @@ impl Node {
             request_aggregator.state.clone(),
         ));
 
-        let backlog_scan = Arc::new(BacklogScan::new(global_config.into(), ledger.clone()));
+        let mut backlog_scan = BacklogScan::new(global_config.into(), ledger.clone());
 
         //  TODO: Hook this direclty in the schedulers
         let schedulers_w = Arc::downgrade(&election_schedulers);
@@ -1128,7 +1128,7 @@ impl Node {
         stats_collector.add_source(vote_rebroadcaster.stats.clone());
         stats_collector.add_source(election_schedulers.clone());
         stats_collector.add_source(network.clone());
-        stats_collector.add_source(backlog_scan.clone());
+        stats_collector.add_source(backlog_scan.stats());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
