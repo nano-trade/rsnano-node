@@ -419,6 +419,4 @@ mod tests {
             ]
         );
     }
-
-    // TODO: iterate ledger multiple times
 }

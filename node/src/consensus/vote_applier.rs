@@ -115,3 +115,66 @@ impl VoteApplier {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consensus::AecInsertRequest;
+    use rsnano_core::{
+        utils::{BlockPriority, UnixMillisTimestamp},
+        PrivateKey, SavedBlock, Vote, VoteSource,
+    };
+
+    #[test]
+    fn update_online_weight_before_quorum_checks() {
+        let block = SavedBlock::new_test_instance();
+        let block_hash = block.hash();
+        let rep_key = PrivateKey::from(1);
+        let another_rep = PrivateKey::from(2);
+
+        let rep_weights = Arc::new(RepWeightCache::new());
+        rep_weights.set(rep_key.public_key(), Amount::nano(50_000_000));
+        rep_weights.set(another_rep.public_key(), Amount::nano(65_000_000));
+
+        let aec = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
+        let online_reps = Arc::new(Mutex::new(
+            OnlineReps::builder()
+                .rep_weights(rep_weights.clone())
+                .finish(),
+        ));
+        let clock = Arc::new(SteadyClock::new_null());
+
+        online_reps
+            .lock()
+            .unwrap()
+            .vote_observed(another_rep.public_key(), clock.now());
+
+        assert_eq!(
+            online_reps.lock().unwrap().quorum_delta(),
+            Amount::nano(43_550_000)
+        );
+
+        aec.write()
+            .unwrap()
+            .insert(
+                AecInsertRequest::new_priority(block, BlockPriority::new_test_instance()),
+                clock.now(),
+            )
+            .unwrap();
+
+        let vote_applier = VoteApplier::new(aec.clone(), online_reps, clock, rep_weights, false);
+
+        let vote = ReceivedVote::new(
+            Vote::new(&rep_key, UnixMillisTimestamp::new(123), 0, vec![block_hash]).into(),
+            VoteSource::Live,
+            None,
+        );
+
+        vote_applier.vote(&vote.into());
+
+        let aec_guard = aec.read().unwrap();
+        let election = aec_guard.election_for_block(&block_hash).unwrap();
+        assert_eq!(election.winner_tally(), Amount::nano(50_000_000));
+        assert_eq!(election.has_quorum(), false);
+    }
+}
