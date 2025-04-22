@@ -5,7 +5,7 @@ use rsnano_core::{
     Vote, VoteError, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockSource, BlockStatus, LedgerSet,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockError, BlockSource, LedgerSet,
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_network::ChannelId;
@@ -99,7 +99,7 @@ fn epoch_open_pending() {
     let epoch_open = lattice.epoch_open(&key1);
 
     let status = node1.try_process(epoch_open.clone()).unwrap_err();
-    assert_eq!(status, BlockStatus::GapEpochOpenPending);
+    assert_eq!(status, BlockError::GapEpochOpenPending);
     node1.block_processor.add(
         epoch_open.clone().into(),
         BlockSource::Live,

@@ -34,8 +34,7 @@ use std::{
 use tracing::debug;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum BlockStatus {
+pub enum BlockError {
     BadSignature,  // Signature was bad, forged or transmission error
     Old,           // Already seen and was valid
     NegativeSpend, // Malicious attempt to spend a negative amount
@@ -60,42 +59,42 @@ pub enum BlockStatus {
     InsufficientWork,
 }
 
-impl BlockStatus {
+impl BlockError {
     pub fn as_str(&self) -> &'static str {
         match self {
-            BlockStatus::BadSignature => "Bad signature",
-            BlockStatus::Old => "Old",
-            BlockStatus::NegativeSpend => "Negative spend",
-            BlockStatus::Fork => "Fork",
-            BlockStatus::Unreceivable => "Unreceivable",
-            BlockStatus::GapPrevious => "Gap previous",
-            BlockStatus::GapSource => "Gap source",
-            BlockStatus::GapEpochOpenPending => "Gap epoch open pendign",
-            BlockStatus::OpenedBurnAccount => "Opened burn account",
-            BlockStatus::BalanceMismatch => "Balance mismatch",
-            BlockStatus::RepresentativeMismatch => "Representative mismatch",
-            BlockStatus::BlockPosition => "Block position",
-            BlockStatus::InsufficientWork => "Insufficient work",
+            BlockError::BadSignature => "Bad signature",
+            BlockError::Old => "Old",
+            BlockError::NegativeSpend => "Negative spend",
+            BlockError::Fork => "Fork",
+            BlockError::Unreceivable => "Unreceivable",
+            BlockError::GapPrevious => "Gap previous",
+            BlockError::GapSource => "Gap source",
+            BlockError::GapEpochOpenPending => "Gap epoch open pendign",
+            BlockError::OpenedBurnAccount => "Opened burn account",
+            BlockError::BalanceMismatch => "Balance mismatch",
+            BlockError::RepresentativeMismatch => "Representative mismatch",
+            BlockError::BlockPosition => "Block position",
+            BlockError::InsufficientWork => "Insufficient work",
         }
     }
 }
 
-impl From<BlockStatus> for DetailType {
-    fn from(value: BlockStatus) -> Self {
+impl From<BlockError> for DetailType {
+    fn from(value: BlockError) -> Self {
         match value {
-            BlockStatus::BadSignature => Self::BadSignature,
-            BlockStatus::Old => Self::Old,
-            BlockStatus::NegativeSpend => Self::NegativeSpend,
-            BlockStatus::Fork => Self::Fork,
-            BlockStatus::Unreceivable => Self::Unreceivable,
-            BlockStatus::GapPrevious => Self::GapPrevious,
-            BlockStatus::GapSource => Self::GapSource,
-            BlockStatus::GapEpochOpenPending => Self::GapEpochOpenPending,
-            BlockStatus::OpenedBurnAccount => Self::OpenedBurnAccount,
-            BlockStatus::BalanceMismatch => Self::BalanceMismatch,
-            BlockStatus::RepresentativeMismatch => Self::RepresentativeMismatch,
-            BlockStatus::BlockPosition => Self::BlockPosition,
-            BlockStatus::InsufficientWork => Self::InsufficientWork,
+            BlockError::BadSignature => Self::BadSignature,
+            BlockError::Old => Self::Old,
+            BlockError::NegativeSpend => Self::NegativeSpend,
+            BlockError::Fork => Self::Fork,
+            BlockError::Unreceivable => Self::Unreceivable,
+            BlockError::GapPrevious => Self::GapPrevious,
+            BlockError::GapSource => Self::GapSource,
+            BlockError::GapEpochOpenPending => Self::GapEpochOpenPending,
+            BlockError::OpenedBurnAccount => Self::OpenedBurnAccount,
+            BlockError::BalanceMismatch => Self::BalanceMismatch,
+            BlockError::RepresentativeMismatch => Self::RepresentativeMismatch,
+            BlockError::BlockPosition => Self::BlockPosition,
+            BlockError::InsufficientWork => Self::InsufficientWork,
         }
     }
 }
@@ -659,7 +658,7 @@ impl Ledger {
         BatchProcessResult { processed }
     }
 
-    pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockStatus> {
+    pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockError> {
         let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
         self.process(&mut tx, block)
     }
@@ -668,7 +667,7 @@ impl Ledger {
         &self,
         txn: &mut LmdbWriteTransaction,
         block: &Block,
-    ) -> Result<SavedBlock, BlockStatus> {
+    ) -> Result<SavedBlock, BlockError> {
         let any = BorrowingAnySet {
             constants: &self.constants,
             store: &self.store,
@@ -926,7 +925,7 @@ impl ContainerInfoProvider for Ledger {
 }
 
 pub struct BatchProcessResult {
-    pub processed: Vec<(Result<(), BlockStatus>, Option<SavedBlock>)>,
+    pub processed: Vec<(Result<(), BlockError>, Option<SavedBlock>)>,
 }
 
 pub trait CementingObserver {
@@ -995,6 +994,6 @@ impl RollbackResult {
 pub struct ProcessedResult {
     pub block: Block,
     pub source: BlockSource,
-    pub status: Result<(), BlockStatus>,
+    pub status: Result<(), BlockError>,
     pub saved_block: Option<SavedBlock>,
 }

@@ -1,5 +1,5 @@
 use super::BlockValidationTest;
-use crate::BlockStatus;
+use crate::BlockError;
 use rsnano_core::{Account, BlockDetails, BlockHash, BlockSideband, Epoch, PublicKey};
 
 #[test]
@@ -80,5 +80,5 @@ fn fails_with_block_position_if_legacy_change_follows_state_block() {
             chain.add_state();
         })
         .block_to_validate(|chain| chain.new_legacy_change_block().build())
-        .assert_validation_fails_with(BlockStatus::BlockPosition);
+        .assert_validation_fails_with(BlockError::BlockPosition);
 }

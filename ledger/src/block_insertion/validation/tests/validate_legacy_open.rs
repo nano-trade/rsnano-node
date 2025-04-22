@@ -2,7 +2,7 @@ use rsnano_core::{
     AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingKey, PrivateKey,
 };
 
-use crate::{block_insertion::validation::tests::BlockValidationTest, BlockStatus};
+use crate::{block_insertion::validation::tests::BlockValidationTest, BlockError};
 
 #[test]
 fn valid_legacy_open_block() {
@@ -51,7 +51,7 @@ fn valid_legacy_open_block() {
 fn fail_fork() {
     BlockValidationTest::for_epoch0_account()
         .block_to_validate(|chain| chain.new_legacy_open_block().build())
-        .assert_validation_fails_with(BlockStatus::Fork);
+        .assert_validation_fails_with(BlockError::Fork);
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn fail_if_duplicate() {
     BlockValidationTest::for_epoch0_account()
         .block_to_validate(|chain| chain.new_legacy_open_block().build())
         .block_already_exists()
-        .assert_validation_fails_with(BlockStatus::Old);
+        .assert_validation_fails_with(BlockError::Old);
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn fail_with_gap_source_if_source_not_found() {
     BlockValidationTest::for_unopened_account()
         .block_to_validate(|chain| chain.new_legacy_open_block().build())
         .source_block_is_missing()
-        .assert_validation_fails_with(BlockStatus::GapSource);
+        .assert_validation_fails_with(BlockError::GapSource);
 }
 
 #[test]
@@ -80,5 +80,5 @@ fn fail_if_signature_is_bad() {
                 .sign(&PrivateKey::new())
                 .build()
         })
-        .assert_validation_fails_with(BlockStatus::BadSignature);
+        .assert_validation_fails_with(BlockError::BadSignature);
 }

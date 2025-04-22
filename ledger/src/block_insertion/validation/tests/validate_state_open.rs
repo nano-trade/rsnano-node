@@ -1,4 +1,4 @@
-use crate::{block_insertion::validation::tests::BlockValidationTest, BlockStatus};
+use crate::{block_insertion::validation::tests::BlockValidationTest, BlockError};
 use rsnano_core::{
     AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingKey, PrivateKey,
 };
@@ -47,7 +47,7 @@ fn fails_with_fork_if_account_already_opened() {
     BlockValidationTest::for_epoch2_account()
         .with_pending_receive(Amount::raw(10), Epoch::Epoch2)
         .block_to_validate(|chain| chain.new_open_block().balance(10).build())
-        .assert_validation_fails_with(BlockStatus::Fork);
+        .assert_validation_fails_with(BlockError::Fork);
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn fails_with_gap_previous_if_open_block_has_previous_block() {
     BlockValidationTest::for_unopened_account()
         .with_pending_receive(Amount::raw(10), Epoch::Epoch2)
         .block_to_validate(|chain| chain.new_open_block().balance(10).previous(99999).build())
-        .assert_validation_fails_with(BlockStatus::GapPrevious);
+        .assert_validation_fails_with(BlockError::GapPrevious);
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn fails_with_gap_source_if_link_missing() {
     BlockValidationTest::for_unopened_account()
         .with_pending_receive(Amount::raw(10), Epoch::Epoch2)
         .block_to_validate(|chain| chain.new_open_block().balance(10).link(0).build())
-        .assert_validation_fails_with(BlockStatus::GapSource);
+        .assert_validation_fails_with(BlockError::GapSource);
 }
 
 #[test]
@@ -78,5 +78,5 @@ fn fails_with_bad_signature_if_signature_is_invalid() {
                 .key(&PrivateKey::new())
                 .build()
         })
-        .assert_validation_fails_with(BlockStatus::BadSignature);
+        .assert_validation_fails_with(BlockError::BadSignature);
 }

@@ -1,4 +1,4 @@
-use crate::{block_insertion::validation::tests::BlockValidationTest, BlockStatus};
+use crate::{block_insertion::validation::tests::BlockValidationTest, BlockError};
 use rsnano_core::{
     AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingInfo, PendingKey,
 };
@@ -53,7 +53,7 @@ fn fails_with_old_if_legacy_sending_twice() {
     BlockValidationTest::for_epoch0_account()
         .block_to_validate(|chain| chain.new_legacy_send_block().build())
         .block_already_exists()
-        .assert_validation_fails_with(BlockStatus::Old);
+        .assert_validation_fails_with(BlockError::Old);
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn fails_with_fork_if_legacy_send_block_has_unexpected_previous_block() {
                 .previous(BlockHash::from(99999))
                 .build()
         })
-        .assert_validation_fails_with(BlockStatus::Fork);
+        .assert_validation_fails_with(BlockError::Fork);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn fails_if_sending_negative_amount() {
                 .balance(Amount::nano(9999))
                 .build()
         })
-        .assert_validation_fails_with(BlockStatus::NegativeSpend);
+        .assert_validation_fails_with(BlockError::NegativeSpend);
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn send_fails_if_work_is_insufficient_for_epoch_0() {
     BlockValidationTest::for_epoch0_account()
         .block_to_validate(|chain| chain.new_legacy_send_block().work(0).build())
         .invalid_work()
-        .assert_validation_fails_with(BlockStatus::InsufficientWork);
+        .assert_validation_fails_with(BlockError::InsufficientWork);
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn fails_if_legacy_send_follows_a_state_block() {
             chain.add_state();
         })
         .block_to_validate(|chain| chain.new_legacy_send_block().build())
-        .assert_validation_fails_with(BlockStatus::BlockPosition);
+        .assert_validation_fails_with(BlockError::BlockPosition);
 }
 
 #[test]

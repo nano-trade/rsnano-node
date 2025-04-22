@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
-use rsnano_ledger::{AnySet, BlockSource, BlockStatus, Ledger, ProcessedResult};
+use rsnano_ledger::{AnySet, BlockError, BlockSource, Ledger, ProcessedResult};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -125,7 +125,7 @@ impl BlockInspector {
                     }
                 }
             }
-            Err(BlockStatus::GapSource) => {
+            Err(BlockError::GapSource) => {
                 // Prevent malicious live traffic from filling up the blocked set
                 if result.source == BlockSource::Bootstrap {
                     let source = result.block.source_or_link();
@@ -150,7 +150,7 @@ impl BlockInspector {
                     }
                 }
             }
-            Err(BlockStatus::GapPrevious) => {
+            Err(BlockError::GapPrevious) => {
                 // Prevent live traffic from evicting accounts from the priority list
                 if result.source == BlockSource::Live
                     && !state.candidate_accounts.priority_half_full()
@@ -168,7 +168,7 @@ impl BlockInspector {
                     }
                 }
             }
-            Err(BlockStatus::GapEpochOpenPending) => {
+            Err(BlockError::GapEpochOpenPending) => {
                 // Epoch open blocks for accounts that don't have any pending blocks yet
                 if state.candidate_accounts.priority_erase(account) {
                     self.stats

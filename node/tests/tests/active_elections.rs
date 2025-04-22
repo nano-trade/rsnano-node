@@ -5,7 +5,7 @@ use rsnano_core::{
     Account, Amount, PrivateKey, Vote, VoteError, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockStatus, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockError, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
@@ -1010,7 +1010,7 @@ fn conflicting_block_vote_existing_election() {
         .enqueue(vote_fork, None, VoteSource::Live, None);
 
     // Block now gets processed
-    assert_eq!(node.process_local(fork.clone()), Err(BlockStatus::Fork));
+    assert_eq!(node.process_local(fork.clone()), Err(BlockError::Fork));
 
     // Election must be confirmed
     assert_timely2(|| node.is_active_root(&fork.qualified_root()));

@@ -12,7 +12,7 @@ mod validate_state_send;
 use crate::{
     block_insertion::BlockInsertInstructions,
     ledger_constants::{IMPOSSIBLE_WORK, LEDGER_CONSTANTS_STUB},
-    BlockStatus,
+    BlockError,
 };
 use rsnano_core::{
     utils::UnixTimestamp, Account, Amount, Block, Epoch, PendingInfo, SavedAccountChain,
@@ -113,7 +113,7 @@ impl BlockValidationTest {
         self.block.as_ref().unwrap()
     }
 
-    pub fn assert_validation_fails_with(&self, expected: BlockStatus) {
+    pub fn assert_validation_fails_with(&self, expected: BlockError) {
         assert_eq!(self.validate(), Err(expected));
     }
 
@@ -121,7 +121,7 @@ impl BlockValidationTest {
         self.validate().expect("block should be valid!")
     }
 
-    fn validate(&self) -> Result<BlockInsertInstructions, BlockStatus> {
+    fn validate(&self) -> Result<BlockInsertInstructions, BlockError> {
         let block = self.block.as_ref().unwrap();
         let mut validator = new_test_validator(block, self.chain.account(), self.is_work_valid);
         if self.chain.height() > 0 {

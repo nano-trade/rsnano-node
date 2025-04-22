@@ -8,7 +8,7 @@ mod send_block_rules;
 mod tests;
 
 use super::BlockInsertInstructions;
-use crate::BlockStatus;
+use crate::BlockError;
 use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Block, Epochs, PendingInfo, SavedBlock,
 };
@@ -30,7 +30,7 @@ pub(crate) struct BlockValidator<'a> {
 }
 
 impl<'a> BlockValidator<'a> {
-    pub(crate) fn validate(&self) -> Result<BlockInsertInstructions, BlockStatus> {
+    pub(crate) fn validate(&self) -> Result<BlockInsertInstructions, BlockError> {
         self.epoch_block_pre_checks()?;
         self.ensure_block_does_not_exist_yet()?;
         self.ensure_valid_predecessor()?;

@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use rsnano_ledger::{BlockStatus, ProcessedResult};
+use rsnano_ledger::{BlockError, ProcessedResult};
 
 use super::ForkCache;
 
@@ -15,7 +15,7 @@ impl ForkCacheUpdater {
 
     pub fn update(&self, results: &[ProcessedResult]) {
         for result in results {
-            if result.status == Err(BlockStatus::Fork) {
+            if result.status == Err(BlockError::Fork) {
                 self.cache.write().unwrap().add(result.block.clone());
             }
         }

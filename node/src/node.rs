@@ -20,8 +20,7 @@ use rsnano_core::{
     SavedBlock, Vote, VoteError, WorkNonce,
 };
 use rsnano_ledger::{
-    AnySet, BlockSource, BlockStatus, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
-    RepWeights,
+    AnySet, BlockError, BlockSource, Ledger, LedgerSet, ProcessedResult, RepWeightCache, RepWeights,
 };
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
@@ -1240,14 +1239,14 @@ impl Node {
             .ledger_pruning(batch_size, bootstrap_weight_reached)
     }
 
-    pub fn process_local(&self, block: Block) -> Result<(), BlockStatus> {
+    pub fn process_local(&self, block: Block) -> Result<(), BlockError> {
         self.block_processor
             .add_blocking(Arc::new(block), BlockSource::Local)
-            .map_err(|_| BlockStatus::BadSignature)?
+            .map_err(|_| BlockError::BadSignature)?
             .map(|_| {})
     }
 
-    pub fn try_process(&self, block: Block) -> Result<SavedBlock, BlockStatus> {
+    pub fn try_process(&self, block: Block) -> Result<SavedBlock, BlockError> {
         self.ledger.process_one(&block)
     }
 
@@ -1255,7 +1254,7 @@ impl Node {
         let hash = block.hash();
         match self.try_process(block) {
             Ok(saved_block) => saved_block,
-            Err(BlockStatus::Old) => self.block(&hash).unwrap(),
+            Err(BlockError::Old) => self.block(&hash).unwrap(),
             Err(e) => {
                 panic!("Could not process block: {:?}", e);
             }
@@ -1265,7 +1264,7 @@ impl Node {
     pub fn process_multi(&self, blocks: &[Block]) {
         for (i, block) in blocks.iter().enumerate() {
             match self.ledger.process_one(block) {
-                Ok(_) | Err(BlockStatus::Old) => {}
+                Ok(_) | Err(BlockError::Old) => {}
                 Err(e) => {
                     panic!("Could not multi-process block index {}: {:?}", i, e);
                 }
@@ -1292,7 +1291,7 @@ impl Node {
     pub fn process_local_multi(&self, blocks: &[Block]) {
         for block in blocks {
             let status = self.process_local(block.clone());
-            if !matches!(status, Ok(()) | Err(BlockStatus::Old)) {
+            if !matches!(status, Ok(()) | Err(BlockError::Old)) {
                 panic!("could not process block!");
             }
         }

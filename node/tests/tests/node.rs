@@ -6,7 +6,7 @@ use rsnano_core::{
     StateBlockArgs, UncheckedInfo, Vote, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockSource, BlockStatus, ConfirmedSet,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockError, BlockSource, ConfirmedSet,
     LedgerSet, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
@@ -234,7 +234,7 @@ fn deferred_dependent_elections() {
     });
 
     assert_eq!(
-        Err(BlockStatus::Fork),
+        Err(BlockError::Fork),
         node1.process_local(fork.clone().into())
     );
 
@@ -806,7 +806,7 @@ fn fork_publish_inactive() {
     assert_timely2(|| node.block_exists(&send1.hash()));
     assert_timely2(|| node.is_active_root(&send1.qualified_root()));
 
-    assert_eq!(node.process_local(send2.clone()), Err(BlockStatus::Fork));
+    assert_eq!(node.process_local(send2.clone()), Err(BlockError::Fork));
 
     assert_timely_eq2(
         || {

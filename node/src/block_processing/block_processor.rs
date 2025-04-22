@@ -13,7 +13,7 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueue, FairQueueInfo},
     Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
 };
-use rsnano_ledger::{BlockSource, BlockStatus, Ledger, LedgerSet};
+use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerSet};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_work::WorkThresholds;
@@ -189,7 +189,7 @@ impl BlockProcessor {
         &self,
         block: Arc<Block>,
         source: BlockSource,
-    ) -> anyhow::Result<Result<SavedBlock, BlockStatus>> {
+    ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
         self.processor_loop.add_blocking(block, source)
     }
 
@@ -350,7 +350,7 @@ impl BlockProcessorLoopImpl {
         &self,
         block: Arc<Block>,
         source: BlockSource,
-    ) -> anyhow::Result<Result<SavedBlock, BlockStatus>> {
+    ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
         self.stats
             .inc(StatType::BlockProcessor, DetailType::ProcessBlocking);
         debug!(
@@ -487,7 +487,7 @@ impl BlockProcessorLoopImpl {
         }
 
         assert_eq!(result.processed.len(), batch.len());
-        let mut result: Vec<(Result<(), BlockStatus>, Arc<BlockContext>)> = result
+        let mut result: Vec<(Result<(), BlockError>, Arc<BlockContext>)> = result
             .processed
             .drain(..)
             .zip(batch.drain(..))
@@ -536,12 +536,12 @@ impl BlockProcessorLoopImpl {
                         self.unchecked.trigger(&block.destination_or_link().into());
                     }
                 }
-                Err(BlockStatus::GapPrevious) => {
+                Err(BlockError::GapPrevious) => {
                     self.unchecked
                         .put(block.previous().into(), UncheckedInfo::new(block.clone()));
                     self.stats.inc(StatType::Ledger, DetailType::GapPrevious);
                 }
-                Err(BlockStatus::GapSource) => {
+                Err(BlockError::GapSource) => {
                     self.unchecked.put(
                         block
                             .source_field()
@@ -551,7 +551,7 @@ impl BlockProcessorLoopImpl {
                     );
                     self.stats.inc(StatType::Ledger, DetailType::GapSource);
                 }
-                Err(BlockStatus::GapEpochOpenPending) => {
+                Err(BlockError::GapEpochOpenPending) => {
                     // Specific unchecked key starting with epoch open block account public key
                     self.unchecked.put(
                         block.account_field().unwrap().into(),
@@ -559,36 +559,36 @@ impl BlockProcessorLoopImpl {
                     );
                     self.stats.inc(StatType::Ledger, DetailType::GapSource);
                 }
-                Err(BlockStatus::Old) => {
+                Err(BlockError::Old) => {
                     self.stats.inc(StatType::Ledger, DetailType::Old);
                 }
                 // These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
-                Err(BlockStatus::BadSignature) => {
+                Err(BlockError::BadSignature) => {
                     debug!("Block signature is invalid: {}", hash)
                 }
-                Err(BlockStatus::NegativeSpend) => {
+                Err(BlockError::NegativeSpend) => {
                     debug!("Block spends negative amount: {}", hash)
                 }
-                Err(BlockStatus::Unreceivable) => {
+                Err(BlockError::Unreceivable) => {
                     debug!("Block is unreceivable: {}", hash)
                 }
-                Err(BlockStatus::Fork) => {
+                Err(BlockError::Fork) => {
                     self.stats.inc(StatType::Ledger, DetailType::Fork);
                     debug!("Block is a fork: {}", hash)
                 }
-                Err(BlockStatus::OpenedBurnAccount) => {
+                Err(BlockError::OpenedBurnAccount) => {
                     debug!("Block opens burn account: {}", hash)
                 }
-                Err(BlockStatus::BalanceMismatch) => {
+                Err(BlockError::BalanceMismatch) => {
                     debug!("Block balance mismatch: {}", hash)
                 }
-                Err(BlockStatus::RepresentativeMismatch) => {
+                Err(BlockError::RepresentativeMismatch) => {
                     debug!("Block representative mismatch: {}", hash)
                 }
-                Err(BlockStatus::BlockPosition) => {
+                Err(BlockError::BlockPosition) => {
                     debug!("Block is in incorrect position: {}", hash)
                 }
-                Err(BlockStatus::InsufficientWork) => {
+                Err(BlockError::InsufficientWork) => {
                     debug!("Block has insufficient work: {}", hash)
                 }
             }

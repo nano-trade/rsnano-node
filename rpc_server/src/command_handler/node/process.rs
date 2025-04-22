@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail};
 
 use rsnano_core::{Block, BlockBase, BlockType};
-use rsnano_ledger::{BlockSource, BlockStatus, LedgerSet};
+use rsnano_ledger::{BlockError, BlockSource, LedgerSet};
 use rsnano_network::ChannelId;
 use rsnano_rpc_messages::{BlockSubTypeDto, HashRpcMessage, ProcessArgs, StartedResponse};
 
@@ -67,11 +67,11 @@ impl RpcCommandHandler {
             let result = self.node.process_local(block.clone());
             match result {
                 Ok(()) => Ok(serde_json::to_value(HashRpcMessage::new(hash))?),
-                Err(BlockStatus::GapPrevious) => Err(anyhow!("Gap previous block")),
-                Err(BlockStatus::BadSignature) => Err(anyhow!("Bad signature")),
-                Err(BlockStatus::Old) => Err(anyhow!("Old block")),
-                Err(BlockStatus::NegativeSpend) => Err(anyhow!("Negative spend")),
-                Err(BlockStatus::Fork) => {
+                Err(BlockError::GapPrevious) => Err(anyhow!("Gap previous block")),
+                Err(BlockError::BadSignature) => Err(anyhow!("Bad signature")),
+                Err(BlockError::Old) => Err(anyhow!("Old block")),
+                Err(BlockError::NegativeSpend) => Err(anyhow!("Negative spend")),
+                Err(BlockError::Fork) => {
                     if args.force.unwrap_or_default().inner() {
                         self.node
                             .active
@@ -84,22 +84,22 @@ impl RpcCommandHandler {
                         Err(anyhow!("Fork"))
                     }
                 }
-                Err(BlockStatus::Unreceivable) => Err(anyhow!("Unreceivable")),
-                Err(BlockStatus::GapSource) => Err(anyhow!("Gap source block")),
-                Err(BlockStatus::GapEpochOpenPending) => {
+                Err(BlockError::Unreceivable) => Err(anyhow!("Unreceivable")),
+                Err(BlockError::GapSource) => Err(anyhow!("Gap source block")),
+                Err(BlockError::GapEpochOpenPending) => {
                     Err(anyhow!("Gap pending for open epoch block"))
                 }
-                Err(BlockStatus::OpenedBurnAccount) => {
+                Err(BlockError::OpenedBurnAccount) => {
                     Err(anyhow!("Block attempts to open the burn account"))
                 }
-                Err(BlockStatus::BalanceMismatch) => {
+                Err(BlockError::BalanceMismatch) => {
                     Err(anyhow!("Balance and amount delta do not match"))
                 }
-                Err(BlockStatus::RepresentativeMismatch) => Err(anyhow!("Representative mismatch")),
-                Err(BlockStatus::BlockPosition) => {
+                Err(BlockError::RepresentativeMismatch) => Err(anyhow!("Representative mismatch")),
+                Err(BlockError::BlockPosition) => {
                     Err(anyhow!("This block cannot follow the previous block"))
                 }
-                Err(BlockStatus::InsufficientWork) => Err(anyhow!("Block work is insufficient")),
+                Err(BlockError::InsufficientWork) => Err(anyhow!("Block work is insufficient")),
             }
         } else if block.block_type() == BlockType::State {
             self.node

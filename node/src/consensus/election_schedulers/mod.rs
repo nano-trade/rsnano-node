@@ -13,7 +13,7 @@ use rsnano_core::{
     utils::{BlockPriority, ContainerInfo, ContainerInfoProvider},
     Account, AccountInfo, BlockHash, ConfirmationHeightInfo, QualifiedRoot, SavedBlock,
 };
-use rsnano_ledger::{AnySet, BlockStatus, Ledger, ProcessedResult};
+use rsnano_ledger::{AnySet, BlockError, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{Stats, StatsCollection, StatsSource};
 
