@@ -504,7 +504,7 @@ impl BlockProcessorLoopImpl {
             match status {
                 Ok(()) => {
                     self.stats
-                        .inc(StatType::BlockProcessorResult, BlockStatus::Progress.into());
+                        .inc(StatType::BlockProcessorResult, DetailType::Progress);
                 }
                 Err(e) => {
                     self.stats.inc(StatType::BlockProcessorResult, (*e).into());
@@ -519,7 +519,6 @@ impl BlockProcessorLoopImpl {
             let saved_block = block_ctx.saved_block.lock().unwrap().clone();
 
             match status {
-                Err(BlockStatus::Progress) => unreachable!(),
                 Ok(()) => {
                     self.unchecked.trigger(&hash.into());
 

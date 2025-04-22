@@ -234,8 +234,8 @@ fn deferred_dependent_elections() {
     });
 
     assert_eq!(
-        BlockStatus::Fork,
-        node1.process_local(fork.clone().into()).unwrap()
+        Err(BlockStatus::Fork),
+        node1.process_local(fork.clone().into())
     );
 
     node1.process_local(fork.clone().into()).unwrap();
@@ -262,14 +262,8 @@ fn rollback_gap_source() {
     let fork1a = lattice.account(&key).receive(&send1);
     let fork1b = fork_lattice.account(&key).receive(&send2);
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node.process_local(send1.clone()).unwrap()
-    );
-    assert_eq!(
-        BlockStatus::Progress,
-        node.process_local(fork1a.clone()).unwrap()
-    );
+    node.process_local(send1.clone()).unwrap();
+    node.process_local(fork1a.clone()).unwrap();
 
     assert!(!node.block_exists(&send2.hash()));
     node.block_processor.force(fork1b.clone());
@@ -289,10 +283,7 @@ fn rollback_gap_source() {
     node.process_active(fork1a.clone());
     assert_timely2(|| node.block_exists(&fork1a.hash()));
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node.process_local(send2.clone()).unwrap()
-    );
+    node.process_local(send2.clone()).unwrap();
     node.block_processor.force(fork1b.clone());
 
     assert_timely_eq2(
@@ -322,13 +313,13 @@ fn vote_by_hash_bundle() {
     let block = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
 
     blocks.push(block.clone());
-    assert_eq!(BlockStatus::Progress, node.process_local(block).unwrap());
+    node.process_local(block).unwrap();
 
     // Create a chain of blocks
     for _ in 2..10 {
         let block = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
         blocks.push(block.clone());
-        assert_eq!(BlockStatus::Progress, node.process_local(block).unwrap());
+        node.process_local(block).unwrap();
     }
 
     // Confirm the last block to confirm the entire chain
@@ -385,10 +376,7 @@ fn confirm_quorum() {
         .genesis()
         .send_all_except(&*DEV_GENESIS_KEY, new_balance);
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node1.process_local(send1.clone()).unwrap()
-    );
+    node1.process_local(send1.clone()).unwrap();
 
     node1
         .wallets
@@ -614,14 +602,8 @@ fn rep_self_vote() {
 
     let open_big = lattice.account(&rep_big).receive(&fund_big);
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node0.process_local(fund_big.clone()).unwrap()
-    );
-    assert_eq!(
-        BlockStatus::Progress,
-        node0.process_local(open_big.clone()).unwrap()
-    );
+    node0.process_local(fund_big.clone()).unwrap();
+    node0.process_local(open_big.clone()).unwrap();
 
     // Confirm both blocks, allowing voting on the upcoming block
     start_election(&node0, &open_big.hash());
@@ -639,10 +621,7 @@ fn rep_self_vote() {
         Amount::raw(0x6000_0000_0000_0000_0000_0000_0000_0000),
     );
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node0.process_local(block0.clone()).unwrap()
-    );
+    node0.process_local(block0.clone()).unwrap();
 
     start_election(&node0, &block0.hash());
 
@@ -691,14 +670,8 @@ fn fork_bootstrap_flip() {
         .legacy_send(&key2, Amount::raw(1_000_000));
 
     // Insert but don't rebroadcast, simulating settled blocks
-    assert_eq!(
-        BlockStatus::Progress,
-        node1.process_local(send1.clone()).unwrap()
-    );
-    assert_eq!(
-        BlockStatus::Progress,
-        node2.process_local(send2.clone()).unwrap()
-    );
+    node1.process_local(send1.clone()).unwrap();
+    node2.process_local(send2.clone()).unwrap();
 
     node1.confirm(send1.hash());
     assert_timely2(|| node1.block_exists(&send1.hash()));
@@ -833,10 +806,7 @@ fn fork_publish_inactive() {
     assert_timely2(|| node.block_exists(&send1.hash()));
     assert_timely2(|| node.is_active_root(&send1.qualified_root()));
 
-    assert_eq!(
-        node.process_local(send2.clone()).unwrap(),
-        BlockStatus::Fork
-    );
+    assert_eq!(node.process_local(send2.clone()), Err(BlockStatus::Fork));
 
     assert_timely_eq2(
         || {
@@ -2540,10 +2510,7 @@ fn unconfirmed_send() {
     }
     .into();
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node2.process_local(send2.clone()).unwrap()
-    );
+    node2.process_local(send2.clone()).unwrap();
 
     let send3 = node2
         .wallets

@@ -36,7 +36,6 @@ use tracing::debug;
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum BlockStatus {
-    Progress,      // Hasn't been seen before, signed correctly
     BadSignature,  // Signature was bad, forged or transmission error
     Old,           // Already seen and was valid
     NegativeSpend, // Malicious attempt to spend a negative amount
@@ -64,7 +63,6 @@ pub enum BlockStatus {
 impl BlockStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
-            BlockStatus::Progress => "Progress",
             BlockStatus::BadSignature => "Bad signature",
             BlockStatus::Old => "Old",
             BlockStatus::NegativeSpend => "Negative spend",
@@ -85,7 +83,6 @@ impl BlockStatus {
 impl From<BlockStatus> for DetailType {
     fn from(value: BlockStatus) -> Self {
         match value {
-            BlockStatus::Progress => Self::Progress,
             BlockStatus::BadSignature => Self::BadSignature,
             BlockStatus::Old => Self::Old,
             BlockStatus::NegativeSpend => Self::NegativeSpend,

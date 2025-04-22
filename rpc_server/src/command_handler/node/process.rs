@@ -64,16 +64,14 @@ impl RpcCommandHandler {
 
         if !is_async {
             let hash = block.hash();
-            let Some(result) = self.node.process_local(block.clone()) else {
-                bail!("Stopped");
-            };
+            let result = self.node.process_local(block.clone());
             match result {
-                BlockStatus::Progress => Ok(serde_json::to_value(HashRpcMessage::new(hash))?),
-                BlockStatus::GapPrevious => Err(anyhow!("Gap previous block")),
-                BlockStatus::BadSignature => Err(anyhow!("Bad signature")),
-                BlockStatus::Old => Err(anyhow!("Old block")),
-                BlockStatus::NegativeSpend => Err(anyhow!("Negative spend")),
-                BlockStatus::Fork => {
+                Ok(()) => Ok(serde_json::to_value(HashRpcMessage::new(hash))?),
+                Err(BlockStatus::GapPrevious) => Err(anyhow!("Gap previous block")),
+                Err(BlockStatus::BadSignature) => Err(anyhow!("Bad signature")),
+                Err(BlockStatus::Old) => Err(anyhow!("Old block")),
+                Err(BlockStatus::NegativeSpend) => Err(anyhow!("Negative spend")),
+                Err(BlockStatus::Fork) => {
                     if args.force.unwrap_or_default().inner() {
                         self.node
                             .active
@@ -86,22 +84,22 @@ impl RpcCommandHandler {
                         Err(anyhow!("Fork"))
                     }
                 }
-                BlockStatus::Unreceivable => Err(anyhow!("Unreceivable")),
-                BlockStatus::GapSource => Err(anyhow!("Gap source block")),
-                BlockStatus::GapEpochOpenPending => {
+                Err(BlockStatus::Unreceivable) => Err(anyhow!("Unreceivable")),
+                Err(BlockStatus::GapSource) => Err(anyhow!("Gap source block")),
+                Err(BlockStatus::GapEpochOpenPending) => {
                     Err(anyhow!("Gap pending for open epoch block"))
                 }
-                BlockStatus::OpenedBurnAccount => {
+                Err(BlockStatus::OpenedBurnAccount) => {
                     Err(anyhow!("Block attempts to open the burn account"))
                 }
-                BlockStatus::BalanceMismatch => {
+                Err(BlockStatus::BalanceMismatch) => {
                     Err(anyhow!("Balance and amount delta do not match"))
                 }
-                BlockStatus::RepresentativeMismatch => Err(anyhow!("Representative mismatch")),
-                BlockStatus::BlockPosition => {
+                Err(BlockStatus::RepresentativeMismatch) => Err(anyhow!("Representative mismatch")),
+                Err(BlockStatus::BlockPosition) => {
                     Err(anyhow!("This block cannot follow the previous block"))
                 }
-                BlockStatus::InsufficientWork => Err(anyhow!("Block work is insufficient")),
+                Err(BlockStatus::InsufficientWork) => Err(anyhow!("Block work is insufficient")),
             }
         } else if block.block_type() == BlockType::State {
             self.node

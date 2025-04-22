@@ -1240,15 +1240,11 @@ impl Node {
             .ledger_pruning(batch_size, bootstrap_weight_reached)
     }
 
-    pub fn process_local(&self, block: Block) -> Option<BlockStatus> {
-        let result = self
-            .block_processor
+    pub fn process_local(&self, block: Block) -> Result<(), BlockStatus> {
+        self.block_processor
             .add_blocking(Arc::new(block), BlockSource::Local)
-            .ok()?;
-        match result {
-            Ok(_) => Some(BlockStatus::Progress),
-            Err(status) => Some(status),
-        }
+            .map_err(|_| BlockStatus::BadSignature)?
+            .map(|_| {})
     }
 
     pub fn try_process(&self, block: Block) -> Result<SavedBlock, BlockStatus> {
@@ -1295,8 +1291,8 @@ impl Node {
 
     pub fn process_local_multi(&self, blocks: &[Block]) {
         for block in blocks {
-            let status = self.process_local(block.clone()).unwrap();
-            if !matches!(status, BlockStatus::Progress | BlockStatus::Old) {
+            let status = self.process_local(block.clone());
+            if !matches!(status, Ok(()) | Err(BlockStatus::Old)) {
                 panic!("could not process block!");
             }
         }

@@ -1002,10 +1002,7 @@ fn conflicting_block_vote_existing_election() {
 
     let vote_fork = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![fork.hash()]));
 
-    assert_eq!(
-        node.process_local(send.clone()).unwrap(),
-        BlockStatus::Progress
-    );
+    node.process_local(send.clone()).unwrap();
     assert_timely_eq2(|| node.active.read().unwrap().len(), 1);
 
     // Vote for conflicting block, but the block does not yet exist in the ledger
@@ -1013,7 +1010,7 @@ fn conflicting_block_vote_existing_election() {
         .enqueue(vote_fork, None, VoteSource::Live, None);
 
     // Block now gets processed
-    assert_eq!(node.process_local(fork.clone()).unwrap(), BlockStatus::Fork);
+    assert_eq!(node.process_local(fork.clone()), Err(BlockStatus::Fork));
 
     // Election must be confirmed
     assert_timely2(|| node.is_active_root(&fork.qualified_root()));
@@ -1041,26 +1038,11 @@ fn activate_account_chain() {
     let open = lattice.account(&key).receive(&send2);
     let receive = lattice.account(&key).receive(&send3);
 
-    assert_eq!(
-        node.process_local(send.clone()).unwrap(),
-        BlockStatus::Progress
-    );
-    assert_eq!(
-        node.process_local(send2.clone()).unwrap(),
-        BlockStatus::Progress
-    );
-    assert_eq!(
-        node.process_local(send3.clone()).unwrap(),
-        BlockStatus::Progress
-    );
-    assert_eq!(
-        node.process_local(open.clone()).unwrap(),
-        BlockStatus::Progress
-    );
-    assert_eq!(
-        node.process_local(receive.clone()).unwrap(),
-        BlockStatus::Progress
-    );
+    node.process_local(send.clone()).unwrap();
+    node.process_local(send2.clone()).unwrap();
+    node.process_local(send3.clone()).unwrap();
+    node.process_local(open.clone()).unwrap();
+    node.process_local(receive.clone()).unwrap();
 
     start_election(&node, &send.hash());
     assert_eq!(1, node.active.read().unwrap().len());
