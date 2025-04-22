@@ -93,6 +93,14 @@ impl ConfirmingSet {
         }
     }
 
+    pub fn new_null() -> Self {
+        Self::new(
+            ConfirmingSetConfig::default(),
+            Arc::new(Ledger::new_null()),
+            Arc::new(Stats::default()),
+        )
+    }
+
     pub fn set_event_sink(&self, sink: BackpressureSender<ConfirmingSetEvent>) {
         *self.thread.event_sender.write().unwrap() = Some(sink);
     }

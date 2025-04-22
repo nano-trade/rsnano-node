@@ -52,7 +52,7 @@ pub struct WorkFactory {
     work_peers: Mutex<Vec<Peer>>,
     timeout: Duration,
     cancel_listener: OutputListenerMt<Root>,
-    runtime: tokio::runtime::Handle,
+    runtime: Option<tokio::runtime::Handle>,
     requests_made: AtomicUsize,
     running: Mutex<Vec<(usize, Root, CancellationToken)>>,
     stopped: AtomicBool,
@@ -64,7 +64,7 @@ impl WorkFactory {
         work_client: DistributedWorkClient,
         work_peers: Vec<Peer>,
         timeout: Duration,
-        runtime: tokio::runtime::Handle,
+        runtime: Option<tokio::runtime::Handle>,
     ) -> Self {
         Self {
             local_work_pool: work_pool,
@@ -79,17 +79,21 @@ impl WorkFactory {
         }
     }
 
-    pub fn disabled(runtime: tokio::runtime::Handle) -> Self {
-        Self::builder(runtime)
-            .local_work_pool(|p| p.disabled())
-            .finish()
+    pub fn disabled() -> Self {
+        let builder = WorkFactoryBuilder {
+            local_work_pool: None,
+            work_peers: Vec::new(),
+            runtime: None,
+            timeout: DEFAULT_TIMEOUT,
+        };
+        builder.local_work_pool(|p| p.disabled()).finish()
     }
 
     pub fn builder(runtime: tokio::runtime::Handle) -> WorkFactoryBuilder {
         WorkFactoryBuilder {
             local_work_pool: None,
             work_peers: Vec::new(),
-            runtime,
+            runtime: Some(runtime),
             timeout: DEFAULT_TIMEOUT,
         }
     }
@@ -125,11 +129,11 @@ impl WorkFactory {
     ) -> Option<WorkNonce> {
         let (id, cancel_token) = self.create_cancellation_token(request.root);
 
-        let result = self.runtime.block_on(self.generate_remote(
-            peers,
-            request.clone(),
-            cancel_token.clone(),
-        ));
+        let result = self
+            .runtime
+            .as_ref()
+            .unwrap()
+            .block_on(self.generate_remote(peers, request.clone(), cancel_token.clone()));
 
         self.remove_cancelation_token(id);
 
@@ -313,7 +317,7 @@ pub struct WorkFactoryBuilder {
     local_work_pool: Option<WorkPool>,
     work_peers: Vec<Peer>,
     timeout: Duration,
-    runtime: tokio::runtime::Handle,
+    runtime: Option<tokio::runtime::Handle>,
 }
 
 impl WorkFactoryBuilder {
@@ -384,10 +388,7 @@ mod tests {
     #[test]
     #[traced_test]
     fn work_generation_disabled() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .unwrap();
-        let work_factory = WorkFactory::disabled(runtime.handle().clone());
+        let work_factory = WorkFactory::disabled();
         let result = work_factory.generate_work(WorkRequest::new_test_instance());
         assert_eq!(result, None);
         assert!(logs_contain("Local work generation is disabled!"))
@@ -595,7 +596,7 @@ mod tests {
             context.work_client,
             context.work_peers,
             context.timeout,
-            runner.handle().clone(),
+            Some(runner.handle().clone()),
         );
         (factory, runner)
     }

@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex, RwLock};
 
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::{
+    utils::{CancellationToken, Runnable},
+    Networks,
+};
 use rsnano_network::Network;
 
 use crate::{config::NetworkParams, representatives::OnlineReps, transport::MessageFlooder};
@@ -23,6 +26,22 @@ pub struct AecTicker {
     pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
     pub(crate) confirm_req_sender: ConfirmReqSender,
     pub(crate) clock: Arc<SteadyClock>,
+}
+
+impl AecTicker {
+    pub fn new_null() -> Self {
+        Self {
+            active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
+            message_flooder: MessageFlooder::new_null(),
+            network_params: NetworkParams::new(Networks::NanoLiveNetwork),
+            online_reps: Arc::new(Mutex::new(OnlineReps::new_test_instance())),
+            network: Arc::new(RwLock::new(Network::new_test_instance())),
+            block_voter: Arc::new(BlockVoter::new_null()),
+            winner_block_broadcaster: WinnerBlockBroadcaster::new_null(),
+            confirm_req_sender: ConfirmReqSender::new_null(),
+            clock: Arc::new(SteadyClock::new_null()),
+        }
+    }
 }
 
 impl Runnable for AecTicker {
@@ -84,5 +103,64 @@ impl Runnable for AecTicker {
             .erase_ended_elections();
 
         solicitor.flush();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consensus::{election::VoteType, AecInsertRequest, BlockVoteRequest};
+    use rsnano_core::SavedBlock;
+    use rsnano_nullable_clock::Timestamp;
+
+    #[test]
+    fn vote_for_passive_block() {
+        let mut ticker = AecTicker::new_null();
+        let vote_tracker = ticker.block_voter.track();
+        let block = SavedBlock::new_test_instance_with_key(1);
+        let now = Timestamp::new_test_instance();
+        {
+            let mut aec = ticker.active_elections.write().unwrap();
+            aec.insert(AecInsertRequest::new_manual(block.clone()), now)
+                .unwrap();
+        }
+
+        ticker.run(&CancellationToken::new_null());
+
+        let output = vote_tracker.output();
+        assert_eq!(
+            output,
+            [BlockVoteRequest {
+                block_hash: block.hash(),
+                root: block.root(),
+                vote_type: VoteType::NonFinal,
+            },]
+        );
+    }
+
+    #[test]
+    fn vote_for_active_block() {
+        let mut ticker = AecTicker::new_null();
+        let vote_tracker = ticker.block_voter.track();
+        let block = SavedBlock::new_test_instance();
+        let now = Timestamp::new_test_instance();
+        {
+            let mut aec = ticker.active_elections.write().unwrap();
+            aec.insert(AecInsertRequest::new_manual(block.clone()), now)
+                .unwrap();
+            aec.transition_active(&block.hash());
+        }
+
+        ticker.run(&CancellationToken::new_null());
+
+        let output = vote_tracker.output();
+        assert_eq!(
+            output,
+            [BlockVoteRequest {
+                block_hash: block.hash(),
+                root: block.root(),
+                vote_type: VoteType::NonFinal,
+            },]
+        );
     }
 }

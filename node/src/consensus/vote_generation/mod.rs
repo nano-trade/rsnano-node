@@ -6,7 +6,7 @@ mod vote_generator;
 mod vote_generators;
 mod vote_spacing;
 
-pub(crate) use block_voter::BlockVoter;
+pub(crate) use block_voter::*;
 pub use local_vote_history::*;
 pub use request_aggregator::*;
 pub use vote_generators::*;

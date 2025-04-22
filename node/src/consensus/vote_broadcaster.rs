@@ -8,7 +8,7 @@ use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::TrafficType;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::VoteProcessorQueue;
+use super::{VoteProcessorConfig, VoteProcessorQueue};
 use crate::transport::MessageFlooder;
 
 /// Broadcast a vote to PRs and some non-PRs
@@ -29,6 +29,16 @@ impl VoteBroadcaster {
             message_flooder: Mutex::new(message_flooder),
             stats,
         }
+    }
+
+    pub fn new_null() -> Self {
+        let stats = Arc::new(Stats::default());
+        let queue = Arc::new(VoteProcessorQueue::new(
+            VoteProcessorConfig::new(1),
+            stats.clone(),
+        ));
+        let flooder = MessageFlooder::new_null();
+        Self::new(queue, flooder, stats)
     }
 
     /// Broadcast vote to PRs and some non-PRs

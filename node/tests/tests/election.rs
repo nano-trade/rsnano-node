@@ -1,50 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
 use rsnano_core::{Amount, PrivateKey, Vote, VoteSource, DEV_GENESIS_KEY};
-use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet};
+use rsnano_ledger::test_helpers::UnsavedBlockLatticeBuilder;
 use rsnano_node::{
     config::NodeConfig,
     consensus::{election::ElectionBehavior, ReceivedVote},
     wallets::WalletsExt,
 };
-use rsnano_stats::{DetailType, Direction, StatType};
-use test_helpers::{
-    assert_timely, assert_timely2, assert_timely_eq, get_available_port, setup_chain,
-    start_election, System,
-};
-
-#[test]
-fn continuous_voting() {
-    let mut system = System::new();
-    let node1 = system.build_node().finish();
-    let wallet_id = node1.wallets.wallet_ids()[0];
-    node1
-        .wallets
-        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
-
-    let mut lattice = UnsavedBlockLatticeBuilder::new();
-    // We want genesis to have just enough voting weight to be a principal rep, but not enough to confirm blocks on their own
-    let key1 = PrivateKey::new();
-    let send1 = lattice.genesis().send(&key1, (Amount::MAX / 10) * 9);
-
-    node1.process(send1.clone());
-    node1.confirm(send1.hash());
-    node1.stats.clear();
-
-    // Create a block that should be staying in AEC but not get confirmed
-    let send2 = lattice.genesis().send(&key1, 1);
-    node1.process(send2.clone());
-    assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
-
-    // Ensure votes are broadcasted in continuous manner
-    assert_timely(Duration::from_secs(5), || {
-        node1
-            .stats
-            .count(StatType::Election, DetailType::BroadcastVote, Direction::In)
-            >= 5
-    });
-}
+use test_helpers::{assert_timely2, setup_chain, start_election, System};
 
 // checks that block cannot be confirmed if there is no enough votes to reach quorum
 #[test]

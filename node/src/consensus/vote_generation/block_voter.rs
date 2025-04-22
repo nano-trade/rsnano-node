@@ -12,6 +12,7 @@ use crate::consensus::{
 };
 
 use super::VoteGenerators;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 /// Tries to enqueue a vote for a given block
 pub(crate) struct BlockVoter {
@@ -21,6 +22,7 @@ pub(crate) struct BlockVoter {
     clock: Arc<SteadyClock>,
     last_votes: Mutex<BoundedHashMap<(BlockHash, VoteType), Timestamp>>,
     vote_broadcast_interval: Duration,
+    vote_listener: OutputListenerMt<BlockVoteRequest>,
 }
 
 impl BlockVoter {
@@ -41,7 +43,22 @@ impl BlockVoter {
                 Networks::NanoDevNetwork => Duration::from_millis(500),
                 _ => Duration::from_secs(15),
             },
+            vote_listener: OutputListenerMt::new(),
         }
+    }
+
+    pub fn new_null() -> Self {
+        let stats = Arc::new(Stats::default());
+        let vote_generators = Arc::new(VoteGenerators::new_null());
+        let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
+        let clock = Arc::new(SteadyClock::new_null());
+        let network = Networks::NanoLiveNetwork;
+        Self::new(stats, vote_generators, active_elections, clock, network)
+    }
+
+    #[allow(dead_code)]
+    pub fn track(&self) -> Arc<OutputTrackerMt<BlockVoteRequest>> {
+        self.vote_listener.track()
     }
 
     pub fn try_vote(&self, block_hash: &BlockHash) {
@@ -63,6 +80,14 @@ impl BlockVoter {
     /// Broadcasts vote for the given block hash
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
     pub fn try_vote_for_block(&self, block_hash: BlockHash, root: Root, vote_type: VoteType) {
+        if self.vote_listener.is_tracked() {
+            self.vote_listener.emit(BlockVoteRequest {
+                block_hash,
+                root,
+                vote_type,
+            });
+        }
+
         if !self.vote_generators.voting_enabled() {
             return;
         }
@@ -101,5 +126,40 @@ impl BlockVoter {
             .lock()
             .unwrap()
             .insert((block_hash, vote_type), self.clock.now());
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BlockVoteRequest {
+    pub block_hash: BlockHash,
+    pub root: Root,
+    pub vote_type: VoteType,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn track_votes() {
+        let stats = Arc::new(Stats::default());
+        let vote_generators = Arc::new(VoteGenerators::new_null());
+        let aec = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
+        let clock = Arc::new(SteadyClock::new_null());
+        let network = Networks::NanoLiveNetwork;
+
+        let voter = BlockVoter::new(stats, vote_generators, aec, clock, network);
+        let vote_tracker = voter.track();
+
+        let expected = BlockVoteRequest {
+            block_hash: 1.into(),
+            root: 2.into(),
+            vote_type: VoteType::NonFinal,
+        };
+
+        voter.try_vote_for_block(expected.block_hash, expected.root, expected.vote_type);
+
+        let output = vote_tracker.output();
+        assert_eq!(output, [expected]);
     }
 }

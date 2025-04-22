@@ -175,6 +175,9 @@ mod tests {
         let aec_guard = aec.read().unwrap();
         let election = aec_guard.election_for_block(&block_hash).unwrap();
         assert_eq!(election.winner_tally(), Amount::nano(50_000_000));
+
+        // No quorum, because the vote of our rep has to be added to the online
+        // weight before the quorum is checked!
         assert_eq!(election.has_quorum(), false);
     }
 }

@@ -25,6 +25,12 @@ impl ConfirmReqSender {
         }
     }
 
+    pub(crate) fn new_null() -> Self {
+        let stats = Arc::new(Stats::default());
+        let clock = Arc::new(SteadyClock::new_null());
+        Self::new(stats, clock)
+    }
+
     pub fn send_confirm_req(&mut self, solicitor: &mut ConfirmationSolicitor, election: &Election) {
         if self.should_send_confirm_req(election) {
             if solicitor.add(election) {

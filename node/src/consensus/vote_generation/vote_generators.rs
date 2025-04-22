@@ -89,6 +89,29 @@ impl VoteGenerators {
         }
     }
 
+    pub fn new_null() -> Self {
+        let ledger = Arc::new(Ledger::new_null());
+        let wallets = Arc::new(Wallets::new_null());
+        let history = Arc::new(LocalVoteHistory::new(Networks::NanoLiveNetwork));
+        let stats = Arc::new(Stats::default());
+        let config = NodeConfig::new_test_instance();
+        let network_params = NetworkParams::new(Networks::NanoLiveNetwork);
+        let vote_broadcaster = Arc::new(VoteBroadcaster::new_null());
+        let message_sender = MessageSender::new_null();
+        let clock = Arc::new(SteadyClock::new_null());
+        Self::new(
+            ledger,
+            wallets,
+            history,
+            stats,
+            &config,
+            &network_params,
+            vote_broadcaster,
+            message_sender,
+            clock,
+        )
+    }
+
     pub fn voting_delay(&self) -> Duration {
         self.voting_delay
     }

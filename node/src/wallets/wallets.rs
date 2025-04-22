@@ -10,7 +10,6 @@ use std::{
 };
 
 use rand::Rng;
-use rsnano_stats::Stats;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
@@ -20,7 +19,7 @@ use rsnano_core::{
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
     WorkNonce,
 };
-use rsnano_ledger::{AnySet, BlockSource, ConfirmedSet, Ledger, LedgerSet, RepWeightCache};
+use rsnano_ledger::{AnySet, BlockSource, ConfirmedSet, Ledger, LedgerSet};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
@@ -32,8 +31,8 @@ use rsnano_work::WorkThresholds;
 use super::{Wallet, WalletActionThread, WalletRepresentatives};
 use crate::{
     block_processing::BlockProcessor,
-    cementation::{ConfirmingSet, ConfirmingSetConfig},
-    config::{NetworkConstants, NetworkParams, NodeConfig},
+    cementation::ConfirmingSet,
+    config::{NetworkParams, NodeConfig},
     representatives::OnlineReps,
     transport::MessageFlooder,
     utils::{ThreadPool, ThreadPoolImpl},
@@ -86,7 +85,7 @@ pub struct Wallets {
     node_config: NodeConfig,
     ledger: Arc<Ledger>,
     last_log: Mutex<Option<Instant>>,
-    distributed_work: Arc<WorkFactory>,
+    work_factory: Arc<WorkFactory>,
     work_thresholds: WorkThresholds,
     network_params: NetworkParams,
     pub delayed_work: Mutex<HashMap<Account, Root>>,
@@ -107,7 +106,7 @@ impl Wallets {
         ledger: Arc<Ledger>,
         node_config: &NodeConfig,
         work: WorkThresholds,
-        distributed_work: Arc<WorkFactory>,
+        work_factory: Arc<WorkFactory>,
         network_params: NetworkParams,
         workers: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,
@@ -126,7 +125,7 @@ impl Wallets {
             node_config: node_config.clone(),
             ledger: Arc::clone(&ledger),
             last_log: Mutex::new(None),
-            distributed_work,
+            work_factory,
             work_thresholds: work.clone(),
             network_params,
             delayed_work: Mutex::new(HashMap::new()),
@@ -143,6 +142,35 @@ impl Wallets {
             confirming_set,
             message_flooder: Mutex::new(message_flooder),
         }
+    }
+
+    pub fn new_null() -> Self {
+        let network = Networks::NanoLiveNetwork;
+        let env = Arc::new(LmdbEnv::new_null());
+        let ledger = Arc::new(Ledger::new_null());
+        let node_config = NodeConfig::default_for(network, 1);
+        let work = WorkThresholds::default_for(network);
+        let work_factory = Arc::new(WorkFactory::disabled());
+        let network_params = NetworkParams::new(network);
+        let workers = Arc::new(ThreadPoolImpl::new_null());
+        let block_processor = Arc::new(BlockProcessor::new_null());
+        let online_reps = Arc::new(Mutex::new(OnlineReps::default()));
+        let confirming_set = Arc::new(ConfirmingSet::new_null());
+        let message_flooder = MessageFlooder::new_null();
+        Self::new(
+            env,
+            ledger,
+            &node_config,
+            work,
+            work_factory,
+            network_params,
+            workers,
+            block_processor,
+            online_reps,
+            confirming_set,
+            message_flooder,
+            network,
+        )
     }
 
     fn kdf_work_for(network: Networks) -> u32 {
@@ -343,10 +371,10 @@ impl Wallets {
     }
 
     fn work_cache_blocking(&self, wallet: &Wallet, pub_key: &PublicKey, root: &Root) {
-        if self.distributed_work.work_generation_enabled() {
+        if self.work_factory.work_generation_enabled() {
             let work_request = WorkRequest::new(*root, self.work_thresholds.threshold_base());
 
-            if let Some(work) = self.distributed_work.generate_work(work_request) {
+            if let Some(work) = self.work_factory.generate_work(work_request) {
                 let mut tx = self.env.tx_begin_write();
                 if wallet.live() && wallet.store.exists(&tx, pub_key) {
                     wallet.work_update(&mut tx, pub_key, root, work);
@@ -1337,7 +1365,7 @@ impl WalletsExt for Arc<Wallets> {
             let work_request = WorkRequest::new(block.root(), required_difficulty);
 
             let work = self
-                .distributed_work
+                .work_factory
                 .generate_work(work_request)
                 .ok_or_else(|| anyhow!("no work generated"))?;
 
