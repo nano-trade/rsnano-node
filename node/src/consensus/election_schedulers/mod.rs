@@ -113,7 +113,7 @@ impl ElectionSchedulers {
     pub fn activate_accounts_with_fresh_blocks(&self, processed: &[ProcessedResult]) {
         let any = self.ledger.any();
         for result in processed {
-            if result.status == BlockStatus::Progress {
+            if result.status.is_ok() {
                 let account = result.saved_block.as_ref().unwrap().account();
                 self.priority.activate(&any, &account);
             }

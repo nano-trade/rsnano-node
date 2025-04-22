@@ -126,7 +126,7 @@ impl BoundedBacklog {
     pub fn insert_processed(&self, batch: &[ProcessedResult]) {
         let any = self.backlog_impl.ledger.any();
         for result in batch {
-            if result.status == BlockStatus::Progress {
+            if result.status.is_ok() {
                 if let Some(block) = &result.saved_block {
                     self.insert(&any, block);
                 }

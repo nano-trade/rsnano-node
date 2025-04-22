@@ -33,7 +33,7 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum BlockStatus {
     Progress,      // Hasn't been seen before, signed correctly
@@ -630,20 +630,20 @@ impl Ledger {
 
                 match self.process(&mut tx, block) {
                     Ok(saved_block) => {
-                        processed.push((BlockStatus::Progress, Some(saved_block.clone())));
+                        processed.push((Ok(()), Some(saved_block.clone())));
                         processed_batch.push(ProcessedResult {
                             block: block.clone(),
                             source,
-                            status: BlockStatus::Progress,
+                            status: Ok(()),
                             saved_block: Some(saved_block),
                         });
                     }
-                    Err(status) => {
-                        processed.push((status, None));
+                    Err(err) => {
+                        processed.push((Err(err), None));
                         processed_batch.push(ProcessedResult {
                             block: block.clone(),
                             source,
-                            status,
+                            status: Err(err),
                             saved_block: None,
                         });
                     }
@@ -929,7 +929,7 @@ impl ContainerInfoProvider for Ledger {
 }
 
 pub struct BatchProcessResult {
-    pub processed: Vec<(BlockStatus, Option<SavedBlock>)>,
+    pub processed: Vec<(Result<(), BlockStatus>, Option<SavedBlock>)>,
 }
 
 pub trait CementingObserver {
@@ -998,6 +998,6 @@ impl RollbackResult {
 pub struct ProcessedResult {
     pub block: Block,
     pub source: BlockSource,
-    pub status: BlockStatus,
+    pub status: Result<(), BlockStatus>,
     pub saved_block: Option<SavedBlock>,
 }

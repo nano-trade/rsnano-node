@@ -14,7 +14,7 @@ pub(crate) struct ForkProcessor {
 impl ForkProcessor {
     pub fn handle_forks(&self, batch: &[ProcessedResult]) {
         for result in batch {
-            if result.status == BlockStatus::Fork {
+            if result.status == Err(BlockStatus::Fork) {
                 self.handle_fork(&result.block);
             }
         }

@@ -1,6 +1,6 @@
 use super::WebsocketListener;
 use rsnano_core::{Account, BlockHash, Vote, VoteError};
-use rsnano_ledger::{AnySet, BlockStatus, Ledger};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
     config::WebsocketConfig, CompositeNodeEventHandler, Node, NodeEvent, NodeEventHandler,
@@ -205,7 +205,7 @@ impl NodeEventHandler for NodeEventProcessor {
             NodeEvent::BlocksProcessed(results) => {
                 if self.server.any_subscriber(Topic::NewUnconfirmedBlock) {
                     for result in results {
-                        if result.status == BlockStatus::Progress {
+                        if result.status.is_ok() {
                             let block = result.saved_block.as_ref().unwrap();
                             self.server.broadcast(&new_block_arrived_message(&block));
                         }

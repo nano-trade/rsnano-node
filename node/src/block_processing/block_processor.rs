@@ -365,8 +365,8 @@ impl BlockProcessorLoopImpl {
         self.add_impl(ctx.clone(), ChannelId::LOOPBACK);
 
         match waiter.wait_result() {
-            Some(BlockStatus::Progress) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
-            Some(status) => Ok(Err(status)),
+            Some(Ok(())) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
+            Some(Err(e)) => Ok(Err(e)),
             None => {
                 self.stats
                     .inc(StatType::BlockProcessor, DetailType::ProcessBlockingTimeout);
@@ -487,7 +487,7 @@ impl BlockProcessorLoopImpl {
         }
 
         assert_eq!(result.processed.len(), batch.len());
-        let mut result: Vec<(BlockStatus, Arc<BlockContext>)> = result
+        let mut result: Vec<(Result<(), BlockStatus>, Arc<BlockContext>)> = result
             .processed
             .drain(..)
             .zip(batch.drain(..))
@@ -501,8 +501,16 @@ impl BlockProcessorLoopImpl {
             .collect();
 
         for (status, block_ctx) in &result {
-            self.stats
-                .inc(StatType::BlockProcessorResult, (*status).into());
+            match status {
+                Ok(()) => {
+                    self.stats
+                        .inc(StatType::BlockProcessorResult, BlockStatus::Progress.into());
+                }
+                Err(e) => {
+                    self.stats.inc(StatType::BlockProcessorResult, (*e).into());
+                }
+            }
+
             self.stats
                 .inc(StatType::BlockProcessorSource, block_ctx.source.into());
 
@@ -511,7 +519,8 @@ impl BlockProcessorLoopImpl {
             let saved_block = block_ctx.saved_block.lock().unwrap().clone();
 
             match status {
-                BlockStatus::Progress => {
+                Err(BlockStatus::Progress) => unreachable!(),
+                Ok(()) => {
                     self.unchecked.trigger(&hash.into());
 
                     /*
@@ -528,12 +537,12 @@ impl BlockProcessorLoopImpl {
                         self.unchecked.trigger(&block.destination_or_link().into());
                     }
                 }
-                BlockStatus::GapPrevious => {
+                Err(BlockStatus::GapPrevious) => {
                     self.unchecked
                         .put(block.previous().into(), UncheckedInfo::new(block.clone()));
                     self.stats.inc(StatType::Ledger, DetailType::GapPrevious);
                 }
-                BlockStatus::GapSource => {
+                Err(BlockStatus::GapSource) => {
                     self.unchecked.put(
                         block
                             .source_field()
@@ -543,7 +552,7 @@ impl BlockProcessorLoopImpl {
                     );
                     self.stats.inc(StatType::Ledger, DetailType::GapSource);
                 }
-                BlockStatus::GapEpochOpenPending => {
+                Err(BlockStatus::GapEpochOpenPending) => {
                     // Specific unchecked key starting with epoch open block account public key
                     self.unchecked.put(
                         block.account_field().unwrap().into(),
@@ -551,36 +560,36 @@ impl BlockProcessorLoopImpl {
                     );
                     self.stats.inc(StatType::Ledger, DetailType::GapSource);
                 }
-                BlockStatus::Old => {
+                Err(BlockStatus::Old) => {
                     self.stats.inc(StatType::Ledger, DetailType::Old);
                 }
                 // These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
-                BlockStatus::BadSignature => {
+                Err(BlockStatus::BadSignature) => {
                     debug!("Block signature is invalid: {}", hash)
                 }
-                BlockStatus::NegativeSpend => {
+                Err(BlockStatus::NegativeSpend) => {
                     debug!("Block spends negative amount: {}", hash)
                 }
-                BlockStatus::Unreceivable => {
+                Err(BlockStatus::Unreceivable) => {
                     debug!("Block is unreceivable: {}", hash)
                 }
-                BlockStatus::Fork => {
+                Err(BlockStatus::Fork) => {
                     self.stats.inc(StatType::Ledger, DetailType::Fork);
                     debug!("Block is a fork: {}", hash)
                 }
-                BlockStatus::OpenedBurnAccount => {
+                Err(BlockStatus::OpenedBurnAccount) => {
                     debug!("Block opens burn account: {}", hash)
                 }
-                BlockStatus::BalanceMismatch => {
+                Err(BlockStatus::BalanceMismatch) => {
                     debug!("Block balance mismatch: {}", hash)
                 }
-                BlockStatus::RepresentativeMismatch => {
+                Err(BlockStatus::RepresentativeMismatch) => {
                     debug!("Block representative mismatch: {}", hash)
                 }
-                BlockStatus::BlockPosition => {
+                Err(BlockStatus::BlockPosition) => {
                     debug!("Block is in incorrect position: {}", hash)
                 }
-                BlockStatus::InsufficientWork => {
+                Err(BlockStatus::InsufficientWork) => {
                     debug!("Block has insufficient work: {}", hash)
                 }
             }

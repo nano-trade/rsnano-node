@@ -281,7 +281,7 @@ impl LocalBlockBroadcaster {
         let mut should_notify = false;
         for result in batch {
             // Only rebroadcast local blocks that were successfully processed (no forks or gaps)
-            if result.status == BlockStatus::Progress && result.source == BlockSource::Local {
+            if result.status.is_ok() && result.source == BlockSource::Local {
                 let mut guard = self.mutex.lock().unwrap();
                 guard.local_blocks.push_back(LocalEntry {
                     block: Arc::new(result.block.clone()),

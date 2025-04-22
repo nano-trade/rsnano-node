@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-pub type BlockProcessorCallback = Box<dyn Fn(BlockStatus) + Send + Sync>;
+pub type BlockProcessorCallback = Box<dyn Fn(Result<(), BlockStatus>) + Send + Sync>;
 
 pub struct BlockContext {
     pub block: Block,
@@ -32,7 +32,7 @@ impl BlockContext {
         }
     }
 
-    pub fn set_result(&self, result: BlockStatus) {
+    pub fn set_result(&self, result: Result<(), BlockStatus>) {
         self.waiter.set_result(result);
     }
 
@@ -48,7 +48,7 @@ impl Drop for BlockContext {
 }
 
 pub struct BlockProcessorWaiter {
-    result: Mutex<(Option<BlockStatus>, bool)>, // (status, done)
+    result: Mutex<(Option<Result<(), BlockStatus>>, bool)>, // (status, done)
     condition: Condvar,
 }
 
@@ -60,7 +60,7 @@ impl BlockProcessorWaiter {
         }
     }
 
-    pub fn set_result(&self, result: BlockStatus) {
+    pub fn set_result(&self, result: Result<(), BlockStatus>) {
         *self.result.lock().unwrap() = (Some(result), true);
         self.condition.notify_all();
     }
@@ -70,7 +70,7 @@ impl BlockProcessorWaiter {
         self.condition.notify_all();
     }
 
-    pub fn wait_result(&self) -> Option<BlockStatus> {
+    pub fn wait_result(&self) -> Option<Result<(), BlockStatus>> {
         let guard = self.result.lock().unwrap();
         if guard.1 {
             return guard.0;

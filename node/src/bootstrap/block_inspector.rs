@@ -65,7 +65,7 @@ impl BlockInspector {
         let hash = result.block.hash();
 
         match result.status {
-            BlockStatus::Progress => {
+            Ok(()) => {
                 // Progress blocks from live traffic don't need further bootstrapping
                 if result.source != BlockSource::Live {
                     let saved_block = result.saved_block.clone().unwrap();
@@ -125,7 +125,7 @@ impl BlockInspector {
                     }
                 }
             }
-            BlockStatus::GapSource => {
+            Err(BlockStatus::GapSource) => {
                 // Prevent malicious live traffic from filling up the blocked set
                 if result.source == BlockSource::Bootstrap {
                     let source = result.block.source_or_link();
@@ -150,7 +150,7 @@ impl BlockInspector {
                     }
                 }
             }
-            BlockStatus::GapPrevious => {
+            Err(BlockStatus::GapPrevious) => {
                 // Prevent live traffic from evicting accounts from the priority list
                 if result.source == BlockSource::Live
                     && !state.candidate_accounts.priority_half_full()
@@ -168,7 +168,7 @@ impl BlockInspector {
                     }
                 }
             }
-            BlockStatus::GapEpochOpenPending => {
+            Err(BlockStatus::GapEpochOpenPending) => {
                 // Epoch open blocks for accounts that don't have any pending blocks yet
                 if state.candidate_accounts.priority_erase(account) {
                     self.stats
