@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use rsnano_core::{
     utils::{BlockPriority, ContainerInfo, ContainerInfoProvider},
-    Account, AccountInfo, BlockHash, ConfirmationHeightInfo, QualifiedRoot, SavedBlock,
+    Account, AccountInfo, BlockHash, ConfirmationHeightInfo, Networks, QualifiedRoot, SavedBlock,
 };
-use rsnano_ledger::{AnySet, BlockError, Ledger, ProcessedResult};
+use rsnano_ledger::{AnySet, Ledger, ProcessedResult};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{Stats, StatsCollection, StatsSource};
 
@@ -34,6 +34,7 @@ pub struct ElectionSchedulers {
     notify_listener: OutputListenerMt<()>,
     config: NodeConfig,
     ledger: Arc<Ledger>,
+    activate_successors_listener: OutputListenerMt<SavedBlock>,
 }
 
 impl ElectionSchedulers {
@@ -90,7 +91,39 @@ impl ElectionSchedulers {
             notify_listener: OutputListenerMt::new(),
             config,
             ledger,
+            activate_successors_listener: Default::default(),
         }
+    }
+
+    pub fn new_null() -> Self {
+        let config = NodeConfig::new_test_instance();
+        let network_constants = NetworkConstants::for_network(Networks::NanoLiveNetwork);
+        let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
+        let ledger = Arc::new(Ledger::new_null());
+        let stats = Arc::new(Stats::default());
+        let vote_cache = Arc::new(Mutex::new(VoteCache::new(
+            Default::default(),
+            stats.clone(),
+        )));
+        let confirming_set = Arc::new(ConfirmingSet::new_null());
+        let online_reps = Arc::new(Mutex::new(OnlineReps::new_test_instance()));
+        let clock = Arc::new(SteadyClock::new_null());
+
+        Self::new(
+            config,
+            network_constants,
+            active_elections,
+            ledger,
+            stats,
+            vote_cache,
+            confirming_set,
+            online_reps,
+            clock,
+        )
+    }
+
+    pub fn track_activate_successors(&self) -> Arc<OutputTrackerMt<SavedBlock>> {
+        self.activate_successors_listener.track()
     }
 
     /// Does the block exist in any of the schedulers
@@ -131,10 +164,13 @@ impl ElectionSchedulers {
         self.manual.push(block, None);
     }
 
-    pub fn activate_successors(&self, confirmed: &Vec<(SavedBlock, BlockHash)>) {
+    pub fn activate_successors<'a>(&self, confirmed: impl IntoIterator<Item = &'a SavedBlock>) {
         // Activate successors of confirmed blocks
         let any = self.ledger.any();
-        for (block, _) in confirmed {
+        for block in confirmed {
+            if self.activate_successors_listener.is_tracked() {
+                self.activate_successors_listener.emit(block.clone());
+            }
             self.priority.activate_successors(&any, block);
         }
     }
@@ -182,5 +218,22 @@ impl ContainerInfoProvider for ElectionSchedulers {
 impl StatsSource for ElectionSchedulers {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.priority.collect_stats(result);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_track_successor_activation() {
+        let schedulers = ElectionSchedulers::new_null();
+        let tracker = schedulers.track_activate_successors();
+        let block = SavedBlock::new_test_instance();
+
+        schedulers.activate_successors([&block]);
+
+        let output = tracker.output();
+        assert_eq!(output, [block]);
     }
 }

@@ -135,79 +135,46 @@ fn pruning_automatic() {
 fn deferred_dependent_elections() {
     let mut system = System::new();
 
-    let node_config_1 = System::default_config_without_backlog_scan();
-    let node_config_2 = System::default_config_without_backlog_scan();
-
     let mut node_flags = NodeFlags::default();
     node_flags.disable_request_loop = true;
+
     let node1 = system
         .build_node()
-        .config(node_config_1)
+        .config(System::default_config_without_backlog_scan())
         .flags(node_flags.clone())
-        .finish();
-    let node2 = system
-        .build_node()
-        .config(node_config_2)
-        .flags(node_flags)
         .finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
-    let key = PrivateKey::new();
+    let destination = PrivateKey::new();
 
-    let send1 = lattice.genesis().send(&key, 1);
-    let open = lattice.account(&key).receive(&send1);
-    let send2 = lattice.genesis().send(&key, 1);
+    let send1 = lattice.genesis().send(&destination, 1);
+    let open = lattice.account(&destination).receive(&send1);
+    let send2 = lattice.genesis().send(&destination, 1);
 
     let mut fork_lattice = lattice.clone();
-    let receive = lattice.account(&key).receive(&send2);
+    let receive = lattice.account(&destination).receive(&send2);
     let fork = fork_lattice
-        .account(&key)
+        .account(&destination)
         .receive_and_change(&send2, &*DEV_GENESIS_KEY);
 
-    node1.process_local(send1.clone().into()).unwrap();
+    node1.process(send1.clone().into());
     start_election(&node1, &send1.hash());
 
-    node1.process_local(open.clone().into()).unwrap();
-    node1.process_local(send2.clone().into()).unwrap();
-
-    assert_timely2(|| node1.block_exists(&open.hash()));
-    assert_timely2(|| node1.block_exists(&send2.hash()));
+    node1.process(open.clone().into());
+    node1.process(send2.clone().into());
 
     assert_never(Duration::from_millis(500), || {
         node1.is_active_root(&open.qualified_root())
             || node1.is_active_root(&send2.qualified_root())
     });
 
-    assert_timely2(|| node2.block_exists(&open.hash()));
-    assert_timely2(|| node2.block_exists(&send2.hash()));
-
-    node1.process_local(open.clone().into()).unwrap();
-
-    assert_never(std::time::Duration::from_millis(500), || {
-        node1.is_active_root(&open.qualified_root())
-    });
-
-    start_election(&node1, &open.hash());
-    node1.active.write().unwrap().erase(&open.qualified_root());
-    assert_eq!(node1.is_active_root(&open.qualified_root()), false);
-
-    node1.process_local(open.clone().into()).unwrap();
-
-    assert_never(std::time::Duration::from_millis(500), || {
-        node1.is_active_root(&open.qualified_root())
-    });
-
-    node1.active.write().unwrap().erase(&open.qualified_root());
-    node1.active.write().unwrap().erase(&send2.qualified_root());
-    assert!(!node1.is_active_root(&open.qualified_root()));
-    assert!(!node1.is_active_root(&send2.qualified_root()));
-
     node1.force_confirm(&send1.hash());
+
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
     assert_timely2(|| node1.is_active_root(&open.qualified_root()));
     assert_timely2(|| node1.is_active_root(&send2.qualified_root()));
 
-    node1.process_local(receive.clone().into()).unwrap();
+    node1.process(receive.clone().into());
     assert_eq!(node1.is_active_root(&receive.qualified_root()), false);
 
     node1.force_confirm(&open.hash());
@@ -224,10 +191,7 @@ fn deferred_dependent_elections() {
     node1.ledger.rollback(&receive.hash()).unwrap();
     assert!(!node1.block_exists(&receive.hash()));
 
-    node1.process_local(receive.clone().into()).unwrap();
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_exists(&receive.hash())
-    });
+    node1.process(receive.clone().into());
 
     assert_never(Duration::from_millis(500), || {
         node1.is_active_root(&receive.qualified_root())
@@ -235,10 +199,9 @@ fn deferred_dependent_elections() {
 
     assert_eq!(
         Err(BlockError::Fork),
-        node1.process_local(fork.clone().into())
+        node1.try_process(fork.clone().into())
     );
 
-    node1.process_local(fork.clone().into()).unwrap();
     assert_never(Duration::from_millis(500), || {
         node1.is_active_root(&receive.qualified_root())
     });

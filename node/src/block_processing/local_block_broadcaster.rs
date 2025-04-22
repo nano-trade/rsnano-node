@@ -105,6 +105,16 @@ impl LocalBlockBroadcaster {
         }
     }
 
+    pub fn new_null() -> Self {
+        let config = LocalBlockBroadcasterConfig::default();
+        let stats = Arc::new(Stats::default());
+        let ledger = Arc::new(Ledger::new_null());
+        let confirming_set = Arc::new(ConfirmingSet::new_null());
+        let message_flooder = MessageFlooder::new_null();
+
+        Self::new(config, stats, ledger, confirming_set, message_flooder, true)
+    }
+
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stopped = true;
         self.condition.notify_all();

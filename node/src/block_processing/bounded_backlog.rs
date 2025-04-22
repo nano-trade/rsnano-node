@@ -77,6 +77,16 @@ impl BoundedBacklog {
         }
     }
 
+    pub fn new_null() -> Self {
+        let bucketing = Bucketing::default();
+        let config = BoundedBacklogConfig::default();
+        let ledger = Arc::new(Ledger::new_null());
+        let block_processor = Arc::new(BlockProcessor::new_null());
+        let stats = Arc::new(Stats::default());
+
+        Self::new(bucketing, config, ledger, block_processor, stats)
+    }
+
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
 

@@ -14,9 +14,6 @@ pub(crate) struct RunDaemonArgs {
     /// Uses the supplied network (live, test, beta or dev)
     #[arg(long)]
     network: Option<String>,
-    /// Disables activate_successors in active_elections
-    #[arg(long)]
-    disable_activate_successors: bool,
     /// Turn off automatic wallet backup process
     #[arg(long)]
     disable_backup: bool,
@@ -89,7 +86,6 @@ impl RunDaemonArgs {
 
     pub(crate) fn get_flags(&self) -> NodeFlags {
         let mut flags = NodeFlags::new();
-        flags.disable_activate_successors = self.disable_activate_successors;
         flags.disable_backup = self.disable_backup;
         flags.disable_ongoing_bootstrap = self.disable_ongoing_bootstrap;
         flags.disable_rep_crawler = self.disable_rep_crawler;

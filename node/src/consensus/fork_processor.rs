@@ -1,6 +1,7 @@
 use super::{ActiveElectionsContainer, ForkCache, VoteCache};
 use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot};
 use rsnano_ledger::{BlockError, ProcessedResult, RepWeightCache};
+use rsnano_stats::Stats;
 use std::sync::{Arc, Mutex, RwLock};
 use tracing::debug;
 
@@ -12,6 +13,18 @@ pub(crate) struct ForkProcessor {
 }
 
 impl ForkProcessor {
+    pub fn new_test_instance() -> Self {
+        Self {
+            rep_weights: Arc::new(RepWeightCache::new()),
+            fork_cache: Arc::new(RwLock::new(ForkCache::new())),
+            active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
+            vote_cache: Arc::new(Mutex::new(VoteCache::new(
+                Default::default(),
+                Arc::new(Stats::default()),
+            ))),
+        }
+    }
+
     pub fn handle_forks(&self, batch: &[ProcessedResult]) {
         for result in batch {
             if result.status == Err(BlockError::Fork) {

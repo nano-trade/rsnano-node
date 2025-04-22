@@ -1,6 +1,6 @@
 use std::sync::{mpsc::SyncSender, Arc, Mutex, RwLock};
 
-use rsnano_core::{utils::MemoryStream, Block, Vote, VoteError, VoteSource};
+use rsnano_core::{utils::MemoryStream, Block, VoteError, VoteSource};
 use rsnano_messages::NetworkFilter;
 use rsnano_nullable_clock::SteadyClock;
 

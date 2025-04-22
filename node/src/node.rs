@@ -1096,7 +1096,6 @@ impl Node {
             node_event_sender: node_observer.clone(),
             local_block_broadcaster: local_block_broadcaster.clone(),
             election_schedulers: election_schedulers.clone(),
-            flags: flags.clone(),
             bounded_backlog: bounded_backlog.clone(),
             dependent_elections_confirmer,
             confirming_set: confirming_set.clone(),

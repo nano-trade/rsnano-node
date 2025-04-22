@@ -35,10 +35,14 @@ use tracing::debug;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum BlockError {
-    BadSignature,  // Signature was bad, forged or transmission error
-    Old,           // Already seen and was valid
-    NegativeSpend, // Malicious attempt to spend a negative amount
-    Fork,          // Malicious fork based on previous
+    /// Signature was bad, forged or transmission error
+    BadSignature,
+    /// Already seen and was valid
+    Old,
+    /// Malicious attempt to spend a negative amount
+    NegativeSpend,
+    /// Malicious fork based on previous
+    Fork,
     /// Source block doesn't exist, has already been received, or requires an account upgrade (epoch blocks)
     Unreceivable,
     /// Block marked as previous is unknown

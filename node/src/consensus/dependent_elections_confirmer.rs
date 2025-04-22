@@ -12,6 +12,14 @@ pub(crate) struct DependentElectionsConfirmer {
 }
 
 impl DependentElectionsConfirmer {
+    pub fn new_null() -> Self {
+        Self {
+            confirming_set: Arc::new(ConfirmingSet::new_null()),
+            active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
+            clock: Arc::new(SteadyClock::new_null()),
+        }
+    }
+
     /// Confirmed blocks might implicitly confirm dependent elections
     pub fn confirm_dependent_elections(&self, confirmed_blocks: &Vec<(SavedBlock, BlockHash)>) {
         let blocks_plus_election = self.blocks_plus_elections(confirmed_blocks);

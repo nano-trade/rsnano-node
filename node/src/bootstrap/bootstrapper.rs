@@ -147,6 +147,26 @@ impl Bootstrapper {
         }
     }
 
+    pub fn new_null() -> Self {
+        let block_processor = Arc::new(BlockProcessor::new_null());
+        let ledger = Arc::new(Ledger::new_null());
+        let stats = Arc::new(Stats::default());
+        let network = Arc::new(RwLock::new(Network::new_test_instance()));
+        let message_sender = MessageSender::new_null();
+        let config = BootstrapConfig::default();
+        let clock = Arc::new(SteadyClock::new_null());
+
+        Self::new(
+            block_processor,
+            ledger,
+            stats,
+            network,
+            message_sender,
+            config,
+            clock,
+        )
+    }
+
     pub fn initialize(&self, genesis_account: &Account) {
         let inserted = self
             .state
