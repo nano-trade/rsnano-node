@@ -409,7 +409,7 @@ impl Node {
             telemetry_factory,
             telemetry_config,
             stats.clone(),
-            ledger.genesis_hash(),
+            ledger.genesis().hash(),
             network_params.clone(),
             network.clone(),
             message_sender.clone(),

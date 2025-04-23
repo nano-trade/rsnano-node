@@ -888,8 +888,8 @@ impl Ledger {
         }
     }
 
-    pub fn genesis_hash(&self) -> BlockHash {
-        self.constants.genesis_block.hash()
+    pub fn genesis(&self) -> &SavedBlock {
+        &self.constants.genesis_block
     }
 
     pub fn work_thresholds(&self) -> &WorkThresholds {

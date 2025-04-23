@@ -30,6 +30,7 @@ pub(crate) struct BlockValidationTest {
     previous_block_missing: bool,
     is_work_valid: bool,
 }
+
 impl BlockValidationTest {
     pub fn for_epoch0_account() -> Self {
         let mut result = Self::for_unopened_account();

@@ -1,45 +1,42 @@
-use super::LedgerContext;
 use crate::{
-    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    ledger_constants::LEDGER_CONSTANTS_STUB, AnySet, ConfirmedSet, Ledger, LedgerSet,
+    DEV_GENESIS_HASH,
 };
 use rsnano_core::{utils::UnixTimestamp, Account, Amount, BlockType};
 
 #[test]
 fn account_balance_is_none_for_unknown_account() {
-    let ctx = LedgerContext::empty();
-    let balance = ctx.ledger.any().account_balance(&Account::zero());
+    let ledger = Ledger::new_null();
+    let balance = ledger.any().account_balance(&Account::zero());
     assert_eq!(balance, Amount::zero());
 }
 
 #[test]
 fn get_genesis_block() {
-    let ctx = LedgerContext::empty();
+    let ledger = Ledger::new_null();
 
-    let block = ctx
-        .ledger
+    let genesis = ledger
         .any()
-        .get_block(&DEV_GENESIS_HASH)
+        .get_block(&ledger.genesis().hash())
         .expect("genesis block not found");
 
-    assert_eq!(block.block_type(), BlockType::LegacyOpen);
+    assert_eq!(genesis.block_type(), BlockType::LegacyOpen);
 }
 
 #[test]
 fn genesis_account_balance() {
-    let ctx = LedgerContext::empty();
-    let balance = ctx.ledger.any().account_balance(&DEV_GENESIS_ACCOUNT);
-    assert_eq!(balance, LEDGER_CONSTANTS_STUB.genesis_amount);
+    let ledger = Ledger::new_null();
+    let balance = ledger.any().account_balance(&ledger.genesis().account());
+    assert_eq!(balance, Amount::MAX);
 }
 
 #[test]
 fn genesis_account_info() {
-    let ctx = LedgerContext::empty();
+    let ledger = Ledger::new_null();
 
-    let account_info = ctx
-        .ledger
+    let account_info = ledger
         .any()
-        .get_account(&DEV_GENESIS_ACCOUNT)
+        .get_account(&ledger.genesis().account())
         .expect("genesis account not found");
 
     // Frontier time should have been updated when genesis balance was added
@@ -50,13 +47,12 @@ fn genesis_account_info() {
 
 #[test]
 fn genesis_confirmation_height_info() {
-    let ctx = LedgerContext::empty();
+    let ledger = Ledger::new_null();
 
     // Genesis block should be confirmed by default
-    let conf_info = ctx
-        .ledger
+    let conf_info = ledger
         .confirmed()
-        .get_conf_info(&DEV_GENESIS_ACCOUNT)
+        .get_conf_info(&ledger.genesis().account())
         .expect("conf height not found");
 
     assert_eq!(conf_info.height, 1);
@@ -65,33 +61,33 @@ fn genesis_confirmation_height_info() {
 
 #[test]
 fn cache() {
-    let ctx = LedgerContext::empty();
-    assert_eq!(ctx.ledger.account_count(), 1);
-    assert_eq!(ctx.ledger.confirmed_count(), 1);
+    let ledger = Ledger::new_null();
+    assert_eq!(ledger.account_count(), 1);
+    assert_eq!(ledger.confirmed_count(), 1);
 }
 
 #[test]
 fn genesis_representative() {
-    let ctx = LedgerContext::empty();
+    let ledger = Ledger::new_null();
     assert_eq!(
-        ctx.ledger
+        ledger
             .any()
-            .representative_block_hash(&DEV_GENESIS_HASH),
-        *DEV_GENESIS_HASH
+            .representative_block_hash(&ledger.genesis().hash()),
+        ledger.genesis().hash()
     );
 }
 
 #[test]
 fn genesis_vote_weight() {
-    let ctx = LedgerContext::empty();
+    let ledger = Ledger::new_null();
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
+        ledger.weight(&ledger.genesis().account().into()),
+        Amount::MAX
     );
 }
 
 #[test]
 fn latest_empty() {
-    let ctx = LedgerContext::empty();
-    assert_eq!(ctx.ledger.any().account_head(&Account::from(1)), None);
+    let ledger = Ledger::new_null();
+    assert_eq!(ledger.any().account_head(&Account::from(1)), None);
 }

@@ -21,7 +21,7 @@ fn unchecked_clear() {
     }
     .into();
 
-    node.process_local(send1.clone()).unwrap();
+    let _ = node.process_local(send1.clone());
 
     assert_timely2(|| !node.unchecked.is_empty());
 

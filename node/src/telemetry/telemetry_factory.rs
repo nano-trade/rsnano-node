@@ -45,7 +45,7 @@ impl TelemetryFactory {
             protocol_version,
             uptime: self.startup_time.elapsed(self.clock.now()).as_secs(),
             unchecked_count: self.unchecked.len() as u64,
-            genesis_block: self.ledger.genesis_hash(),
+            genesis_block: self.ledger.genesis().hash(),
             peer_count,
             account_count: self.ledger.account_count(),
             major_version: version.major as u8,

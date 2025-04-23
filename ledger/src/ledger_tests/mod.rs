@@ -2,8 +2,8 @@ use std::sync::{atomic::Ordering, Arc};
 
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
-    Account, Amount, BlockHash, PrivateKey, PublicKey, QualifiedRoot, Root, SavedAccountChain,
-    SavedBlock, TestBlockBuilder, DEV_GENESIS_KEY,
+    Account, Amount, BlockHash, PrivateKey, PublicKey, Root, SavedBlock, TestBlockBuilder,
+    DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::Writer;
@@ -13,8 +13,8 @@ use crate::{
     test_helpers::{
         setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
     },
-    AnySet, ConfirmedSet, Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT,
-    DEV_GENESIS_HASH,
+    AnySet, ConfirmedSet, Ledger, LedgerContext, LedgerInserter, RepWeightCache,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 
 mod empty_ledger;
@@ -27,38 +27,22 @@ mod rollback_state;
 
 #[test]
 fn ledger_successor() {
-    let mut chain = SavedAccountChain::new_opened_chain();
-    let send = chain.add_legacy_send().clone();
-    let ledger = Ledger::new_null_builder()
-        .blocks(chain.blocks())
-        .account_info(&chain.account(), &chain.account_info())
-        .finish();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let send = inserter.genesis().send(Account::from(1), 1000);
 
     assert_eq!(
         ledger
             .any()
-            .block_successor_by_qualified_root(&QualifiedRoot::new(Root::zero(), chain.open())),
-        Some(send.hash())
+            .block_successor_by_qualified_root(&ledger.genesis().qualified_root()),
+        Some(ledger.genesis().hash())
     );
-}
-
-#[test]
-fn ledger_successor_genesis() {
-    let mut genesis = SavedAccountChain::genesis();
-    genesis.add_legacy_send();
-    let ledger = Ledger::new_null_builder()
-        .blocks(genesis.blocks())
-        .account_info(&genesis.account(), &genesis.account_info())
-        .finish();
 
     assert_eq!(
         ledger
             .any()
-            .block_successor_by_qualified_root(&QualifiedRoot::new(
-                genesis.account().into(),
-                BlockHash::zero()
-            )),
-        Some(genesis.block(1).hash())
+            .block_successor_by_qualified_root(&send.qualified_root()),
+        Some(send.hash())
     );
 }
 
@@ -70,17 +54,13 @@ fn latest_root_empty() {
 
 #[test]
 fn latest_root() {
-    let mut genesis = SavedAccountChain::genesis();
-    genesis.add_legacy_send();
-
-    let ledger = Ledger::new_null_builder()
-        .blocks(genesis.blocks())
-        .account_info(&genesis.account(), &genesis.account_info())
-        .finish();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let send = inserter.genesis().send(Account::from(1), 1000);
 
     assert_eq!(
-        ledger.any().latest_root(&DEV_GENESIS_ACCOUNT),
-        genesis.frontier().into()
+        ledger.any().latest_root(&ledger.genesis().account()),
+        send.hash().into()
     );
 }
 
