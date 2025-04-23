@@ -1,7 +1,7 @@
 use crate::{AnySet, Ledger, LedgerSet};
 use rsnano_core::{
-    Account, Amount, Block, BlockHash, PendingKey, PrivateKey, SavedBlock, StateBlockArgs,
-    WorkNonce, DEV_GENESIS_KEY,
+    Account, Amount, Block, BlockHash, Link, PendingKey, PrivateKey, PublicKey, SavedBlock,
+    StateBlockArgs, WorkNonce, DEV_GENESIS_KEY,
 };
 
 /// Provides a simplified interface for inserting blocks into the ledger (for tests)
@@ -82,6 +82,22 @@ impl<'a> LedgerBlockInserter<'a> {
             representative,
             balance: info.balance + pending.amount,
             link: corresponding_send.into(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
+    pub fn change(&mut self, new_rep: PublicKey) -> SavedBlock {
+        let info = self.get_account_info();
+
+        let block: Block = StateBlockArgs {
+            key: self.key,
+            previous: info.head,
+            representative: new_rep,
+            balance: info.balance,
+            link: Link::zero(),
             work: WorkNonce::new(u64::MAX),
         }
         .into();

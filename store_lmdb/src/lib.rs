@@ -461,16 +461,21 @@ pub const PEERS_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(8);
 #[cfg(test)]
 mod test {
     use super::*;
+    use lmdb::DatabaseFlags;
 
     #[test]
     fn tracks_deletes() {
         let env = LmdbEnv::new_null();
-        let mut txn = env.tx_begin_write();
-        let delete_tracker = txn.track_deletions();
+        let database = env
+            .environment
+            .create_db(Some("foo"), DatabaseFlags::empty())
+            .unwrap();
 
-        let database = LmdbDatabase::new_null(42);
+        let mut tx = env.tx_begin_write();
+        let delete_tracker = tx.track_deletions();
+
         let key = vec![1, 2, 3];
-        txn.delete(database, &key, None).unwrap();
+        tx.delete(database, &key, None).unwrap();
 
         assert_eq!(delete_tracker.output(), vec![DeleteEvent { database, key }])
     }

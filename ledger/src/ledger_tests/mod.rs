@@ -84,81 +84,53 @@ fn send_open_receive_vote_weight() {
 
 #[test]
 fn send_open_receive_rollback() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
-    let receiver = AccountBlockFactory::new(&ctx.ledger);
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let receiver = PrivateKey::from(1);
 
-    let send1 = genesis
-        .legacy_send()
-        .destination(receiver.account())
-        .amount(Amount::raw(50))
-        .build();
+    let send1 = inserter.genesis().send(&receiver, 50);
+    let send2 = inserter.genesis().send(&receiver, 50);
+    let open = inserter.account(&receiver).receive(send1.hash());
+    let receive = inserter.account(&receiver).receive(send2.hash());
 
-    ctx.ledger.process_one(&send1).unwrap();
+    let rep_account = PublicKey::from(2);
+    let change = inserter.genesis().change(rep_account);
 
-    let send2 = genesis
-        .legacy_send()
-        .destination(receiver.account())
-        .amount(Amount::raw(50))
-        .build();
+    ledger.rollback(&receive.hash()).unwrap();
 
-    ctx.ledger.process_one(&send2).unwrap();
+    assert_eq!(ledger.weight(&receiver.public_key()), Amount::raw(50));
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
+    assert_eq!(ledger.weight(&rep_account), Amount::MAX - Amount::raw(100));
 
-    let open = receiver.legacy_open(send1.hash()).build();
-    ctx.ledger.process_one(&open).unwrap();
+    ledger.rollback(&open.hash()).unwrap();
 
-    let receive = receiver.legacy_receive2(send2.hash()).build();
+    assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
+    assert_eq!(ledger.weight(&rep_account), Amount::MAX - Amount::raw(100));
 
-    ctx.ledger.process_one(&receive).unwrap();
-    let rep_account = PublicKey::from(1);
+    ledger.rollback(&change.hash()).unwrap();
 
-    let change = genesis.legacy_change().representative(rep_account).build();
-    ctx.ledger.process_one(&change).unwrap();
-
-    ctx.ledger.rollback(&receive.hash()).unwrap();
-
-    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::raw(50));
-    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
+    assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
+    assert_eq!(ledger.weight(&rep_account), Amount::zero());
     assert_eq!(
-        ctx.ledger.weight(&rep_account),
-        LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
+        ledger.weight(&DEV_GENESIS_PUB_KEY),
+        Amount::MAX - Amount::raw(100)
     );
 
-    ctx.ledger.rollback(&open.hash()).unwrap();
+    ledger.rollback(&send2.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
-    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
+    assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
+    assert_eq!(ledger.weight(&rep_account), Amount::zero());
     assert_eq!(
-        ctx.ledger.weight(&rep_account),
-        LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
+        ledger.weight(&DEV_GENESIS_PUB_KEY),
+        Amount::MAX - Amount::raw(50)
     );
 
-    ctx.ledger.rollback(&change.hash()).unwrap();
+    ledger.rollback(&send1.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
-    assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
-    );
-
-    ctx.ledger.rollback(&send2.hash()).unwrap();
-
-    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
-    assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(50)
-    );
-
-    ctx.ledger.rollback(&send1.hash()).unwrap();
-
-    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
-    assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
+    assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
+    assert_eq!(ledger.weight(&rep_account), Amount::zero());
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
 }
 
 #[test]

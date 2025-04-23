@@ -52,8 +52,9 @@ impl RwTransaction {
         key: &[u8],
         flags: Option<&[u8]>,
     ) -> lmdb::Result<()> {
-        if let RwTransactionStrategy::Real(s) = &mut self.strategy {
-            s.del(database.as_real(), key, flags)?;
+        match &mut self.strategy {
+            RwTransactionStrategy::Real(s) => s.del(database.as_real(), key, flags)?,
+            RwTransactionStrategy::Nulled(s) => s.del(database, key)?,
         }
         Ok(())
     }
@@ -240,5 +241,10 @@ impl RwTransactionStub {
 
     fn commit(self) {
         *self.databases.lock().unwrap() = self.db_copies;
+    }
+
+    fn del(&mut self, database: LmdbDatabase, key: &[u8]) -> lmdb::Result<()> {
+        self.get_database_mut(database)?.entries.remove(key);
+        Ok(())
     }
 }
