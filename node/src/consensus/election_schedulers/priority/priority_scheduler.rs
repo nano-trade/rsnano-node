@@ -16,6 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 use super::{bucket_stats::BucketStats, Bucket, Bucketing, PriorityBucketConfig};
 use crate::consensus::{ActiveElectionsContainer, AecInsertError};
 use rsnano_nullable_clock::SteadyClock;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 pub struct PriorityScheduler {
     stopped: Mutex<bool>,
@@ -28,6 +29,7 @@ pub struct PriorityScheduler {
     bucket_stats: BucketStats,
     clock: Arc<SteadyClock>,
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
+    activate_successors_listener: OutputListenerMt<SavedBlock>,
 }
 
 impl PriorityScheduler {
@@ -54,7 +56,12 @@ impl PriorityScheduler {
             bucket_stats: BucketStats::default(),
             clock,
             active_elections,
+            activate_successors_listener: Default::default(),
         }
+    }
+
+    pub fn track_activate_successors(&self) -> Arc<OutputTrackerMt<SavedBlock>> {
+        self.activate_successors_listener.track()
     }
 
     pub fn bucketing(&self) -> &Bucketing {
@@ -264,15 +271,19 @@ impl PriorityScheduler {
     }
 
     pub fn activate_successors(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
-        let mut result = self.activate(any, &block.account());
+        if self.activate_successors_listener.is_tracked() {
+            self.activate_successors_listener.emit(block.clone());
+        }
+        self.activate(any, &block.account()) | self.activate_destination_account(any, &block)
+    }
 
-        // Start or vote for the next unconfirmed block in the destination account
+    fn activate_destination_account(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
         if let Some(destination) = block.destination() {
             if block.is_send() && !destination.is_zero() && destination != block.account() {
-                result |= self.activate(any, &destination);
+                return self.activate(any, &destination);
             }
         }
-        result
+        false
     }
 
     pub fn remove_election(&self, priority: BlockPriority, root: &QualifiedRoot) {
@@ -339,5 +350,65 @@ impl PrioritySchedulerExt for Arc<PriorityScheduler> {
 impl StatsSource for PriorityScheduler {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.bucket_stats.collect_stats(result);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsnano_core::PrivateKey;
+    use rsnano_ledger::{test_helpers::SavedBlockLatticeBuilder, Ledger};
+
+    #[test]
+    fn can_track_successor_activation() {
+        let scheduler = create_test_scheduler();
+        let block = SavedBlock::new_test_instance();
+        let ledger = Ledger::new_null();
+        let tracker = scheduler.track_activate_successors();
+
+        scheduler.activate_successors(&ledger.any(), &block);
+
+        let output = tracker.output();
+        assert_eq!(output, [block]);
+    }
+
+    #[test]
+    #[ignore = "WIP"]
+    fn activate_successors() {
+        let scheduler = create_test_scheduler();
+
+        let mut lattice = SavedBlockLatticeBuilder::with_stub_work();
+        let destination = PrivateKey::from(1);
+        let send1 = lattice.genesis().send(&destination, 100);
+        let send2 = lattice.genesis().send(Account::from(2), 100);
+        let open = lattice.account(&destination).receive(&send1);
+
+        let ledger = Ledger::new_null_builder()
+            .block(&send1)
+            .block(&send2)
+            .block(&open)
+            .account_info(
+                &send1.account(),
+                &AccountInfo {
+                    head: send2.hash(),
+                    open_block: send1.hash(),
+                    ..AccountInfo::new_test_instance()
+                },
+            )
+            .finish();
+
+        scheduler.activate_successors(&ledger.any(), &send1);
+
+        let aec = scheduler.active_elections.read().unwrap();
+        assert!(aec.is_active_hash(&send2.hash()));
+        assert!(aec.is_active_hash(&open.hash()));
+    }
+
+    fn create_test_scheduler() -> PriorityScheduler {
+        let config = PriorityBucketConfig::default();
+        let stats = Arc::new(Stats::default());
+        let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
+        let clock = Arc::new(SteadyClock::new_null());
+        PriorityScheduler::new(config, stats, active_elections, clock)
     }
 }

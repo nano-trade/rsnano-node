@@ -226,6 +226,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn activate_successors() {
+        let schedulers = ElectionSchedulers::new_null();
+        let tracker = schedulers.priority.track_activate_successors();
+        let block = SavedBlock::new_test_instance();
+
+        schedulers.activate_successors([&block]);
+
+        let output = tracker.output();
+        assert_eq!(output, [block]);
+    }
+
+    #[test]
     fn can_track_successor_activation() {
         let schedulers = ElectionSchedulers::new_null();
         let tracker = schedulers.track_activate_successors();

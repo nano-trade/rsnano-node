@@ -4,7 +4,7 @@ use rsnano_core::{
     dev_epoch1_signer, epoch_v1_link, utils::UnixTimestamp, Account, Amount, Block, BlockDetails,
     BlockHash, BlockSideband, ChangeBlockArgs, Epoch, EpochBlockArgs, Link, OpenBlockArgs,
     PendingInfo, PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root, SavedBlock,
-    SendBlockArgs, StateBlockArgs, DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
+    SendBlockArgs, StateBlockArgs, WorkNonce, DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
 };
 use rsnano_work::{dev_difficulty, WorkPool};
 
@@ -25,6 +25,15 @@ struct Frontier {
 
 impl SavedBlockLatticeBuilder {
     pub fn new() -> Self {
+        let work_pool = WorkPool::builder().threads(1).finish();
+        Self::with_work_pool(work_pool)
+    }
+
+    pub fn with_stub_work() -> Self {
+        Self::with_work_pool(WorkPool::new_null(WorkNonce::new(42)))
+    }
+
+    fn with_work_pool(work_pool: WorkPool) -> Self {
         let mut accounts = HashMap::new();
         accounts.insert(
             DEV_GENESIS_KEY.account(),
@@ -35,7 +44,6 @@ impl SavedBlockLatticeBuilder {
                 height: 1,
             },
         );
-        let work_pool = WorkPool::builder().threads(1).finish();
         Self {
             accounts,
             work_pool,
