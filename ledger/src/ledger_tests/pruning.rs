@@ -67,44 +67,38 @@ fn pruning_action() {
 
 #[test]
 fn pruning_large_chain() {
-    let ctx = LedgerContext::empty();
-    ctx.ledger.enable_pruning();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    ledger.enable_pruning();
     let send_receive_pairs = 20;
-    let mut last_hash = *DEV_GENESIS_HASH;
+    let genesis_account = ledger.genesis().account();
+    let mut last_hash = ledger.genesis().hash();
 
     for _ in 0..send_receive_pairs {
-        let send = genesis.send().link(genesis.account()).build();
-        ctx.ledger.process_one(&send).unwrap();
-
-        let receive = genesis.receive(send.hash()).build();
-        ctx.ledger.process_one(&receive).unwrap();
-
+        let send = inserter.genesis().send(genesis_account, 1);
+        let receive = inserter.genesis().receive(send.hash());
         last_hash = receive.hash();
     }
-    assert_eq!(ctx.ledger.block_count(), send_receive_pairs * 2 + 1);
-    ctx.ledger.confirm(last_hash);
+    assert_eq!(ledger.block_count(), send_receive_pairs * 2 + 1);
+    ledger.confirm(last_hash);
 
     // Pruning action
     assert_eq!(
-        ctx.ledger.prune_one(&last_hash, 5),
+        ledger.prune_one(&last_hash, 5),
         send_receive_pairs as usize * 2
     );
 
-    let txn = ctx.ledger.store.tx_begin_read();
-    assert!(ctx.ledger.store.pruned.exists(&txn, &last_hash));
-    assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &last_hash), false);
+    let txn = ledger.store.tx_begin_read();
+    assert!(ledger.store.pruned.exists(&txn, &last_hash));
+    assert!(ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
+    assert_eq!(ledger.store.block.exists(&txn, &last_hash), false);
+    assert_eq!(ledger.store.pruned.count(&txn), ledger.pruned_count());
     assert_eq!(
-        ctx.ledger.store.pruned.count(&txn),
-        ctx.ledger.pruned_count()
+        ledger.store.block.count(&txn),
+        ledger.block_count() - ledger.pruned_count()
     );
-    assert_eq!(
-        ctx.ledger.store.block.count(&txn),
-        ctx.ledger.block_count() - ctx.ledger.pruned_count()
-    );
-    assert_eq!(ctx.ledger.store.pruned.count(&txn), send_receive_pairs * 2);
-    assert_eq!(ctx.ledger.store.block.count(&txn), 1);
+    assert_eq!(ledger.store.pruned.count(&txn), send_receive_pairs * 2);
+    assert_eq!(ledger.store.block.count(&txn), 1);
 }
 
 #[test]
