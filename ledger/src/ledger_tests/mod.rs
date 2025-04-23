@@ -158,150 +158,111 @@ fn block_destination_source() {
     let receive2 = genesis.receive(send_to_self_2.hash()).build();
     let receive2 = ctx.ledger.process_one(&receive2).unwrap();
 
-    let block1 = send_to_dest;
-    let block2 = send_to_self;
-    let block3 = receive;
-    let block4 = send_to_dest_2;
-    let block5 = send_to_self_2;
-    let block6 = receive2;
-
     assert_eq!(
-        ledger.any().block_balance(&block6.hash()),
-        Some(block6.balance_field().unwrap())
+        ledger.any().block_balance(&receive2.hash()),
+        Some(receive2.balance_field().unwrap())
     );
-    assert_eq!(block1.destination(), Some(dest_account));
-    assert_eq!(block1.source(), None);
+    assert_eq!(send_to_dest.destination(), Some(dest_account));
+    assert_eq!(send_to_dest.source(), None);
 
-    assert_eq!(block2.destination(), Some(*DEV_GENESIS_ACCOUNT));
-    assert_eq!(block2.source(), None);
+    assert_eq!(send_to_self.destination(), Some(*DEV_GENESIS_ACCOUNT));
+    assert_eq!(send_to_self.source(), None);
 
-    assert_eq!(block3.destination(), None);
-    assert_eq!(block3.source(), Some(block2.hash()));
+    assert_eq!(receive.destination(), None);
+    assert_eq!(receive.source(), Some(send_to_self.hash()));
 
-    assert_eq!(block4.destination(), Some(dest_account));
-    assert_eq!(block4.source(), None);
+    assert_eq!(send_to_dest_2.destination(), Some(dest_account));
+    assert_eq!(send_to_dest_2.source(), None);
 
-    assert_eq!(block5.destination(), Some(*DEV_GENESIS_ACCOUNT));
-    assert_eq!(block5.source(), None);
+    assert_eq!(send_to_self_2.destination(), Some(*DEV_GENESIS_ACCOUNT));
+    assert_eq!(send_to_self_2.source(), None);
 
-    assert_eq!(block6.destination(), None);
-    assert_eq!(block6.source(), Some(block5.hash()));
+    assert_eq!(receive2.destination(), None);
+    assert_eq!(receive2.source(), Some(send_to_self_2.hash()));
 }
 
 #[test]
 fn state_account() {
-    let ctx = LedgerContext::empty();
-    let send = TestBlockBuilder::state()
-        .account(*DEV_GENESIS_ACCOUNT)
-        .previous(*DEV_GENESIS_HASH)
-        .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::nano(1000))
-        .link(*DEV_GENESIS_ACCOUNT)
-        .key(&DEV_GENESIS_KEY)
-        .build();
-    ctx.ledger.process_one(&send).unwrap();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let send = inserter.genesis().send(Account::from(1), 1000);
+
     assert_eq!(
-        ctx.ledger.any().block_account(&send.hash()),
-        Some(*DEV_GENESIS_ACCOUNT)
+        ledger.any().block_account(&send.hash()),
+        Some(ledger.genesis().account())
     );
 }
 
 mod dependents_confirmed {
     use super::*;
-    use crate::{ledger_constants::DEV_GENESIS_BLOCK, AnySet};
+    use crate::AnySet;
 
     #[test]
     fn genesis_is_confirmed() {
-        let ctx = LedgerContext::empty();
+        let ledger = Ledger::new_null();
 
         assert_eq!(
-            ctx.ledger
+            ledger
                 .any()
-                .dependents_confirmed_for_unsaved_block(&DEV_GENESIS_BLOCK),
+                .dependents_confirmed_for_unsaved_block(&ledger.genesis()),
             true
         );
     }
 
     #[test]
     fn send_dependents_are_confirmed_if_previous_block_is_confirmed() {
-        let ctx = LedgerContext::empty();
-        let destination = ctx.block_factory();
-
-        let mut send = ctx
-            .genesis_block_factory()
-            .send()
-            .link(destination.account())
-            .build();
-        ctx.ledger.process_one(&mut send).unwrap();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
+        let send = inserter.genesis().send(Account::from(1), 1000);
 
         assert_eq!(
-            ctx.ledger
-                .any()
-                .dependents_confirmed_for_unsaved_block(&send),
+            ledger.any().dependents_confirmed_for_unsaved_block(&send),
             true
         );
     }
 
     #[test]
     fn send_dependents_are_unconfirmed_if_previous_block_is_unconfirmed() {
-        let ctx = LedgerContext::empty();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
 
-        let mut send1 = ctx.genesis_block_factory().send().build();
-        ctx.ledger.process_one(&mut send1).unwrap();
-
-        let mut send2 = ctx.genesis_block_factory().send().build();
-        ctx.ledger.process_one(&mut send2).unwrap();
+        inserter.genesis().send(Account::from(1), 1000);
+        let send2 = inserter.genesis().send(Account::from(2), 2000);
 
         assert_eq!(
-            ctx.ledger
-                .any()
-                .dependents_confirmed_for_unsaved_block(&send2),
+            ledger.any().dependents_confirmed_for_unsaved_block(&send2),
             false
         );
     }
 
     #[test]
     fn open_dependents_are_unconfirmed_if_send_block_is_unconfirmed() {
-        let ctx = LedgerContext::empty();
-        let destination = ctx.block_factory();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
+        let destination = PrivateKey::from(1);
 
-        let send = ctx
-            .genesis_block_factory()
-            .send()
-            .link(destination.account())
-            .build();
-        ctx.ledger.process_one(&send).unwrap();
-
-        let open = destination.open(send.hash()).build();
-        ctx.ledger.process_one(&open).unwrap();
+        let send = inserter.genesis().send(&destination, 1000);
+        let open = inserter.account(&destination).receive(send.hash());
 
         assert_eq!(
-            ctx.ledger
-                .any()
-                .dependents_confirmed_for_unsaved_block(&open),
+            ledger.any().dependents_confirmed_for_unsaved_block(&open),
             false
         );
     }
 
     #[test]
     fn open_dependents_are_confirmed_if_send_block_is_confirmed() {
-        let ctx = LedgerContext::empty();
-        let destination = ctx.block_factory();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
+        let destination = PrivateKey::from(1);
 
-        let send = ctx
-            .genesis_block_factory()
-            .send()
-            .link(destination.account())
-            .build();
-        ctx.ledger.process_one(&send).unwrap();
-        ctx.ledger.confirm(send.hash());
+        let send = inserter.genesis().send(&destination, 1000);
+        ledger.confirm(send.hash());
 
-        let open = destination.open(send.hash()).build();
-        ctx.ledger.process_one(&open).unwrap();
+        let open = inserter.account(&destination).receive(send.hash());
 
         assert_eq!(
-            ctx.ledger
-                .any()
-                .dependents_confirmed_for_unsaved_block(&open),
+            ledger.any().dependents_confirmed_for_unsaved_block(&open),
             true
         );
     }
