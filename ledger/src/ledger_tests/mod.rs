@@ -66,36 +66,19 @@ fn latest_root() {
 
 #[test]
 fn send_open_receive_vote_weight() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
-    let receiver = ctx.block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let receiver = PrivateKey::from(1);
 
-    let send1 = genesis
-        .legacy_send()
-        .destination(receiver.account())
-        .amount(Amount::raw(50))
-        .build();
+    let send1 = inserter.genesis().send(&receiver, 50);
+    let send2 = inserter.genesis().send(&receiver, 50);
+    inserter.account(&receiver).receive(send1.hash());
+    inserter.account(&receiver).receive(send2.hash());
 
-    ctx.ledger.process_one(&send1).unwrap();
-
-    let mut send2 = genesis
-        .legacy_send()
-        .destination(receiver.account())
-        .amount(Amount::raw(50))
-        .build();
-
-    ctx.ledger.process_one(&mut send2).unwrap();
-
-    let mut open = receiver.legacy_open(send1.hash()).build();
-    ctx.ledger.process_one(&mut open).unwrap();
-
-    let receive = receiver.legacy_receive2(send2.hash()).build();
-    ctx.ledger.process_one(&receive).unwrap();
-
-    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::raw(100));
+    assert_eq!(ledger.weight(&receiver.public_key()), Amount::raw(100));
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
+        ledger.weight(&ledger.genesis().account().into()),
+        Amount::MAX - Amount::raw(100)
     );
 }
 
