@@ -97,6 +97,7 @@ impl PriorityScheduler {
         debug_assert!(!account.is_zero());
         if let Some(account_info) = any.get_account(account) {
             let conf_info = any.confirmed().get_conf_info(account).unwrap_or_default();
+
             if conf_info.height < account_info.block_count {
                 return self.activate_with_info(any, account, &account_info, &conf_info);
             }
@@ -195,50 +196,53 @@ impl PriorityScheduler {
 
             if !*stopped {
                 drop(stopped);
-                self.stats
-                    .inc(StatType::ElectionScheduler, DetailType::Loop);
+                self.run_one();
+                stopped = self.stopped.lock().unwrap();
+            }
+        }
+    }
 
-                let now = self.clock.now();
-                let mut buckets = self.buckets.lock().unwrap();
-                for bucket in buckets.iter_mut() {
-                    let aec_vacancy = self.active_elections.read().unwrap().vacancy();
-                    if bucket.available(aec_vacancy) {
-                        if let Some(insert_req) = bucket.activate() {
-                            let root = insert_req.block.qualified_root();
+    fn run_one(&self) {
+        self.stats
+            .inc(StatType::ElectionScheduler, DetailType::Loop);
 
-                            let result = self
-                                .active_elections
-                                .write()
-                                .unwrap()
-                                .insert(insert_req, now);
+        let now = self.clock.now();
+        let mut buckets = self.buckets.lock().unwrap();
+        for bucket in buckets.iter_mut() {
+            let aec_vacancy = self.active_elections.read().unwrap().vacancy();
+            if bucket.available(aec_vacancy) {
+                if let Some(insert_req) = bucket.activate() {
+                    let root = insert_req.block.qualified_root();
 
-                            if result.is_err() {
-                                bucket.remove_election(&root);
-                            }
+                    let result = self
+                        .active_elections
+                        .write()
+                        .unwrap()
+                        .insert(insert_req, now);
 
-                            match result {
-                                Ok(()) => {
-                                    self.bucket_stats
-                                        .activate_success
-                                        .fetch_add(1, Ordering::Relaxed);
-                                }
-                                Err(AecInsertError::Duplicate) => {
-                                    self.bucket_stats
-                                        .activate_failed_duplicate
-                                        .fetch_add(1, Ordering::Relaxed);
-                                }
-                                Err(AecInsertError::RecentlyConfirmed) => {
-                                    self.bucket_stats
-                                        .activate_failed_confirmed
-                                        .fetch_add(1, Ordering::Relaxed);
-                                }
-                                Err(AecInsertError::Stopped) => {}
-                            }
+                    if result.is_err() {
+                        bucket.remove_election(&root);
+                    }
+
+                    match result {
+                        Ok(()) => {
+                            self.bucket_stats
+                                .activate_success
+                                .fetch_add(1, Ordering::Relaxed);
                         }
+                        Err(AecInsertError::Duplicate) => {
+                            self.bucket_stats
+                                .activate_failed_duplicate
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                        Err(AecInsertError::RecentlyConfirmed) => {
+                            self.bucket_stats
+                                .activate_failed_confirmed
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                        Err(AecInsertError::Stopped) => {}
                     }
                 }
-
-                stopped = self.stopped.lock().unwrap();
             }
         }
     }
@@ -357,7 +361,7 @@ impl StatsSource for PriorityScheduler {
 mod tests {
     use super::*;
     use rsnano_core::PrivateKey;
-    use rsnano_ledger::{test_helpers::SavedBlockLatticeBuilder, Ledger};
+    use rsnano_ledger::{Ledger, LedgerInserter};
 
     #[test]
     fn can_track_successor_activation() {
@@ -373,31 +377,19 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "WIP"]
     fn activate_successors() {
         let scheduler = create_test_scheduler();
 
-        let mut lattice = SavedBlockLatticeBuilder::with_stub_work();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
         let destination = PrivateKey::from(1);
-        let send1 = lattice.genesis().send(&destination, 100);
-        let send2 = lattice.genesis().send(Account::from(2), 100);
-        let open = lattice.account(&destination).receive(&send1);
+        let send1 = inserter.genesis().send(&destination, 100);
+        let send2 = inserter.genesis().send(Account::from(2), 100);
+        let open = inserter.account(&destination).receive(send1.hash());
 
-        let ledger = Ledger::new_null_builder()
-            .block(&send1)
-            .block(&send2)
-            .block(&open)
-            .account_info(
-                &send1.account(),
-                &AccountInfo {
-                    head: send2.hash(),
-                    open_block: send1.hash(),
-                    ..AccountInfo::new_test_instance()
-                },
-            )
-            .finish();
-
+        ledger.confirm(send1.hash());
         scheduler.activate_successors(&ledger.any(), &send1);
+        scheduler.run_one();
 
         let aec = scheduler.active_elections.read().unwrap();
         assert!(aec.is_active_hash(&send2.hash()));
