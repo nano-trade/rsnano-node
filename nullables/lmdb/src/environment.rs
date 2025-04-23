@@ -3,7 +3,10 @@ use crate::ConfiguredDatabaseBuilder;
 use super::{ConfiguredDatabase, LmdbDatabase, RoTransaction, RwTransaction};
 use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
 use lmdb_sys::MDB_env;
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 pub struct EnvironmentOptions<'a> {
     pub max_dbs: u32,
@@ -27,13 +30,13 @@ impl LmdbEnvironment {
     }
 
     pub fn new_null() -> Self {
-        Self(EnvironmentStrategy::Nulled(EnvironmentStub {
-            databases: Vec::new(),
-        }))
+        Self::new_null_with(Vec::new())
     }
 
     pub fn new_null_with(databases: Vec<ConfiguredDatabase>) -> Self {
-        Self(EnvironmentStrategy::Nulled(EnvironmentStub { databases }))
+        Self(EnvironmentStrategy::Nulled(EnvironmentStub {
+            databases: Arc::new(Mutex::new(databases)),
+        }))
     }
 
     pub fn null_builder() -> EnvironmentStubBuilder {
@@ -157,13 +160,15 @@ impl EnvironmentWrapper {
 }
 
 struct EnvironmentStub {
-    databases: Vec<ConfiguredDatabase>,
+    databases: Arc<Mutex<Vec<ConfiguredDatabase>>>,
 }
 
 impl EnvironmentStub {
     fn begin_ro_txn(&self) -> lmdb::Result<RoTransaction> {
         //todo  don't clone!
-        Ok(RoTransaction::new_null(self.databases.clone()))
+        Ok(RoTransaction::new_null(
+            self.databases.lock().unwrap().clone(),
+        ))
     }
 
     fn begin_rw_txn(&self) -> lmdb::Result<RwTransaction> {
@@ -172,21 +177,34 @@ impl EnvironmentStub {
     }
 
     fn create_db(&self, name: Option<&str>, _flags: DatabaseFlags) -> lmdb::Result<LmdbDatabase> {
-        Ok(self
-            .databases
-            .iter()
-            .find(|x| name == Some(&x.db_name))
-            .map(|x| x.dbi)
-            .unwrap_or(LmdbDatabase::new_null(42)))
+        let mut guard = self.databases.lock().unwrap();
+        if let Some(db) = guard.iter().find(|x| name == Some(&x.db_name)) {
+            return Ok(db.dbi);
+        }
+
+        let dbi = create_dbi(&guard);
+        guard.push(ConfiguredDatabase::new(dbi, name.unwrap().to_owned()));
+        Ok(dbi)
     }
 
     fn open_db(&self, name: Option<&str>) -> lmdb::Result<LmdbDatabase> {
-        self.create_db(name, DatabaseFlags::empty())
+        self.databases
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|x| name == Some(&x.db_name))
+            .map(|x| x.dbi)
+            .ok_or(lmdb::Error::NotFound)
     }
 
     fn stat(&self) -> lmdb::Result<Stat> {
         todo!()
     }
+}
+
+fn create_dbi(guard: &std::sync::MutexGuard<'_, Vec<ConfiguredDatabase>>) -> LmdbDatabase {
+    let id = guard.iter().map(|i| i.dbi.as_nulled()).max().unwrap_or(41) + 1;
+    LmdbDatabase::new_null(id)
 }
 
 #[derive(Default)]
@@ -217,5 +235,140 @@ impl EnvironmentStubBuilder {
 
     pub fn finish(self) -> LmdbEnvironment {
         LmdbEnvironment::new_null_with(self.databases)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lmdb::WriteFlags;
+    use std::{
+        env::temp_dir,
+        ops::Deref,
+        path::PathBuf,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    #[test]
+    fn open_unknown_database_fails() {
+        let path = TempLmdbFile::new();
+        let env = create_lmdb_env(path);
+        let result = env.open_db(Some("UNKNOWN"));
+        assert_eq!(result, Err(lmdb::Error::NotFound));
+    }
+
+    #[test]
+    fn create_db() {
+        let path = TempLmdbFile::new();
+        let env = create_lmdb_env(path);
+        env.create_db(Some("mydb"), DatabaseFlags::empty()).unwrap();
+        let result = env.open_db(Some("mydb"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn write_key_value() {
+        let path = TempLmdbFile::new();
+        let env = create_lmdb_env(path);
+        let dbi = env.create_db(Some("mydb"), DatabaseFlags::empty()).unwrap();
+        {
+            let mut tx = env.begin_rw_txn().unwrap();
+            tx.put(dbi, &[1, 2], &[3, 4], WriteFlags::empty()).unwrap();
+            tx.commit().unwrap();
+        }
+        let tx = env.begin_ro_txn().unwrap();
+        let result = tx.get(dbi, &[1, 2]).unwrap();
+        assert_eq!(result, [3, 4]);
+    }
+
+    mod nullability {
+        use super::*;
+
+        #[test]
+        fn read_database() {
+            let database = LmdbDatabase::new_null(1);
+            let env = LmdbEnvironment::null_builder()
+                .database("foo", database)
+                .entry(&[1, 2], &[3, 4])
+                .finish()
+                .finish();
+
+            let tx = env.begin_ro_txn().unwrap();
+            let result = tx.get(database, &[1, 2]).unwrap();
+            assert_eq!(result, [3, 4]);
+        }
+
+        #[test]
+        fn open_unknown_database_fails() {
+            let env = LmdbEnvironment::new_null();
+            let result = env.open_db(Some("UNKNOWN"));
+            assert_eq!(result, Err(lmdb::Error::NotFound));
+        }
+
+        #[test]
+        fn create_db() {
+            let env = LmdbEnvironment::new_null();
+            env.create_db(Some("mydb"), DatabaseFlags::empty()).unwrap();
+            let result = env.open_db(Some("mydb"));
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn write_key_value() {
+            let env = LmdbEnvironment::new_null();
+            let dbi = env.create_db(Some("mydb"), DatabaseFlags::empty()).unwrap();
+            {
+                let mut tx = env.begin_rw_txn().unwrap();
+                tx.put(dbi, &[1, 2], &[3, 4], WriteFlags::empty()).unwrap();
+                tx.commit().unwrap();
+            }
+            let tx = env.begin_ro_txn().unwrap();
+            let result = tx.get(dbi, &[1, 2]).unwrap();
+            assert_eq!(result, [3, 4]);
+        }
+    }
+
+    fn create_lmdb_env(path: TempLmdbFile) -> LmdbEnvironment {
+        let opts = EnvironmentOptions {
+            max_dbs: 3,
+            map_size: 1024 * 1024,
+            flags: EnvironmentFlags::NO_SUB_DIR
+                | EnvironmentFlags::NO_TLS
+                | EnvironmentFlags::NO_READAHEAD
+                | EnvironmentFlags::NO_SYNC
+                | EnvironmentFlags::WRITE_MAP,
+            path: &path,
+            file_mode: 0o600,
+        };
+        LmdbEnvironment::new(opts).unwrap()
+    }
+
+    static FILE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    struct TempLmdbFile(PathBuf);
+
+    impl TempLmdbFile {
+        pub fn new() -> Self {
+            let mut path = temp_dir();
+            path.push(format!(
+                "lmdbtest-{}.ldb",
+                FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            Self(path)
+        }
+    }
+
+    impl Drop for TempLmdbFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    impl Deref for TempLmdbFile {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
     }
 }

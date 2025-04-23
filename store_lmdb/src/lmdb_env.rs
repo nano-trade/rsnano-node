@@ -310,15 +310,19 @@ mod tests {
     mod rw_txn {
         use super::*;
         use crate::PutEvent;
-        use lmdb::WriteFlags;
+        use lmdb::{DatabaseFlags, WriteFlags};
 
         #[test]
         fn can_track_puts() {
             let env = LmdbEnv::new_null();
+
+            let database = env
+                .environment
+                .create_db(Some("testdb"), DatabaseFlags::empty())
+                .unwrap();
+
             let mut txn = env.tx_begin_write();
             let tracker = txn.track_puts();
-
-            let database = LmdbDatabase::new_null(42);
             let key = &[1, 2, 3];
             let value = &[4, 5, 6];
             let flags = WriteFlags::APPEND;

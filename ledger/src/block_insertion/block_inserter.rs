@@ -123,7 +123,7 @@ mod tests {
                 .weight(&instructions.set_account_info.representative),
             instructions.set_account_info.balance
         );
-        assert_eq!(ledger.store.cache.block_count.load(Ordering::Relaxed), 1);
+        assert_eq!(ledger.store.cache.block_count.load(Ordering::Relaxed), 2);
         assert_eq!(result.deleted_pending, Vec::new());
     }
 

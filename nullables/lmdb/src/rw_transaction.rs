@@ -1,5 +1,6 @@
 use super::{ConfiguredDatabase, LmdbDatabase, RoCursor};
 use lmdb::DatabaseFlags;
+use std::sync::{Arc, Mutex};
 
 pub struct RwTransaction {
     strategy: RwTransactionStrategy,
@@ -12,9 +13,13 @@ impl RwTransaction {
         }
     }
 
-    pub fn new_null(databases: Vec<ConfiguredDatabase>) -> Self {
+    pub fn new_null(databases: Arc<Mutex<Vec<ConfiguredDatabase>>>) -> Self {
+        let db_copies = databases.lock().unwrap().clone();
         Self {
-            strategy: RwTransactionStrategy::Nulled(RwTransactionStub { databases }),
+            strategy: RwTransactionStrategy::Nulled(RwTransactionStub {
+                db_copies,
+                databases,
+            }),
         }
     }
 
@@ -32,8 +37,11 @@ impl RwTransaction {
         data: &[u8],
         flags: lmdb::WriteFlags,
     ) -> lmdb::Result<()> {
-        if let RwTransactionStrategy::Real(s) = &mut self.strategy {
-            s.put(database.as_real(), key, data, flags)?;
+        match &mut self.strategy {
+            RwTransactionStrategy::Real(s) => {
+                s.put(database.as_real(), key, data, flags)?;
+            }
+            RwTransactionStrategy::Nulled(s) => s.put(database, key, data)?,
         }
         Ok(())
     }
@@ -101,8 +109,9 @@ impl RwTransaction {
     }
 
     pub fn commit(self) -> lmdb::Result<()> {
-        if let RwTransactionStrategy::Real(s) = self.strategy {
-            s.commit()?;
+        match self.strategy {
+            RwTransactionStrategy::Real(s) => s.commit()?,
+            RwTransactionStrategy::Nulled(s) => s.commit(),
         }
         Ok(())
     }
@@ -182,31 +191,54 @@ impl RwTransactionWrapper {
 }
 
 pub struct RwTransactionStub {
-    databases: Vec<ConfiguredDatabase>,
+    db_copies: Vec<ConfiguredDatabase>,
+    databases: Arc<Mutex<Vec<ConfiguredDatabase>>>,
 }
 
 impl RwTransactionStub {
-    fn get_database(&self, database: LmdbDatabase) -> Option<&ConfiguredDatabase> {
-        self.databases.iter().find(|d| d.dbi == database)
-    }
-
     fn get(&self, database: LmdbDatabase, key: &[u8]) -> lmdb::Result<&[u8]> {
-        let Some(db) = self.get_database(database) else {
-            return Err(lmdb::Error::NotFound);
-        };
+        let db = self.get_database(database)?;
+
         match db.entries.get(key) {
             Some(value) => Ok(value),
             None => Err(lmdb::Error::NotFound),
         }
     }
 
+    fn put(&mut self, database: LmdbDatabase, key: &[u8], data: &[u8]) -> lmdb::Result<()> {
+        let db = self.get_database_mut(database)?;
+        db.entries.insert(key.to_vec(), data.to_vec());
+        Ok(())
+    }
+
     fn open_ro_cursor(&self, database: LmdbDatabase) -> lmdb::Result<RoCursor> {
         Ok(RoCursor::new_null_with(
-            self.databases.iter().find(|db| db.dbi == database).unwrap(),
+            self.db_copies.iter().find(|db| db.dbi == database).unwrap(),
         ))
     }
 
     fn create_db(&self, _name: Option<&str>, _flags: DatabaseFlags) -> lmdb::Result<LmdbDatabase> {
         Ok(LmdbDatabase::new_null(42))
+    }
+
+    fn get_database(&self, database: LmdbDatabase) -> lmdb::Result<&ConfiguredDatabase> {
+        self.db_copies
+            .iter()
+            .find(|d| d.dbi == database)
+            .ok_or(lmdb::Error::NotFound)
+    }
+
+    fn get_database_mut(
+        &mut self,
+        database: LmdbDatabase,
+    ) -> lmdb::Result<&mut ConfiguredDatabase> {
+        self.db_copies
+            .iter_mut()
+            .find(|d| d.dbi == database)
+            .ok_or(lmdb::Error::NotFound)
+    }
+
+    fn commit(self) {
+        *self.databases.lock().unwrap() = self.db_copies;
     }
 }

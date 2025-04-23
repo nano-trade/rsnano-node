@@ -126,7 +126,7 @@ impl<'a> CrawlSource<'a> for PendingCrawlSource<'a> {
 
 #[cfg(test)]
 mod tests {
-    use rsnano_ledger::Ledger;
+    use rsnano_ledger::{Ledger, LedgerSet, DEV_GENESIS_ACCOUNT};
 
     use super::*;
 
@@ -136,8 +136,9 @@ mod tests {
         let any = ledger.any();
         let source = AccountCrawlSource::new(&any);
         let mut crawler = DatabaseCrawler::new(source);
-        crawler.seek(Account::from(123));
-        assert_eq!(crawler.current, None);
+        crawler.seek(Account::from(1));
+        let info = ledger.any().get_account(&DEV_GENESIS_ACCOUNT).unwrap();
+        assert_eq!(crawler.current, Some((*DEV_GENESIS_ACCOUNT, info)));
     }
 
     #[test]
