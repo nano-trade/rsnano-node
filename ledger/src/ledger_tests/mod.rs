@@ -340,42 +340,30 @@ mod dependents_confirmed {
 
     #[test]
     fn dependents_confirmed_pruning() {
-        let ctx = LedgerContext::empty();
-        ctx.ledger.enable_pruning();
-        let destination = ctx.block_factory();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
+        let destination = PrivateKey::from(1);
 
-        let send1 = ctx
-            .genesis_block_factory()
-            .send()
-            .amount_sent(Amount::raw(1))
-            .link(destination.account())
-            .build();
+        ledger.enable_pruning();
 
-        ctx.ledger.process_one(&send1).unwrap();
+        let send1 = inserter.genesis().send(&destination, 1);
+        ledger.confirm(send1.hash());
 
-        ctx.ledger.confirm(send1.hash());
+        let send2 = inserter.genesis().send(&destination, 1);
+        ledger.confirm(send2.hash());
 
-        let send2 = ctx
-            .genesis_block_factory()
-            .send()
-            .link(destination.account())
-            .build();
-        ctx.ledger.process_one(&send2).unwrap();
-
-        ctx.ledger.confirm(send2.hash());
-
-        assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 2);
+        assert_eq!(ledger.prune_one(&send2.hash(), 1), 2);
 
         let receive1 = TestBlockBuilder::state()
             .account(destination.account())
             .previous(0)
             .balance(Amount::raw(1))
             .link(send1.hash())
-            .key(&destination.key)
+            .key(&destination)
             .build();
 
         assert_eq!(
-            ctx.ledger
+            ledger
                 .any()
                 .dependents_confirmed_for_unsaved_block(&receive1),
             true
@@ -385,38 +373,28 @@ mod dependents_confirmed {
 
 #[test]
 fn block_confirmed() {
-    let ctx = LedgerContext::empty();
-    assert_eq!(
-        ctx.ledger
-            .confirmed()
-            .block_exists_or_pruned(&DEV_GENESIS_HASH),
-        true
-    );
-
-    let destination = ctx.block_factory();
-    let send = ctx
-        .genesis_block_factory()
-        .send()
-        .link(destination.account())
-        .build();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = PrivateKey::from(1);
+    let send = inserter.genesis().send(&destination, 1);
 
     // Must be safe against non-existing blocks
     assert_eq!(
-        ctx.ledger.confirmed().block_exists_or_pruned(&send.hash()),
+        ledger
+            .confirmed()
+            .block_exists_or_pruned(&BlockHash::from(1)),
         false
     );
 
-    ctx.ledger.process_one(&send).unwrap();
-
     assert_eq!(
-        ctx.ledger.confirmed().block_exists_or_pruned(&&send.hash()),
+        ledger.confirmed().block_exists_or_pruned(&send.hash()),
         false
     );
 
-    ctx.ledger.confirm(send.hash());
+    ledger.confirm(send.hash());
 
     assert_eq!(
-        ctx.ledger.confirmed().block_exists_or_pruned(&send.hash()),
+        ledger.confirmed().block_exists_or_pruned(&send.hash()),
         true
     );
 }

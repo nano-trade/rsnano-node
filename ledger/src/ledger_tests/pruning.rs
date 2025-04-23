@@ -1,41 +1,31 @@
-use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder};
+use rsnano_core::{Amount, Epoch, PendingKey, TestBlockBuilder, DEV_GENESIS_KEY};
 
 use crate::{
     ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext,
-    test_helpers::upgrade_genesis_to_epoch_v1, AnySet, LedgerSet, DEV_GENESIS_HASH,
+    test_helpers::upgrade_genesis_to_epoch_v1, AnySet, Ledger, LedgerInserter, LedgerSet,
+    DEV_GENESIS_HASH,
 };
 
 #[test]
 fn pruning_action() {
-    let ctx = LedgerContext::empty();
-    ctx.ledger.enable_pruning();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    ledger.enable_pruning();
 
-    let send1 = genesis
-        .send()
-        .amount_sent(100)
-        .link(genesis.account())
-        .build();
-    ctx.ledger.process_one(&send1).unwrap();
+    let genesis_account = ledger.genesis().account();
+    let send1 = inserter.genesis().send(genesis_account, 100);
+    ledger.confirm(send1.hash());
 
-    ctx.ledger.confirm(send1.hash());
-
-    let send2 = genesis
-        .send()
-        .amount_sent(100)
-        .link(genesis.account())
-        .build();
-    ctx.ledger.process_one(&send2).unwrap();
-
-    ctx.ledger.confirm(send2.hash());
+    let send2 = inserter.genesis().send(genesis_account, 100);
+    ledger.confirm(send2.hash());
 
     // Prune...
-    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 1);
-    assert_eq!(ctx.ledger.prune_one(&DEV_GENESIS_HASH, 1), 0);
+    assert_eq!(ledger.prune_one(&send1.hash(), 1), 1);
+    assert_eq!(ledger.prune_one(&DEV_GENESIS_HASH, 1), 0);
 
-    let mut any = ctx.ledger.any();
+    let mut any = ledger.any();
     assert!(any
-        .get_pending(&PendingKey::new(genesis.account(), send1.hash()))
+        .get_pending(&PendingKey::new(genesis_account, send1.hash()))
         .is_some());
 
     assert_eq!(any.block_exists(&send1.hash()), false);
@@ -45,18 +35,19 @@ fn pruning_action() {
 
     // Receiving pruned block
     let receive1 = TestBlockBuilder::state()
-        .account(genesis.account())
+        .account(genesis_account)
         .previous(send2.hash())
-        .balance(LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100))
+        .balance(Amount::MAX - Amount::raw(100))
         .link(send1.hash())
-        .key(&genesis.key)
+        .key(&DEV_GENESIS_KEY)
+        .work(u64::MAX)
         .build();
-    ctx.ledger.process_one(&receive1).unwrap();
+    ledger.process_one(&receive1).unwrap();
 
-    any = ctx.ledger.any();
+    any = ledger.any();
     assert!(any.block_exists(&receive1.hash()));
     assert_eq!(
-        any.get_pending(&PendingKey::new(genesis.account(), send1.hash())),
+        any.get_pending(&PendingKey::new(genesis_account, send1.hash())),
         None
     );
     let receive1_stored = any.get_block(&receive1.hash()).unwrap();
@@ -66,10 +57,10 @@ fn pruning_action() {
 
     // Middle block pruning
     assert!(any.block_exists(&send2.hash()));
-    ctx.ledger.confirm(send2.hash());
-    assert_eq!(ctx.ledger.prune_one(&send2.hash(), 1), 1);
+    ledger.confirm(send2.hash());
+    assert_eq!(ledger.prune_one(&send2.hash(), 1), 1);
 
-    any = ctx.ledger.any();
+    any = ledger.any();
     assert_eq!(any.block_exists(&send2.hash()), false);
     assert!(any.block_exists_or_pruned(&send2.hash()));
 }
