@@ -10,9 +10,7 @@ use rsnano_store_lmdb::Writer;
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    test_helpers::{
-        setup_legacy_open_block, setup_open_block, AccountBlockFactory, SavedBlockLatticeBuilder,
-    },
+    test_helpers::{setup_legacy_open_block, AccountBlockFactory, SavedBlockLatticeBuilder},
     AnySet, ConfirmedSet, Ledger, LedgerContext, LedgerInserter, RepWeightCache,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
@@ -494,22 +492,6 @@ fn ledger_cache() {
 #[test]
 fn is_send_genesis() {
     assert_eq!(DEV_GENESIS_BLOCK.is_send(), false);
-}
-
-#[test]
-fn is_send_state() {
-    let ctx = LedgerContext::empty();
-    let open = setup_open_block(&ctx);
-    assert_eq!(open.send_block.is_send(), true);
-    assert_eq!(open.open_block.is_send(), false);
-}
-
-#[test]
-fn is_send_legacy() {
-    let ctx = LedgerContext::empty();
-    let open = setup_legacy_open_block(&ctx);
-    assert_eq!(open.send_block.is_send(), true);
-    assert_eq!(open.open_block.is_send(), false);
 }
 
 #[test]

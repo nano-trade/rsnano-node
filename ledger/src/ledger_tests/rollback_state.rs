@@ -84,53 +84,39 @@ fn rollback_received_send() {
 
 #[test]
 fn rollback_rep_change() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
     let representative = PublicKey::from(1);
 
-    let change = genesis.change().representative(representative).build();
-    ctx.ledger.process_one(&change).unwrap();
+    let change = inserter.genesis().change(representative);
 
-    ctx.ledger.rollback(&change.hash()).unwrap();
-    let any = ctx.ledger.any();
+    ledger.rollback(&change.hash()).unwrap();
+    let any = ledger.any();
 
     assert_eq!(any.block_exists(&change.hash()), false);
-    assert_eq!(
-        any.account_balance(&DEV_GENESIS_ACCOUNT),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
-    assert_eq!(ctx.ledger.weight(&representative), Amount::zero());
+    assert_eq!(any.account_balance(&DEV_GENESIS_ACCOUNT), Amount::MAX);
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
+    assert_eq!(ledger.weight(&representative), Amount::zero());
 }
 
 #[test]
 fn rollback_open() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
-    let destination = AccountBlockFactory::new(&ctx.ledger);
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = PrivateKey::from(1);
 
     let amount_sent = Amount::raw(50);
-    let send = genesis
-        .send()
-        .link(destination.account())
-        .amount_sent(amount_sent)
-        .build();
-    ctx.ledger.process_one(&send).unwrap();
+    let send = inserter.genesis().send(&destination, amount_sent);
+    let open = inserter.account(&destination).receive(send.hash());
 
-    let open = destination.open(send.hash()).build();
-    ctx.ledger.process_one(&open).unwrap();
-
-    ctx.ledger.rollback(&open.hash()).unwrap();
-    let any = ctx.ledger.any();
+    ledger.rollback(&open.hash()).unwrap();
+    let any = ledger.any();
 
     assert_eq!(any.block_exists(&open.hash()), false);
     assert_eq!(any.account_balance(&destination.account()), Amount::zero());
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
+        ledger.weight(&DEV_GENESIS_PUB_KEY),
+        Amount::MAX - amount_sent
     );
     assert_eq!(
         any.get_pending(&PendingKey::new(destination.account(), send.hash()))
