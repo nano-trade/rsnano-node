@@ -2,30 +2,22 @@ use super::LedgerContext;
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::AccountBlockFactory,
-    AnySet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, Ledger, LedgerInserter, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
-use rsnano_core::{Amount, Epoch, PendingInfo, PendingKey, PublicKey};
+use rsnano_core::{Account, Amount, Epoch, PendingInfo, PendingKey, PrivateKey, PublicKey};
 
 #[test]
 fn rollback_send() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let send = inserter.genesis().send(Account::from(1), 100);
 
-    let send = genesis.send().build();
-    ctx.ledger.process_one(&send).unwrap();
-
-    ctx.ledger.rollback(&send.hash()).unwrap();
-    let any = ctx.ledger.any();
+    ledger.rollback(&send.hash()).unwrap();
+    let any = ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
-    assert_eq!(
-        any.account_balance(&DEV_GENESIS_ACCOUNT),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
+    assert_eq!(any.account_balance(&DEV_GENESIS_ACCOUNT), Amount::MAX);
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
     assert_eq!(
         any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
         None
@@ -35,31 +27,26 @@ fn rollback_send() {
 
 #[test]
 fn rollback_receive() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
 
     let amount_sent = Amount::raw(50);
-    let send = genesis
-        .send()
-        .amount_sent(amount_sent)
-        .link(genesis.account())
-        .build();
-    ctx.ledger.process_one(&send).unwrap();
+    let send = inserter
+        .genesis()
+        .send(ledger.genesis().account(), amount_sent);
+    let receive = inserter.genesis().receive(send.hash());
 
-    let receive = genesis.receive(send.hash()).build();
-    ctx.ledger.process_one(&receive).unwrap();
-
-    ctx.ledger.rollback(&receive.hash()).unwrap();
-    let any = ctx.ledger.any();
+    ledger.rollback(&receive.hash()).unwrap();
+    let any = ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
     assert_eq!(
         any.account_balance(&DEV_GENESIS_ACCOUNT),
-        LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
+        Amount::MAX - amount_sent
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
+        ledger.weight(&DEV_GENESIS_PUB_KEY),
+        Amount::MAX - amount_sent
     );
     assert_eq!(
         any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
@@ -74,33 +61,24 @@ fn rollback_receive() {
 
 #[test]
 fn rollback_received_send() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
-    let destination = AccountBlockFactory::new(&ctx.ledger);
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = PrivateKey::from(1);
 
-    let send = genesis.send().link(destination.account()).build();
-    ctx.ledger.process_one(&send).unwrap();
+    let send = inserter.genesis().send(&destination, 1);
+    let open = inserter.account(&destination).receive(send.hash());
 
-    let open = destination.open(send.hash()).build();
-    ctx.ledger.process_one(&open).unwrap();
+    ledger.rollback(&send.hash()).unwrap();
 
-    ctx.ledger.rollback(&send.hash()).unwrap();
-    let any = ctx.ledger.any();
-
+    let any = ledger.any();
     assert_eq!(
         any.get_pending(&PendingKey::new(*DEV_GENESIS_ACCOUNT, send.hash())),
         None
     );
     assert_eq!(any.block_exists(&send.hash()), false);
     assert_eq!(any.block_exists(&open.hash()), false);
-    assert_eq!(
-        any.account_balance(&DEV_GENESIS_ACCOUNT),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
+    assert_eq!(any.account_balance(&DEV_GENESIS_ACCOUNT), Amount::MAX);
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
     assert_eq!(any.account_balance(&destination.account()), Amount::zero());
 }
 
