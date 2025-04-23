@@ -269,35 +269,21 @@ mod dependents_confirmed {
 
     #[test]
     fn receive_dependents_are_unconfirmed_if_send_block_is_unconfirmed() {
-        let ctx = LedgerContext::empty();
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
+        let destination = PrivateKey::from(1);
 
-        let destination = ctx.block_factory();
+        let send1 = inserter.genesis().send(&destination, 1000);
+        ledger.confirm(send1.hash());
 
-        let send1 = ctx
-            .genesis_block_factory()
-            .send()
-            .link(destination.account())
-            .build();
-        ctx.ledger.process_one(&send1).unwrap();
-        ctx.ledger.confirm(send1.hash());
+        let send2 = inserter.genesis().send(&destination, 1000);
+        let open = inserter.account(&destination).receive(send1.hash());
+        ledger.confirm(open.hash());
 
-        let send2 = ctx
-            .genesis_block_factory()
-            .send()
-            .link(destination.account())
-            .build();
-        ctx.ledger.process_one(&send2).unwrap();
-
-        let open = destination.open(send1.hash()).build();
-        ctx.ledger.process_one(&open).unwrap();
-
-        ctx.ledger.confirm(open.hash());
-
-        let receive = destination.receive(send2.hash()).build();
-        ctx.ledger.process_one(&receive).unwrap();
+        let receive = inserter.account(&destination).receive(send2.hash());
 
         assert_eq!(
-            ctx.ledger
+            ledger
                 .any()
                 .dependents_confirmed_for_unsaved_block(&receive),
             false
