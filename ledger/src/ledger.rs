@@ -282,6 +282,7 @@ impl Ledger {
                 let mut block_count = 0;
                 let mut account_count = 0;
                 let mut rep_weights: HashMap<PublicKey, Amount> = HashMap::new();
+
                 for (_, info) in iter {
                     block_count += info.block_count;
                     account_count += 1;
@@ -294,10 +295,12 @@ impl Ledger {
                     .cache
                     .block_count
                     .fetch_add(block_count, Ordering::SeqCst);
+
                 self.store
                     .cache
                     .account_count
                     .fetch_add(account_count, Ordering::SeqCst);
+
                 self.rep_weights_updater.copy_from(&rep_weights);
             });
         }
@@ -902,7 +905,8 @@ impl Ledger {
     }
 
     pub fn store_vendor(&self) -> String {
-        self.store.vendor()
+        // hard coded version! TODO: read version from Cargo
+        format!("lmdb-rkv {}.{}.{}", 0, 14, 0)
     }
 
     pub fn memory_stats(&self) -> anyhow::Result<MemoryStats> {

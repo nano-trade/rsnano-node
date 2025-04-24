@@ -182,11 +182,6 @@ impl LmdbStore {
         })
     }
 
-    pub fn vendor(&self) -> String {
-        // hard coded version! TODO: read version from Cargo
-        format!("lmdb-rkv {}.{}.{}", 0, 14, 0)
-    }
-
     pub fn tx_begin_read(&self) -> LmdbReadTransaction {
         self.env.tx_begin_read()
     }

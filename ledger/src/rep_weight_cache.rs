@@ -37,6 +37,12 @@ impl DerefMut for RepWeights {
     }
 }
 
+#[derive(Default)]
+pub struct BootstrapWeights {
+    pub weights: RepWeights,
+    pub max_blocks: u64,
+}
+
 /// Returns the cached vote weight for the given representative.
 /// If the weight is below the cache limit it returns 0.
 /// During bootstrap it returns the preconfigured bootstrap weights.
@@ -60,14 +66,13 @@ impl RepWeightCache {
     }
 
     pub fn with_bootstrap_weights(
-        bootstrap_weights: RepWeights,
-        max_blocks: u64,
+        bootstrap_weights: BootstrapWeights,
         ledger_cache: Arc<LedgerCache>,
     ) -> Self {
         Self {
             weights: Arc::new(RwLock::new(RepWeights::new())),
-            bootstrap_weights: RwLock::new(bootstrap_weights),
-            max_blocks,
+            bootstrap_weights: RwLock::new(bootstrap_weights.weights),
+            max_blocks: bootstrap_weights.max_blocks,
             ledger_cache,
             check_bootstrap_weights: AtomicBool::new(true),
         }

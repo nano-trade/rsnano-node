@@ -27,6 +27,7 @@ impl LmdbAccountStore {
         let database = env
             .environment
             .create_db(Some("accounts"), DatabaseFlags::empty())?;
+
         Ok(Self {
             env,
             database,

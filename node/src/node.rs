@@ -31,7 +31,7 @@ use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
-    EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
+    EnvOptions, LedgerCache, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
 };
 
@@ -242,25 +242,11 @@ impl Node {
         let node_id = NodeId::from(&node_id_key);
 
         let stats = Arc::new(Stats::new(Default::default()));
-        let store = if is_nulled {
-            Arc::new(LmdbStore::new_null())
-        } else {
-            make_store(
-                &application_path,
-                true,
-                &config.diagnostics_config.txn_tracking,
-                Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
-                config.lmdb_config.clone(),
-                config.backup_before_upgrade,
-            )
-            .expect("Could not create LMDB store")
-        };
 
         info!("Version: {}", rsnano_version_string());
         info!("{}", rsnano_build_info());
         info!("Network: {}", network_label);
         info!("Data path: {:?}", application_path);
-        info!("Database backend: {}", store.vendor());
         info!(
             "Work pool threads: {} ({})",
             work_factory.local_work_pool.thread_count(),
@@ -273,20 +259,34 @@ impl Node {
         info!("Work peers: {}", config.work_peers.len());
         info!("Node ID: {}", node_id);
 
-        let (max_blocks, bootstrap_weights) = if (network_params.network.is_live_network()
+        let bootstrap_weights = if (network_params.network.is_live_network()
             || network_params.network.is_beta_network())
             && !flags.inactive_node
         {
             get_bootstrap_weights(current_network)
         } else {
-            (0, RepWeights::new())
+            Default::default()
         };
+
+        let ledger_cache = Arc::new(LedgerCache::new());
 
         let rep_weights = Arc::new(RepWeightCache::with_bootstrap_weights(
             bootstrap_weights,
-            max_blocks,
-            store.cache.clone(),
+            ledger_cache.clone(),
         ));
+        let store = if is_nulled {
+            Arc::new(LmdbStore::new_null())
+        } else {
+            make_store(
+                &application_path,
+                &config.diagnostics_config.txn_tracking,
+                Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
+                config.lmdb_config.clone(),
+                config.backup_before_upgrade,
+                ledger_cache,
+            )
+            .expect("Could not create LMDB store")
+        };
 
         info!("Loading ledger, this may take a while...");
         let mut ledger = Ledger::new(
@@ -297,6 +297,11 @@ impl Node {
             stats.clone(),
         )
         .expect("Could not initialize ledger");
+
+        // hard coded version! TODO: read version from Cargo
+        info!("Database backend: {}", ledger.store_vendor());
+
+        let rep_weights = ledger.rep_weights.clone();
 
         let mut event_queues_info = ContainerInfoFactory::new();
         let (ledger_tx, ledger_rx) = backpressure_channel(1024);
@@ -309,9 +314,9 @@ impl Node {
         info!("Confirmed count: {}", ledger.confirmed_count());
         info!("Account count:  {}", ledger.account_count());
         info!("Pruned count:   {}", ledger.pruned_count());
-        info!("Representative count: {}", ledger.rep_weights.len());
+        info!("Representative count: {}", rep_weights.len());
 
-        log_bootstrap_weights(&ledger.rep_weights);
+        log_bootstrap_weights(&rep_weights);
 
         let syn_cookies = Arc::new(SynCookies::new(network_params.network.max_peers_per_ip));
 
@@ -1554,16 +1559,14 @@ impl Node {
 
 fn make_store(
     path: &Path,
-    add_db_postfix: bool,
     txn_tracking_config: &TxnTrackingConfig,
     block_processor_batch_max_time: Duration,
     lmdb_config: LmdbConfig,
     backup_before_upgrade: bool,
+    cache: Arc<LedgerCache>,
 ) -> anyhow::Result<Arc<LmdbStore>> {
     let mut path = PathBuf::from(path);
-    if add_db_postfix {
-        path.push("data.ldb");
-    }
+    path.push("data.ldb");
 
     let txn_tracker: Arc<dyn TransactionTracker> = if txn_tracking_config.enable {
         Arc::new(LongRunningTransactionLogger::new(
@@ -1579,11 +1582,12 @@ fn make_store(
         use_no_mem_init: true,
     };
 
-    let store = LmdbStore::open(&path)
+    let mut store = LmdbStore::open(&path)
         .options(&options)
         .backup_before_upgrade(backup_before_upgrade)
         .txn_tracker(txn_tracker)
         .build()?;
+    store.cache = cache;
     Ok(Arc::new(store))
 }
 

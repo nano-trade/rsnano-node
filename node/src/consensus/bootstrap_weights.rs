@@ -1,8 +1,8 @@
 use rsnano_core::{Account, Amount, Networks};
-use rsnano_ledger::{RepWeightCache, RepWeights};
+use rsnano_ledger::{BootstrapWeights, RepWeightCache, RepWeights};
 use tracing::info;
 
-pub(crate) fn get_bootstrap_weights(network: Networks) -> (u64, RepWeights) {
+pub(crate) fn get_bootstrap_weights(network: Networks) -> BootstrapWeights {
     let buffer = get_bootstrap_weights_text(network);
     deserialize_bootstrap_weights(buffer)
 }
@@ -15,7 +15,7 @@ fn get_bootstrap_weights_text(network: Networks) -> &'static str {
     }
 }
 
-fn deserialize_bootstrap_weights(buffer: &str) -> (u64, RepWeights) {
+fn deserialize_bootstrap_weights(buffer: &str) -> BootstrapWeights {
     let mut weights = RepWeights::new();
     let mut first_line = true;
     let mut max_blocks = 0;
@@ -32,7 +32,10 @@ fn deserialize_bootstrap_weights(buffer: &str) -> (u64, RepWeights) {
         weights.insert(account.into(), weight);
     }
 
-    (max_blocks, weights)
+    BootstrapWeights {
+        max_blocks,
+        weights,
+    }
 }
 
 pub(crate) fn log_bootstrap_weights(weight_cache: &RepWeightCache) {
@@ -84,8 +87,8 @@ mod tests {
 
     #[test]
     fn bootstrap_weights() {
-        let (max_blocks, weights) = get_bootstrap_weights(Networks::NanoLiveNetwork);
-        assert_eq!(weights.len(), 137);
-        assert_eq!(max_blocks, 207_494_994);
+        let result = get_bootstrap_weights(Networks::NanoLiveNetwork);
+        assert_eq!(result.weights.len(), 137);
+        assert_eq!(result.max_blocks, 207_494_994);
     }
 }
