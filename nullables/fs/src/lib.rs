@@ -2,6 +2,7 @@ use rsnano_output_tracker::{OutputListener, OutputTracker};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    fs::Permissions,
     io::ErrorKind,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
@@ -114,6 +115,14 @@ impl NullableFilesystem {
         self.fs.borrow_mut().write(path, contents)
     }
 
+    pub fn set_permissions(
+        &self,
+        path: impl AsRef<Path>,
+        permissions: Permissions,
+    ) -> std::io::Result<()> {
+        self.fs.borrow().set_permissions(path.as_ref(), permissions)
+    }
+
     #[allow(dead_code)]
     pub fn track(&self) -> Rc<OutputTracker<FsEvent>> {
         self.listener.track()
@@ -171,6 +180,7 @@ trait Filesystem {
     fn read_to_string(&mut self, f: &Path) -> std::io::Result<String>;
     fn create_dir_all(&mut self, path: &Path) -> std::io::Result<()>;
     fn write(&mut self, path: &Path, contents: &[u8]) -> std::io::Result<()>;
+    fn set_permissions(&self, path: &Path, permissions: Permissions) -> std::io::Result<()>;
 }
 
 struct RealFilesystem {}
@@ -190,6 +200,10 @@ impl Filesystem for RealFilesystem {
 
     fn write(&mut self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
         std::fs::write(path, contents)
+    }
+
+    fn set_permissions(&self, path: &Path, permissions: Permissions) -> std::io::Result<()> {
+        std::fs::set_permissions(path, permissions)
     }
 }
 
@@ -228,6 +242,10 @@ impl Filesystem for FilesystemStub {
             Some(err) => Err(err),
             None => Ok(()),
         }
+    }
+
+    fn set_permissions(&self, _path: &Path, _permissions: Permissions) -> std::io::Result<()> {
+        Ok(())
     }
 }
 

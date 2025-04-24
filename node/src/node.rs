@@ -1,5 +1,7 @@
 use std::{
     collections::VecDeque,
+    fs::Permissions,
+    os::unix::fs::PermissionsExt,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -86,6 +88,7 @@ use crate::{
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
+use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;
 
 pub struct Node {
@@ -268,6 +271,19 @@ impl Node {
         } else {
             Default::default()
         };
+
+        let fs = if is_nulled {
+            NullableFilesystem::new_null()
+        } else {
+            NullableFilesystem::default()
+        };
+
+        if !fs.exists(&application_path) {
+            fs.create_dir_all(&application_path)
+                .expect("Could not create data dir");
+            fs.set_permissions(&application_path, Permissions::from_mode(0o700))
+                .expect("Could not set data dir permissions");
+        }
 
         //--------------------------------------------------------------------------------
         // Begin ledger creation

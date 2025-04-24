@@ -8,8 +8,6 @@ use rsnano_nullable_lmdb::{
     LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
 };
 use std::{
-    fs::{create_dir_all, set_permissions, Permissions},
-    os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -35,7 +33,7 @@ impl NullLmdbEnvBuilder {
 
     pub fn build(self) -> LmdbEnv {
         let env = self.env_builder.finish();
-        LmdbEnv::new_with_env(env, "/nulled/ledger.ldb".into())
+        LmdbEnv::new(env, "/nulled/ledger.ldb".into())
     }
 }
 
@@ -80,10 +78,9 @@ impl LmdbEnvFactory {
     }
 
     pub fn create_with_options(&self, options: EnvironmentOptions) -> anyhow::Result<LmdbEnv> {
-        let path = options.path.to_path_buf();
-        try_create_parent_dir(options.path)?;
+        let db_file_path = options.path.to_path_buf();
         let env = self.env_factory.create_env(options)?;
-        Ok(LmdbEnv::new_with_env(env, path))
+        Ok(LmdbEnv::new(env, db_file_path))
     }
 }
 
@@ -97,7 +94,7 @@ pub struct LmdbEnv {
 
 impl LmdbEnv {
     pub fn new_null() -> Self {
-        Self::new_with_env(
+        Self::new(
             LmdbEnvironment::new_null(),
             PathBuf::from("/nulled/ledger.ldb"),
         )
@@ -109,15 +106,7 @@ impl LmdbEnv {
         }
     }
 
-    pub fn new_with_options(options: EnvironmentOptions) -> anyhow::Result<Self> {
-        let env_factory = LmdbEnvironmentFactory::default();
-        let path = options.path.to_path_buf();
-        try_create_parent_dir(options.path)?;
-        let environment = env_factory.create_env(options)?;
-        Ok(Self::new_with_env(environment, path))
-    }
-
-    fn new_with_env(env: LmdbEnvironment, path: PathBuf) -> Self {
+    pub fn new(env: LmdbEnvironment, path: PathBuf) -> Self {
         Self {
             environment: env,
             next_txn_id: AtomicU64::new(0),
@@ -190,16 +179,6 @@ pub fn get_env_flags(options: &LmdbConfig) -> EnvironmentFlags {
         flags |= EnvironmentFlags::NO_MEM_INIT;
     }
     flags
-}
-
-fn try_create_parent_dir(path: &Path) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if parent != Path::new("") && !parent.is_dir() {
-            create_dir_all(parent)?;
-            set_permissions(parent, Permissions::from_mode(0o700))?;
-        }
-    }
-    Ok(())
 }
 
 pub struct TestDbFile {
