@@ -60,10 +60,12 @@ fn genesis_confirmation_height_info() {
 }
 
 #[test]
-fn cache() {
+fn empty_ledger_cache() {
     let ledger = Ledger::new_null();
     assert_eq!(ledger.account_count(), 1);
+    assert_eq!(ledger.block_count(), 1);
     assert_eq!(ledger.confirmed_count(), 1);
+    assert_eq!(ledger.pruned_count(), 0);
 }
 
 #[test]

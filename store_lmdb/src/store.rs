@@ -6,7 +6,7 @@ use crate::{
     Writer, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
-use lmdb_sys::{MDB_CP_COMPACT, MDB_SUCCESS};
+use lmdb_sys::MDB_SUCCESS;
 use rsnano_core::utils::UnixTimestamp;
 use rsnano_nullable_lmdb::EnvironmentOptions;
 use serde::{Deserialize, Serialize};
@@ -18,13 +18,7 @@ use std::{
         Arc,
     },
 };
-use tracing::{debug, error, info, warn};
-
-#[derive(PartialEq, Eq)]
-pub enum Vacuuming {
-    Needed,
-    NotNeeded,
-}
+use tracing::{debug, error, info};
 
 pub struct LedgerCache {
     pub confirmed_count: AtomicU64,
@@ -151,10 +145,6 @@ impl LmdbStore {
         })
     }
 
-    pub fn copy_db(&self, destination: &Path) -> anyhow::Result<()> {
-        copy_db(&self.env, destination)
-    }
-
     pub fn rebuild_db(&self, txn: &mut LmdbWriteTransaction) -> anyhow::Result<()> {
         let tables = [
             self.account.database(),
@@ -200,16 +190,8 @@ fn upgrade_if_needed(path: &Path, env_factory: &LmdbEnvFactory) -> Result<(), an
     }
 
     info!("Upgrade in progress...");
-    let vacuuming = do_upgrades(env.clone())?;
+    do_upgrades(env.clone())?;
     info!("Upgrade done!");
-
-    if vacuuming == Vacuuming::Needed {
-        info!("Preparing vacuum...");
-        match vacuum_after_upgrade (env.clone(), path){
-                Ok(_) => info!("Vacuum succeeded."),
-                Err(_) => warn!("Failed to vacuum. (Optional) Ensure enough disk space is available for a copy of the database and try to vacuum after shutting down the node"),
-            }
-    }
     env.sync()?;
     Ok(())
 }
@@ -253,7 +235,7 @@ fn copy_table(
     Ok(())
 }
 
-fn do_upgrades(env: Arc<LmdbEnv>) -> anyhow::Result<Vacuuming> {
+fn do_upgrades(env: Arc<LmdbEnv>) -> anyhow::Result<()> {
     let version_store = LmdbVersionStore::new(env.clone())?;
     let mut txn = env.tx_begin_write();
 
@@ -281,45 +263,7 @@ fn do_upgrades(env: Arc<LmdbEnv>) -> anyhow::Result<Vacuuming> {
     }
 
     // most recent version
-    Ok(Vacuuming::NotNeeded)
-}
-
-fn vacuum_after_upgrade(env: Arc<LmdbEnv>, path: &Path) -> anyhow::Result<()> {
-    // Vacuum the database. This is not a required step and may actually fail if there isn't enough storage space.
-    let mut vacuum_path = path.to_owned();
-    vacuum_path.pop();
-    vacuum_path.push("vacuumed.ldb");
-
-    match copy_db(&env, &vacuum_path) {
-        Ok(_) => {
-            //todo don't use Arc here! Env must be dropped!
-            drop(env);
-
-            // Replace the ledger file with the vacuumed one
-            std::fs::rename(&vacuum_path, path)?;
-            Ok(())
-        }
-        Err(e) => {
-            // The vacuum file can be in an inconsistent state if there wasn't enough space to create it
-            let _ = std::fs::remove_file(&vacuum_path);
-            Err(e)
-        }
-    }
-}
-
-fn copy_db(env: &LmdbEnv, destination: &Path) -> anyhow::Result<()> {
-    let c_path = CString::new(destination.as_os_str().to_str().unwrap()).unwrap();
-    let status =
-        unsafe { lmdb_sys::mdb_env_copy2(env.environment.env(), c_path.as_ptr(), MDB_CP_COMPACT) };
-    ensure_success(status)
-}
-
-fn ensure_success(status: i32) -> Result<(), anyhow::Error> {
-    if status == MDB_SUCCESS {
-        Ok(())
-    } else {
-        Err(anyhow!("lmdb returned status code {}", status))
-    }
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]

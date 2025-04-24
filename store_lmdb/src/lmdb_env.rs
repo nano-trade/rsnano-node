@@ -151,6 +151,10 @@ impl LmdbEnv {
         Ok(())
     }
 
+    pub fn copy_db(&self, destination: &Path) -> lmdb::Result<()> {
+        self.environment.copy_db(destination)
+    }
+
     fn create_txn_callbacks(&self) -> Arc<dyn TransactionTracker> {
         Arc::clone(&self.txn_tracker)
     }

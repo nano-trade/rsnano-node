@@ -305,12 +305,12 @@ impl Node {
 
         info!("Loading ledger, this may take a while...");
         let ledger = LedgerBuilder::new(&ledger_path)
-            .bootstrap_weights(bootstrap_weights)
             .env_factory(&lmdb_env_factory)
             .constants(network_params.ledger.clone())
+            .min_rep_weight(config.representative_vote_weight_minimum)
+            .bootstrap_weights(bootstrap_weights)
             .stats(stats.clone())
             .txn_tracker(txn_tracker)
-            .min_rep_weight(config.representative_vote_weight_minimum)
             .finish();
 
         let mut ledger = match ledger {

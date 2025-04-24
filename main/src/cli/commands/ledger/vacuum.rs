@@ -2,7 +2,7 @@ use crate::cli::get_path;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use rsnano_store_lmdb::LmdbStore;
+use rsnano_store_lmdb::LmdbEnvFactory;
 use std::fs;
 
 #[derive(Parser)]
@@ -25,8 +25,8 @@ impl VacuumArgs {
         println!("Vacuuming database copy in {:?}", data_path);
         println!("This may take a while...");
 
-        let store = LmdbStore::open(&source_path).build(&Default::default())?;
-        store.copy_db(&vacuum_path)?;
+        let env = LmdbEnvFactory::default().create_env(&source_path)?;
+        env.copy_db(&vacuum_path)?;
 
         println!("Finalizing");
 

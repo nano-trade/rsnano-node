@@ -6,12 +6,12 @@ use rsnano_core::{
     DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::Writer;
+use rsnano_store_lmdb::{LmdbEnvFactory, Writer};
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     test_helpers::{setup_legacy_open_block, AccountBlockFactory, SavedBlockLatticeBuilder},
-    AnySet, ConfirmedSet, Ledger, LedgerContext, LedgerInserter, RepWeightCache,
+    AnySet, ConfirmedSet, Ledger, LedgerBuilder, LedgerContext, LedgerInserter, RepWeightCache,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 

@@ -1,7 +1,7 @@
 use crate::cli::get_path;
 use anyhow::Result;
 use clap::Parser;
-use rsnano_store_lmdb::LmdbStore;
+use rsnano_store_lmdb::LmdbEnvFactory;
 
 #[derive(Parser)]
 pub(crate) struct SnapshotArgs {
@@ -25,8 +25,8 @@ impl SnapshotArgs {
 
         println!("This may take a while...");
 
-        let store = LmdbStore::open(&source_path).build(&Default::default())?;
-        store.copy_db(&snapshot_path)?;
+        let env = LmdbEnvFactory::default().create_env(&source_path)?;
+        env.copy_db(&snapshot_path)?;
 
         println!(
             "Snapshot completed, This can be found at {:?}",

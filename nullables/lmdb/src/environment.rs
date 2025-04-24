@@ -2,8 +2,9 @@ use crate::ConfiguredDatabaseBuilder;
 
 use super::{ConfiguredDatabase, LmdbDatabase, RoTransaction, RwTransaction};
 use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
-use lmdb_sys::MDB_env;
+use lmdb_sys::{MDB_env, MDB_CP_COMPACT, MDB_SUCCESS};
 use std::{
+    ffi::CString,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -92,6 +93,21 @@ impl LmdbEnvironment {
         match &self.0 {
             EnvironmentStrategy::Real(s) => s.stat(),
             EnvironmentStrategy::Nulled(s) => s.stat(),
+        }
+    }
+
+    pub fn copy_db(&self, destination: &Path) -> lmdb::Result<()> {
+        if let EnvironmentStrategy::Real(s) = &self.0 {
+            let c_path = CString::new(destination.as_os_str().to_str().unwrap()).unwrap();
+            let status =
+                unsafe { lmdb_sys::mdb_env_copy2(self.env(), c_path.as_ptr(), MDB_CP_COMPACT) };
+            if status == MDB_SUCCESS {
+                Ok(())
+            } else {
+                Err(lmdb::Error::Other(status))
+            }
+        } else {
+            Ok(())
         }
     }
 }
