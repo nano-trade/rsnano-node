@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, SyncSender},
@@ -20,7 +20,7 @@ use rsnano_core::{
     SavedBlock, Vote, VoteError, WorkNonce,
 };
 use rsnano_ledger::{
-    AnySet, BlockError, BlockSource, Ledger, LedgerSet, ProcessedResult, RepWeightCache, RepWeights,
+    AnySet, BlockError, BlockSource, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
 };
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
@@ -31,7 +31,7 @@ use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
-    EnvOptions, LedgerCache, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
+    EnvOptions, LedgerCache, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
 };
 
@@ -80,7 +80,7 @@ use crate::{
     },
     utils::{
         spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
-        TimerThread, TxnTrackingConfig,
+        TimerThread,
     },
     wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
     work::{WorkFactory, WorkRequest},
@@ -274,18 +274,36 @@ impl Node {
             bootstrap_weights,
             ledger_cache.clone(),
         ));
+
         let store = if is_nulled {
-            Arc::new(LmdbStore::new_null())
+            LmdbStore::new_null()
         } else {
-            make_store(
-                &application_path,
-                &config.diagnostics_config.txn_tracking,
-                Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
-                config.lmdb_config.clone(),
-                config.backup_before_upgrade,
-                ledger_cache,
-            )
-            .expect("Could not create LMDB store")
+            let mut ledger_path = application_path.clone();
+            ledger_path.push("data.ldb");
+
+            let txn_tracker: Arc<dyn TransactionTracker> =
+                if config.diagnostics_config.txn_tracking.enable {
+                    Arc::new(LongRunningTransactionLogger::new(
+                        config.diagnostics_config.txn_tracking.clone(),
+                        Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
+                    ))
+                } else {
+                    Arc::new(NullTransactionTracker::new())
+                };
+
+            let options = EnvOptions {
+                config: config.lmdb_config.clone(),
+                use_no_mem_init: true,
+            };
+
+            let mut store = LmdbStore::open(&ledger_path)
+                .options(&options)
+                .backup_before_upgrade(config.backup_before_upgrade)
+                .txn_tracker(txn_tracker)
+                .build()
+                .expect("Could not create LMDB store");
+            store.cache = ledger_cache;
+            store
         };
 
         info!("Loading ledger, this may take a while...");
@@ -1555,40 +1573,6 @@ impl Node {
         self.tokio_runner.stop();
         // work pool is not stopped on purpose due to testing setup
     }
-}
-
-fn make_store(
-    path: &Path,
-    txn_tracking_config: &TxnTrackingConfig,
-    block_processor_batch_max_time: Duration,
-    lmdb_config: LmdbConfig,
-    backup_before_upgrade: bool,
-    cache: Arc<LedgerCache>,
-) -> anyhow::Result<Arc<LmdbStore>> {
-    let mut path = PathBuf::from(path);
-    path.push("data.ldb");
-
-    let txn_tracker: Arc<dyn TransactionTracker> = if txn_tracking_config.enable {
-        Arc::new(LongRunningTransactionLogger::new(
-            txn_tracking_config.clone(),
-            block_processor_batch_max_time,
-        ))
-    } else {
-        Arc::new(NullTransactionTracker::new())
-    };
-
-    let options = EnvOptions {
-        config: lmdb_config,
-        use_no_mem_init: true,
-    };
-
-    let mut store = LmdbStore::open(&path)
-        .options(&options)
-        .backup_before_upgrade(backup_before_upgrade)
-        .txn_tracker(txn_tracker)
-        .build()?;
-    store.cache = cache;
-    Ok(Arc::new(store))
 }
 
 pub enum NodeEvent {

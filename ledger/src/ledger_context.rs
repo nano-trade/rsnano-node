@@ -27,12 +27,11 @@ impl LedgerContext {
 
     pub fn with_constants(constants: LedgerConstants) -> Self {
         let db_file = TestDbFile::random();
-        let store = Arc::new(LmdbStore::open(&db_file.path).build().unwrap());
+        let store = LmdbStore::open(&db_file.path).build().unwrap();
         let rep_weights = Arc::new(RepWeightCache::new());
         let stats = Arc::new(Stats::default());
-        let ledger = Arc::new(
-            Ledger::new(store.clone(), constants, Amount::zero(), rep_weights, stats).unwrap(),
-        );
+        let ledger =
+            Arc::new(Ledger::new(store, constants, Amount::zero(), rep_weights, stats).unwrap());
 
         LedgerContext {
             ledger,

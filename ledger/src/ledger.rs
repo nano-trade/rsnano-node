@@ -18,7 +18,8 @@ use rsnano_store_lmdb::{
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LedgerCache,
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
     LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore,
-    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction, WriteQueue,
+    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction,
+    TransactionTracker, WriteQueue,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -111,7 +112,7 @@ pub enum LedgerEvent {
 }
 
 pub struct Ledger {
-    pub store: Arc<LmdbStore>,
+    pub store: LmdbStore,
     pub rep_weights_updater: RepWeightsUpdater,
     pub rep_weights: Arc<RepWeightCache>,
     pub constants: LedgerConstants,
@@ -210,7 +211,7 @@ impl NullLedgerBuilder {
             version: Arc::new(LmdbVersionStore::new(env.clone()).unwrap()),
         };
         Ledger::new(
-            Arc::new(store),
+            store,
             LedgerConstants::unit_test(),
             self.min_rep_weight,
             Arc::new(RepWeightCache::new()),
@@ -223,7 +224,7 @@ impl NullLedgerBuilder {
 impl Ledger {
     pub fn new_null() -> Self {
         Self::new(
-            Arc::new(LmdbStore::new_null()),
+            LmdbStore::new_null(),
             LedgerConstants::unit_test(),
             Amount::zero(),
             Arc::new(RepWeightCache::new()),
@@ -237,7 +238,7 @@ impl Ledger {
     }
 
     pub fn new(
-        store: Arc<LmdbStore>,
+        store: LmdbStore,
         constants: LedgerConstants,
         min_rep_weight: Amount,
         rep_weights: Arc<RepWeightCache>,

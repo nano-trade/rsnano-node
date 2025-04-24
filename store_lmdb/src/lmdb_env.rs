@@ -71,7 +71,7 @@ impl NullDatabaseBuilder {
 pub struct LmdbEnv {
     pub environment: LmdbEnvironment,
     next_txn_id: AtomicU64,
-    txn_tracker: Arc<dyn TransactionTracker>,
+    pub txn_tracker: Arc<dyn TransactionTracker>,
     pub write_queue: Arc<WriteQueue>,
     env_id: usize,
 }
