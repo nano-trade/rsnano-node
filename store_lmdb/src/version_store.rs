@@ -38,8 +38,7 @@ impl LmdbVersionStore {
         }
     }
 
-    pub fn check_upgrade(path: &Path) -> anyhow::Result<UpgradeInfo> {
-        let env = LmdbEnvFactory::default().create_env(path)?;
+    pub fn check_upgrade(env: &LmdbEnv) -> anyhow::Result<UpgradeInfo> {
         let info = match LmdbVersionStore::try_read_version(&env) {
             Some(version) => UpgradeInfo {
                 is_fresh_db: false,

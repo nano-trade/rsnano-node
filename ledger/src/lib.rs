@@ -13,6 +13,7 @@ mod block_rollback;
 mod dependent_blocks_finder;
 mod generate_cache_flags;
 mod ledger;
+mod ledger_builder;
 mod ledger_constants;
 mod ledger_context;
 mod ledger_inserter;
@@ -31,6 +32,7 @@ pub use block_rollback::RollbackError;
 pub use dependent_blocks_finder::*;
 pub use generate_cache_flags::GenerateCacheFlags;
 pub use ledger::*;
+pub use ledger_builder::*;
 pub use ledger_constants::{
     LedgerConstants, DEV_GENESIS_ACCOUNT, DEV_GENESIS_BLOCK, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };

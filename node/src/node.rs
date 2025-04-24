@@ -22,7 +22,7 @@ use rsnano_core::{
     SavedBlock, Vote, VoteError, WorkNonce,
 };
 use rsnano_ledger::{
-    AnySet, BlockError, BlockSource, Ledger, LedgerSet, ProcessedResult, RepWeightCache,
+    AnySet, BlockError, BlockSource, Ledger, LedgerBuilder, LedgerSet, ProcessedResult,
 };
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
@@ -33,8 +33,7 @@ use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
-    EnvironmentFlags, LedgerCache, LmdbEnv, LmdbEnvFactory, LmdbStore, NullTransactionTracker,
-    TransactionTracker,
+    EnvironmentFlags, LmdbEnv, LmdbEnvFactory, NullTransactionTracker, TransactionTracker,
 };
 
 use crate::{
@@ -285,23 +284,14 @@ impl Node {
                 .expect("Could not set data dir permissions");
         }
 
-        //--------------------------------------------------------------------------------
-        // Begin ledger creation
+        let mut ledger_path = application_path.clone();
+        ledger_path.push("data.ldb");
+
         let lmdb_env_factory = if is_nulled {
             LmdbEnvFactory::new_null()
         } else {
             LmdbEnvFactory::default()
         };
-
-        let ledger_cache = Arc::new(LedgerCache::new());
-
-        let rep_weights = Arc::new(RepWeightCache::with_bootstrap_weights(
-            bootstrap_weights,
-            ledger_cache.clone(),
-        ));
-
-        let mut ledger_path = application_path.clone();
-        ledger_path.push("data.ldb");
 
         let txn_tracker: Arc<dyn TransactionTracker> =
             if config.diagnostics_config.txn_tracking.enable {
@@ -313,30 +303,22 @@ impl Node {
                 Arc::new(NullTransactionTracker::new())
             };
 
-        let store = if is_nulled {
-            LmdbStore::new_null()
-        } else {
-            let mut store = LmdbStore::open(&ledger_path)
-                .options(config.lmdb_config.clone())
-                .backup_before_upgrade(config.backup_before_upgrade)
-                .txn_tracker(txn_tracker)
-                .build(&lmdb_env_factory)
-                .expect("Could not create LMDB store");
-            store.cache = ledger_cache;
-            store
-        };
-
         info!("Loading ledger, this may take a while...");
-        let mut ledger = Ledger::new(
-            store,
-            network_params.ledger.clone(),
-            config.representative_vote_weight_minimum,
-            rep_weights.clone(),
-            stats.clone(),
-        )
-        .expect("Could not initialize ledger");
-        // End ledger creation
-        //--------------------------------------------------------------------------------
+        let ledger = LedgerBuilder::new(&ledger_path)
+            .bootstrap_weights(bootstrap_weights)
+            .env_factory(&lmdb_env_factory)
+            .constants(network_params.ledger.clone())
+            .stats(stats.clone())
+            .txn_tracker(txn_tracker)
+            .min_rep_weight(config.representative_vote_weight_minimum)
+            .finish();
+
+        let mut ledger = match ledger {
+            Ok(i) => i,
+            Err(e) => {
+                panic!("Could not open ledger: {:?}. Details: {:?}", ledger_path, e)
+            }
+        };
 
         // hard coded version! TODO: read version from Cargo
         info!("Database backend: {}", ledger.store_vendor());

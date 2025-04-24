@@ -71,7 +71,6 @@ pub struct LmdbStoreBuilder<'a> {
     path: &'a Path,
     options: Option<LmdbConfig>,
     tracker: Option<Arc<dyn TransactionTracker>>,
-    backup_before_upgrade: bool,
 }
 
 impl<'a> LmdbStoreBuilder<'a> {
@@ -80,7 +79,6 @@ impl<'a> LmdbStoreBuilder<'a> {
             path,
             options: None,
             tracker: None,
-            backup_before_upgrade: false,
         }
     }
 
@@ -94,11 +92,6 @@ impl<'a> LmdbStoreBuilder<'a> {
         self
     }
 
-    pub fn backup_before_upgrade(mut self, backup: bool) -> Self {
-        self.backup_before_upgrade = backup;
-        self
-    }
-
     pub fn build(self, env_factory: &LmdbEnvFactory) -> anyhow::Result<LmdbStore> {
         let options = self.options.unwrap_or_default();
 
@@ -106,13 +99,7 @@ impl<'a> LmdbStoreBuilder<'a> {
             .tracker
             .unwrap_or_else(|| Arc::new(NullTransactionTracker::new()));
 
-        LmdbStore::new(
-            env_factory,
-            self.path,
-            &options,
-            txn_tracker,
-            self.backup_before_upgrade,
-        )
+        LmdbStore::new(env_factory, self.path, &options, txn_tracker)
     }
 }
 
@@ -130,10 +117,9 @@ impl LmdbStore {
         path: impl AsRef<Path>,
         options: &LmdbConfig,
         txn_tracker: Arc<dyn TransactionTracker>,
-        backup_before_upgrade: bool,
     ) -> anyhow::Result<Self> {
         let path = path.as_ref();
-        upgrade_if_needed(path, backup_before_upgrade)?;
+        upgrade_if_needed(path, env_factory)?;
 
         let env_options = EnvironmentOptions {
             max_dbs: options.max_databases,
@@ -205,16 +191,12 @@ impl LmdbStore {
     }
 }
 
-fn upgrade_if_needed(path: &Path, backup_before_upgrade: bool) -> Result<(), anyhow::Error> {
-    let upgrade_info = LmdbVersionStore::check_upgrade(path)?;
+fn upgrade_if_needed(path: &Path, env_factory: &LmdbEnvFactory) -> Result<(), anyhow::Error> {
+    let env = Arc::new(env_factory.create_env(path)?);
+    let upgrade_info = LmdbVersionStore::check_upgrade(&env)?;
     if upgrade_info.is_fully_upgraded {
         debug!("No database upgrade needed");
         return Ok(());
-    }
-
-    let env = Arc::new(LmdbEnvFactory::default().create_env(path)?);
-    if !upgrade_info.is_fresh_db && backup_before_upgrade {
-        create_backup_file(&env)?;
     }
 
     info!("Upgrade in progress...");

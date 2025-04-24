@@ -1,0 +1,113 @@
+use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
+use rsnano_core::Amount;
+use rsnano_stats::Stats;
+use rsnano_store_lmdb::{LedgerCache, LmdbConfig, LmdbEnvFactory, LmdbStore, TransactionTracker};
+use std::{path::PathBuf, sync::Arc};
+use tracing::info;
+
+pub struct LedgerBuilder<'a> {
+    path: PathBuf,
+    config: Option<LmdbConfig>,
+    txn_tracker: Option<Arc<dyn TransactionTracker>>,
+    env_factory: Option<&'a LmdbEnvFactory>,
+    bootstrap_weights: Option<BootstrapWeights>,
+    stats: Option<Arc<Stats>>,
+    min_rep_weight: Amount,
+    ledger_constants: Option<LedgerConstants>,
+}
+
+impl<'a> LedgerBuilder<'a> {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            config: None,
+            txn_tracker: None,
+            env_factory: None,
+            bootstrap_weights: None,
+            stats: None,
+            min_rep_weight: Amount::zero(),
+            ledger_constants: None,
+        }
+    }
+
+    pub fn env_factory(mut self, env_factory: &'a LmdbEnvFactory) -> Self {
+        self.env_factory = Some(env_factory);
+        self
+    }
+
+    pub fn bootstrap_weights(mut self, weights: BootstrapWeights) -> Self {
+        self.bootstrap_weights = Some(weights);
+        self
+    }
+
+    pub fn txn_tracker(mut self, tracker: Arc<dyn TransactionTracker>) -> Self {
+        self.txn_tracker = Some(tracker);
+        self
+    }
+
+    pub fn constants(mut self, constants: LedgerConstants) -> Self {
+        self.ledger_constants = Some(constants);
+        self
+    }
+
+    pub fn stats(mut self, stats: Arc<Stats>) -> Self {
+        self.stats = Some(stats);
+        self
+    }
+
+    pub fn min_rep_weight(mut self, weight: Amount) -> Self {
+        self.min_rep_weight = weight;
+        self
+    }
+
+    pub fn finish(self) -> anyhow::Result<Ledger> {
+        let ledger_cache = Arc::new(LedgerCache::new());
+        let bootstrap_weights = self.bootstrap_weights.unwrap_or_default();
+
+        let rep_weights = Arc::new(RepWeightCache::with_bootstrap_weights(
+            bootstrap_weights,
+            ledger_cache.clone(),
+        ));
+
+        let store = {
+            let config = self.config.unwrap_or_default();
+            let mut store_builder = LmdbStore::open(&self.path).options(config.clone());
+
+            if let Some(tracker) = self.txn_tracker {
+                store_builder = store_builder.txn_tracker(tracker);
+            }
+
+            let default_env_factory = LmdbEnvFactory::default();
+            let env_factory = self.env_factory.unwrap_or(&default_env_factory);
+
+            let result = store_builder.build(env_factory);
+
+            let mut store = match result {
+                Ok(store) => store,
+                Err(e) => {
+                    panic!(
+                        "Could not create LMDB store: {:?}. Details: {:?}",
+                        self.path, e
+                    )
+                }
+            };
+            store.cache = ledger_cache;
+            store
+        };
+
+        let stats = self.stats.unwrap_or_else(|| Arc::new(Stats::default()));
+        let ledger_constants = self
+            .ledger_constants
+            .unwrap_or_else(|| LedgerConstants::live());
+
+        info!("Loading ledger, this may take a while...");
+
+        Ledger::new(
+            store,
+            ledger_constants,
+            self.min_rep_weight,
+            rep_weights.clone(),
+            stats.clone(),
+        )
+    }
+}

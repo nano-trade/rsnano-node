@@ -3,8 +3,8 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
-    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
+    LedgerBuilder, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
+    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
@@ -18,8 +18,7 @@ use rsnano_store_lmdb::{
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LedgerCache,
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
     LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore,
-    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction,
-    TransactionTracker, WriteQueue,
+    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction, WriteQueue,
 };
 use rsnano_work::WorkThresholds;
 use std::{
