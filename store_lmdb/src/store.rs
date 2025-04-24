@@ -99,14 +99,20 @@ impl<'a> LmdbStoreBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> anyhow::Result<LmdbStore> {
+    pub fn build(self, env_factory: &LmdbEnvFactory) -> anyhow::Result<LmdbStore> {
         let options = self.options.unwrap_or_default();
 
         let txn_tracker = self
             .tracker
             .unwrap_or_else(|| Arc::new(NullTransactionTracker::new()));
 
-        LmdbStore::new(self.path, &options, txn_tracker, self.backup_before_upgrade)
+        LmdbStore::new(
+            env_factory,
+            self.path,
+            &options,
+            txn_tracker,
+            self.backup_before_upgrade,
+        )
     }
 }
 
@@ -120,6 +126,7 @@ impl LmdbStore {
     }
 
     fn new(
+        env_factory: &LmdbEnvFactory,
         path: impl AsRef<Path>,
         options: &LmdbConfig,
         txn_tracker: Arc<dyn TransactionTracker>,
@@ -134,7 +141,7 @@ impl LmdbStore {
             flags: get_env_flags(options),
             path,
         };
-        let mut env = LmdbEnv::new_with_options(env_options)?;
+        let mut env = env_factory.create_with_options(env_options)?;
         env.set_transaction_tracker(txn_tracker);
         Self::new_with_env(env)
     }
@@ -406,7 +413,7 @@ mod tests {
     #[test]
     fn create_store() -> anyhow::Result<()> {
         let file = TestDbFile::random();
-        let _ = LmdbStore::open(&file.path).build()?;
+        let _ = LmdbStore::open(&file.path).build(&Default::default())?;
         Ok(())
     }
 
@@ -429,13 +436,15 @@ mod tests {
     #[test]
     fn writes_db_version_for_new_store() {
         let file = TestDbFile::random();
-        let store = LmdbStore::open(&file.path).build().unwrap();
+        let store = LmdbStore::open(&file.path)
+            .build(&Default::default())
+            .unwrap();
         let txn = store.tx_begin_read();
         assert_eq!(store.version.get(&txn), Some(STORE_VERSION_MINIMUM));
     }
 
     fn assert_upgrade_fails(path: &Path, error_msg: &str) {
-        match LmdbStore::open(path).build() {
+        match LmdbStore::open(path).build(&Default::default()) {
             Ok(_) => panic!("store should not be created!"),
             Err(e) => {
                 assert_eq!(e.to_string(), error_msg);

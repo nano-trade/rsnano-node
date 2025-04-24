@@ -62,6 +62,12 @@ pub struct LmdbEnvFactory {
 }
 
 impl LmdbEnvFactory {
+    pub fn new_null() -> Self {
+        Self {
+            env_factory: LmdbEnvironmentFactory::new_null(),
+        }
+    }
+
     pub fn create_env(&self, path: impl AsRef<Path>) -> anyhow::Result<LmdbEnv> {
         let cfg = LmdbConfig::default();
         let options = EnvironmentOptions {
@@ -72,6 +78,7 @@ impl LmdbEnvFactory {
         };
         self.create_with_options(options)
     }
+
     pub fn create_with_options(&self, options: EnvironmentOptions) -> anyhow::Result<LmdbEnv> {
         let path = options.path.to_path_buf();
         try_create_parent_dir(options.path)?;

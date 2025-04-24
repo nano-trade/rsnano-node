@@ -25,8 +25,7 @@ impl SnapshotArgs {
 
         println!("This may take a while...");
 
-        let store = LmdbStore::open(&source_path).build()?;
-
+        let store = LmdbStore::open(&source_path).build(&Default::default())?;
         store.copy_db(&snapshot_path)?;
 
         println!(

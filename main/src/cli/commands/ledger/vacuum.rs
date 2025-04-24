@@ -25,8 +25,7 @@ impl VacuumArgs {
         println!("Vacuuming database copy in {:?}", data_path);
         println!("This may take a while...");
 
-        let store = LmdbStore::open(&source_path).build()?;
-
+        let store = LmdbStore::open(&source_path).build(&Default::default())?;
         store.copy_db(&vacuum_path)?;
 
         println!("Finalizing");

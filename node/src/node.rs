@@ -31,8 +31,8 @@ use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
-    EnvironmentFlags, LedgerCache, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker,
-    SyncStrategy, TransactionTracker,
+    EnvironmentFlags, LedgerCache, LmdbEnv, LmdbEnvFactory, LmdbStore, NullTransactionTracker,
+    TransactionTracker,
 };
 
 use crate::{
@@ -271,6 +271,12 @@ impl Node {
 
         //--------------------------------------------------------------------------------
         // Begin ledger creation
+        let lmdb_env_factory = if is_nulled {
+            LmdbEnvFactory::new_null()
+        } else {
+            LmdbEnvFactory::default()
+        };
+
         let ledger_cache = Arc::new(LedgerCache::new());
 
         let rep_weights = Arc::new(RepWeightCache::with_bootstrap_weights(
@@ -298,7 +304,7 @@ impl Node {
                 .options(config.lmdb_config.clone())
                 .backup_before_upgrade(config.backup_before_upgrade)
                 .txn_tracker(txn_tracker)
-                .build()
+                .build(&lmdb_env_factory)
                 .expect("Could not create LMDB store");
             store.cache = ledger_cache;
             store
@@ -500,7 +506,11 @@ impl Node {
                     | EnvironmentFlags::NO_TLS
                     | EnvironmentFlags::NO_READAHEAD,
             };
-            Arc::new(LmdbEnv::new_with_options(options).unwrap())
+            Arc::new(
+                lmdb_env_factory
+                    .create_with_options(options)
+                    .expect("Could not create LMDB env for wallets"),
+            )
         };
 
         let mut wallets = Wallets::new(

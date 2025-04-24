@@ -23,7 +23,11 @@ fn main() {
 }
 
 fn check_ledger_file(ledger_file: impl AsRef<Path>) {
-    let store = Arc::new(LmdbStore::open(ledger_file.as_ref()).build().unwrap());
+    let store = Arc::new(
+        LmdbStore::open(ledger_file.as_ref())
+            .build(&Default::default())
+            .unwrap(),
+    );
     let tx = store.tx_begin_read();
     let total_blocks = store.block.count(&tx);
     let mut checked: u64 = 0;

@@ -27,7 +27,9 @@ impl LedgerContext {
 
     pub fn with_constants(constants: LedgerConstants) -> Self {
         let db_file = TestDbFile::random();
-        let store = LmdbStore::open(&db_file.path).build().unwrap();
+        let store = LmdbStore::open(&db_file.path)
+            .build(&Default::default())
+            .unwrap();
         let rep_weights = Arc::new(RepWeightCache::new());
         let stats = Arc::new(Stats::default());
         let ledger =
