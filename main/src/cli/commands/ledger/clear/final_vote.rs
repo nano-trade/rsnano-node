@@ -2,7 +2,7 @@ use crate::cli::get_path;
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
 use rsnano_core::QualifiedRoot;
-use rsnano_store_lmdb::{LmdbEnv, LmdbFinalVoteStore};
+use rsnano_store_lmdb::{LmdbEnvFactory, LmdbFinalVoteStore};
 use std::sync::Arc;
 
 #[derive(Parser)]
@@ -30,7 +30,7 @@ impl FinalVoteArgs {
     pub(crate) fn final_vote(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
 
-        let env = Arc::new(LmdbEnv::new(&path)?);
+        let env = Arc::new(LmdbEnvFactory::default().create_env(&path)?);
 
         let final_vote_store = LmdbFinalVoteStore::new(env.clone())?;
 

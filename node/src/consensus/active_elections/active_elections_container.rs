@@ -455,10 +455,7 @@ pub struct ApplyVoteArgs<'a> {
 mod tests {
     use super::*;
     use crate::consensus::ReceivedVote;
-    use rsnano_core::{
-        utils::{BlockPriority, UnixMillisTimestamp},
-        PrivateKey, Vote, VoteSource,
-    };
+    use rsnano_core::{utils::BlockPriority, PrivateKey, Vote, VoteSource};
     use std::sync::Arc;
 
     #[test]

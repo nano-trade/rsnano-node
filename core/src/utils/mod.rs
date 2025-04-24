@@ -92,31 +92,6 @@ pub fn get_cpu_count() -> usize {
 
 pub type MemoryIntensiveInstrumentationCallback = extern "C" fn() -> bool;
 
-pub static mut MEMORY_INTENSIVE_INSTRUMENTATION: Option<MemoryIntensiveInstrumentationCallback> =
-    None;
-
-extern "C" fn default_is_sanitizer_build_callback() -> bool {
-    false
-}
-pub static mut IS_SANITIZER_BUILD: MemoryIntensiveInstrumentationCallback =
-    default_is_sanitizer_build_callback;
-
-pub fn memory_intensive_instrumentation() -> bool {
-    match std::env::var("NANO_MEMORY_INTENSIVE") {
-        Ok(val) => matches!(val.to_lowercase().as_str(), "1" | "true" | "on"),
-        Err(_) => unsafe {
-            match MEMORY_INTENSIVE_INSTRUMENTATION {
-                Some(f) => f(),
-                None => false,
-            }
-        },
-    }
-}
-
-pub fn is_sanitizer_build() -> bool {
-    unsafe { IS_SANITIZER_BUILD() }
-}
-
 pub fn milliseconds_since_epoch() -> u64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)

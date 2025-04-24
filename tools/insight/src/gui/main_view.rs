@@ -220,7 +220,6 @@ impl MainViewModel {
             reinsertable: self.app.bootstrap.reinsertable,
             priorities,
             blocked,
-            search: self.app.bootstrap.search.clone(),
         }
     }
 

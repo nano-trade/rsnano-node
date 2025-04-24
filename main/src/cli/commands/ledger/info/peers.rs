@@ -1,7 +1,7 @@
 use crate::cli::get_path;
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_store_lmdb::{LmdbEnv, LmdbPeerStore};
+use rsnano_store_lmdb::{LmdbEnvFactory, LmdbPeerStore};
 use std::sync::Arc;
 
 #[derive(Parser)]
@@ -19,7 +19,7 @@ pub(crate) struct PeersArgs {
 impl PeersArgs {
     pub(crate) fn peers(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
-        let env = Arc::new(LmdbEnv::new(&path)?);
+        let env = Arc::new(LmdbEnvFactory::default().create_env(&path)?);
         let peer_store = LmdbPeerStore::new(env.clone())?;
         let txn = env.tx_begin_read();
 

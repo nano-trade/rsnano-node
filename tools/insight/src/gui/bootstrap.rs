@@ -133,7 +133,6 @@ pub(crate) struct BootstrapViewModel {
     pub reinsertable: usize,
     pub priorities: Vec<PriorityViewModel>,
     pub blocked: Vec<BlockedViewModel>,
-    pub search: String,
 }
 
 pub(crate) struct PriorityViewModel {

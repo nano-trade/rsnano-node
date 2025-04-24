@@ -39,7 +39,7 @@ fn quorum_minimum_confirm_fail() {
         VoteSource::Live,
         None,
     );
-    node1.vote_processor.vote_blocking(&vote.into());
+    let _ = node1.vote_processor.vote_blocking(&vote.into());
 
     // Give the election a chance to confirm
     std::thread::sleep(Duration::from_secs(1));
@@ -80,7 +80,7 @@ fn quorum_minimum_confirm_success() {
         VoteSource::Live,
         None,
     );
-    node1.vote_processor.vote_blocking(&vote.into());
+    let _ = node1.vote_processor.vote_blocking(&vote.into());
 
     assert_timely2(|| node1.block_confirmed(&send1.hash()));
 }
@@ -123,7 +123,7 @@ fn quorum_minimum_flip_fail() {
         VoteSource::Live,
         None,
     );
-    node1.vote_processor.vote_blocking(&vote.into());
+    let _ = node1.vote_processor.vote_blocking(&vote.into());
 
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
@@ -168,7 +168,7 @@ fn quorum_minimum_flip_success() {
         VoteSource::Live,
         None,
     );
-    node1.vote_processor.vote_blocking(&vote.into());
+    let _ = node1.vote_processor.vote_blocking(&vote.into());
 
     // Wait for the election to be confirmed
     assert_timely2(|| node1.block_confirmed(&send2.hash()));

@@ -30,7 +30,6 @@ use rsnano_node::{
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
 use rsnano_store_lmdb::SyncStrategy;
-use rsnano_work::WorkPool;
 
 pub struct System {
     pub network_params: NetworkParams,

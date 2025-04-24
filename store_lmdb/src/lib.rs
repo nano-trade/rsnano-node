@@ -28,6 +28,7 @@ pub use confirmation_height_store::*;
 pub use fan::Fan;
 pub use final_vote_store::LmdbFinalVoteStore;
 pub use iterator::{LmdbIterator, LmdbRangeIterator};
+pub use lmdb::EnvironmentFlags;
 pub use lmdb_config::{LmdbConfig, SyncStrategy};
 pub use lmdb_env::*;
 pub use online_weight_store::LmdbOnlineWeightStore;

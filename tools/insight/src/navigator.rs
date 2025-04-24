@@ -1,4 +1,5 @@
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum NavItem {
     Peers,
     Messages,

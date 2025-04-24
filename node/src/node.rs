@@ -31,8 +31,8 @@ use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
-    LedgerCache, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
-    TransactionTracker,
+    EnvironmentFlags, LedgerCache, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker,
+    SyncStrategy, TransactionTracker,
 };
 
 use crate::{
@@ -86,6 +86,7 @@ use crate::{
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
+use rsnano_nullable_lmdb::EnvironmentOptions;
 
 pub struct Node {
     is_nulled: bool,
@@ -268,6 +269,8 @@ impl Node {
             Default::default()
         };
 
+        //--------------------------------------------------------------------------------
+        // Begin ledger creation
         let ledger_cache = Arc::new(LedgerCache::new());
 
         let rep_weights = Arc::new(RepWeightCache::with_bootstrap_weights(
@@ -275,24 +278,24 @@ impl Node {
             ledger_cache.clone(),
         ));
 
+        let mut ledger_path = application_path.clone();
+        ledger_path.push("data.ldb");
+
+        let txn_tracker: Arc<dyn TransactionTracker> =
+            if config.diagnostics_config.txn_tracking.enable {
+                Arc::new(LongRunningTransactionLogger::new(
+                    config.diagnostics_config.txn_tracking.clone(),
+                    Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
+                ))
+            } else {
+                Arc::new(NullTransactionTracker::new())
+            };
+
         let store = if is_nulled {
             LmdbStore::new_null()
         } else {
-            let mut ledger_path = application_path.clone();
-            ledger_path.push("data.ldb");
-
-            let txn_tracker: Arc<dyn TransactionTracker> =
-                if config.diagnostics_config.txn_tracking.enable {
-                    Arc::new(LongRunningTransactionLogger::new(
-                        config.diagnostics_config.txn_tracking.clone(),
-                        Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
-                    ))
-                } else {
-                    Arc::new(NullTransactionTracker::new())
-                };
-
             let mut store = LmdbStore::open(&ledger_path)
-                .options(&config.lmdb_config)
+                .options(config.lmdb_config.clone())
                 .backup_before_upgrade(config.backup_before_upgrade)
                 .txn_tracker(txn_tracker)
                 .build()
@@ -310,6 +313,8 @@ impl Node {
             stats.clone(),
         )
         .expect("Could not initialize ledger");
+        // End ledger creation
+        //--------------------------------------------------------------------------------
 
         // hard coded version! TODO: read version from Cargo
         info!("Database backend: {}", ledger.store_vendor());
@@ -484,17 +489,18 @@ impl Node {
         let mut wallets_path = application_path.clone();
         wallets_path.push("wallets.ldb");
 
-        let wallets_lmdb_config = LmdbConfig {
-            sync: SyncStrategy::Always,
-            map_size: 1024 * 1024 * 1024,
-            mem_init: true,
-            max_databases: 128,
-        };
-
         let wallets_env = if is_nulled {
             Arc::new(LmdbEnv::new_null())
         } else {
-            Arc::new(LmdbEnv::new_with_options(wallets_path, &wallets_lmdb_config).unwrap())
+            let options = EnvironmentOptions {
+                path: &wallets_path,
+                max_dbs: 128,
+                map_size: 1024 * 1024 * 1024,
+                flags: EnvironmentFlags::NO_SUB_DIR
+                    | EnvironmentFlags::NO_TLS
+                    | EnvironmentFlags::NO_READAHEAD,
+            };
+            Arc::new(LmdbEnv::new_with_options(options).unwrap())
         };
 
         let mut wallets = Wallets::new(

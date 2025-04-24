@@ -1,4 +1,6 @@
-use crate::{LmdbDatabase, LmdbEnv, LmdbWriteTransaction, Transaction, STORE_VERSION_CURRENT};
+use crate::{
+    LmdbDatabase, LmdbEnv, LmdbEnvFactory, LmdbWriteTransaction, Transaction, STORE_VERSION_CURRENT,
+};
 use core::panic;
 use lmdb::{DatabaseFlags, WriteFlags};
 use std::{path::Path, sync::Arc};
@@ -37,7 +39,7 @@ impl LmdbVersionStore {
     }
 
     pub fn check_upgrade(path: &Path) -> anyhow::Result<UpgradeInfo> {
-        let env = LmdbEnv::new(path)?;
+        let env = LmdbEnvFactory::default().create_env(path)?;
         let info = match LmdbVersionStore::try_read_version(&env) {
             Some(version) => UpgradeInfo {
                 is_fresh_db: false,

@@ -2,26 +2,20 @@ use crate::{
     LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, NullTransactionTracker, SyncStrategy,
     TransactionTracker, WriteQueue, Writer,
 };
-use anyhow::bail;
 use lmdb::EnvironmentFlags;
-use lmdb_sys::MDB_SUCCESS;
-use rsnano_core::utils::memory_intensive_instrumentation;
 use rsnano_nullable_lmdb::{
     ConfiguredDatabase, ConfiguredDatabaseBuilder, EnvironmentOptions, EnvironmentStubBuilder,
-    LmdbDatabase, LmdbEnvironment,
+    LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
 };
 use std::{
-    ffi::{c_char, CStr, OsStr},
     fs::{create_dir_all, set_permissions, Permissions},
-    ops::Deref,
     os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU64, Ordering},
         Arc,
     },
 };
-use tracing::debug;
 
 pub struct NullLmdbEnvBuilder {
     env_builder: EnvironmentStubBuilder,
@@ -41,7 +35,7 @@ impl NullLmdbEnvBuilder {
 
     pub fn build(self) -> LmdbEnv {
         let env = self.env_builder.finish();
-        LmdbEnv::new_with_env(env)
+        LmdbEnv::new_with_env(env, "/nulled/ledger.ldb".into())
     }
 }
 
@@ -62,20 +56,44 @@ impl NullDatabaseBuilder {
     }
 }
 
+#[derive(Default)]
+pub struct LmdbEnvFactory {
+    env_factory: LmdbEnvironmentFactory,
+}
+
+impl LmdbEnvFactory {
+    pub fn create_env(&self, path: impl AsRef<Path>) -> anyhow::Result<LmdbEnv> {
+        let cfg = LmdbConfig::default();
+        let options = EnvironmentOptions {
+            path: path.as_ref(),
+            max_dbs: cfg.max_databases,
+            map_size: cfg.map_size,
+            flags: get_env_flags(&cfg),
+        };
+        self.create_with_options(options)
+    }
+    pub fn create_with_options(&self, options: EnvironmentOptions) -> anyhow::Result<LmdbEnv> {
+        let path = options.path.to_path_buf();
+        try_create_parent_dir(options.path)?;
+        let env = self.env_factory.create_env(options)?;
+        Ok(LmdbEnv::new_with_env(env, path))
+    }
+}
+
 pub struct LmdbEnv {
     pub environment: LmdbEnvironment,
     next_txn_id: AtomicU64,
     pub txn_tracker: Arc<dyn TransactionTracker>,
     pub write_queue: Arc<WriteQueue>,
-    env_id: usize,
+    path: PathBuf,
 }
-
-static ENV_COUNT: AtomicUsize = AtomicUsize::new(0);
-static NEXT_ENV_ID: AtomicUsize = AtomicUsize::new(0);
 
 impl LmdbEnv {
     pub fn new_null() -> Self {
-        Self::new_with_env(LmdbEnvironment::new_null())
+        Self::new_with_env(
+            LmdbEnvironment::new_null(),
+            PathBuf::from("/nulled/ledger.ldb"),
+        )
     }
 
     pub fn new_null_with() -> NullLmdbEnvBuilder {
@@ -84,91 +102,26 @@ impl LmdbEnv {
         }
     }
 
-    pub fn new(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        Self::new_with_options(path, &LmdbConfig::default())
+    pub fn new_with_options(options: EnvironmentOptions) -> anyhow::Result<Self> {
+        let env_factory = LmdbEnvironmentFactory::default();
+        let path = options.path.to_path_buf();
+        try_create_parent_dir(options.path)?;
+        let environment = env_factory.create_env(options)?;
+        Ok(Self::new_with_env(environment, path))
     }
 
-    pub fn new_with_options(path: impl AsRef<Path>, options: &LmdbConfig) -> anyhow::Result<Self> {
-        let environment = Self::init(path.as_ref(), options)?;
-        Ok(Self::new_with_env(environment))
-    }
-
-    pub fn new_with_env(env: LmdbEnvironment) -> Self {
-        let env_id = NEXT_ENV_ID.fetch_add(1, Ordering::SeqCst);
-        let alive = ENV_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
-        debug!(env_id, alive, "LMDB env created",);
+    fn new_with_env(env: LmdbEnvironment, path: PathBuf) -> Self {
         Self {
             environment: env,
             next_txn_id: AtomicU64::new(0),
             txn_tracker: Arc::new(NullTransactionTracker::new()),
-            env_id,
             write_queue: Arc::new(WriteQueue::new()),
-        }
-    }
-
-    pub fn new_with_txn_tracker(
-        path: &Path,
-        options: &LmdbConfig,
-        txn_tracker: Arc<dyn TransactionTracker>,
-    ) -> anyhow::Result<Self> {
-        let env = Self {
-            environment: Self::init(path, options)?,
-            next_txn_id: AtomicU64::new(0),
-            txn_tracker,
-            env_id: NEXT_ENV_ID.fetch_add(1, Ordering::SeqCst),
-            write_queue: Arc::new(WriteQueue::new()),
-        };
-        let alive = ENV_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
-        debug!(env_id = env.env_id, alive, ?path, "LMDB env created",);
-        Ok(env)
-    }
-
-    pub fn init(path: impl AsRef<Path>, options: &LmdbConfig) -> anyhow::Result<LmdbEnvironment> {
-        let path = path.as_ref();
-        debug_assert!(
-            path.extension() == Some(&OsStr::new("ldb")),
-            "invalid filename extension for lmdb database file"
-        );
-        try_create_parent_dir(path)?;
-        let mut map_size = options.map_size;
-        let max_instrumented_map_size = 16 * 1024 * 1024;
-        if memory_intensive_instrumentation() && map_size > max_instrumented_map_size {
-            // In order to run LMDB under Valgrind, the maximum map size must be smaller than half your available RAM
-            map_size = max_instrumented_map_size;
-        }
-
-        // It seems if there's ever more threads than mdb_env_set_maxreaders has read slots available, we get failures on transaction creation unless MDB_NOTLS is specified
-        // This can happen if something like 256 io_threads are specified in the node config
-        // MDB_NORDAHEAD will allow platforms that support it to load the DB in memory as needed.
-        // MDB_NOMEMINIT prevents zeroing malloc'ed pages. Can provide improvement for non-sensitive data but may make memory checkers noisy (e.g valgrind).
-        let mut environment_flags = EnvironmentFlags::NO_SUB_DIR
-            | EnvironmentFlags::NO_TLS
-            | EnvironmentFlags::NO_READAHEAD;
-
-        if options.sync == SyncStrategy::NosyncSafe {
-            environment_flags |= EnvironmentFlags::NO_META_SYNC;
-        } else if options.sync == SyncStrategy::NosyncUnsafe {
-            environment_flags |= EnvironmentFlags::NO_SYNC;
-        } else if options.sync == SyncStrategy::NosyncUnsafeLargeMemory {
-            environment_flags |= EnvironmentFlags::NO_SYNC
-                | EnvironmentFlags::WRITE_MAP
-                | EnvironmentFlags::MAP_ASYNC;
-        } else if options.sync == SyncStrategy::NosyncUnsafeWriteMap {
-            environment_flags |= EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP;
-        }
-
-        if !memory_intensive_instrumentation() && !options.mem_init {
-            environment_flags |= EnvironmentFlags::NO_MEM_INIT;
-        }
-        let env_options = EnvironmentOptions {
-            max_dbs: options.max_databases,
-            map_size,
-            flags: environment_flags,
             path,
-            file_mode: 0o600,
-        };
-        let env = LmdbEnvironment::new(env_options)?;
-        Ok(env)
+        }
+    }
+
+    pub fn set_transaction_tracker(&mut self, txn_tracker: Arc<dyn TransactionTracker>) {
+        self.txn_tracker = txn_tracker;
     }
 
     pub fn tx_begin_read(&self) -> LmdbReadTransaction {
@@ -193,19 +146,43 @@ impl LmdbEnv {
         .expect("Could not create LMDB read-write transaction")
     }
 
-    pub fn file_path(&self) -> anyhow::Result<PathBuf> {
-        let mut path: *const c_char = std::ptr::null();
-        let status = unsafe { lmdb_sys::mdb_env_get_path(self.environment.env(), &mut path) };
-        if status != MDB_SUCCESS {
-            bail!("could not get env path");
-        }
-        let source_path: PathBuf = unsafe { CStr::from_ptr(path) }.to_str()?.into();
-        Ok(source_path)
+    pub fn file_path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn sync(&self) -> anyhow::Result<()> {
+        self.environment.sync(true)?;
+        Ok(())
     }
 
     fn create_txn_callbacks(&self) -> Arc<dyn TransactionTracker> {
         Arc::clone(&self.txn_tracker)
     }
+}
+
+pub fn get_env_flags(options: &LmdbConfig) -> EnvironmentFlags {
+    // It seems if there's ever more threads than mdb_env_set_maxreaders has read slots available, we get failures on transaction creation unless MDB_NOTLS is specified
+    // This can happen if something like 256 io_threads are specified in the node config
+    // MDB_NORDAHEAD will allow platforms that support it to load the DB in memory as needed.
+    // MDB_NOMEMINIT prevents zeroing malloc'ed pages. Can provide improvement for non-sensitive data but may make memory checkers noisy (e.g valgrind).
+    let mut flags =
+        EnvironmentFlags::NO_SUB_DIR | EnvironmentFlags::NO_TLS | EnvironmentFlags::NO_READAHEAD;
+
+    if options.sync == SyncStrategy::NosyncSafe {
+        flags |= EnvironmentFlags::NO_META_SYNC;
+    } else if options.sync == SyncStrategy::NosyncUnsafe {
+        flags |= EnvironmentFlags::NO_SYNC;
+    } else if options.sync == SyncStrategy::NosyncUnsafeLargeMemory {
+        flags |=
+            EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP | EnvironmentFlags::MAP_ASYNC;
+    } else if options.sync == SyncStrategy::NosyncUnsafeWriteMap {
+        flags |= EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP;
+    }
+
+    if !options.mem_init {
+        flags |= EnvironmentFlags::NO_MEM_INIT;
+    }
+    flags
 }
 
 fn try_create_parent_dir(path: &Path) -> std::io::Result<()> {
@@ -216,14 +193,6 @@ fn try_create_parent_dir(path: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
-}
-
-impl Drop for LmdbEnv {
-    fn drop(&mut self) {
-        let alive = ENV_COUNT.fetch_sub(1, Ordering::Relaxed) - 1;
-        debug!(env_id = self.env_id, alive, "LMDB env dropped",);
-        let _ = self.environment.sync(true);
-    }
 }
 
 pub struct TestDbFile {
@@ -269,31 +238,6 @@ impl Drop for TestDbFile {
                 }
             }
         }
-    }
-}
-
-pub struct TestLmdbEnv {
-    env: Arc<LmdbEnv>,
-    _file: TestDbFile,
-}
-
-impl TestLmdbEnv {
-    pub fn new() -> Self {
-        let file = TestDbFile::random();
-        let env = Arc::new(LmdbEnv::new(&file.path).unwrap());
-        Self { _file: file, env }
-    }
-
-    pub fn env(&self) -> Arc<LmdbEnv> {
-        self.env.clone()
-    }
-}
-
-impl Deref for TestLmdbEnv {
-    type Target = LmdbEnv;
-
-    fn deref(&self) -> &Self::Target {
-        &self.env
     }
 }
 

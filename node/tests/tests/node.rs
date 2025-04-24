@@ -1617,7 +1617,7 @@ fn online_reps_rep_crawler() {
         node.online_reps.lock().unwrap().online_weight()
     );
 
-    node.vote_processor.vote_blocking(&vote);
+    let _ = node.vote_processor.vote_blocking(&vote);
     assert_eq!(
         Amount::zero(),
         node.online_reps.lock().unwrap().online_weight()
@@ -1626,7 +1626,7 @@ fn online_reps_rep_crawler() {
     // After inserting to rep crawler
     node.rep_crawler
         .force_query(*DEV_GENESIS_HASH, channel.channel_id());
-    node.vote_processor.vote_blocking(&vote);
+    let _ = node.vote_processor.vote_blocking(&vote);
 
     assert_eq!(
         Amount::MAX,
@@ -1666,7 +1666,8 @@ fn online_reps_election() {
     );
 
     let channel = make_fake_channel(&node);
-    node.vote_processor
+    let _ = node
+        .vote_processor
         .vote_blocking(&ReceivedVote::new(vote.into(), VoteSource::Live, Some(channel)).into());
 
     assert_eq!(
@@ -1912,7 +1913,8 @@ fn rollback_vote_self() {
             0,
             vec![fork.hash()],
         ));
-        node.vote_processor
+        let _ = node
+            .vote_processor
             .vote_blocking(&ReceivedVote::new(vote.into(), VoteSource::Live, None).into());
 
         // The winner changed

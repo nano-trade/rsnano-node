@@ -12,7 +12,7 @@ use rsnano_node::{
     wallets::{WalletsError, WalletsExt},
     Node,
 };
-use rsnano_store_lmdb::{LmdbEnv, LmdbWalletStore};
+use rsnano_store_lmdb::{LmdbEnv, LmdbEnvFactory, LmdbWalletStore};
 use std::{
     collections::HashSet,
     path::PathBuf,
@@ -32,7 +32,7 @@ impl TestFixture {
         let mut test_file = test_dir.clone();
         test_file.push("wallet.ldb");
 
-        let env = LmdbEnv::new(test_file).unwrap();
+        let env = LmdbEnvFactory::default().create_env(test_file).unwrap();
 
         Self { test_dir, env }
     }

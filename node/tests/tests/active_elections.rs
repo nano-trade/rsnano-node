@@ -397,7 +397,8 @@ fn inactive_votes_cache_existing_vote() {
 
     let cached = node.vote_cache.lock().unwrap().find(&send.hash());
     assert_eq!(cached.len(), 1);
-    node.vote_processor
+    let _ = node
+        .vote_processor
         .vote_blocking(&ReceivedVote::new(cached[0].clone(), VoteSource::Live, None).into());
 
     // Check that election data is not changed

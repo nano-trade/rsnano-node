@@ -72,7 +72,8 @@ fn add_cooldown() {
         vec![send1.hash()],
     ));
     let channel = make_fake_channel(&node);
-    node.vote_processor
+    let _ = node
+        .vote_processor
         .vote_blocking(&ReceivedVote::new(vote1, VoteSource::Live, Some(channel.clone())).into());
 
     let key2 = PrivateKey::new();
@@ -84,7 +85,8 @@ fn add_cooldown() {
         vec![send2.hash()],
     ));
 
-    node.vote_processor
+    let _ = node
+        .vote_processor
         .vote_blocking(&ReceivedVote::new(vote2, VoteSource::Live, Some(channel)).into());
 
     let active = node.active.read().unwrap();

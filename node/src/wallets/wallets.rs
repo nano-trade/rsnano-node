@@ -186,6 +186,7 @@ impl Wallets {
 
     pub fn stop(&self) {
         self.wallet_actions.stop();
+        self.env.sync().expect("sync failed");
     }
 
     pub fn set_start_election_callback(&self, callback: Box<dyn Fn(SavedBlock) + Send + Sync>) {
