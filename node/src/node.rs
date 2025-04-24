@@ -31,7 +31,7 @@ use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
-    EnvOptions, LedgerCache, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
+    LedgerCache, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
 };
 
@@ -291,13 +291,8 @@ impl Node {
                     Arc::new(NullTransactionTracker::new())
                 };
 
-            let options = EnvOptions {
-                config: config.lmdb_config.clone(),
-                use_no_mem_init: true,
-            };
-
             let mut store = LmdbStore::open(&ledger_path)
-                .options(&options)
+                .options(&config.lmdb_config)
                 .backup_before_upgrade(config.backup_before_upgrade)
                 .txn_tracker(txn_tracker)
                 .build()
@@ -489,17 +484,17 @@ impl Node {
         let mut wallets_path = application_path.clone();
         wallets_path.push("wallets.ldb");
 
-        let mut wallets_lmdb_config = config.lmdb_config.clone();
-        wallets_lmdb_config.sync = SyncStrategy::Always;
-        wallets_lmdb_config.map_size = 1024 * 1024 * 1024;
-        let wallets_options = EnvOptions {
-            config: wallets_lmdb_config,
-            use_no_mem_init: false,
+        let wallets_lmdb_config = LmdbConfig {
+            sync: SyncStrategy::Always,
+            map_size: 1024 * 1024 * 1024,
+            mem_init: true,
+            max_databases: 128,
         };
+
         let wallets_env = if is_nulled {
             Arc::new(LmdbEnv::new_null())
         } else {
-            Arc::new(LmdbEnv::new_with_options(wallets_path, &wallets_options).unwrap())
+            Arc::new(LmdbEnv::new_with_options(wallets_path, &wallets_lmdb_config).unwrap())
         };
 
         let mut wallets = Wallets::new(

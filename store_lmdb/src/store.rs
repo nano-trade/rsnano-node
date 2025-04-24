@@ -1,5 +1,5 @@
 use crate::{
-    EnvOptions, LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase,
+    LmdbAccountStore, LmdbBlockStore, LmdbConfig, LmdbConfirmationHeightStore, LmdbDatabase,
     LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore,
     LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore,
     LmdbWriteTransaction, NullTransactionTracker, TransactionTracker, WriteQueue, Writer,
@@ -68,7 +68,7 @@ pub struct LmdbStore {
 
 pub struct LmdbStoreBuilder<'a> {
     path: &'a Path,
-    options: Option<&'a EnvOptions>,
+    options: Option<&'a LmdbConfig>,
     tracker: Option<Arc<dyn TransactionTracker>>,
     backup_before_upgrade: bool,
 }
@@ -83,7 +83,7 @@ impl<'a> LmdbStoreBuilder<'a> {
         }
     }
 
-    pub fn options(mut self, options: &'a EnvOptions) -> Self {
+    pub fn options(mut self, options: &'a LmdbConfig) -> Self {
         self.options = Some(options);
         self
     }
@@ -121,7 +121,7 @@ impl LmdbStore {
 
     fn new(
         path: impl AsRef<Path>,
-        options: &EnvOptions,
+        options: &LmdbConfig,
         txn_tracker: Arc<dyn TransactionTracker>,
         backup_before_upgrade: bool,
     ) -> anyhow::Result<Self> {

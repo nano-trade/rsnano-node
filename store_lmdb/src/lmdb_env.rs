@@ -23,12 +23,6 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(Default, Debug)]
-pub struct EnvOptions {
-    pub config: LmdbConfig,
-    pub use_no_mem_init: bool,
-}
-
 pub struct NullLmdbEnvBuilder {
     env_builder: EnvironmentStubBuilder,
 }
@@ -91,10 +85,10 @@ impl LmdbEnv {
     }
 
     pub fn new(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        Self::new_with_options(path, &EnvOptions::default())
+        Self::new_with_options(path, &LmdbConfig::default())
     }
 
-    pub fn new_with_options(path: impl AsRef<Path>, options: &EnvOptions) -> anyhow::Result<Self> {
+    pub fn new_with_options(path: impl AsRef<Path>, options: &LmdbConfig) -> anyhow::Result<Self> {
         let environment = Self::init(path.as_ref(), options)?;
         Ok(Self::new_with_env(environment))
     }
@@ -114,7 +108,7 @@ impl LmdbEnv {
 
     pub fn new_with_txn_tracker(
         path: &Path,
-        options: &EnvOptions,
+        options: &LmdbConfig,
         txn_tracker: Arc<dyn TransactionTracker>,
     ) -> anyhow::Result<Self> {
         let env = Self {
@@ -129,14 +123,14 @@ impl LmdbEnv {
         Ok(env)
     }
 
-    pub fn init(path: impl AsRef<Path>, options: &EnvOptions) -> anyhow::Result<LmdbEnvironment> {
+    pub fn init(path: impl AsRef<Path>, options: &LmdbConfig) -> anyhow::Result<LmdbEnvironment> {
         let path = path.as_ref();
         debug_assert!(
             path.extension() == Some(&OsStr::new("ldb")),
             "invalid filename extension for lmdb database file"
         );
         try_create_parent_dir(path)?;
-        let mut map_size = options.config.map_size;
+        let mut map_size = options.map_size;
         let max_instrumented_map_size = 16 * 1024 * 1024;
         if memory_intensive_instrumentation() && map_size > max_instrumented_map_size {
             // In order to run LMDB under Valgrind, the maximum map size must be smaller than half your available RAM
@@ -151,23 +145,23 @@ impl LmdbEnv {
             | EnvironmentFlags::NO_TLS
             | EnvironmentFlags::NO_READAHEAD;
 
-        if options.config.sync == SyncStrategy::NosyncSafe {
+        if options.sync == SyncStrategy::NosyncSafe {
             environment_flags |= EnvironmentFlags::NO_META_SYNC;
-        } else if options.config.sync == SyncStrategy::NosyncUnsafe {
+        } else if options.sync == SyncStrategy::NosyncUnsafe {
             environment_flags |= EnvironmentFlags::NO_SYNC;
-        } else if options.config.sync == SyncStrategy::NosyncUnsafeLargeMemory {
+        } else if options.sync == SyncStrategy::NosyncUnsafeLargeMemory {
             environment_flags |= EnvironmentFlags::NO_SYNC
                 | EnvironmentFlags::WRITE_MAP
                 | EnvironmentFlags::MAP_ASYNC;
-        } else if options.config.sync == SyncStrategy::NosyncUnsafeWriteMap {
+        } else if options.sync == SyncStrategy::NosyncUnsafeWriteMap {
             environment_flags |= EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP;
         }
 
-        if !memory_intensive_instrumentation() && options.use_no_mem_init {
+        if !memory_intensive_instrumentation() && !options.mem_init {
             environment_flags |= EnvironmentFlags::NO_MEM_INIT;
         }
         let env_options = EnvironmentOptions {
-            max_dbs: options.config.max_databases,
+            max_dbs: options.max_databases,
             map_size,
             flags: environment_flags,
             path,

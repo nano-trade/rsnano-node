@@ -27,6 +27,7 @@ pub struct LmdbConfig {
     pub sync: SyncStrategy,
     pub max_databases: u32,
     pub map_size: usize,
+    pub mem_init: bool,
 }
 
 impl Default for LmdbConfig {
@@ -35,6 +36,7 @@ impl Default for LmdbConfig {
             sync: SyncStrategy::Always,
             max_databases: 128,
             map_size: 256 * 1024 * 1024 * 1024,
+            mem_init: false,
         }
     }
 }
