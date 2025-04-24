@@ -915,13 +915,19 @@ impl Ledger {
     }
 
     pub fn stop(&self) {
-        drop(self.observer.write().unwrap().take())
+        drop(self.observer.write().unwrap().take());
     }
 
     fn notify(&self, event: LedgerEvent) {
         if let Some(sender) = self.observer.read().unwrap().as_ref() {
             sender.send(event).unwrap();
         }
+    }
+}
+
+impl Drop for Ledger {
+    fn drop(&mut self) {
+        self.store.env.sync().expect("sync failed");
     }
 }
 
