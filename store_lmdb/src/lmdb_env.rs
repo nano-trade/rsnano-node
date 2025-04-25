@@ -185,52 +185,6 @@ pub fn get_env_flags(options: &LmdbConfig) -> EnvironmentFlags {
     flags
 }
 
-pub struct TestDbFile {
-    pub path: PathBuf,
-}
-
-impl TestDbFile {
-    fn new(path: impl AsRef<Path>) -> Self {
-        Self {
-            path: Path::new("/tmp").join(path),
-        }
-    }
-
-    pub fn random() -> Self {
-        Self::new(Self::temp_file_name())
-    }
-
-    fn temp_file_name() -> PathBuf {
-        PathBuf::from(format!("{}.ldb", uuid::Uuid::new_v4().simple()))
-    }
-
-    fn lock_file_path(&self) -> PathBuf {
-        let mut lock_file_path = self.path.parent().unwrap().to_owned();
-        let mut fname = self.path.file_name().unwrap().to_os_string();
-        fname.push("-lock");
-        lock_file_path.push(fname);
-        lock_file_path
-    }
-}
-
-impl Drop for TestDbFile {
-    fn drop(&mut self) {
-        if self.path.exists() {
-            std::fs::remove_file(&self.path).unwrap();
-            let lock_file = self.lock_file_path();
-            if lock_file.exists() {
-                std::fs::remove_file(&lock_file).unwrap();
-            }
-
-            if let Some(parent) = self.path.parent() {
-                if parent != Path::new("/tmp") {
-                    std::fs::remove_dir(parent).unwrap();
-                }
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,55 +220,6 @@ mod tests {
                     flags
                 }]
             )
-        }
-    }
-
-    mod test_db_file {
-        use super::*;
-
-        #[test]
-        fn tmp_test() {
-            let path = Path::new("foo.tmp");
-            assert_eq!(path.parent(), Some(Path::new("")));
-            assert_eq!(Path::new(""), Path::new(""))
-        }
-
-        #[test]
-        fn dont_panic_when_file_not_found() {
-            let file = TestDbFile::new("does-not-exist.ldb");
-            drop(file)
-        }
-
-        #[test]
-        fn delete_file_when_dropped() {
-            let file = TestDbFile::new("drop-test.ldb");
-            let mut lock_file_path = file.path.parent().unwrap().to_owned();
-            lock_file_path.push("drop-test.ldb-lock");
-            std::fs::write(&file.path, "foo").unwrap();
-            std::fs::write(&lock_file_path, "foo").unwrap();
-            let path = file.path.clone();
-            drop(file);
-            assert_eq!(path.exists(), false, "db file was not deleted");
-            assert_eq!(lock_file_path.exists(), false, "lock file was not deleted");
-        }
-
-        #[test]
-        fn delete_dir_when_dropped() {
-            let file = TestDbFile::new("drop-dir/db.ldb");
-            std::fs::create_dir(file.path.parent().unwrap()).unwrap();
-            std::fs::write(&file.path, "foo").unwrap();
-            let path = file.path.clone();
-            drop(file);
-            assert_eq!(path.exists(), false);
-            assert_eq!(path.parent().unwrap().exists(), false);
-        }
-
-        #[test]
-        fn tmp_file_name() {
-            let filename = TestDbFile::temp_file_name();
-            assert_eq!(filename.extension().unwrap(), "ldb");
-            assert_eq!(filename.file_stem().unwrap().len(), 32);
-            assert_ne!(TestDbFile::temp_file_name(), TestDbFile::temp_file_name());
         }
     }
 }
