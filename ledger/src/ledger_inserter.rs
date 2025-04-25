@@ -1,6 +1,6 @@
-use crate::{AnySet, Ledger, LedgerSet};
+use crate::{ledger_constants::LEDGER_CONSTANTS_STUB, AnySet, Ledger, LedgerSet};
 use rsnano_core::{
-    Account, AccountInfo, Amount, Block, BlockHash, ChangeBlockArgs, Link, OpenBlockArgs,
+    Account, AccountInfo, Amount, Block, BlockHash, ChangeBlockArgs, Epoch, Link, OpenBlockArgs,
     PendingInfo, PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, SavedBlock, SendBlockArgs,
     StateBlockArgs, WorkNonce, DEV_GENESIS_KEY,
 };
@@ -196,6 +196,22 @@ impl<'a> LedgerBlockInserter<'a> {
             key: self.key,
             previous: info.head,
             representative: new_rep.into(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
+    pub fn epoch_v1(&mut self) -> SavedBlock {
+        let info = self.get_account_info();
+
+        let block: Block = StateBlockArgs {
+            key: &DEV_GENESIS_KEY,
+            previous: info.head,
+            representative: info.representative,
+            balance: info.balance,
+            link: *LEDGER_CONSTANTS_STUB.epochs.link(Epoch::Epoch1).unwrap(),
             work: WorkNonce::new(u64::MAX),
         }
         .into();

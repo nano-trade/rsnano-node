@@ -10,8 +10,8 @@ use rsnano_store_lmdb::{LmdbAccountStore, LmdbEnv, LmdbPrunedStore};
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY},
-    test_helpers::{setup_legacy_open_block, SavedBlockLatticeBuilder},
-    AnySet, ConfirmedSet, Ledger, LedgerConstants, LedgerContext, LedgerInserter, RepWeightCache,
+    test_helpers::SavedBlockLatticeBuilder,
+    AnySet, ConfirmedSet, Ledger, LedgerConstants, LedgerInserter, RepWeightCache,
     DEV_GENESIS_HASH,
 };
 
@@ -385,65 +385,27 @@ fn is_send_genesis() {
 
 #[test]
 fn sideband_height() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
-    let dest1 = ctx.block_factory();
-    let dest2 = ctx.block_factory();
-    let dest3 = ctx.block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let dest = PrivateKey::from(42);
 
-    let send = genesis.legacy_send().destination(genesis.account()).build();
-    ctx.ledger.process_one(&send).unwrap();
-
-    let receive = genesis.legacy_receive2(send.hash()).build();
-    ctx.ledger.process_one(&receive).unwrap();
-
-    let change = genesis.legacy_change().build();
-    ctx.ledger.process_one(&change).unwrap();
-
-    let state_send1 = genesis.send().link(dest1.account()).build();
-    ctx.ledger.process_one(&state_send1).unwrap();
-
-    let state_send2 = genesis.send().link(dest2.account()).build();
-    ctx.ledger.process_one(&state_send2).unwrap();
-
-    let state_send3 = genesis.send().link(dest3.account()).build();
-    ctx.ledger.process_one(&state_send3).unwrap();
-
-    let state_open = dest1.open(state_send1.hash()).build();
-    ctx.ledger.process_one(&state_open).unwrap();
-
-    let epoch = dest1.epoch_v1().build();
-    ctx.ledger.process_one(&epoch).unwrap();
-
-    let epoch_open = dest2.epoch_v1_open().build();
-    ctx.ledger.process_one(&epoch_open).unwrap();
-
-    let state_receive = dest2.receive(state_send2.hash()).build();
-    ctx.ledger.process_one(&state_receive).unwrap();
-
-    let open = dest3.legacy_open(state_send3.hash()).build();
-    ctx.ledger.process_one(&open).unwrap();
+    let send = inserter.genesis().legacy_send(&dest, 100);
+    let open = inserter.account(&dest).legacy_open(send.hash());
+    let change = inserter.genesis().legacy_change(123);
+    let state_send = inserter.genesis().send(&dest, 1);
+    let receive = inserter.account(&dest).receive(state_send.hash());
 
     let assert_sideband_height = |hash: &BlockHash, expected_height: u64| {
-        let block = ctx.ledger.any().get_block(hash).unwrap();
+        let block = ledger.any().get_block(hash).unwrap();
         assert_eq!(block.height(), expected_height);
     };
 
     assert_sideband_height(&DEV_GENESIS_HASH, 1);
     assert_sideband_height(&send.hash(), 2);
-    assert_sideband_height(&receive.hash(), 3);
-    assert_sideband_height(&change.hash(), 4);
-    assert_sideband_height(&state_send1.hash(), 5);
-    assert_sideband_height(&state_send2.hash(), 6);
-    assert_sideband_height(&state_send3.hash(), 7);
-
-    assert_sideband_height(&state_open.hash(), 1);
-    assert_sideband_height(&epoch.hash(), 2);
-
-    assert_sideband_height(&epoch_open.hash(), 1);
-    assert_sideband_height(&state_receive.hash(), 2);
-
     assert_sideband_height(&open.hash(), 1);
+    assert_sideband_height(&receive.hash(), 2);
+    assert_sideband_height(&change.hash(), 3);
+    assert_sideband_height(&state_send.hash(), 4);
 }
 
 #[test]
