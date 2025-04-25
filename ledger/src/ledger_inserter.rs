@@ -1,7 +1,8 @@
 use crate::{AnySet, Ledger, LedgerSet};
 use rsnano_core::{
-    Account, Amount, Block, BlockHash, Link, PendingKey, PrivateKey, PublicKey, SavedBlock,
-    StateBlockArgs, WorkNonce, DEV_GENESIS_KEY,
+    Account, AccountInfo, Amount, Block, BlockHash, Link, OpenBlockArgs, PendingKey, PrivateKey,
+    PublicKey, ReceiveBlockArgs, SavedBlock, SendBlockArgs, StateBlockArgs, WorkNonce,
+    DEV_GENESIS_KEY,
 };
 
 /// Provides a simplified interface for inserting blocks into the ledger (for tests)
@@ -40,14 +41,7 @@ impl<'a> LedgerBlockInserter<'a> {
         destination: impl Into<Account>,
         amount: impl Into<Amount>,
     ) -> SavedBlock {
-        let info = self.get_account_info();
-
-        if info.block_count == 0 {
-            panic!(
-                "Cannot send from unopened account: {}",
-                self.key.account().encode_account()
-            );
-        }
+        let info = self.get_opened_account();
 
         let block: Block = StateBlockArgs {
             key: self.key,
@@ -55,6 +49,25 @@ impl<'a> LedgerBlockInserter<'a> {
             representative: info.representative,
             balance: info.balance - amount.into(),
             link: destination.into().into(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
+    pub fn legacy_send(
+        &mut self,
+        destination: impl Into<Account>,
+        amount: impl Into<Amount>,
+    ) -> SavedBlock {
+        let info = self.get_opened_account();
+
+        let block: Block = SendBlockArgs {
+            key: self.key,
+            previous: info.head,
+            destination: destination.into(),
+            balance: info.balance - amount.into(),
             work: WorkNonce::new(u64::MAX),
         }
         .into();
@@ -89,8 +102,34 @@ impl<'a> LedgerBlockInserter<'a> {
         self.ledger.process_one(&block).unwrap()
     }
 
+    pub fn legacy_open(&mut self, corresponding_send: BlockHash) -> SavedBlock {
+        let block: Block = OpenBlockArgs {
+            key: self.key,
+            source: corresponding_send,
+            representative: self.key.public_key(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
+    pub fn legacy_receive(&mut self, corresponding_send: BlockHash) -> SavedBlock {
+        let info = self.get_opened_account();
+
+        let block: Block = ReceiveBlockArgs {
+            key: self.key,
+            previous: info.head,
+            source: corresponding_send,
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
     pub fn change(&mut self, new_rep: PublicKey) -> SavedBlock {
-        let info = self.get_account_info();
+        let info = self.get_opened_account();
 
         let block: Block = StateBlockArgs {
             key: self.key,
@@ -105,7 +144,17 @@ impl<'a> LedgerBlockInserter<'a> {
         self.ledger.process_one(&block).unwrap()
     }
 
-    fn get_account_info(&mut self) -> rsnano_core::AccountInfo {
+    fn get_opened_account(&mut self) -> AccountInfo {
+        let info = self.get_account_info();
+
+        if info.block_count == 0 {
+            panic!("Unopened account: {}", self.key.account().encode_account());
+        }
+
+        info
+    }
+
+    fn get_account_info(&mut self) -> AccountInfo {
         self.ledger
             .any()
             .get_account(&self.key.account())
@@ -117,6 +166,7 @@ impl<'a> LedgerBlockInserter<'a> {
 mod tests {
     use super::*;
     use crate::{Ledger, DEV_GENESIS_ACCOUNT};
+    use rsnano_core::BlockType;
 
     #[test]
     fn insert_one_block() {
@@ -146,5 +196,20 @@ mod tests {
         assert_eq!(acc_info.block_count, 1);
         assert_eq!(acc_info.head, open.hash());
         assert_eq!(open.balance(), Amount::raw(100));
+    }
+
+    #[test]
+    fn legacy_send() {
+        let ledger = Ledger::new_null();
+        let inserter = LedgerInserter::new(&ledger);
+        let destination = PrivateKey::from(1);
+
+        let send = inserter.genesis().legacy_send(&destination, 100);
+
+        let loaded = ledger.any().get_block(&send.hash()).unwrap();
+        assert_eq!(loaded, send);
+        assert_eq!(loaded.block_type(), BlockType::LegacySend);
+        assert_eq!(loaded.destination_or_link(), destination.account());
+        assert_eq!(loaded.balance(), Amount::MAX - Amount::raw(100));
     }
 }

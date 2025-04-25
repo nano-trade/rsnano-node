@@ -371,16 +371,22 @@ mod tests {
     #[test]
     fn create_send_block() {
         let key = PrivateKey::new();
+        let previous = BlockHash::from(1);
+        let destination = Account::from(2);
+        let balance = Amount::raw(3);
         let mut block: SendBlock = SendBlockArgs {
             key: &key,
-            previous: 0.into(),
-            destination: 1.into(),
-            balance: 13.into(),
+            previous,
+            destination,
+            balance,
             work: 2.into(),
         }
         .into();
 
         assert_eq!(block.root(), block.previous().into());
+        assert_eq!(block.destination(), destination);
+        assert_eq!(block.source_field(), None);
+
         let hash = block.hash().to_owned();
         assert!(key
             .public_key()

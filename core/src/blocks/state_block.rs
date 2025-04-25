@@ -335,6 +335,15 @@ mod tests {
     use crate::{utils::MemoryStream, Block, TestBlockBuilder, TestStateBlockBuilder};
 
     #[test]
+    fn send() {
+        let dest = Account::from(42);
+        let block = TestBlockBuilder::state().link(dest).build();
+        assert_eq!(block.link_field(), Some(dest.into()));
+        assert_eq!(block.destination_field(), None);
+        assert_eq!(block.destination_or_link(), dest);
+    }
+
+    #[test]
     fn serialization() {
         let block1 = TestBlockBuilder::state().work(5).build();
         let mut stream = MemoryStream::new();

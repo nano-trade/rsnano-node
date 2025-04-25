@@ -241,15 +241,18 @@ mod tests {
     fn create_block() {
         let key = PrivateKey::new();
         let previous = BlockHash::from(1);
+        let source = BlockHash::from(2);
         let block: ReceiveBlock = ReceiveBlockArgs {
             key: &key,
             previous,
-            source: 2.into(),
+            source,
             work: 4.into(),
         }
         .into();
         assert_eq!(block.previous(), previous);
         assert_eq!(block.root(), previous.into());
+        assert_eq!(block.source(), source);
+        assert_eq!(block.destination_field(), None);
     }
 
     // original test: block.receive_serialize

@@ -12,7 +12,7 @@ use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY},
     test_helpers::{setup_legacy_open_block, SavedBlockLatticeBuilder},
     AnySet, ConfirmedSet, Ledger, LedgerConstants, LedgerContext, LedgerInserter, RepWeightCache,
-    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    DEV_GENESIS_HASH,
 };
 
 mod empty_ledger;
@@ -129,54 +129,6 @@ fn send_open_receive_rollback() {
     assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ledger.weight(&rep_account), Amount::zero());
     assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
-}
-
-#[test]
-fn block_destination_source() {
-    let ctx = LedgerContext::empty();
-    let ledger = &ctx.ledger;
-    let genesis = ctx.genesis_block_factory();
-    let dest_account = Account::from(1000);
-
-    let send_to_dest = genesis.legacy_send().destination(dest_account).build();
-    let send_to_dest = ctx.ledger.process_one(&send_to_dest).unwrap();
-
-    let mut send_to_self = genesis.legacy_send().destination(genesis.account()).build();
-    let send_to_self = ctx.ledger.process_one(&mut send_to_self).unwrap();
-
-    let receive = genesis.legacy_receive2(send_to_self.hash()).build();
-    let receive = ctx.ledger.process_one(&receive).unwrap();
-
-    let send_to_dest_2 = genesis.send().link(dest_account).build();
-    let send_to_dest_2 = ctx.ledger.process_one(&send_to_dest_2).unwrap();
-
-    let send_to_self_2 = genesis.send().link(genesis.account()).build();
-    let send_to_self_2 = ctx.ledger.process_one(&send_to_self_2).unwrap();
-
-    let receive2 = genesis.receive(send_to_self_2.hash()).build();
-    let receive2 = ctx.ledger.process_one(&receive2).unwrap();
-
-    assert_eq!(
-        ledger.any().block_balance(&receive2.hash()),
-        Some(receive2.balance_field().unwrap())
-    );
-    assert_eq!(send_to_dest.destination(), Some(dest_account));
-    assert_eq!(send_to_dest.source(), None);
-
-    assert_eq!(send_to_self.destination(), Some(*DEV_GENESIS_ACCOUNT));
-    assert_eq!(send_to_self.source(), None);
-
-    assert_eq!(receive.destination(), None);
-    assert_eq!(receive.source(), Some(send_to_self.hash()));
-
-    assert_eq!(send_to_dest_2.destination(), Some(dest_account));
-    assert_eq!(send_to_dest_2.source(), None);
-
-    assert_eq!(send_to_self_2.destination(), Some(*DEV_GENESIS_ACCOUNT));
-    assert_eq!(send_to_self_2.source(), None);
-
-    assert_eq!(receive2.destination(), None);
-    assert_eq!(receive2.source(), Some(send_to_self_2.hash()));
 }
 
 #[test]

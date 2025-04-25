@@ -1,70 +1,93 @@
-use rsnano_core::PendingKey;
+use rsnano_core::{Amount, PendingKey, PrivateKey, SavedBlock};
 
-use crate::{
-    ledger_tests::LedgerContext, test_helpers::setup_legacy_receive_block, AnySet, LedgerSet,
-    DEV_GENESIS_ACCOUNT,
-};
+use crate::{AnySet, Ledger, LedgerInserter, LedgerSet};
 
 #[test]
 fn clear_successor() {
-    let ctx = LedgerContext::empty();
-    let receive = setup_legacy_receive_block(&ctx);
+    let fixture = create_fixture();
 
-    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
+    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
 
     assert_eq!(
-        ctx.ledger.any().block_successor(&receive.open_block.hash()),
+        fixture.ledger.any().block_successor(&fixture.open.hash()),
         None
     );
 }
 
 #[test]
 fn update_account_info() {
-    let ctx = LedgerContext::empty();
-    let receive = setup_legacy_receive_block(&ctx);
+    let fixture = create_fixture();
 
-    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
+    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
 
-    let account_info = ctx
+    let account_info = fixture
         .ledger
         .any()
-        .get_account(&receive.destination.account())
+        .get_account(&fixture.receive.account())
         .unwrap();
 
-    assert_eq!(account_info.head, receive.open_block.hash());
+    assert_eq!(account_info.head, fixture.open.hash());
     assert_eq!(account_info.block_count, 1);
-    assert_eq!(account_info.balance, receive.open_block.balance());
+    assert_eq!(account_info.balance, fixture.open.balance());
 }
 
 #[test]
 fn rollback_pending_info() {
-    let ctx = LedgerContext::empty();
-    let receive = setup_legacy_receive_block(&ctx);
+    let fixture = create_fixture();
 
-    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
+    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
 
-    let pending = ctx
+    let pending = fixture
         .ledger
         .any()
         .get_pending(&PendingKey::new(
-            receive.destination.account(),
-            receive.send_block.hash(),
+            fixture.receive.account(),
+            fixture.receive.source_or_link(),
         ))
         .unwrap();
 
-    assert_eq!(pending.source, *DEV_GENESIS_ACCOUNT);
-    assert_eq!(pending.amount, receive.amount_received);
+    assert_eq!(pending.source, fixture.ledger.genesis().account());
+    assert_eq!(pending.amount, fixture.amount_received);
 }
 
 #[test]
 fn rollback_vote_weight() {
-    let ctx = LedgerContext::empty();
-    let receive = setup_legacy_receive_block(&ctx);
+    let fixture = create_fixture();
 
-    ctx.ledger.rollback(&receive.receive_block.hash()).unwrap();
+    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
 
     assert_eq!(
-        ctx.ledger.weight(&receive.destination.public_key()),
-        receive.expected_balance - receive.amount_received
+        fixture.ledger.weight(&fixture.receive.account().into()),
+        fixture.amount_opened
     );
+}
+
+struct Fixture {
+    ledger: Ledger,
+    open: SavedBlock,
+    receive: SavedBlock,
+    amount_opened: Amount,
+    amount_received: Amount,
+}
+
+fn create_fixture() -> Fixture {
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = PrivateKey::from(42);
+    let amount_opened = Amount::raw(500);
+    let amount_received = Amount::raw(1000);
+    let send1 = inserter.genesis().legacy_send(&destination, amount_opened);
+    let send2 = inserter
+        .genesis()
+        .legacy_send(&destination, amount_received);
+    let open = inserter.account(&destination).legacy_open(send1.hash());
+    let receive = inserter.account(&destination).legacy_receive(send2.hash());
+
+    Fixture {
+        ledger,
+        open,
+        receive,
+        amount_received,
+        amount_opened,
+    }
 }
