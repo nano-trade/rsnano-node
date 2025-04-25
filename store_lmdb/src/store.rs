@@ -46,7 +46,7 @@ impl LedgerCache {
 }
 
 pub struct LmdbStore {
-    pub env: Arc<LmdbEnv>,
+    pub env: LmdbEnv,
     pub write_queue: Arc<WriteQueue>,
     pub cache: Arc<LedgerCache>,
     pub block: Arc<LmdbBlockStore>,
@@ -127,7 +127,6 @@ impl LmdbStore {
     }
 
     fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
-        let env = Arc::new(env);
         Ok(Self {
             write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),

@@ -183,21 +183,18 @@ impl NullLedgerBuilder {
     }
 
     pub fn finish(self) -> Ledger {
-        let env = Arc::new(
-            LmdbEnv::new_null_with()
-                .configured_database(self.blocks.build())
-                .configured_database(self.accounts.build())
-                .configured_database(self.pending.build())
-                .configured_database(self.pruned.build())
-                .configured_database(self.confirmation_height.build())
-                .configured_database(self.peers.build())
-                .build(),
-        );
+        let env = LmdbEnv::new_null_with()
+            .configured_database(self.blocks.build())
+            .configured_database(self.accounts.build())
+            .configured_database(self.pending.build())
+            .configured_database(self.pruned.build())
+            .configured_database(self.confirmation_height.build())
+            .configured_database(self.peers.build())
+            .build();
 
         let store = LmdbStore {
             write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
-            env: env.clone(),
             account: Arc::new(LmdbAccountStore::new(&env).unwrap()),
             block: Arc::new(LmdbBlockStore::new(&env).unwrap()),
             confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(&env).unwrap()),
@@ -208,7 +205,9 @@ impl NullLedgerBuilder {
             pruned: Arc::new(LmdbPrunedStore::new(&env).unwrap()),
             rep_weight: Arc::new(LmdbRepWeightStore::new(&env).unwrap()),
             version: Arc::new(LmdbVersionStore::new(&env).unwrap()),
+            env,
         };
+
         Ledger::new(
             store,
             LedgerConstants::unit_test(),
