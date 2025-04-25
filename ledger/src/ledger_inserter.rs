@@ -1,8 +1,8 @@
 use crate::{AnySet, Ledger, LedgerSet};
 use rsnano_core::{
-    Account, AccountInfo, Amount, Block, BlockHash, Link, OpenBlockArgs, PendingKey, PrivateKey,
-    PublicKey, ReceiveBlockArgs, SavedBlock, SendBlockArgs, StateBlockArgs, WorkNonce,
-    DEV_GENESIS_KEY,
+    Account, AccountInfo, Amount, Block, BlockHash, ChangeBlockArgs, Link, OpenBlockArgs,
+    PendingInfo, PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, SavedBlock, SendBlockArgs,
+    StateBlockArgs, WorkNonce, DEV_GENESIS_KEY,
 };
 
 /// Provides a simplified interface for inserting blocks into the ledger (for tests)
@@ -56,6 +56,27 @@ impl<'a> LedgerBlockInserter<'a> {
         self.ledger.process_one(&block).unwrap()
     }
 
+    pub fn send_and_change(
+        &mut self,
+        destination: impl Into<Account>,
+        amount: impl Into<Amount>,
+        representative: impl Into<PublicKey>,
+    ) -> SavedBlock {
+        let info = self.get_opened_account();
+
+        let block: Block = StateBlockArgs {
+            key: self.key,
+            previous: info.head,
+            representative: representative.into(),
+            balance: info.balance - amount.into(),
+            link: destination.into().into(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
     pub fn legacy_send(
         &mut self,
         destination: impl Into<Account>,
@@ -77,11 +98,7 @@ impl<'a> LedgerBlockInserter<'a> {
 
     pub fn receive(&mut self, corresponding_send: BlockHash) -> SavedBlock {
         let info = self.get_account_info();
-        let pending = self
-            .ledger
-            .any()
-            .get_pending(&PendingKey::new(self.key.account(), corresponding_send))
-            .expect("no pending receive found");
+        let pending = self.get_pending(corresponding_send);
 
         let representative = if info.block_count == 0 {
             self.key.public_key()
@@ -100,6 +117,34 @@ impl<'a> LedgerBlockInserter<'a> {
         .into();
 
         self.ledger.process_one(&block).unwrap()
+    }
+
+    pub fn receive_and_change(
+        &mut self,
+        corresponding_send: BlockHash,
+        representative: impl Into<PublicKey>,
+    ) -> SavedBlock {
+        let info = self.get_account_info();
+        let pending = self.get_pending(corresponding_send);
+
+        let block: Block = StateBlockArgs {
+            key: self.key,
+            previous: info.head,
+            representative: representative.into(),
+            balance: info.balance + pending.amount,
+            link: corresponding_send.into(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
+    fn get_pending(&self, corresponding_send: BlockHash) -> PendingInfo {
+        self.ledger
+            .any()
+            .get_pending(&PendingKey::new(self.key.account(), corresponding_send))
+            .expect("no pending receive found")
     }
 
     pub fn legacy_open(&mut self, corresponding_send: BlockHash) -> SavedBlock {
@@ -128,15 +173,29 @@ impl<'a> LedgerBlockInserter<'a> {
         self.ledger.process_one(&block).unwrap()
     }
 
-    pub fn change(&mut self, new_rep: PublicKey) -> SavedBlock {
+    pub fn change(&mut self, new_rep: impl Into<PublicKey>) -> SavedBlock {
         let info = self.get_opened_account();
 
         let block: Block = StateBlockArgs {
             key: self.key,
             previous: info.head,
-            representative: new_rep,
+            representative: new_rep.into(),
             balance: info.balance,
             link: Link::zero(),
+            work: WorkNonce::new(u64::MAX),
+        }
+        .into();
+
+        self.ledger.process_one(&block).unwrap()
+    }
+
+    pub fn legacy_change(&mut self, new_rep: impl Into<PublicKey>) -> SavedBlock {
+        let info = self.get_opened_account();
+
+        let block: Block = ChangeBlockArgs {
+            key: self.key,
+            previous: info.head,
+            representative: new_rep.into(),
             work: WorkNonce::new(u64::MAX),
         }
         .into();

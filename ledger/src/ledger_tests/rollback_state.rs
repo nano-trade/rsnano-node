@@ -1,7 +1,6 @@
-use super::LedgerContext;
 use crate::{
-    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    AnySet, Ledger, LedgerInserter, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    ledger_constants::DEV_GENESIS_PUB_KEY, AnySet, Ledger, LedgerInserter, LedgerSet,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{Account, Amount, Epoch, PendingInfo, PendingKey, PrivateKey, PublicKey};
 
@@ -130,54 +129,39 @@ fn rollback_open() {
 
 #[test]
 fn rollback_send_with_rep_change() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
 
     let representative = PublicKey::from(1);
-    let send = genesis.send().representative(representative).build();
-    ctx.ledger.process_one(&send).unwrap();
+    let send = inserter
+        .genesis()
+        .send_and_change(Account::from(42), 1000, representative);
 
-    ctx.ledger.rollback(&send.hash()).unwrap();
-    let any = ctx.ledger.any();
+    ledger.rollback(&send.hash()).unwrap();
+    let any = ledger.any();
 
     assert_eq!(any.block_exists(&send.hash()), false);
-    assert_eq!(
-        any.account_balance(&DEV_GENESIS_ACCOUNT),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
-    assert_eq!(ctx.ledger.weight(&representative), Amount::zero());
+    assert_eq!(any.account_balance(&DEV_GENESIS_ACCOUNT), Amount::MAX);
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
+    assert_eq!(ledger.weight(&representative), Amount::zero());
 }
 
 #[test]
 fn rollback_receive_with_rep_change() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
 
     let representative = PublicKey::from(1);
-    let send = genesis.send().link(genesis.account()).build();
-    ctx.ledger.process_one(&send).unwrap();
+    let send = inserter.genesis().send(ledger.genesis().account(), 1);
+    let receive = inserter
+        .genesis()
+        .receive_and_change(send.hash(), representative);
 
-    let receive = genesis
-        .receive(send.hash())
-        .representative(representative)
-        .build();
-    ctx.ledger.process_one(&receive).unwrap();
-
-    ctx.ledger.rollback(&receive.hash()).unwrap();
-    let any = ctx.ledger.any();
+    ledger.rollback(&receive.hash()).unwrap();
+    let any = ledger.any();
 
     assert_eq!(any.block_exists(&receive.hash()), false);
-    assert_eq!(
-        any.account_balance(&DEV_GENESIS_ACCOUNT),
-        send.balance_field().unwrap()
-    );
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        send.balance_field().unwrap()
-    );
-    assert_eq!(ctx.ledger.weight(&representative), Amount::zero());
+    assert_eq!(any.account_balance(&DEV_GENESIS_ACCOUNT), send.balance());
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), send.balance());
+    assert_eq!(ledger.weight(&representative), Amount::zero());
 }

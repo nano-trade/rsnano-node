@@ -1,21 +1,17 @@
-use rsnano_core::Amount;
+use rsnano_core::{Account, Amount};
 
-use crate::{ledger_constants::DEV_GENESIS_PUB_KEY, ledger_tests::LedgerContext, AnySet};
+use crate::{ledger_constants::DEV_GENESIS_PUB_KEY, AnySet, Ledger, LedgerInserter};
 
 #[test]
 fn rollback_dependent_blocks_too() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
 
-    let change = genesis.legacy_change().build();
-    ctx.ledger.process_one(&change).unwrap();
+    let change = inserter.genesis().legacy_change(123);
+    let send = inserter.genesis().legacy_send(Account::from(1), 100);
 
-    let send = genesis.legacy_send().build();
-    ctx.ledger.process_one(&send).unwrap();
+    ledger.rollback(&change.hash()).unwrap();
 
-    ctx.ledger.rollback(&change.hash()).unwrap();
-
-    assert_eq!(ctx.ledger.any().get_block(&send.hash()), None);
-
-    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
+    assert_eq!(ledger.any().get_block(&send.hash()), None);
+    assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
 }

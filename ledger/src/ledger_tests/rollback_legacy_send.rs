@@ -1,59 +1,49 @@
-use rsnano_core::{Amount, PendingKey};
+use rsnano_core::{Account, Amount, PendingKey, PrivateKey, SavedBlock};
 
 use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    ledger_tests::setup_legacy_open_block,
-    test_helpers::{setup_legacy_send_block, LegacySendBlockResult},
-    AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    AnySet, ConfirmedSet, Ledger, LedgerInserter, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
-
-use super::LedgerContext;
 
 #[test]
 fn update_vote_weight() {
-    let ctx = LedgerContext::empty();
-
-    rollback_send_block(&ctx);
-
-    assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
-        LEDGER_CONSTANTS_STUB.genesis_amount
-    );
+    let fixture = roll_back_send();
+    assert_eq!(fixture.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);
 }
 
 #[test]
 fn update_account_store() {
-    let ctx = LedgerContext::empty();
+    let fixture = roll_back_send();
 
-    rollback_send_block(&ctx);
+    let account_info = fixture
+        .ledger
+        .any()
+        .get_account(&fixture.ledger.genesis().account())
+        .unwrap();
 
-    let account_info = ctx.ledger.any().get_account(&DEV_GENESIS_ACCOUNT).unwrap();
     assert_eq!(account_info.block_count, 1);
     assert_eq!(account_info.head, *DEV_GENESIS_HASH);
     assert_eq!(account_info.balance, LEDGER_CONSTANTS_STUB.genesis_amount);
-    assert_eq!(ctx.ledger.account_count(), 1);
+    assert_eq!(fixture.ledger.account_count(), 1);
 }
 
 #[test]
 fn remove_from_pending_store() {
-    let ctx = LedgerContext::empty();
+    let fixture = roll_back_send();
 
-    let send = rollback_send_block(&ctx);
+    let pending = fixture
+        .ledger
+        .any()
+        .get_pending(&PendingKey::new(fixture.destination, fixture.send.hash()));
 
-    let pending = ctx.ledger.any().get_pending(&PendingKey::new(
-        send.destination.account(),
-        send.send_block.hash(),
-    ));
     assert_eq!(pending, None);
 }
 
 #[test]
 fn update_confirmation_height_store() {
-    let ctx = LedgerContext::empty();
+    let fixture = roll_back_send();
 
-    rollback_send_block(&ctx);
-
-    let conf_height = ctx
+    let conf_height = fixture
         .ledger
         .confirmed()
         .get_conf_info(&DEV_GENESIS_ACCOUNT)
@@ -65,39 +55,55 @@ fn update_confirmation_height_store() {
 
 #[test]
 fn rollback_dependent_blocks_too() {
-    let ctx = LedgerContext::empty();
-    let open = setup_legacy_open_block(&ctx);
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = PrivateKey::from(42);
+
+    let send = inserter.genesis().send(&destination, 1);
+    inserter.account(&destination).legacy_open(send.hash());
 
     // Rollback send block. This requires the rollback of the open block first.
-    ctx.ledger.rollback(&open.send_block.hash()).unwrap();
+    ledger.rollback(&send.hash()).unwrap();
 
     assert_eq!(
-        ctx.ledger.any().account_balance(&DEV_GENESIS_ACCOUNT),
-        LEDGER_CONSTANTS_STUB.genesis_amount
+        ledger.any().account_balance(&DEV_GENESIS_ACCOUNT),
+        Amount::MAX
     );
 
     assert_eq!(
-        ctx.ledger
-            .any()
-            .account_balance(&open.destination.account()),
+        ledger.any().account_balance(&destination.account()),
         Amount::zero()
     );
 
-    assert!(ctx
-        .ledger
-        .any()
-        .get_account(&open.destination.account())
-        .is_none());
+    assert!(ledger.any().get_account(&destination.account()).is_none());
 
-    let pending = ctx.ledger.any().get_pending(&PendingKey::new(
-        open.destination.account(),
-        *DEV_GENESIS_HASH,
-    ));
+    let pending = ledger
+        .any()
+        .get_pending(&PendingKey::new(destination.account(), *DEV_GENESIS_HASH));
     assert_eq!(pending, None);
 }
 
-fn rollback_send_block<'a>(ctx: &'a LedgerContext) -> LegacySendBlockResult<'a> {
-    let send = setup_legacy_send_block(ctx);
-    ctx.ledger.rollback(&send.send_block.hash()).unwrap();
-    send
+fn roll_back_send() -> Fixture {
+    let fixture = create_fixture();
+    fixture.ledger.rollback(&fixture.send.hash()).unwrap();
+    fixture
+}
+
+struct Fixture {
+    ledger: Ledger,
+    send: SavedBlock,
+    destination: Account,
+}
+
+fn create_fixture() -> Fixture {
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = Account::from(42);
+    let amount_sent = Amount::raw(1000);
+    let send = inserter.genesis().legacy_send(destination, amount_sent);
+    Fixture {
+        ledger,
+        send,
+        destination,
+    }
 }
