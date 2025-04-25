@@ -371,6 +371,7 @@ fn ledger_cache() {
         Amount::zero(),
         RepWeightCache::new().into(),
         Arc::new(Stats::default()),
+        1,
     )
     .unwrap();
 

@@ -427,24 +427,39 @@ impl Transaction for LmdbWriteTransaction {
     }
 }
 
-pub fn parallel_traversal(action: &(impl Fn(U256, U256, bool) + Send + Sync)) {
-    // Between 10 and 40 threads, scales well even in low power systems as long as actions are I/O bound
-    let thread_count = max(10, min(40, 11 * get_cpu_count()));
+struct Split {
+    start: U256,
+    end: U256,
+    is_last: bool,
+}
+
+pub(crate) fn parallel_traversal(
+    thread_count: usize,
+    action: &(impl Fn(U256, U256, bool) + Send + Sync),
+) {
+    debug_assert!(thread_count > 0);
     let split = U256::max_value() / thread_count;
 
-    std::thread::scope(|s| {
-        for thread in 0..thread_count {
-            let start = split * thread;
-            let end = split * (thread + 1);
-            let is_last = thread == thread_count - 1;
+    let splits: Vec<_> = (0..thread_count)
+        .map(|i| Split {
+            start: split * i,
+            end: split * (i + 1),
+            is_last: i == thread_count - 1,
+        })
+        .collect();
 
+    std::thread::scope(|s| {
+        for split in &splits[1..] {
             std::thread::Builder::new()
                 .name("DB par traversl".to_owned())
                 .spawn_scoped(s, move || {
-                    action(start, end, is_last);
+                    action(split.start, split.end, split.is_last);
                 })
                 .unwrap();
         }
+
+        let first = &splits[0];
+        action(first.start, first.end, first.is_last);
     });
 }
 

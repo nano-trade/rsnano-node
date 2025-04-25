@@ -97,9 +97,10 @@ impl LmdbConfirmationHeightStore {
     pub fn for_each_par(
         &self,
         env: &LmdbEnv,
+        thread_count: usize,
         action: impl Fn(&mut dyn Iterator<Item = (Account, ConfirmationHeightInfo)>) + Send + Sync,
     ) {
-        parallel_traversal(&|start, end, is_last| {
+        parallel_traversal(thread_count, &|start, end, is_last| {
             let tx = env.tx_begin_read();
             let start_account = Account::from(start);
             let end_account = Account::from(end);

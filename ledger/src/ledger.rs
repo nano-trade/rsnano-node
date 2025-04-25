@@ -196,6 +196,7 @@ impl NullLedgerBuilder {
             self.min_rep_weight,
             Arc::new(RepWeightCache::new()),
             Arc::new(Stats::default()),
+            1,
         )
         .unwrap()
     }
@@ -209,6 +210,7 @@ impl Ledger {
             Amount::zero(),
             Arc::new(RepWeightCache::new()),
             Arc::new(Stats::default()),
+            1,
         )
         .unwrap()
     }
@@ -223,6 +225,7 @@ impl Ledger {
         min_rep_weight: Amount,
         rep_weights: Arc<RepWeightCache>,
         stats: Arc<Stats>,
+        thread_count: usize,
     ) -> anyhow::Result<Self> {
         let mut store = LmdbStore::new(env)?;
         store.cache = rep_weights.ledger_cache.clone();
@@ -240,7 +243,7 @@ impl Ledger {
             observer: RwLock::new(None),
         };
 
-        ledger.initialize(&GenerateCacheFlags::new())?;
+        ledger.initialize(thread_count, &GenerateCacheFlags::new())?;
 
         Ok(ledger)
     }
@@ -249,7 +252,11 @@ impl Ledger {
         *self.observer.write().unwrap() = Some(sink);
     }
 
-    fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
+    fn initialize(
+        &mut self,
+        thread_count: usize,
+        generate_cache: &GenerateCacheFlags,
+    ) -> anyhow::Result<()> {
         if self
             .store
             .account
@@ -262,37 +269,39 @@ impl Ledger {
         }
 
         if generate_cache.reps || generate_cache.account_count || generate_cache.block_count {
-            self.store.account.for_each_par(&self.store.env, |iter| {
-                let mut block_count = 0;
-                let mut account_count = 0;
-                let mut rep_weights: HashMap<PublicKey, Amount> = HashMap::new();
+            self.store
+                .account
+                .for_each_par(&self.store.env, thread_count, |iter| {
+                    let mut block_count = 0;
+                    let mut account_count = 0;
+                    let mut rep_weights: HashMap<PublicKey, Amount> = HashMap::new();
 
-                for (_, info) in iter {
-                    block_count += info.block_count;
-                    account_count += 1;
-                    if !info.balance.is_zero() {
-                        let total = rep_weights.entry(info.representative).or_default();
-                        *total += info.balance;
+                    for (_, info) in iter {
+                        block_count += info.block_count;
+                        account_count += 1;
+                        if !info.balance.is_zero() {
+                            let total = rep_weights.entry(info.representative).or_default();
+                            *total += info.balance;
+                        }
                     }
-                }
-                self.store
-                    .cache
-                    .block_count
-                    .fetch_add(block_count, Ordering::SeqCst);
+                    self.store
+                        .cache
+                        .block_count
+                        .fetch_add(block_count, Ordering::SeqCst);
 
-                self.store
-                    .cache
-                    .account_count
-                    .fetch_add(account_count, Ordering::SeqCst);
+                    self.store
+                        .cache
+                        .account_count
+                        .fetch_add(account_count, Ordering::SeqCst);
 
-                self.rep_weights_updater.copy_from(&rep_weights);
-            });
+                    self.rep_weights_updater.copy_from(&rep_weights);
+                });
         }
 
         if generate_cache.confirmed_count {
             self.store
                 .confirmation_height
-                .for_each_par(&self.store.env, |iter| {
+                .for_each_par(&self.store.env, thread_count, |iter| {
                     let mut confirmed_count = 0;
                     for (_, info) in iter {
                         confirmed_count += info.height;

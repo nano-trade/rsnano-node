@@ -103,9 +103,10 @@ impl LmdbAccountStore {
     pub fn for_each_par(
         &self,
         env: &LmdbEnv,
+        thread_count: usize,
         action: impl Fn(&mut dyn Iterator<Item = (Account, AccountInfo)>) + Send + Sync,
     ) {
-        parallel_traversal(&|start, end, is_last| {
+        parallel_traversal(thread_count, &|start, end, is_last| {
             let tx = env.tx_begin_read();
             let start_account = Account::from(start);
             let end_account = Account::from(end);
@@ -338,7 +339,7 @@ mod tests {
         ]);
 
         let balance_sum = Mutex::new(Amount::zero());
-        fixture.store.for_each_par(&fixture.env, |iter| {
+        fixture.store.for_each_par(&fixture.env, 3, |iter| {
             for (_, info) in iter {
                 *balance_sum.lock().unwrap() += info.balance;
             }

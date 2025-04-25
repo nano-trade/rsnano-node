@@ -1,10 +1,14 @@
 use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
-use rsnano_core::Amount;
+use rsnano_core::{utils::get_cpu_count, Amount};
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::{
     get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig, LmdbEnvFactory, TransactionTracker,
 };
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    cmp::{max, min},
+    path::PathBuf,
+    sync::Arc,
+};
 use tracing::info;
 
 pub struct LedgerBuilder<'a> {
@@ -16,6 +20,7 @@ pub struct LedgerBuilder<'a> {
     stats: Option<Arc<Stats>>,
     min_rep_weight: Amount,
     ledger_constants: Option<LedgerConstants>,
+    thread_count: usize,
 }
 
 impl<'a> LedgerBuilder<'a> {
@@ -29,6 +34,7 @@ impl<'a> LedgerBuilder<'a> {
             stats: None,
             min_rep_weight: Amount::zero(),
             ledger_constants: None,
+            thread_count: 0,
         }
     }
 
@@ -62,7 +68,12 @@ impl<'a> LedgerBuilder<'a> {
         self
     }
 
-    pub fn finish(self) -> anyhow::Result<Ledger> {
+    pub fn init_thread_count(mut self, count: usize) -> Self {
+        self.thread_count = count;
+        self
+    }
+
+    pub fn finish(mut self) -> anyhow::Result<Ledger> {
         let ledger_cache = Arc::new(LedgerCache::new());
         let bootstrap_weights = self.bootstrap_weights.unwrap_or_default();
 
@@ -91,14 +102,19 @@ impl<'a> LedgerBuilder<'a> {
             .ledger_constants
             .unwrap_or_else(|| LedgerConstants::live());
 
-        info!("Loading ledger, this may take a while...");
+        if self.thread_count == 0 {
+            // Between 10 and 40 threads, scales well even in low power systems as long as actions are I/O bound
+            self.thread_count = max(10, min(40, 11 * get_cpu_count()));
+        }
 
+        info!("Loading ledger, this may take a while...");
         Ledger::new(
             env,
             ledger_constants,
             self.min_rep_weight,
             rep_weights.clone(),
             stats.clone(),
+            self.thread_count,
         )
     }
 }
