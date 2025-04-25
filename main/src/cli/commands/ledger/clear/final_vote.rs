@@ -29,11 +29,8 @@ pub(crate) struct FinalVoteArgs {
 impl FinalVoteArgs {
     pub(crate) fn final_vote(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
-
-        let env = Arc::new(LmdbEnvFactory::default().create_env(&path)?);
-
-        let final_vote_store = LmdbFinalVoteStore::new(env.clone())?;
-
+        let env = LmdbEnvFactory::default().create_env(&path)?;
+        let final_vote_store = LmdbFinalVoteStore::new(&env)?;
         let mut txn = env.tx_begin_write();
 
         if let Some(root) = &self.root {

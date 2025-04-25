@@ -1,10 +1,12 @@
 use super::WorkRequest;
 use rsnano_core::{to_hex_string, Root, WorkNonce};
-use rsnano_nullable_http_client::{
-    ConfiguredHttpResponse, HttpClient, IntoUrl, JsonResponse, Method, NulledHttpClientBuilder,
-    StatusCode, Url,
-};
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+#[cfg(test)]
+use rsnano_nullable_http_client::{ConfiguredHttpResponse, JsonResponse, Method, StatusCode};
+use rsnano_nullable_http_client::{HttpClient, IntoUrl, NulledHttpClientBuilder, Url};
+use rsnano_output_tracker::OutputListenerMt;
+#[cfg(test)]
+use rsnano_output_tracker::OutputTrackerMt;
+#[cfg(test)]
 use std::sync::Arc;
 
 #[derive(serde::Serialize)]
@@ -36,6 +38,7 @@ pub(crate) struct DistributedWorkClient {
 }
 
 impl DistributedWorkClient {
+    #[cfg(test)]
     fn new(http_client: HttpClient) -> Self {
         Self {
             http_client,
@@ -43,10 +46,12 @@ impl DistributedWorkClient {
         }
     }
 
+    #[cfg(test)]
     pub fn new_null() -> Self {
         Self::new_null_with(42.into())
     }
 
+    #[cfg(test)]
     pub fn new_null_with(response: WorkNonce) -> Self {
         Self::new(HttpClient::null_builder().respond(JsonResponse::new(
             StatusCode::OK,
@@ -54,14 +59,17 @@ impl DistributedWorkClient {
         )))
     }
 
+    #[cfg(test)]
     pub fn new_failing_null(error_message: impl Into<String>) -> Self {
         Self::new(HttpClient::null_builder().fail_with(error_message))
     }
 
+    #[cfg(test)]
     pub fn new_halting_null() -> Self {
         Self::new(HttpClient::null_builder().halt())
     }
 
+    #[cfg(test)]
     pub fn null_builder() -> NullDistributedWorkClientBuilder {
         NullDistributedWorkClientBuilder {
             http_client: HttpClient::null_builder(),
@@ -89,15 +97,18 @@ impl DistributedWorkClient {
         Ok(response.work)
     }
 
+    #[cfg(test)]
     pub fn track_requests(&self) -> Arc<OutputTrackerMt<(Url, WorkRequest)>> {
         self.request_listener.track()
     }
 }
 
+#[allow(dead_code)]
 pub(crate) struct NullDistributedWorkClientBuilder {
     http_client: NulledHttpClientBuilder,
 }
 
+#[cfg(test)]
 impl NullDistributedWorkClientBuilder {
     pub fn response(mut self, url: impl IntoUrl, resp: ConfiguredWorkResponse) -> Self {
         self.http_client = self.http_client.respond_url(Method::POST, url, resp.into());
@@ -109,12 +120,14 @@ impl NullDistributedWorkClientBuilder {
     }
 }
 
+#[cfg(test)]
 pub(crate) enum ConfiguredWorkResponse {
     Ok(WorkNonce),
     Error(String),
     Halt,
 }
 
+#[cfg(test)]
 impl From<ConfiguredWorkResponse> for ConfiguredHttpResponse {
     fn from(value: ConfiguredWorkResponse) -> Self {
         match value {

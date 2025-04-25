@@ -8,31 +8,24 @@ use rsnano_core::{
     Account, BlockHash, PendingInfo, PendingKey,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-#[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{ops::RangeBounds, sync::Arc};
 
 pub struct LmdbPendingStore {
-    _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
-    #[cfg(feature = "output_tracking")]
     put_listener: OutputListenerMt<(PendingKey, PendingInfo)>,
-    #[cfg(feature = "output_tracking")]
     delete_listener: OutputListenerMt<PendingKey>,
 }
 
 impl LmdbPendingStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("pending"), DatabaseFlags::empty())?;
 
         Ok(Self {
-            _env: env,
             database,
-            #[cfg(feature = "output_tracking")]
             put_listener: OutputListenerMt::new(),
-            #[cfg(feature = "output_tracking")]
             delete_listener: OutputListenerMt::new(),
         })
     }
@@ -41,18 +34,15 @@ impl LmdbPendingStore {
         self.database
     }
 
-    #[cfg(feature = "output_tracking")]
     pub fn track_puts(&self) -> Arc<OutputTrackerMt<(PendingKey, PendingInfo)>> {
         self.put_listener.track()
     }
 
-    #[cfg(feature = "output_tracking")]
     pub fn track_deletions(&self) -> Arc<OutputTrackerMt<PendingKey>> {
         self.delete_listener.track()
     }
 
     pub fn put(&self, txn: &mut LmdbWriteTransaction, key: &PendingKey, pending: &PendingInfo) {
-        #[cfg(feature = "output_tracking")]
         self.put_listener.emit((key.clone(), pending.clone()));
         let key_bytes = key.to_bytes();
         let pending_bytes = pending.to_bytes();
@@ -66,7 +56,6 @@ impl LmdbPendingStore {
     }
 
     pub fn del(&self, txn: &mut LmdbWriteTransaction, key: &PendingKey) {
-        #[cfg(feature = "output_tracking")]
         self.delete_listener.emit(key.clone());
         let key_bytes = key.to_bytes();
         txn.delete(self.database, &key_bytes, None).unwrap();
@@ -180,7 +169,7 @@ mod tests {
             let env = Arc::new(env);
             Self {
                 env: env.clone(),
-                store: LmdbPendingStore::new(env).unwrap(),
+                store: LmdbPendingStore::new(&env).unwrap(),
             }
         }
     }

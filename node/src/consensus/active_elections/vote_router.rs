@@ -12,10 +12,6 @@ pub(crate) struct VoteRouter {
 }
 
 impl VoteRouter {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     /// Add a route for 'hash' to an election by its qualified root
     /// Existing routes will be replaced
     pub fn connect(&mut self, hash: BlockHash, root: QualifiedRoot) {

@@ -1,13 +1,8 @@
-use crate::{
-    LmdbDatabase, LmdbEnv, LmdbEnvFactory, LmdbWriteTransaction, Transaction, STORE_VERSION_CURRENT,
-};
+use crate::{LmdbDatabase, LmdbEnv, LmdbWriteTransaction, Transaction, STORE_VERSION_CURRENT};
 use core::panic;
 use lmdb::{DatabaseFlags, WriteFlags};
-use std::{path::Path, sync::Arc};
 
 pub struct LmdbVersionStore {
-    _env: Arc<LmdbEnv>,
-
     /// U256 (arbitrary key) -> blob
     db_handle: LmdbDatabase,
 }
@@ -18,14 +13,12 @@ pub struct UpgradeInfo {
 }
 
 impl LmdbVersionStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let db_handle = env
             .environment
             .create_db(Some("meta"), DatabaseFlags::empty())?;
-        Ok(Self {
-            _env: env,
-            db_handle,
-        })
+
+        Ok(Self { db_handle })
     }
 
     pub fn try_read_version(env: &LmdbEnv) -> Option<i32> {

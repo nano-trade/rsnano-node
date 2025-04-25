@@ -3,8 +3,8 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
-    LedgerBuilder, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
-    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
+    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
+    RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
@@ -18,7 +18,7 @@ use rsnano_store_lmdb::{
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LedgerCache,
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
     LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore,
-    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction, WriteQueue,
+    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -195,19 +195,19 @@ impl NullLedgerBuilder {
         );
 
         let store = LmdbStore {
-            write_queue: Arc::new(WriteQueue::new()),
+            write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
             env: env.clone(),
-            account: Arc::new(LmdbAccountStore::new(env.clone()).unwrap()),
-            block: Arc::new(LmdbBlockStore::new(env.clone()).unwrap()),
-            confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(env.clone()).unwrap()),
-            final_vote: Arc::new(LmdbFinalVoteStore::new(env.clone()).unwrap()),
-            online_weight: Arc::new(LmdbOnlineWeightStore::new(env.clone()).unwrap()),
-            peer: Arc::new(LmdbPeerStore::new(env.clone()).unwrap()),
-            pending: Arc::new(LmdbPendingStore::new(env.clone()).unwrap()),
-            pruned: Arc::new(LmdbPrunedStore::new(env.clone()).unwrap()),
-            rep_weight: Arc::new(LmdbRepWeightStore::new(env.clone()).unwrap()),
-            version: Arc::new(LmdbVersionStore::new(env.clone()).unwrap()),
+            account: Arc::new(LmdbAccountStore::new(&env).unwrap()),
+            block: Arc::new(LmdbBlockStore::new(&env).unwrap()),
+            confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(&env).unwrap()),
+            final_vote: Arc::new(LmdbFinalVoteStore::new(&env).unwrap()),
+            online_weight: Arc::new(LmdbOnlineWeightStore::new(&env).unwrap()),
+            peer: Arc::new(LmdbPeerStore::new(&env).unwrap()),
+            pending: Arc::new(LmdbPendingStore::new(&env).unwrap()),
+            pruned: Arc::new(LmdbPrunedStore::new(&env).unwrap()),
+            rep_weight: Arc::new(LmdbRepWeightStore::new(&env).unwrap()),
+            version: Arc::new(LmdbVersionStore::new(&env).unwrap()),
         };
         Ledger::new(
             store,
@@ -278,7 +278,7 @@ impl Ledger {
         }
 
         if generate_cache.reps || generate_cache.account_count || generate_cache.block_count {
-            self.store.account.for_each_par(|iter| {
+            self.store.account.for_each_par(&self.store.env, |iter| {
                 let mut block_count = 0;
                 let mut account_count = 0;
                 let mut rep_weights: HashMap<PublicKey, Amount> = HashMap::new();
@@ -306,16 +306,18 @@ impl Ledger {
         }
 
         if generate_cache.confirmed_count {
-            self.store.confirmation_height.for_each_par(|iter| {
-                let mut confirmed_count = 0;
-                for (_, info) in iter {
-                    confirmed_count += info.height;
-                }
-                self.store
-                    .cache
-                    .confirmed_count
-                    .fetch_add(confirmed_count, Ordering::SeqCst);
-            });
+            self.store
+                .confirmation_height
+                .for_each_par(&self.store.env, |iter| {
+                    let mut confirmed_count = 0;
+                    for (_, info) in iter {
+                        confirmed_count += info.height;
+                    }
+                    self.store
+                        .cache
+                        .confirmed_count
+                        .fetch_add(confirmed_count, Ordering::SeqCst);
+                });
         }
 
         let tx = self.store.tx_begin_read();

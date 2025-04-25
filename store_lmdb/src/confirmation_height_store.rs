@@ -8,19 +8,19 @@ use rsnano_core::{
     Account, ConfirmationHeightInfo,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-use std::{ops::RangeBounds, sync::Arc};
+use std::ops::RangeBounds;
 
 pub struct LmdbConfirmationHeightStore {
-    env: Arc<LmdbEnv>,
     database: LmdbDatabase,
 }
 
 impl LmdbConfirmationHeightStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("confirmation_height"), DatabaseFlags::empty())?;
-        Ok(Self { env, database })
+
+        Ok(Self { database })
     }
 
     pub fn database(&self) -> LmdbDatabase {
@@ -96,10 +96,11 @@ impl LmdbConfirmationHeightStore {
 
     pub fn for_each_par(
         &self,
+        env: &LmdbEnv,
         action: impl Fn(&mut dyn Iterator<Item = (Account, ConfirmationHeightInfo)>) + Send + Sync,
     ) {
         parallel_traversal(&|start, end, is_last| {
-            let tx = self.env.tx_begin_read();
+            let tx = env.tx_begin_read();
             let start_account = Account::from(start);
             let end_account = Account::from(end);
             if is_last {
@@ -152,6 +153,7 @@ mod tests {
     use super::*;
     use crate::PutEvent;
     use rsnano_core::BlockHash;
+    use std::sync::Arc;
 
     struct Fixture {
         env: Arc<LmdbEnv>,
@@ -166,8 +168,8 @@ mod tests {
         fn with_env(env: LmdbEnv) -> Self {
             let env = Arc::new(env);
             Self {
-                env: env.clone(),
-                store: LmdbConfirmationHeightStore::new(env).unwrap(),
+                store: LmdbConfirmationHeightStore::new(&env).unwrap(),
+                env,
             }
         }
     }

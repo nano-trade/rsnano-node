@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn representation_changes() {
         let env = Arc::new(LmdbEnv::new_null());
-        let store = Arc::new(LmdbRepWeightStore::new(env).unwrap());
+        let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let account = PublicKey::from(1);
         let rep_weights = RepWeightCache::new();
         let rep_weights_updater = RepWeightsUpdater::new(store, Amount::zero(), &rep_weights);
@@ -139,7 +139,7 @@ mod tests {
                 )]))
                 .build(),
         );
-        let store = Arc::new(LmdbRepWeightStore::new(Arc::clone(&env)).unwrap());
+        let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let delete_tracker = store.track_deletions();
         let rep_weights = RepWeightCache::new();
         let rep_weights_updater = RepWeightsUpdater::new(store, Amount::zero(), &rep_weights);
@@ -171,7 +171,7 @@ mod tests {
                 ]))
                 .build(),
         );
-        let store = Arc::new(LmdbRepWeightStore::new(Arc::clone(&env)).unwrap());
+        let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let delete_tracker = store.track_deletions();
         let rep_weights = RepWeightCache::new();
         let rep_weights_updater = RepWeightsUpdater::new(store, Amount::zero(), &rep_weights);
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn add_below_min_weight() {
         let env = Arc::new(LmdbEnv::new_null());
-        let store = Arc::new(LmdbRepWeightStore::new(Arc::clone(&env)).unwrap());
+        let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let put_tracker = store.track_puts();
         let mut txn = env.tx_begin_write();
         let representative = PublicKey::from(1);
@@ -222,7 +222,7 @@ mod tests {
                 )]))
                 .build(),
         );
-        let store = Arc::new(LmdbRepWeightStore::new(Arc::clone(&env)).unwrap());
+        let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let put_tracker = store.track_puts();
         let mut txn = env.tx_begin_write();
         let min_weight = Amount::from(10);

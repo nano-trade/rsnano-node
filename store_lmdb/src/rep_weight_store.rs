@@ -8,40 +8,32 @@ use rsnano_core::{
     Amount, PublicKey,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-#[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
 
 pub struct LmdbRepWeightStore {
-    _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
-    #[cfg(feature = "output_tracking")]
     delete_listener: OutputListenerMt<PublicKey>,
-    #[cfg(feature = "output_tracking")]
     put_listener: OutputListenerMt<(PublicKey, Amount)>,
 }
 
 impl LmdbRepWeightStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("rep_weights"), DatabaseFlags::empty())?;
+
         Ok(Self {
-            _env: env,
             database,
-            #[cfg(feature = "output_tracking")]
             delete_listener: OutputListenerMt::new(),
-            #[cfg(feature = "output_tracking")]
             put_listener: OutputListenerMt::new(),
         })
     }
 
-    #[cfg(feature = "output_tracking")]
     pub fn track_deletions(&self) -> Arc<OutputTrackerMt<PublicKey>> {
         self.delete_listener.track()
     }
 
-    #[cfg(feature = "output_tracking")]
     pub fn track_puts(&self) -> Arc<OutputTrackerMt<(PublicKey, Amount)>> {
         self.put_listener.track()
     }
@@ -60,7 +52,6 @@ impl LmdbRepWeightStore {
     }
 
     pub fn put(&self, txn: &mut LmdbWriteTransaction, representative: PublicKey, weight: Amount) {
-        #[cfg(feature = "output_tracking")]
         self.put_listener.emit((representative, weight));
 
         txn.put(
@@ -73,7 +64,6 @@ impl LmdbRepWeightStore {
     }
 
     pub fn del(&self, txn: &mut LmdbWriteTransaction, representative: &PublicKey) {
-        #[cfg(feature = "output_tracking")]
         self.delete_listener.emit(*representative);
 
         txn.delete(self.database, representative.as_bytes(), None)
@@ -254,8 +244,8 @@ mod tests {
                 .build();
             let env = Arc::new(env);
             Self {
-                env: env.clone(),
-                store: LmdbRepWeightStore::new(env).unwrap(),
+                store: LmdbRepWeightStore::new(&env).unwrap(),
+                env,
             }
         }
     }

@@ -5,14 +5,14 @@ use crate::{
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{BlockHash, NoValue};
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-use std::{ops::RangeBounds, sync::Arc};
+use std::ops::RangeBounds;
 
 pub struct LmdbPrunedStore {
     database: LmdbDatabase,
 }
 
 impl LmdbPrunedStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("pruned"), DatabaseFlags::empty())?;
@@ -106,6 +106,7 @@ impl ConfiguredPrunedDatabaseBuilder {
 mod tests {
     use super::*;
     use crate::{DeleteEvent, PutEvent};
+    use std::sync::Arc;
 
     struct Fixture {
         env: Arc<LmdbEnv>,
@@ -124,7 +125,7 @@ mod tests {
             let env = Arc::new(env);
             Self {
                 env: env.clone(),
-                store: LmdbPrunedStore::new(env).unwrap(),
+                store: LmdbPrunedStore::new(&env).unwrap(),
             }
         }
     }

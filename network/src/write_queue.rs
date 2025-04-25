@@ -15,7 +15,7 @@ pub struct WriteQueue {
 }
 
 impl WriteQueue {
-    pub fn new(max_size: usize, stats: Arc<ChannelStats>) -> Self {
+    pub(crate) fn new(max_size: usize, stats: Arc<ChannelStats>) -> Self {
         Self {
             queue: Mutex::new(FairQueue::new(
                 move |_| max_size,

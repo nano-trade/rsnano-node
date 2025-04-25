@@ -9,7 +9,7 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, BlockError, Ledger, LedgerSet, OwningAnySet, ProcessedResult};
+use rsnano_ledger::{AnySet, Ledger, LedgerSet, OwningAnySet, ProcessedResult};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_stats::{DetailType, StatType, Stats};
 

@@ -21,7 +21,7 @@ pub struct LmdbPeerStore {
 }
 
 impl LmdbPeerStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("peers"), DatabaseFlags::empty())?;
@@ -337,8 +337,8 @@ mod tests {
         fn with_env(env: LmdbEnv) -> Self {
             let env = Arc::new(env);
             Self {
-                env: env.clone(),
-                store: LmdbPeerStore::new(env).unwrap(),
+                store: LmdbPeerStore::new(&env).unwrap(),
+                env,
             }
         }
     }

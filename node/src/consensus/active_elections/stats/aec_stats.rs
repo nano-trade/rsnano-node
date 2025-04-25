@@ -3,7 +3,6 @@ use crate::consensus::{
     active_elections::AEC_STAT_KEY,
     election::{ConfirmationType, Election, ElectionBehavior},
 };
-use rsnano_core::VoteSource;
 use rsnano_stats::{StatsCollection, StatsSource};
 use strum::{EnumCount, IntoEnumIterator};
 
@@ -26,10 +25,6 @@ impl AecStats {
 
     pub fn stopped(&mut self, election: &Election) {
         self.stopped_counter.stopped(election);
-    }
-
-    pub fn voted(&mut self, source: VoteSource) {
-        self.vote_counter.count(source);
     }
 }
 

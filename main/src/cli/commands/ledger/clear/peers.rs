@@ -19,8 +19,8 @@ pub(crate) struct PeersArgs {
 impl PeersArgs {
     pub(crate) fn peers(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
-        let env = Arc::new(LmdbEnvFactory::default().create_env(&path)?);
-        let peer_store = LmdbPeerStore::new(env.clone())?;
+        let env = LmdbEnvFactory::default().create_env(&path)?;
+        let peer_store = LmdbPeerStore::new(&env)?;
         let mut txn = env.tx_begin_write();
 
         peer_store.clear(&mut txn);

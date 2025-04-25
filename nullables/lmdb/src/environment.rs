@@ -97,7 +97,7 @@ impl LmdbEnvironment {
     }
 
     pub fn copy_db(&self, destination: &Path) -> lmdb::Result<()> {
-        if let EnvironmentStrategy::Real(s) = &self.0 {
+        if let EnvironmentStrategy::Real(_) = &self.0 {
             let c_path = CString::new(destination.as_os_str().to_str().unwrap()).unwrap();
             let status =
                 unsafe { lmdb_sys::mdb_env_copy2(self.env(), c_path.as_ptr(), MDB_CP_COMPACT) };

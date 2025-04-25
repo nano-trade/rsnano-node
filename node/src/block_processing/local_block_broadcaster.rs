@@ -13,7 +13,7 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Block, BlockHash, Networks,
 };
-use rsnano_ledger::{BlockError, BlockSource, ConfirmedSet, Ledger, ProcessedResult};
+use rsnano_ledger::{BlockSource, ConfirmedSet, Ledger, ProcessedResult};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};

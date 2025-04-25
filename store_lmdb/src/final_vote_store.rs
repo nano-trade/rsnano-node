@@ -6,24 +6,21 @@ use rsnano_core::{
     utils::{BufferReader, Deserialize},
     BlockHash, QualifiedRoot,
 };
-use std::{ops::RangeBounds, sync::Arc};
+use std::ops::RangeBounds;
 
 /// Maps root to block hash for generated final votes.
 /// nano::qualified_root -> nano::block_hash
 pub struct LmdbFinalVoteStore {
-    _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
 }
 
 impl LmdbFinalVoteStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("final_votes"), DatabaseFlags::empty())?;
-        Ok(Self {
-            _env: env,
-            database,
-        })
+
+        Ok(Self { database })
     }
 
     pub fn database(&self) -> LmdbDatabase {
@@ -109,6 +106,7 @@ impl LmdbFinalVoteStore {
 mod tests {
     use super::*;
     use crate::DeleteEvent;
+    use std::sync::Arc;
 
     const TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(100);
 
@@ -133,8 +131,8 @@ mod tests {
         fn with_env(env: LmdbEnv) -> Self {
             let env = Arc::new(env);
             Self {
-                env: env.clone(),
-                store: LmdbFinalVoteStore::new(env).unwrap(),
+                store: LmdbFinalVoteStore::new(&env).unwrap(),
+                env,
             }
         }
     }

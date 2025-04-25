@@ -9,34 +9,27 @@ use rsnano_core::{
     Account, AccountInfo,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-#[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{ops::RangeBounds, sync::Arc};
 
 pub struct LmdbAccountStore {
-    env: Arc<LmdbEnv>,
-
     /// U256 (arbitrary key) -> blob
     database: LmdbDatabase,
-    #[cfg(feature = "output_tracking")]
     put_listener: OutputListenerMt<(Account, AccountInfo)>,
 }
 
 impl LmdbAccountStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("accounts"), DatabaseFlags::empty())?;
 
         Ok(Self {
-            env,
             database,
-            #[cfg(feature = "output_tracking")]
             put_listener: OutputListenerMt::new(),
         })
     }
 
-    #[cfg(feature = "output_tracking")]
     pub fn track_puts(&self) -> Arc<OutputTrackerMt<(Account, AccountInfo)>> {
         self.put_listener.track()
     }
@@ -51,8 +44,9 @@ impl LmdbAccountStore {
         account: &Account,
         info: &AccountInfo,
     ) {
-        #[cfg(feature = "output_tracking")]
-        self.put_listener.emit((*account, info.clone()));
+        if self.put_listener.is_tracked() {
+            self.put_listener.emit((*account, info.clone()));
+        }
         transaction
             .put(
                 self.database,
@@ -108,10 +102,11 @@ impl LmdbAccountStore {
 
     pub fn for_each_par(
         &self,
+        env: &LmdbEnv,
         action: impl Fn(&mut dyn Iterator<Item = (Account, AccountInfo)>) + Send + Sync,
     ) {
         parallel_traversal(&|start, end, is_last| {
-            let tx = self.env.tx_begin_read();
+            let tx = env.tx_begin_read();
             let start_account = Account::from(start);
             let end_account = Account::from(end);
             if is_last {
@@ -186,7 +181,7 @@ mod tests {
 
         fn with_env(env: LmdbEnv) -> Self {
             let env = Arc::new(env);
-            let store = LmdbAccountStore::new(env.clone()).unwrap();
+            let store = LmdbAccountStore::new(&env).unwrap();
 
             Fixture { env, store }
         }
@@ -343,7 +338,7 @@ mod tests {
         ]);
 
         let balance_sum = Mutex::new(Amount::zero());
-        fixture.store.for_each_par(|iter| {
+        fixture.store.for_each_par(&fixture.env, |iter| {
             for (_, info) in iter {
                 *balance_sum.lock().unwrap() += info.balance;
             }

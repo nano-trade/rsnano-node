@@ -9,14 +9,11 @@ use rsnano_core::{
     BlockHash, BlockSideband, BlockType, SavedBlock,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-#[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{ops::RangeBounds, sync::Arc};
 
 pub struct LmdbBlockStore {
-    _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
-    #[cfg(feature = "output_tracking")]
     put_listener: OutputListenerMt<SavedBlock>,
 }
 
@@ -49,14 +46,13 @@ impl LmdbBlockStore {
         ConfiguredBlockDatabaseBuilder::new()
     }
 
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("blocks"), DatabaseFlags::empty())?;
+
         Ok(Self {
-            _env: env,
             database,
-            #[cfg(feature = "output_tracking")]
             put_listener: OutputListenerMt::new(),
         })
     }
@@ -65,14 +61,14 @@ impl LmdbBlockStore {
         self.database
     }
 
-    #[cfg(feature = "output_tracking")]
     pub fn track_puts(&self) -> Arc<OutputTrackerMt<SavedBlock>> {
         self.put_listener.track()
     }
 
     pub fn put(&self, txn: &mut LmdbWriteTransaction, block: &SavedBlock) {
-        #[cfg(feature = "output_tracking")]
-        self.put_listener.emit(block.clone());
+        if self.put_listener.is_tracked() {
+            self.put_listener.emit(block.clone());
+        }
 
         let hash = block.hash();
         debug_assert!(
@@ -214,7 +210,7 @@ mod tests {
             let env = Arc::new(env);
             Self {
                 env: env.clone(),
-                store: LmdbBlockStore::new(env).unwrap(),
+                store: LmdbBlockStore::new(&env).unwrap(),
             }
         }
     }
@@ -323,7 +319,7 @@ mod tests {
             .configured_database(configured_responses)
             .build();
         let txn = env.tx_begin_read();
-        let block_store = LmdbBlockStore::new(Arc::new(env)).unwrap();
+        let block_store = LmdbBlockStore::new(&env).unwrap();
         assert_eq!(block_store.get(&txn, &block.hash()), Some(block));
     }
 }

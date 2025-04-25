@@ -1,8 +1,7 @@
 use rsnano_core::{
-    block_priority,
-    utils::{BlockPriority, TimePriority},
-    Account, AccountInfo, Amount, Block, BlockHash, DependentBlocks, DetailedBlock, PendingInfo,
-    PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
+    block_priority, utils::BlockPriority, Account, AccountInfo, Amount, Block, BlockHash,
+    DependentBlocks, DetailedBlock, PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root,
+    SavedBlock,
 };
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,

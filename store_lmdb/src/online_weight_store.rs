@@ -1,22 +1,17 @@
 use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, LmdbWriteTransaction, Transaction};
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::Amount;
-use std::sync::Arc;
 
 pub struct LmdbOnlineWeightStore {
-    _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
 }
 
 impl LmdbOnlineWeightStore {
-    pub fn new(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env
             .environment
             .create_db(Some("online_weight"), DatabaseFlags::empty())?;
-        Ok(Self {
-            _env: env,
-            database,
-        })
+        Ok(Self { database })
     }
 
     pub fn database(&self) -> LmdbDatabase {
@@ -80,6 +75,7 @@ impl LmdbOnlineWeightStore {
 mod tests {
     use super::*;
     use crate::{DeleteEvent, PutEvent};
+    use std::sync::Arc;
 
     struct Fixture {
         env: Arc<LmdbEnv>,
@@ -105,8 +101,8 @@ mod tests {
         fn with_env(env: LmdbEnv) -> Self {
             let env = Arc::new(env);
             Self {
-                env: env.clone(),
-                store: LmdbOnlineWeightStore::new(env).unwrap(),
+                store: LmdbOnlineWeightStore::new(&env).unwrap(),
+                env,
             }
         }
     }

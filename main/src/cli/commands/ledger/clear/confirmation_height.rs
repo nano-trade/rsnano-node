@@ -4,7 +4,7 @@ use clap::{ArgGroup, Parser};
 use rsnano_core::{Account, ConfirmationHeightInfo, Networks};
 use rsnano_ledger::LedgerConstants;
 use rsnano_node::config::NetworkConstants;
-use rsnano_store_lmdb::{LmdbConfirmationHeightStore, LmdbEnv, LmdbEnvFactory};
+use rsnano_store_lmdb::{LmdbConfirmationHeightStore, LmdbEnvFactory};
 use std::sync::Arc;
 
 #[derive(Parser)]
@@ -44,8 +44,8 @@ impl ConfirmationHeightArgs {
         let genesis_hash = genesis_block.hash();
 
         let env_factory = LmdbEnvFactory::default();
-        let env = Arc::new(env_factory.create_env(&path)?);
-        let confirmation_height_store = LmdbConfirmationHeightStore::new(env.clone())?;
+        let env = env_factory.create_env(&path)?;
+        let confirmation_height_store = LmdbConfirmationHeightStore::new(&env)?;
 
         let mut txn = env.tx_begin_write();
 

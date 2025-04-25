@@ -131,16 +131,16 @@ impl LmdbStore {
         Ok(Self {
             write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
-            block: Arc::new(LmdbBlockStore::new(env.clone())?),
-            account: Arc::new(LmdbAccountStore::new(env.clone())?),
-            pending: Arc::new(LmdbPendingStore::new(env.clone())?),
-            online_weight: Arc::new(LmdbOnlineWeightStore::new(env.clone())?),
-            pruned: Arc::new(LmdbPrunedStore::new(env.clone())?),
-            rep_weight: Arc::new(LmdbRepWeightStore::new(env.clone())?),
-            peer: Arc::new(LmdbPeerStore::new(env.clone())?),
-            confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(env.clone())?),
-            final_vote: Arc::new(LmdbFinalVoteStore::new(env.clone())?),
-            version: Arc::new(LmdbVersionStore::new(env.clone())?),
+            block: Arc::new(LmdbBlockStore::new(&env)?),
+            account: Arc::new(LmdbAccountStore::new(&env)?),
+            pending: Arc::new(LmdbPendingStore::new(&env)?),
+            online_weight: Arc::new(LmdbOnlineWeightStore::new(&env)?),
+            pruned: Arc::new(LmdbPrunedStore::new(&env)?),
+            rep_weight: Arc::new(LmdbRepWeightStore::new(&env)?),
+            peer: Arc::new(LmdbPeerStore::new(&env)?),
+            confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(&env)?),
+            final_vote: Arc::new(LmdbFinalVoteStore::new(&env)?),
+            version: Arc::new(LmdbVersionStore::new(&env)?),
             env,
         })
     }
@@ -236,7 +236,7 @@ fn copy_table(
 }
 
 fn do_upgrades(env: Arc<LmdbEnv>) -> anyhow::Result<()> {
-    let version_store = LmdbVersionStore::new(env.clone())?;
+    let version_store = LmdbVersionStore::new(&env)?;
     let mut txn = env.tx_begin_write();
 
     let version = match version_store.get(&txn) {
@@ -380,7 +380,7 @@ mod tests {
 
     fn set_store_version(file: &TestDbFile, current_version: i32) -> Result<(), anyhow::Error> {
         let env = Arc::new(LmdbEnvFactory::default().create_env(&file.path)?);
-        let version_store = LmdbVersionStore::new(env.clone())?;
+        let version_store = LmdbVersionStore::new(&env)?;
         let mut txn = env.tx_begin_write();
         version_store.put(&mut txn, current_version);
         Ok(())

@@ -2,9 +2,6 @@
 extern crate anyhow;
 
 #[macro_use]
-extern crate num_derive;
-
-#[macro_use]
 extern crate strum_macros;
 
 mod block_cementer;
