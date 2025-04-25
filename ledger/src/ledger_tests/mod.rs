@@ -1,17 +1,17 @@
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::Arc;
 
 use rsnano_core::{
     utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
-    Account, Amount, BlockHash, PrivateKey, PublicKey, Root, SavedBlock, TestBlockBuilder,
-    DEV_GENESIS_KEY,
+    Account, AccountInfo, Amount, BlockHash, PrivateKey, PublicKey, Root, SavedBlock,
+    TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbEnvFactory, Writer};
+use rsnano_store_lmdb::{LmdbEnv, LmdbStore};
 
 use crate::{
-    ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
-    test_helpers::{setup_legacy_open_block, AccountBlockFactory, SavedBlockLatticeBuilder},
-    AnySet, ConfirmedSet, Ledger, LedgerBuilder, LedgerContext, LedgerInserter, RepWeightCache,
+    ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY},
+    test_helpers::{setup_legacy_open_block, SavedBlockLatticeBuilder},
+    AnySet, ConfirmedSet, Ledger, LedgerConstants, LedgerContext, LedgerInserter, RepWeightCache,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 
@@ -398,96 +398,36 @@ fn block_confirmed() {
 }
 
 #[test]
-#[ignore = "WIP"]
 fn ledger_cache() {
-    let ctx = LedgerContext::empty();
-    let genesis = ctx.genesis_block_factory();
-    let total = 10u64;
+    let env = LmdbEnv::new_null_with().build();
+    let store = LmdbStore::new_with_env(env).unwrap();
+    {
+        let mut tx = store.env.tx_begin_write();
+        store.pruned.put(&mut tx, &1.into());
+        store.pruned.put(&mut tx, &2.into());
 
-    struct ExpectedCache {
-        account_count: u64,
-        block_count: u64,
-        cemented_count: u64,
-        pruned_count: u64,
+        store
+            .account
+            .put(&mut tx, &1.into(), &AccountInfo::new_test_instance());
+        store
+            .account
+            .put(&mut tx, &2.into(), &AccountInfo::new_test_instance());
+        store
+            .account
+            .put(&mut tx, &3.into(), &AccountInfo::new_test_instance());
     }
 
-    // Check existing ledger (incremental cache update) and reload on a new ledger
-    for i in 0..total {
-        let mut expected = ExpectedCache {
-            account_count: 1 + i,
-            block_count: 1 + 2 * (i + 1) - 2,
-            cemented_count: 1 + 2 * (i + 1) - 2,
-            pruned_count: i,
-        };
+    let ledger = Ledger::new(
+        store,
+        LedgerConstants::live(),
+        Amount::zero(),
+        RepWeightCache::new().into(),
+        Arc::new(Stats::default()),
+    )
+    .unwrap();
 
-        let check_impl = |ledger: &Ledger, expected: &ExpectedCache| {
-            assert_eq!(ledger.account_count(), expected.account_count);
-            assert_eq!(ledger.block_count(), expected.block_count);
-            assert_eq!(ledger.confirmed_count(), expected.cemented_count);
-            assert_eq!(ledger.pruned_count(), expected.pruned_count);
-        };
-
-        let cache_check = |ledger: &Ledger, expected: &ExpectedCache| {
-            //check_impl(ledger, expected);
-
-            //ctx.ledger.store.cache.reset();
-            //let new_ledger = Ledger::new(
-            //    ctx.ledger.store.clone(),
-            //    LEDGER_CONSTANTS_STUB.clone(),
-            //    Amount::zero(),
-            //    Arc::new(RepWeightCache::new()),
-            //    Arc::new(Stats::default()),
-            //)
-            //.unwrap();
-            //check_impl(&new_ledger, expected);
-        };
-
-        let destination = ctx.block_factory();
-        let send = genesis.send().link(destination.account()).build();
-        ctx.ledger.process_one(&send).unwrap();
-        expected.block_count += 1;
-        cache_check(&ctx.ledger, &expected);
-
-        let open = destination.open(send.hash()).build();
-        ctx.ledger.process_one(&open).unwrap();
-        expected.block_count += 1;
-        expected.account_count += 1;
-        cache_check(&ctx.ledger, &expected);
-
-        {
-            ctx.inc_confirmation_height(&DEV_GENESIS_ACCOUNT);
-            ctx.ledger
-                .store
-                .cache
-                .confirmed_count
-                .fetch_add(1, Ordering::Relaxed);
-            expected.cemented_count += 1;
-        }
-        cache_check(&ctx.ledger, &expected);
-
-        {
-            ctx.inc_confirmation_height(&destination.account());
-            ctx.ledger
-                .store
-                .cache
-                .confirmed_count
-                .fetch_add(1, Ordering::Relaxed);
-            expected.cemented_count += 1;
-        }
-        cache_check(&ctx.ledger, &expected);
-
-        {
-            let mut txn = ctx.ledger.store.tx_begin_write(Writer::Testing);
-            ctx.ledger.store.pruned.put(&mut txn, &open.hash());
-            ctx.ledger
-                .store
-                .cache
-                .pruned_count
-                .fetch_add(1, Ordering::Relaxed);
-            expected.pruned_count += 1;
-        }
-        cache_check(&ctx.ledger, &expected);
-    }
+    assert_eq!(ledger.pruned_count(), 2);
+    assert_eq!(ledger.account_count(), 3);
 }
 
 #[test]

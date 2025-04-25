@@ -126,7 +126,7 @@ impl LmdbStore {
         Self::new_with_env(env)
     }
 
-    fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
+    pub fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
         Ok(Self {
             write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
