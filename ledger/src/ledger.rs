@@ -15,10 +15,8 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
-    ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LedgerCache,
-    LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore,
-    LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore,
-    LmdbStore, LmdbVersionStore, LmdbWriteTransaction, MemoryStats, Transaction,
+    ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LmdbEnv, LmdbStore,
+    LmdbWriteTransaction, MemoryStats, Transaction,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -192,24 +190,8 @@ impl NullLedgerBuilder {
             .configured_database(self.peers.build())
             .build();
 
-        let store = LmdbStore {
-            write_queue: env.write_queue.clone(),
-            cache: Arc::new(LedgerCache::new()),
-            account: Arc::new(LmdbAccountStore::new(&env).unwrap()),
-            block: Arc::new(LmdbBlockStore::new(&env).unwrap()),
-            confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(&env).unwrap()),
-            final_vote: Arc::new(LmdbFinalVoteStore::new(&env).unwrap()),
-            online_weight: Arc::new(LmdbOnlineWeightStore::new(&env).unwrap()),
-            peer: Arc::new(LmdbPeerStore::new(&env).unwrap()),
-            pending: Arc::new(LmdbPendingStore::new(&env).unwrap()),
-            pruned: Arc::new(LmdbPrunedStore::new(&env).unwrap()),
-            rep_weight: Arc::new(LmdbRepWeightStore::new(&env).unwrap()),
-            version: Arc::new(LmdbVersionStore::new(&env).unwrap()),
-            env,
-        };
-
         Ledger::new(
-            store,
+            env,
             LedgerConstants::unit_test(),
             self.min_rep_weight,
             Arc::new(RepWeightCache::new()),
@@ -222,7 +204,7 @@ impl NullLedgerBuilder {
 impl Ledger {
     pub fn new_null() -> Self {
         Self::new(
-            LmdbStore::new_null(),
+            LmdbEnv::new_null(),
             LedgerConstants::unit_test(),
             Amount::zero(),
             Arc::new(RepWeightCache::new()),
@@ -235,13 +217,16 @@ impl Ledger {
         NullLedgerBuilder::new()
     }
 
-    pub fn new(
-        store: LmdbStore,
+    pub(crate) fn new(
+        env: LmdbEnv,
         constants: LedgerConstants,
         min_rep_weight: Amount,
         rep_weights: Arc<RepWeightCache>,
         stats: Arc<Stats>,
     ) -> anyhow::Result<Self> {
+        let mut store = LmdbStore::new(env)?;
+        store.cache = rep_weights.ledger_cache.clone();
+
         let rep_weights_updater =
             RepWeightsUpdater::new(store.rep_weight.clone(), min_rep_weight, &rep_weights);
 

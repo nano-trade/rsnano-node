@@ -87,19 +87,6 @@ impl<'a> LedgerBuilder<'a> {
             env.set_transaction_tracker(txn_tracker);
         }
 
-        let result = LmdbStore::new(env);
-
-        let mut store = match result {
-            Ok(store) => store,
-            Err(e) => {
-                panic!(
-                    "Could not create LMDB store: {:?}. Details: {:?}",
-                    self.path, e
-                )
-            }
-        };
-        store.cache = ledger_cache;
-
         let stats = self.stats.unwrap_or_else(|| Arc::new(Stats::default()));
         let ledger_constants = self
             .ledger_constants
@@ -108,7 +95,7 @@ impl<'a> LedgerBuilder<'a> {
         info!("Loading ledger, this may take a while...");
 
         Ledger::new(
-            store,
+            env,
             ledger_constants,
             self.min_rep_weight,
             rep_weights.clone(),

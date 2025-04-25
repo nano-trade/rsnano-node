@@ -50,7 +50,7 @@ pub struct RepWeightCache {
     weights: Arc<RwLock<RepWeights>>,
     bootstrap_weights: RwLock<RepWeights>,
     max_blocks: u64,
-    ledger_cache: Arc<LedgerCache>,
+    pub ledger_cache: Arc<LedgerCache>,
     check_bootstrap_weights: AtomicBool,
 }
 

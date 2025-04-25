@@ -6,7 +6,7 @@ use rsnano_core::{
     TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbEnv, LmdbStore};
+use rsnano_store_lmdb::{LmdbAccountStore, LmdbEnv, LmdbPrunedStore, LmdbStore};
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY},
@@ -400,25 +400,21 @@ fn block_confirmed() {
 #[test]
 fn ledger_cache() {
     let env = LmdbEnv::new_null_with().build();
-    let store = LmdbStore::new(env).unwrap();
     {
-        let mut tx = store.env.tx_begin_write();
-        store.pruned.put(&mut tx, &1.into());
-        store.pruned.put(&mut tx, &2.into());
+        let pruned = LmdbPrunedStore::new(&env).unwrap();
+        let accounts = LmdbAccountStore::new(&env).unwrap();
+        let mut tx = env.tx_begin_write();
 
-        store
-            .account
-            .put(&mut tx, &1.into(), &AccountInfo::new_test_instance());
-        store
-            .account
-            .put(&mut tx, &2.into(), &AccountInfo::new_test_instance());
-        store
-            .account
-            .put(&mut tx, &3.into(), &AccountInfo::new_test_instance());
+        pruned.put(&mut tx, &1.into());
+        pruned.put(&mut tx, &2.into());
+
+        accounts.put(&mut tx, &1.into(), &AccountInfo::new_test_instance());
+        accounts.put(&mut tx, &2.into(), &AccountInfo::new_test_instance());
+        accounts.put(&mut tx, &3.into(), &AccountInfo::new_test_instance());
     }
 
     let ledger = Ledger::new(
-        store,
+        env,
         LedgerConstants::live(),
         Amount::zero(),
         RepWeightCache::new().into(),

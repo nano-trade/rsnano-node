@@ -50,12 +50,13 @@ pub struct LmdbStore {
     pub block: Arc<LmdbBlockStore>,
     pub account: Arc<LmdbAccountStore>,
     pub pending: Arc<LmdbPendingStore>,
-    pub online_weight: Arc<LmdbOnlineWeightStore>,
     pub pruned: Arc<LmdbPrunedStore>,
     pub rep_weight: Arc<LmdbRepWeightStore>,
-    pub peer: Arc<LmdbPeerStore>,
     pub confirmation_height: Arc<LmdbConfirmationHeightStore>,
     pub final_vote: Arc<LmdbFinalVoteStore>,
+    // extract these?
+    pub online_weight: Arc<LmdbOnlineWeightStore>,
+    pub peer: Arc<LmdbPeerStore>,
     pub version: Arc<LmdbVersionStore>,
 }
 
