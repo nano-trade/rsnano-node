@@ -27,7 +27,7 @@ use blake2::{
     digest::{Update, VariableOutput},
     Blake2bVar,
 };
-pub use block_hash::{BlockHash, BlockHashBuilder};
+pub use block_hash::{Blake2HashBuilder, BlockHash};
 pub use hardened_constants::*;
 pub use node_id::NodeId;
 pub use public_key::PublicKey;

@@ -5,7 +5,6 @@ use rsnano_core::{Account, ConfirmationHeightInfo, Networks};
 use rsnano_ledger::LedgerConstants;
 use rsnano_node::config::NetworkConstants;
 use rsnano_store_lmdb::{LmdbConfirmationHeightStore, LmdbEnvFactory};
-use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input1")

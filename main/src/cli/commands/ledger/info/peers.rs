@@ -2,7 +2,6 @@ use crate::cli::get_path;
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
 use rsnano_store_lmdb::{LmdbEnvFactory, LmdbPeerStore};
-use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input")

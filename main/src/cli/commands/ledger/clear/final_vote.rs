@@ -3,7 +3,6 @@ use anyhow::Result;
 use clap::{ArgGroup, Parser};
 use rsnano_core::QualifiedRoot;
 use rsnano_store_lmdb::{LmdbEnvFactory, LmdbFinalVoteStore};
-use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input1")

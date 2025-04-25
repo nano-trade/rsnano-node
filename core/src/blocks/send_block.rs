@@ -1,7 +1,7 @@
 use super::{Block, BlockBase, BlockType};
 use crate::{
     utils::{BufferWriter, FixedSizeSerialize, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, DependentBlocks, JsonBlock, Link, PendingKey,
+    Account, Amount, Blake2HashBuilder, BlockHash, DependentBlocks, JsonBlock, Link, PendingKey,
     PrivateKey, PublicKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
@@ -239,7 +239,7 @@ impl SendHashables {
     }
 
     fn hash(&self) -> BlockHash {
-        BlockHashBuilder::new()
+        Blake2HashBuilder::new()
             .update(self.previous.as_bytes())
             .update(self.destination.as_bytes())
             .update(self.balance.to_be_bytes())

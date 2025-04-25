@@ -2,8 +2,7 @@ use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
 use rsnano_core::Amount;
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::{
-    get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig, LmdbEnvFactory, LmdbStore,
-    NullTransactionTracker, TransactionTracker,
+    get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig, LmdbEnvFactory, TransactionTracker,
 };
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;

@@ -1,7 +1,7 @@
 use super::{Block, BlockBase, BlockType};
 use crate::{
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, DependentBlocks, JsonBlock, Link, PrivateKey,
+    Account, Amount, Blake2HashBuilder, BlockHash, DependentBlocks, JsonBlock, Link, PrivateKey,
     PublicKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
@@ -169,7 +169,7 @@ impl ReceiveHashables {
     }
 
     fn hash(&self) -> BlockHash {
-        BlockHashBuilder::new()
+        Blake2HashBuilder::new()
             .update(self.previous.as_bytes())
             .update(self.source.as_bytes())
             .build()

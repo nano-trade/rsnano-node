@@ -2,7 +2,7 @@ use super::{Block, BlockBase, BlockType};
 use crate::{
     private_key::TEST_KEY,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, JsonBlock, Link, PrivateKey, PublicKey, Root,
+    Account, Amount, Blake2HashBuilder, BlockHash, JsonBlock, Link, PrivateKey, PublicKey, Root,
     Signature, WorkNonce,
 };
 use anyhow::Result;
@@ -208,7 +208,7 @@ impl StateHashables {
     fn hash(&self) -> BlockHash {
         let mut preamble = [0u8; 32];
         preamble[31] = BlockType::State as u8;
-        BlockHashBuilder::new()
+        Blake2HashBuilder::new()
             .update(preamble)
             .update(self.account.as_bytes())
             .update(self.previous.as_bytes())

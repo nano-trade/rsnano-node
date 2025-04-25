@@ -6,7 +6,7 @@ use rsnano_core::{
     TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbAccountStore, LmdbEnv, LmdbPrunedStore, LmdbStore};
+use rsnano_store_lmdb::{LmdbAccountStore, LmdbEnv, LmdbPrunedStore};
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY},

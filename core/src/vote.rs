@@ -1,6 +1,6 @@
 use super::{
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Stream},
-    Account, BlockHash, BlockHashBuilder, PrivateKey, Signature,
+    Account, Blake2HashBuilder, BlockHash, PrivateKey, Signature,
 };
 use crate::{
     utils::{Serialize, UnixMillisTimestamp},
@@ -138,7 +138,7 @@ impl Vote {
     }
 
     pub fn hash(&self) -> BlockHash {
-        let mut builder = BlockHashBuilder::new().update(HASH_PREFIX);
+        let mut builder = Blake2HashBuilder::new().update(HASH_PREFIX);
 
         for hash in &self.hashes {
             builder = builder.update(hash.as_bytes())

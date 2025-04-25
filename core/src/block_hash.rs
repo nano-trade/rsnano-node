@@ -7,32 +7,34 @@ use blake2::{
 };
 use rand::Rng;
 
-u256_struct!(BlockHash);
-serialize_32_byte_string!(BlockHash);
+u256_struct!(Blake2Hash);
+serialize_32_byte_string!(Blake2Hash);
 
-impl BlockHash {
+pub type BlockHash = Blake2Hash;
+
+impl Blake2Hash {
     pub fn random() -> Self {
         BlockHash::from_bytes(rand::rng().random())
     }
 }
 
-impl From<&Account> for BlockHash {
+impl From<&Account> for Blake2Hash {
     fn from(account: &Account) -> Self {
         Self::from_bytes(*account.as_bytes())
     }
 }
 
-impl From<Account> for BlockHash {
+impl From<Account> for Blake2Hash {
     fn from(account: Account) -> Self {
         Self::from_bytes(*account.as_bytes())
     }
 }
 
-pub struct BlockHashBuilder {
+pub struct Blake2HashBuilder {
     blake: Blake2bVar,
 }
 
-impl Default for BlockHashBuilder {
+impl Default for Blake2HashBuilder {
     fn default() -> Self {
         Self {
             blake: Blake2bVar::new(32).unwrap(),
@@ -40,7 +42,7 @@ impl Default for BlockHashBuilder {
     }
 }
 
-impl BlockHashBuilder {
+impl Blake2HashBuilder {
     pub fn new() -> Self {
         Default::default()
     }
@@ -50,7 +52,7 @@ impl BlockHashBuilder {
         self
     }
 
-    pub fn build(self) -> BlockHash {
+    pub fn build(self) -> Blake2Hash {
         let mut buffer = [0; 32];
         self.blake.finalize_variable(&mut buffer).unwrap();
         BlockHash::from_bytes(buffer)
