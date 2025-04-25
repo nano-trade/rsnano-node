@@ -3,9 +3,7 @@ use rsnano_core::{
     TestBlockBuilder, WorkNonce, DEV_GENESIS_KEY,
 };
 
-use crate::{
-    AnySet, Ledger, LedgerContext, LedgerInserter, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
-};
+use crate::{AnySet, Ledger, LedgerInserter, LedgerSet, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 
 #[test]
 fn pruning_action() {
@@ -241,80 +239,58 @@ fn pruning_source_rollback_legacy() {
 
 #[test]
 fn pruning_legacy_blocks() {
-    let ctx = LedgerContext::empty();
-    ctx.ledger.enable_pruning();
-    let genesis = ctx.genesis_block_factory();
-    let destination = ctx.block_factory();
+    let ledger = Ledger::new_null();
+    ledger.enable_pruning();
+    let inserter = LedgerInserter::new(&ledger);
+    let destination = PrivateKey::from(42);
 
-    let send1 = genesis.legacy_send().destination(genesis.account()).build();
-    ctx.ledger.process_one(&send1).unwrap();
+    let send1 = inserter.genesis().legacy_send(*DEV_GENESIS_ACCOUNT, 1);
+    let receive1 = inserter.genesis().legacy_receive(send1.hash());
+    let change1 = inserter.genesis().legacy_change(&destination);
+    let send2 = inserter.genesis().legacy_send(&destination, 1);
+    let open1 = inserter.account(&destination).legacy_open(send2.hash());
+    let send3 = inserter
+        .account(&destination)
+        .legacy_send(*DEV_GENESIS_ACCOUNT, 1);
 
-    let receive1 = genesis.legacy_receive2(send1.hash()).build();
-    ctx.ledger.process_one(&receive1).unwrap();
-
-    let change1 = genesis
-        .legacy_change()
-        .representative(destination.public_key())
-        .build();
-    ctx.ledger.process_one(&change1).unwrap();
-
-    let send2 = genesis
-        .legacy_send()
-        .destination(destination.account())
-        .build();
-    ctx.ledger.process_one(&send2).unwrap();
-
-    let open1 = destination.legacy_open(send2.hash()).build();
-    ctx.ledger.process_one(&open1).unwrap();
-
-    let send3 = destination
-        .legacy_send()
-        .destination(genesis.account())
-        .build();
-    ctx.ledger.process_one(&send3).unwrap();
-
-    ctx.ledger.confirm(change1.hash());
-    ctx.ledger.confirm(open1.hash());
+    ledger.confirm(change1.hash());
+    ledger.confirm(open1.hash());
 
     // Pruning action
-    assert_eq!(ctx.ledger.prune_one(&change1.hash(), 2), 3);
-    assert_eq!(ctx.ledger.prune_one(&open1.hash(), 1), 1);
+    assert_eq!(ledger.prune_one(&change1.hash(), 2), 3);
+    assert_eq!(ledger.prune_one(&open1.hash(), 1), 1);
 
-    let txn = ctx.ledger.store.tx_begin_read();
-    assert!(ctx.ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send1.hash()), false);
-    assert_eq!(ctx.ledger.store.pruned.exists(&txn, &send1.hash()), true);
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &receive1.hash()), false);
-    assert_eq!(ctx.ledger.store.pruned.exists(&txn, &receive1.hash()), true);
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &change1.hash()), false);
-    assert_eq!(ctx.ledger.store.pruned.exists(&txn, &change1.hash()), true);
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send2.hash()), true);
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &open1.hash()), false);
-    assert_eq!(ctx.ledger.store.pruned.exists(&txn, &open1.hash()), true);
-    assert_eq!(ctx.ledger.store.block.exists(&txn, &send3.hash()), true);
-    assert_eq!(ctx.ledger.pruned_count(), 4);
-    assert_eq!(ctx.ledger.block_count(), 7);
-    assert_eq!(ctx.ledger.store.pruned.count(&txn), 4);
-    assert_eq!(ctx.ledger.store.block.count(&txn), 3);
+    let txn = ledger.store.tx_begin_read();
+    assert!(ledger.store.block.exists(&txn, &DEV_GENESIS_HASH));
+    assert_eq!(ledger.store.block.exists(&txn, &send1.hash()), false);
+    assert_eq!(ledger.store.pruned.exists(&txn, &send1.hash()), true);
+    assert_eq!(ledger.store.block.exists(&txn, &receive1.hash()), false);
+    assert_eq!(ledger.store.pruned.exists(&txn, &receive1.hash()), true);
+    assert_eq!(ledger.store.block.exists(&txn, &change1.hash()), false);
+    assert_eq!(ledger.store.pruned.exists(&txn, &change1.hash()), true);
+    assert_eq!(ledger.store.block.exists(&txn, &send2.hash()), true);
+    assert_eq!(ledger.store.block.exists(&txn, &open1.hash()), false);
+    assert_eq!(ledger.store.pruned.exists(&txn, &open1.hash()), true);
+    assert_eq!(ledger.store.block.exists(&txn, &send3.hash()), true);
+    assert_eq!(ledger.pruned_count(), 4);
+    assert_eq!(ledger.block_count(), 7);
+    assert_eq!(ledger.store.pruned.count(&txn), 4);
+    assert_eq!(ledger.store.block.count(&txn), 3);
 }
 
 #[test]
 fn pruning_safe_functions() {
-    let ctx = LedgerContext::empty();
-    ctx.ledger.enable_pruning();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    ledger.enable_pruning();
+    let inserter = LedgerInserter::new(&ledger);
 
-    let send1 = genesis.send().link(genesis.account()).build();
-    ctx.ledger.process_one(&send1).unwrap();
-
-    let send2 = genesis.send().link(genesis.account()).build();
-    ctx.ledger.process_one(&send2).unwrap();
-
-    ctx.ledger.confirm(send1.hash());
+    let send1 = inserter.genesis().send(*DEV_GENESIS_ACCOUNT, 1);
+    let send2 = inserter.genesis().send(*DEV_GENESIS_ACCOUNT, 1);
+    ledger.confirm(send1.hash());
 
     // Pruning action
-    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 1);
-    let any = ctx.ledger.any();
+    assert_eq!(ledger.prune_one(&send1.hash(), 1), 1);
+    let any = ledger.any();
 
     // Safe ledger actions
     assert!(any.block_balance(&send1.hash()).is_none());
@@ -325,32 +301,29 @@ fn pruning_safe_functions() {
 
     assert_eq!(any.block_amount(&send2.hash()), None);
     assert_eq!(any.block_account(&send1.hash()), None);
-    assert_eq!(any.block_account(&send2.hash()), Some(genesis.account()));
+    assert_eq!(any.block_account(&send2.hash()), Some(*DEV_GENESIS_ACCOUNT));
 }
 
 #[test]
 fn hash_root_random() {
-    let ctx = LedgerContext::empty();
-    ctx.ledger.enable_pruning();
-    let genesis = ctx.genesis_block_factory();
+    let ledger = Ledger::new_null();
+    let inserter = LedgerInserter::new(&ledger);
+    ledger.enable_pruning();
 
-    let send1 = genesis.send().link(genesis.account()).build();
-    ctx.ledger.process_one(&send1).unwrap();
+    let send1 = inserter.genesis().send(*DEV_GENESIS_ACCOUNT, 1);
+    let send2 = inserter.genesis().send(*DEV_GENESIS_ACCOUNT, 1);
 
-    let send2 = genesis.send().link(genesis.account()).build();
-    ctx.ledger.process_one(&send2).unwrap();
-
-    ctx.ledger.confirm(send1.hash());
+    ledger.confirm(send1.hash());
 
     // Pruning action
-    assert_eq!(ctx.ledger.prune_one(&send1.hash(), 1), 1);
-    let any = ctx.ledger.any();
+    assert_eq!(ledger.prune_one(&send1.hash(), 1), 1);
+    let any = ledger.any();
 
     // Prunned block will not be included in the random selection because it's not in the blocks set
     {
         let mut done = false;
         let mut iteration = 0;
-        while !done && iteration < 42 {
+        while !done && iteration < 16 {
             iteration += 1;
             let blocks = any.random_blocks(10);
             // Random blocks should repeat if the ledger is smaller than the requested count
