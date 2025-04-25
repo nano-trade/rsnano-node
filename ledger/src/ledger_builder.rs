@@ -1,7 +1,10 @@
 use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
 use rsnano_core::Amount;
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LedgerCache, LmdbConfig, LmdbEnvFactory, LmdbStore, TransactionTracker};
+use rsnano_store_lmdb::{
+    get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig, LmdbEnvFactory, LmdbStore,
+    NullTransactionTracker, TransactionTracker,
+};
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
 
@@ -69,31 +72,33 @@ impl<'a> LedgerBuilder<'a> {
             ledger_cache.clone(),
         ));
 
-        let store = {
-            let config = self.config.unwrap_or_default();
-            let mut store_builder = LmdbStore::open(&self.path).options(config.clone());
+        let config = self.config.unwrap_or_default();
+        let default_env_factory = LmdbEnvFactory::default();
+        let env_factory = self.env_factory.unwrap_or(&default_env_factory);
 
-            if let Some(tracker) = self.txn_tracker {
-                store_builder = store_builder.txn_tracker(tracker);
-            }
-
-            let default_env_factory = LmdbEnvFactory::default();
-            let env_factory = self.env_factory.unwrap_or(&default_env_factory);
-
-            let result = store_builder.build(env_factory);
-
-            let mut store = match result {
-                Ok(store) => store,
-                Err(e) => {
-                    panic!(
-                        "Could not create LMDB store: {:?}. Details: {:?}",
-                        self.path, e
-                    )
-                }
-            };
-            store.cache = ledger_cache;
-            store
+        let env_options = EnvironmentOptions {
+            max_dbs: config.max_databases,
+            map_size: config.map_size,
+            flags: get_env_flags(&config),
+            path: &self.path,
         };
+        let mut env = env_factory.create_with_options(env_options)?;
+        if let Some(txn_tracker) = self.txn_tracker {
+            env.set_transaction_tracker(txn_tracker);
+        }
+
+        let result = LmdbStore::new(env);
+
+        let mut store = match result {
+            Ok(store) => store,
+            Err(e) => {
+                panic!(
+                    "Could not create LMDB store: {:?}. Details: {:?}",
+                    self.path, e
+                )
+            }
+        };
+        store.cache = ledger_cache;
 
         let stats = self.stats.unwrap_or_else(|| Arc::new(Stats::default()));
         let ledger_constants = self

@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
-use rsnano_core::{Account, Amount, ConfirmationHeightInfo, Networks};
-use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbStore, TestDbFile, Writer};
+use rsnano_core::{Account, ConfirmationHeightInfo, Networks};
+use rsnano_store_lmdb::{TestDbFile, Writer};
 use rsnano_work::WorkThresholds;
 
-use crate::{
-    test_helpers::AccountBlockFactory, Ledger, LedgerConstants, LedgerSet, RepWeightCache,
-};
+use crate::{test_helpers::AccountBlockFactory, Ledger, LedgerBuilder, LedgerConstants, LedgerSet};
 
 pub struct LedgerContext {
     pub ledger: Arc<Ledger>,
@@ -27,13 +24,13 @@ impl LedgerContext {
 
     pub fn with_constants(constants: LedgerConstants) -> Self {
         let db_file = TestDbFile::random();
-        let store = LmdbStore::open(&db_file.path)
-            .build(&Default::default())
-            .unwrap();
-        let rep_weights = Arc::new(RepWeightCache::new());
-        let stats = Arc::new(Stats::default());
-        let ledger =
-            Arc::new(Ledger::new(store, constants, Amount::zero(), rep_weights, stats).unwrap());
+
+        let ledger = Arc::new(
+            LedgerBuilder::new(&db_file.path)
+                .constants(constants)
+                .finish()
+                .unwrap(),
+        );
 
         LedgerContext {
             ledger,

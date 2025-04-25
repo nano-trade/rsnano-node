@@ -1,14 +1,12 @@
 use crate::{
-    get_env_flags, LmdbAccountStore, LmdbBlockStore, LmdbConfig, LmdbConfirmationHeightStore,
-    LmdbDatabase, LmdbEnv, LmdbEnvFactory, LmdbFinalVoteStore, LmdbOnlineWeightStore,
-    LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore,
-    LmdbVersionStore, LmdbWriteTransaction, NullTransactionTracker, TransactionTracker, WriteQueue,
+    LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv,
+    LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore,
+    LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore, LmdbWriteTransaction, WriteQueue,
     Writer, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::MDB_SUCCESS;
 use rsnano_core::utils::UnixTimestamp;
-use rsnano_nullable_lmdb::EnvironmentOptions;
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::CString,
@@ -61,72 +59,14 @@ pub struct LmdbStore {
     pub version: Arc<LmdbVersionStore>,
 }
 
-pub struct LmdbStoreBuilder<'a> {
-    path: &'a Path,
-    options: Option<LmdbConfig>,
-    tracker: Option<Arc<dyn TransactionTracker>>,
-}
-
-impl<'a> LmdbStoreBuilder<'a> {
-    fn new(path: &'a Path) -> Self {
-        Self {
-            path,
-            options: None,
-            tracker: None,
-        }
-    }
-
-    pub fn options(mut self, options: LmdbConfig) -> Self {
-        self.options = Some(options);
-        self
-    }
-
-    pub fn txn_tracker(mut self, tracker: Arc<dyn TransactionTracker>) -> Self {
-        self.tracker = Some(tracker);
-        self
-    }
-
-    pub fn build(self, env_factory: &LmdbEnvFactory) -> anyhow::Result<LmdbStore> {
-        let options = self.options.unwrap_or_default();
-
-        let txn_tracker = self
-            .tracker
-            .unwrap_or_else(|| Arc::new(NullTransactionTracker::new()));
-
-        LmdbStore::new(env_factory, self.path, &options, txn_tracker)
-    }
-}
-
 impl LmdbStore {
     pub fn new_null() -> Self {
-        Self::new_with_env(LmdbEnv::new_null()).unwrap()
+        Self::new(LmdbEnv::new_null()).unwrap()
     }
 
-    pub fn open(path: &Path) -> LmdbStoreBuilder<'_> {
-        LmdbStoreBuilder::new(path)
-    }
+    pub fn new(env: LmdbEnv) -> anyhow::Result<Self> {
+        upgrade_if_needed(&env)?;
 
-    fn new(
-        env_factory: &LmdbEnvFactory,
-        path: impl AsRef<Path>,
-        options: &LmdbConfig,
-        txn_tracker: Arc<dyn TransactionTracker>,
-    ) -> anyhow::Result<Self> {
-        let path = path.as_ref();
-        upgrade_if_needed(path, env_factory)?;
-
-        let env_options = EnvironmentOptions {
-            max_dbs: options.max_databases,
-            map_size: options.map_size,
-            flags: get_env_flags(options),
-            path,
-        };
-        let mut env = env_factory.create_with_options(env_options)?;
-        env.set_transaction_tracker(txn_tracker);
-        Self::new_with_env(env)
-    }
-
-    pub fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
         Ok(Self {
             write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
@@ -180,8 +120,7 @@ impl LmdbStore {
     }
 }
 
-fn upgrade_if_needed(path: &Path, env_factory: &LmdbEnvFactory) -> Result<(), anyhow::Error> {
-    let env = Arc::new(env_factory.create_env(path)?);
+fn upgrade_if_needed(env: &LmdbEnv) -> Result<(), anyhow::Error> {
     let upgrade_info = LmdbVersionStore::check_upgrade(&env)?;
     if upgrade_info.is_fully_upgraded {
         debug!("No database upgrade needed");
@@ -189,7 +128,7 @@ fn upgrade_if_needed(path: &Path, env_factory: &LmdbEnvFactory) -> Result<(), an
     }
 
     info!("Upgrade in progress...");
-    do_upgrades(env.clone())?;
+    do_upgrades(&env)?;
     info!("Upgrade done!");
     env.sync()?;
     Ok(())
@@ -234,8 +173,8 @@ fn copy_table(
     Ok(())
 }
 
-fn do_upgrades(env: Arc<LmdbEnv>) -> anyhow::Result<()> {
-    let version_store = LmdbVersionStore::new(&env)?;
+fn do_upgrades(env: &LmdbEnv) -> anyhow::Result<()> {
+    let version_store = LmdbVersionStore::new(env)?;
     let mut txn = env.tx_begin_write();
 
     let version = match version_store.get(&txn) {
@@ -333,43 +272,42 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestDbFile;
+    use crate::LmdbEnvFactory;
 
     #[test]
     fn create_store() -> anyhow::Result<()> {
-        let file = TestDbFile::random();
-        let _ = LmdbStore::open(&file.path).build(&Default::default())?;
+        let env = LmdbEnvFactory::new_null().create_env("/nulled/store.ldb")?;
+        let _ = LmdbStore::new(env)?;
         Ok(())
     }
 
     #[test]
     fn version_too_high_for_upgrade() -> anyhow::Result<()> {
-        let file = TestDbFile::random();
-        set_store_version(&file, i32::MAX)?;
-        assert_upgrade_fails(&file.path, "version too high");
+        let env = LmdbEnv::new_null();
+        set_store_version(&env, i32::MAX)?;
+        assert_upgrade_fails(env, "version too high");
         Ok(())
     }
 
     #[test]
     fn version_too_low_for_upgrade() -> anyhow::Result<()> {
-        let file = TestDbFile::random();
-        set_store_version(&file, STORE_VERSION_MINIMUM - 1)?;
-        assert_upgrade_fails(&file.path, "version too low");
+        let env = LmdbEnv::new_null();
+        set_store_version(&env, STORE_VERSION_MINIMUM - 1)?;
+        assert_upgrade_fails(env, "version too low");
         Ok(())
     }
 
     #[test]
     fn writes_db_version_for_new_store() {
-        let file = TestDbFile::random();
-        let store = LmdbStore::open(&file.path)
-            .build(&Default::default())
-            .unwrap();
+        let env = LmdbEnv::new_null();
+        let store = LmdbStore::new(env).unwrap();
         let txn = store.tx_begin_read();
         assert_eq!(store.version.get(&txn), Some(STORE_VERSION_MINIMUM));
     }
 
-    fn assert_upgrade_fails(path: &Path, error_msg: &str) {
-        match LmdbStore::open(path).build(&Default::default()) {
+    fn assert_upgrade_fails(env: LmdbEnv, error_msg: &str) {
+        let store = LmdbStore::new(env);
+        match store {
             Ok(_) => panic!("store should not be created!"),
             Err(e) => {
                 assert_eq!(e.to_string(), error_msg);
@@ -377,9 +315,8 @@ mod tests {
         }
     }
 
-    fn set_store_version(file: &TestDbFile, current_version: i32) -> Result<(), anyhow::Error> {
-        let env = Arc::new(LmdbEnvFactory::default().create_env(&file.path)?);
-        let version_store = LmdbVersionStore::new(&env)?;
+    fn set_store_version(env: &LmdbEnv, current_version: i32) -> Result<(), anyhow::Error> {
+        let version_store = LmdbVersionStore::new(env)?;
         let mut txn = env.tx_begin_write();
         version_store.put(&mut txn, current_version);
         Ok(())

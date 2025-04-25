@@ -1,12 +1,12 @@
 use rsnano_core::{Epochs, PublicKey, SavedBlock, Signature};
 use rsnano_ledger::LedgerConstants;
-use rsnano_store_lmdb::LmdbStore;
+use rsnano_store_lmdb::{LmdbBlockStore, LmdbEnvFactory};
 use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::{
         mpsc::{self, SyncSender},
-        Arc, Mutex,
+        Mutex,
     },
     thread::{self, available_parallelism},
 };
@@ -23,13 +23,11 @@ fn main() {
 }
 
 fn check_ledger_file(ledger_file: impl AsRef<Path>) {
-    let store = Arc::new(
-        LmdbStore::open(ledger_file.as_ref())
-            .build(&Default::default())
-            .unwrap(),
-    );
-    let tx = store.tx_begin_read();
-    let total_blocks = store.block.count(&tx);
+    let env = LmdbEnvFactory::default().create_env(ledger_file).unwrap();
+    let block_store = LmdbBlockStore::new(&env).unwrap();
+
+    let tx = env.tx_begin_read();
+    let total_blocks = block_store.count(&tx);
     let mut checked: u64 = 0;
     let problematic = Mutex::new(Vec::new());
     let epochs = LedgerConstants::live().epochs;
@@ -54,7 +52,7 @@ fn check_ledger_file(ledger_file: impl AsRef<Path>) {
         }
 
         println!("Checking signatures...");
-        for block in store.block.iter(&tx) {
+        for block in block_store.iter(&tx) {
             if checked % 100_000 == 0 {
                 print!(
                     "\r{}% done - {} found",

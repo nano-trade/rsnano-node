@@ -400,7 +400,7 @@ fn block_confirmed() {
 #[test]
 fn ledger_cache() {
     let env = LmdbEnv::new_null_with().build();
-    let store = LmdbStore::new_with_env(env).unwrap();
+    let store = LmdbStore::new(env).unwrap();
     {
         let mut tx = store.env.tx_begin_write();
         store.pruned.put(&mut tx, &1.into());

@@ -36,6 +36,7 @@ pub use peer_store::*;
 pub use pending_store::{ConfiguredPendingDatabaseBuilder, LmdbPendingStore};
 pub use pruned_store::{ConfiguredPrunedDatabaseBuilder, LmdbPrunedStore};
 pub use rep_weight_store::*;
+pub use rsnano_nullable_lmdb::EnvironmentOptions;
 use rsnano_nullable_lmdb::{
     InactiveTransaction, LmdbDatabase, LmdbEnvironment, RoCursor, RoTransaction, RwTransaction,
 };
