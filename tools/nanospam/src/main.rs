@@ -17,23 +17,15 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
-    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
-    let filter = EnvFilter::builder().parse_lossy(dirs);
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(filter)
-        .with_ansi(true)
-        .init();
+    setup_tracing();
 
     let node_addr: SocketAddrV6 = "[::1]:17075".parse()?;
-
-    let clock = Arc::new(SteadyClock::default());
     let node_id_key = PrivateKey::from(42);
-    let syn_cookies = Arc::new(SynCookies::default());
-    let stats2 = Arc::new(HandshakeStats::default());
     let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
-    let genesis_block_json =
-        std::env::var("NANO_TEST_GENESIS_BLOCK").expect("Genesis block not set");
-    let genesis_block: Block = serde_json::from_str(&genesis_block_json).unwrap();
+    let genesis_hash = get_genesis_hash_from_env()?;
+
+    // Unimportant details
+    //--------------------------------------------------------------------------------
 
     let network = Arc::new(RwLock::new(Network::new(NetworkConfig::default_for(
         Networks::NanoTestNetwork,
@@ -43,6 +35,8 @@ async fn main() -> anyhow::Result<()> {
     let inbound_queue = Arc::new(InboundMessageQueue::new(1024, stats.clone()));
     let network_filter = Arc::new(NetworkFilter::default());
     let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
+    let syn_cookies = Arc::new(SynCookies::default());
+    let stats2 = Arc::new(HandshakeStats::default());
 
     let receiver_factory = Box::new(NanoDataReceiverFactory::new(
         &network,
@@ -53,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
         syn_cookies,
         node_id_key,
         latest_keepalives,
-        genesis_block.hash(),
+        genesis_hash,
         protocol,
     ));
 
@@ -62,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap()
         .set_data_receiver_factory(receiver_factory);
 
+    let clock = Arc::new(SteadyClock::default());
     let network_adapter = Arc::new(TcpNetworkAdapter::new(
         network.clone(),
         clock.clone(),
@@ -74,6 +69,8 @@ async fn main() -> anyhow::Result<()> {
         tokio::runtime::Handle::current(),
     );
 
+    //--------------------------------------------------------------------------------
+
     connector.connect_to(node_addr)?;
 
     spawn_blocking(move || loop {
@@ -85,4 +82,20 @@ async fn main() -> anyhow::Result<()> {
     })
     .await?;
     Ok(())
+}
+
+fn setup_tracing() {
+    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
+    let filter = EnvFilter::builder().parse_lossy(dirs);
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(filter)
+        .with_ansi(true)
+        .init();
+}
+
+fn get_genesis_hash_from_env() -> anyhow::Result<BlockHash> {
+    let genesis_block_json =
+        std::env::var("NANO_TEST_GENESIS_BLOCK").expect("Genesis block not set");
+    let genesis_block: Block = serde_json::from_str(&genesis_block_json).unwrap();
+    Ok(genesis_block.hash())
 }
