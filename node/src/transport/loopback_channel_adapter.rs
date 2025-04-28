@@ -5,7 +5,6 @@ use rsnano_core::{Networks, NodeId, ProtocolInfo};
 use rsnano_messages::MessageDeserializer;
 use rsnano_network::Channel;
 use rsnano_network_protocol::InboundMessageQueue;
-use rsnano_work::WorkThresholds;
 
 pub(crate) async fn run_loopback_channel_adapter(
     loopback: Arc<Channel>,
@@ -15,8 +14,7 @@ pub(crate) async fn run_loopback_channel_adapter(
 ) {
     loopback.set_node_id(node_id);
     let protocol = ProtocolInfo::default_for(network);
-    let work_thresholds = WorkThresholds::default_for(network);
-    let mut deserializer = MessageDeserializer::new(protocol, None, work_thresholds);
+    let mut deserializer = MessageDeserializer::new(protocol, None);
     loop {
         let res = select! {
             _ = loopback.cancelled() =>{

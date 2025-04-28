@@ -1,7 +1,6 @@
 use std::{collections::VecDeque, io::Read, sync::Arc};
 
 use rsnano_core::ProtocolInfo;
-use rsnano_work::WorkThresholds;
 
 use crate::{
     validate_header, DeserializedMessage, Message, MessageHeader, MessageType, NetworkFilter,
@@ -12,21 +11,15 @@ pub struct MessageDeserializer {
     buffer: VecDeque<u8>,
     current_header: Option<MessageHeader>,
     network_filter: Option<Arc<NetworkFilter>>,
-    work_thresholds: WorkThresholds,
     protocol: ProtocolInfo,
 }
 
 impl MessageDeserializer {
-    pub fn new(
-        protocol: ProtocolInfo,
-        network_filter: Option<Arc<NetworkFilter>>,
-        work_thresholds: WorkThresholds,
-    ) -> Self {
+    pub fn new(protocol: ProtocolInfo, network_filter: Option<Arc<NetworkFilter>>) -> Self {
         Self {
             buffer: VecDeque::with_capacity(Message::MAX_MESSAGE_SIZE),
             current_header: None,
             network_filter,
-            work_thresholds,
             protocol,
         }
     }
@@ -99,25 +92,7 @@ impl MessageDeserializer {
             return Err(ParseMessageError::InvalidMessage(header.message_type));
         };
 
-        self.validate_work(&message)?;
         Ok(DeserializedMessage::new(message, header.protocol))
-    }
-
-    fn validate_work(&self, message: &Message) -> Result<(), ParseMessageError> {
-        let block = match message {
-            Message::Publish(msg) => Some(&msg.block),
-            _ => None,
-        };
-
-        if let Some(block) = block {
-            // work is checked multiple times - here and in the block processor and maybe
-            // even more... TODO eliminate duplicate work checks
-            if !self.work_thresholds.validate_entry_block(block) {
-                return Err(ParseMessageError::InsufficientWork);
-            }
-        }
-
-        Ok(())
     }
 
     /// Early filtering to not waste time deserializing duplicate blocks
@@ -289,20 +264,6 @@ mod tests {
             );
         }
 
-        #[test]
-        fn insufficient_work() {
-            let mut deserializer = create_deserializer();
-
-            let mut publish = Publish::new_test_instance();
-            publish.block.set_work(0.into());
-            let message = Message::Publish(publish);
-
-            deserializer.push(&message_bytes(&message));
-            let result = deserializer.try_deserialize().unwrap();
-
-            assert_eq!(result, Err(ParseMessageError::InsufficientWork));
-        }
-
         // Send two publish messages and asserts that the duplication is detected.
         #[test]
         fn duplicate_publish_message() {
@@ -357,10 +318,6 @@ mod tests {
 
     fn create_deserializer() -> MessageDeserializer {
         let filter = Arc::new(NetworkFilter::default());
-        MessageDeserializer::new(
-            ProtocolInfo::default(),
-            Some(filter),
-            WorkThresholds::publish_dev().clone(),
-        )
+        MessageDeserializer::new(ProtocolInfo::default(), Some(filter))
     }
 }

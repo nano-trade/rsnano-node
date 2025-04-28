@@ -10,8 +10,6 @@ use rsnano_network_protocol::{
     SynCookies,
 };
 
-use rsnano_work::WorkThresholds;
-
 pub(crate) struct NanoDataReceiverFactory {
     stats: Arc<Stats>,
     stats2: Arc<HandshakeStats>,
@@ -23,7 +21,6 @@ pub(crate) struct NanoDataReceiverFactory {
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     genesis_hash: BlockHash,
     protocol: ProtocolInfo,
-    work_thresholds: WorkThresholds,
 }
 
 impl NanoDataReceiverFactory {
@@ -38,7 +35,6 @@ impl NanoDataReceiverFactory {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         genesis_hash: BlockHash,
         protocol: ProtocolInfo,
-        work_thresholds: WorkThresholds,
     ) -> Self {
         Self {
             network: Arc::downgrade(network),
@@ -51,7 +47,6 @@ impl NanoDataReceiverFactory {
             latest_keepalives,
             genesis_hash,
             protocol,
-            work_thresholds,
         }
     }
 }
@@ -66,11 +61,8 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             self.protocol,
         );
 
-        let message_deserializer = MessageDeserializer::new(
-            self.protocol,
-            Some(self.network_filter.clone()),
-            self.work_thresholds.clone(),
-        );
+        let message_deserializer =
+            MessageDeserializer::new(self.protocol, Some(self.network_filter.clone()));
 
         let mut receiver = NanoDataReceiver::new(
             channel,

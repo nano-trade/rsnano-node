@@ -242,15 +242,6 @@ impl DataReceiver for NanoDataReceiver {
                     );
                     ReceiveResult::Continue
                 }
-                Err(ParseMessageError::InsufficientWork) => {
-                    // IO error or critical error when deserializing message
-                    self.stats.inc_dir(
-                        StatType::Error,
-                        DetailType::InsufficientWork,
-                        Direction::In,
-                    );
-                    ReceiveResult::Continue
-                }
                 Err(e) => {
                     // IO error or critical error when deserializing message
                     self.stats

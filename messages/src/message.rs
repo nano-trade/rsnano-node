@@ -41,7 +41,6 @@ impl From<&Message> for DetailType {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ParseMessageError {
     Other(String),
-    InsufficientWork,
     InvalidHeader,
     InvalidMessageType,
     InvalidMessage(MessageType),
@@ -57,7 +56,6 @@ impl From<&ParseMessageError> for DetailType {
     fn from(status: &ParseMessageError) -> Self {
         match status {
             ParseMessageError::Other(_) | ParseMessageError::Stopped => Self::All,
-            ParseMessageError::InsufficientWork => Self::InsufficientWork,
             ParseMessageError::InvalidHeader => Self::InvalidHeader,
             ParseMessageError::InvalidMessageType => Self::InvalidMessageType,
             ParseMessageError::InvalidMessage(MessageType::Keepalive) => {

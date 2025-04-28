@@ -654,7 +654,6 @@ impl Node {
             latest_keepalives.clone(),
             network_params.ledger.genesis_block.hash(),
             network_params.network.protocol_info(),
-            network_params.work.clone(),
         ));
 
         network
