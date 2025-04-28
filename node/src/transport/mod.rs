@@ -5,7 +5,6 @@ mod loopback_channel_adapter;
 mod message_flooder;
 mod message_processor;
 mod message_sender;
-mod nano_data_receiver;
 mod nano_data_receiver_factory;
 mod network_threads;
 mod peer_cache_connector;

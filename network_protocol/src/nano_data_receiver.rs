@@ -7,12 +7,11 @@ use rsnano_messages::*;
 use rsnano_network::{
     Channel, ChannelDirection, ChannelMode, DataReceiver, Network, ReceiveResult,
 };
-use rsnano_network_protocol::{
-    HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
-};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-pub(crate) struct NanoDataReceiver {
+use crate::{HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives};
+
+pub struct NanoDataReceiver {
     channel: Arc<Channel>,
     handshake_process: HandshakeProcess,
     message_deserializer: MessageDeserializer,

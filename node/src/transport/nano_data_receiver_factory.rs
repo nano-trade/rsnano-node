@@ -1,19 +1,18 @@
 use std::sync::{Arc, Mutex, RwLock, Weak};
 
-use rsnano_core::PrivateKey;
+use rsnano_core::{BlockHash, PrivateKey, ProtocolInfo};
 use rsnano_messages::*;
 use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
 use rsnano_stats::Stats;
 
 use rsnano_network_protocol::{
-    HandshakeProcess, HandshakeStats, InboundMessageQueue, LatestKeepalives, SynCookies,
+    HandshakeProcess, HandshakeStats, InboundMessageQueue, LatestKeepalives, NanoDataReceiver,
+    SynCookies,
 };
 
-use super::nano_data_receiver::NanoDataReceiver;
-use crate::config::NetworkParams;
+use rsnano_work::WorkThresholds;
 
 pub(crate) struct NanoDataReceiverFactory {
-    network_params: Arc<NetworkParams>,
     stats: Arc<Stats>,
     stats2: Arc<HandshakeStats>,
     network: Weak<RwLock<Network>>,
@@ -22,6 +21,9 @@ pub(crate) struct NanoDataReceiverFactory {
     syn_cookies: Arc<SynCookies>,
     node_id: PrivateKey,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+    genesis_hash: BlockHash,
+    protocol: ProtocolInfo,
+    work_thresholds: WorkThresholds,
 }
 
 impl NanoDataReceiverFactory {
@@ -29,23 +31,27 @@ impl NanoDataReceiverFactory {
         network: &Arc<RwLock<Network>>,
         inbound_queue: Arc<InboundMessageQueue>,
         network_filter: Arc<NetworkFilter>,
-        network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
         stats2: Arc<HandshakeStats>,
         syn_cookies: Arc<SynCookies>,
         node_id_key: PrivateKey,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+        genesis_hash: BlockHash,
+        protocol: ProtocolInfo,
+        work_thresholds: WorkThresholds,
     ) -> Self {
         Self {
             network: Arc::downgrade(network),
             inbound_queue,
             syn_cookies: syn_cookies.clone(),
             node_id: node_id_key.clone(),
-            network_params,
             stats: stats.clone(),
             stats2,
             network_filter,
             latest_keepalives,
+            genesis_hash,
+            protocol,
+            work_thresholds,
         }
     }
 }
@@ -53,17 +59,17 @@ impl NanoDataReceiverFactory {
 impl DataReceiverFactory for NanoDataReceiverFactory {
     fn create_receiver_for(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send> {
         let handshake_process = HandshakeProcess::new(
-            self.network_params.ledger.genesis_block.hash(),
+            self.genesis_hash,
             self.node_id.clone(),
             self.syn_cookies.clone(),
             self.stats2.clone(),
-            self.network_params.network.protocol_info(),
+            self.protocol,
         );
 
         let message_deserializer = MessageDeserializer::new(
-            self.network_params.network.protocol_info(),
+            self.protocol,
             Some(self.network_filter.clone()),
-            self.network_params.network.work.clone(),
+            self.work_thresholds.clone(),
         );
 
         let mut receiver = NanoDataReceiver::new(

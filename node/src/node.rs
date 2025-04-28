@@ -647,12 +647,14 @@ impl Node {
             &network,
             inbound_message_queue.clone(),
             network_filter.clone(),
-            Arc::new(network_params.clone()),
             stats.clone(),
             handshake_stats.clone(),
             syn_cookies.clone(),
             node_id_key.clone(),
             latest_keepalives.clone(),
+            network_params.ledger.genesis_block.hash(),
+            network_params.network.protocol_info(),
+            network_params.work.clone(),
         ));
 
         network
