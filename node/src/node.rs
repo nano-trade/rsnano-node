@@ -77,7 +77,7 @@ use crate::{
         run_loopback_channel_adapter, BlockFlooder, InboundMessageQueue,
         InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup, MessageFlooder,
         MessageProcessor, MessageSender, NanoDataReceiverFactory, NetworkThreads,
-        PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
+        PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler,
     },
     utils::{
         spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
@@ -87,6 +87,7 @@ use crate::{
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
+use rsnano_network_protocol::SynCookies;
 use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;
 

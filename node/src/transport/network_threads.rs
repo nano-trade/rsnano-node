@@ -9,8 +9,9 @@ use rsnano_network::{DeadChannelCleanup, Network, NetworkConfig, PeerConnector, 
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder, SynCookies};
+use super::{keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder};
 use crate::config::{NetworkParams, NodeFlags};
+use rsnano_network_protocol::SynCookies;
 
 pub(crate) struct NetworkThreads {
     cleanup_thread: Option<JoinHandle<()>>,

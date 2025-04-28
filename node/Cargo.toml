@@ -15,6 +15,7 @@ rsnano_work = { path = "../work" }
 rsnano_stats = { path = "../stats" }
 rsnano_messages = { path = "../messages" }
 rsnano_network = { path = "../network" }
+rsnano_network_protocol = { path = "../network_protocol" }
 rsnano_store_lmdb = { path = "../store_lmdb" }
 rsnano_output_tracker = { path = "../nullables/output_tracker" }
 rsnano_nullable_fs = { path = "../nullables/fs" }

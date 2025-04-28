@@ -1,0 +1,10 @@
+[package]
+name = "nanospam"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rsnano_core = { path = "../../core" }
+rsnano_messages = { path = "../../messages" }
+anyhow = "1.0.98"
+tokio = { version = "1.44.2", features = ["macros", "rt", "net", "io-util"] }

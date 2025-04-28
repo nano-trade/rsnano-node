@@ -14,7 +14,6 @@ mod network_threads;
 mod peer_cache_connector;
 mod peer_cache_updater;
 mod realtime_message_handler;
-mod syn_cookies;
 mod vec_buffer_reader;
 
 pub use block_deserializer::read_block;
@@ -31,5 +30,4 @@ pub(crate) use network_threads::*;
 pub use peer_cache_connector::*;
 pub use peer_cache_updater::*;
 pub use realtime_message_handler::RealtimeMessageHandler;
-pub use syn_cookies::SynCookies;
 pub use vec_buffer_reader::VecBufferReader;

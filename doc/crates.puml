@@ -6,6 +6,7 @@
 [store_lmdb]
 [messages]
 [network]
+[network_protocol]
 [daemon]
 [node]
 [main]
@@ -36,6 +37,9 @@ folder "nullables"{
 [node] --> [ledger]
 [node] --> [messages]
 [node] --> [network]
+[node] --> [network_protocol]
+[network_protocol] --> messages
+[network_protocol] --> network
 [websocket_server] --> [websocket_messages]
 [websocket_server] --> [node]
 [websocket_messages] --> [core]

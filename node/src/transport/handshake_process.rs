@@ -13,9 +13,8 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
 };
 use rsnano_network::{Channel, TrafficType};
+use rsnano_network_protocol::SynCookies;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
-
-use super::SynCookies;
 
 pub enum HandshakeStatus {
     Abort,

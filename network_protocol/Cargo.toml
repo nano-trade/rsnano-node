@@ -1,0 +1,12 @@
+[package]
+name = "rsnano_network_protocol"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rsnano_core = { path = "../core" }
+rsnano_stats = { path = "../stats" }
+rsnano_messages = { path = "../messages" }
+rsnano_network = { path = "../network" }
+anyhow = "1"
+rand = { version = "0.9.1" }
