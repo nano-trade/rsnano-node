@@ -17,7 +17,6 @@ mod ledger_sets;
 mod rep_weight_cache;
 mod rep_weights_updater;
 mod representative_block_finder;
-#[cfg(test)]
 pub mod test_helpers;
 mod vote_verifier;
 
