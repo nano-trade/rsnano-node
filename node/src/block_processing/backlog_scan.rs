@@ -249,10 +249,11 @@ impl BacklogScanLoop {
 
             result.next = account.inc_or_max();
             if result.len() >= batch_size {
+                result.done = it.next().is_none();
                 break;
             }
         }
-        result.done = it.next().is_none();
+
         result
     }
 
