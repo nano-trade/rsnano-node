@@ -75,8 +75,8 @@ use crate::{
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
         run_loopback_channel_adapter, BlockFlooder, MessageFlooder, MessageProcessor,
-        MessageSender, NanoDataReceiverFactory, NetworkThreads, PeerCacheConnector,
-        PeerCacheUpdater, RealtimeMessageHandler,
+        MessageSender, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
+        RealtimeMessageHandler,
     },
     utils::{
         spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
@@ -88,7 +88,7 @@ use crate::{
 };
 use rsnano_network_protocol::{
     HandshakeStats, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
-    LatestKeepalivesCleanup, SynCookies,
+    LatestKeepalivesCleanup, NanoDataReceiverFactory, SynCookies,
 };
 use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;

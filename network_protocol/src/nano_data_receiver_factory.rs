@@ -5,12 +5,12 @@ use rsnano_messages::*;
 use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
 use rsnano_stats::Stats;
 
-use rsnano_network_protocol::{
+use crate::{
     HandshakeProcess, HandshakeStats, InboundMessageQueue, LatestKeepalives, NanoDataReceiver,
     SynCookies,
 };
 
-pub(crate) struct NanoDataReceiverFactory {
+pub struct NanoDataReceiverFactory {
     stats: Arc<Stats>,
     stats2: Arc<HandshakeStats>,
     network: Weak<RwLock<Network>>,

@@ -104,8 +104,9 @@ impl HandshakeProcess {
         if message.query.is_none() && message.response.is_none() {
             self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
             debug!(
-                "Invalid handshake message received ({})",
-                channel.peer_addr()
+                peer = %channel.peer_addr(),
+                ?message,
+                "Invalid handshake message received",
             );
             return HandshakeStatus::Abort;
         }
@@ -162,9 +163,10 @@ impl HandshakeProcess {
                     self.stats.errors[e as usize].fetch_add(1, Ordering::Relaxed);
                     self.stats.response_invalid.fetch_add(1, Ordering::Relaxed);
                     warn!(
-                        "Invalid handshake response received ({}, {:?})",
-                        channel.peer_addr(),
-                        e
+                        peer = %channel.peer_addr(),
+                        error = ?e,
+                        ?response,
+                        "Invalid handshake response received",
                     );
                     return HandshakeStatus::Abort;
                 }

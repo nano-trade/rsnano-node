@@ -1,37 +1,66 @@
-use rsnano_core::{BlockHash, Networks, PrivateKey, ProtocolInfo};
-use rsnano_network::{ChannelDirection, Network, NetworkConfig, TcpNetworkAdapter};
-use rsnano_network_protocol::{HandshakeProcess, HandshakeStats, SynCookies};
-use rsnano_nullable_clock::SteadyClock;
-use rsnano_nullable_tcp::TcpStream;
-use std::{
-    net::{SocketAddr, SocketAddrV6},
-    sync::{Arc, RwLock},
+use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
+use rsnano_messages::NetworkFilter;
+use rsnano_network::{Network, NetworkConfig, PeerConnector, TcpNetworkAdapter};
+use rsnano_network_protocol::{
+    HandshakeStats, InboundMessageQueue, LatestKeepalives, NanoDataReceiverFactory, SynCookies,
 };
-use tokio::net::TcpSocket;
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_stats::Stats;
+use std::{
+    net::SocketAddrV6,
+    sync::{Arc, Mutex, RwLock},
+    time::Duration,
+};
+use tokio::task::spawn_blocking;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
+    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
+    let filter = EnvFilter::builder().parse_lossy(dirs);
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(filter)
+        .with_ansi(true)
+        .init();
+
     let node_addr: SocketAddrV6 = "[::1]:17075".parse()?;
 
     let clock = Arc::new(SteadyClock::default());
-    let socket = TcpSocket::new_v6()?;
-    let stream = socket.connect(SocketAddr::V6(node_addr)).await?;
-    let stream = TcpStream::new(stream);
-    println!("Connected!");
-
     let node_id_key = PrivateKey::from(42);
     let syn_cookies = Arc::new(SynCookies::default());
-    let stats = Arc::new(HandshakeStats::default());
+    let stats2 = Arc::new(HandshakeStats::default());
     let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
-    let genesis_hash = BlockHash::decode_hex(
-        std::env::var("NANO_TEST_GENESIS_PUB").expect("Genesis pub key not set"),
-    )
-    .unwrap();
+    let genesis_block_json =
+        std::env::var("NANO_TEST_GENESIS_BLOCK").expect("Genesis block not set");
+    let genesis_block: Block = serde_json::from_str(&genesis_block_json).unwrap();
 
-    let mut network = Network::new(NetworkConfig::default_for(Networks::NanoTestNetwork));
-    //network.set_data_receiver_factory(Box::new());
+    let network = Arc::new(RwLock::new(Network::new(NetworkConfig::default_for(
+        Networks::NanoTestNetwork,
+    ))));
 
-    let network = Arc::new(RwLock::new(network));
+    let stats = Arc::new(Stats::default());
+    let inbound_queue = Arc::new(InboundMessageQueue::new(1024, stats.clone()));
+    let network_filter = Arc::new(NetworkFilter::default());
+    let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
+
+    let receiver_factory = Box::new(NanoDataReceiverFactory::new(
+        &network,
+        inbound_queue.clone(),
+        network_filter,
+        stats,
+        stats2,
+        syn_cookies,
+        node_id_key,
+        latest_keepalives,
+        genesis_block.hash(),
+        protocol,
+    ));
+
+    network
+        .write()
+        .unwrap()
+        .set_data_receiver_factory(receiver_factory);
 
     let network_adapter = Arc::new(TcpNetworkAdapter::new(
         network.clone(),
@@ -39,10 +68,21 @@ async fn main() -> anyhow::Result<()> {
         tokio::runtime::Handle::current(),
     ));
 
-    let channel = network_adapter.add(stream, ChannelDirection::Outbound)?;
+    let connector = PeerConnector::new(
+        Duration::from_secs(3),
+        network_adapter,
+        tokio::runtime::Handle::current(),
+    );
 
-    //let handshake_process =
-    //    HandshakeProcess::new(genesis_hash, node_id_key, syn_cookies, stats, protocol);
+    connector.connect_to(node_addr)?;
 
+    spawn_blocking(move || loop {
+        inbound_queue.wait_for_messages();
+        let batch = inbound_queue.next_batch(8);
+        for (_, (message, _)) in batch {
+            info!(?message, "received message");
+        }
+    })
+    .await?;
     Ok(())
 }

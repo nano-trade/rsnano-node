@@ -2885,7 +2885,12 @@ dependencies = [
  "rsnano_network_protocol",
  "rsnano_nullable_clock",
  "rsnano_nullable_tcp",
+ "rsnano_stats",
+ "serde",
+ "serde_json",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

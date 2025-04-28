@@ -19,6 +19,7 @@ use rsnano_stats::{StatsCollection, StatsSource};
 use std::{
     cmp::max,
     collections::HashMap,
+    error::Error,
     net::{Ipv6Addr, SocketAddrV6},
     sync::{atomic::Ordering, Arc},
     time::Duration,
@@ -96,6 +97,23 @@ pub enum NetworkError {
     /// We are already connected to that peer and we tried to connect a second time
     DuplicateConnection,
     Cancelled,
+}
+
+impl Error for NetworkError {}
+
+impl std::fmt::Display for NetworkError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            NetworkError::MaxConnections => "Max connections reached",
+            NetworkError::MaxConnectionsPerSubnetwork => "Max connections per subnet reached",
+            NetworkError::MaxConnectionsPerIp => "Max connections per IP reached",
+            NetworkError::PeerExcluded => "Peer excluded",
+            NetworkError::InvalidIp => "Invalid IP",
+            NetworkError::DuplicateConnection => "Duplicate connection",
+            NetworkError::Cancelled => "Cancelled",
+        };
+        write!(f, "{}", message)
+    }
 }
 
 pub struct Network {
