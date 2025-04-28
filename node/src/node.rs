@@ -87,7 +87,7 @@ use crate::{
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
-use rsnano_network_protocol::SynCookies;
+use rsnano_network_protocol::{HandshakeStats, SynCookies};
 use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;
 
@@ -106,7 +106,6 @@ pub struct Node {
     pub work_factory: Arc<WorkFactory>,
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
-    pub syn_cookies: Arc<SynCookies>,
     pub network: Arc<RwLock<Network>>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_responder: Arc<BootstrapResponder>,
@@ -640,6 +639,7 @@ impl Node {
 
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
+        let handshake_stats = Arc::new(HandshakeStats::default());
 
         let data_receiver_factory = Box::new(NanoDataReceiverFactory::new(
             &network,
@@ -647,6 +647,7 @@ impl Node {
             network_filter.clone(),
             Arc::new(network_params.clone()),
             stats.clone(),
+            handshake_stats.clone(),
             syn_cookies.clone(),
             node_id_key.clone(),
             latest_keepalives.clone(),
@@ -1160,13 +1161,14 @@ impl Node {
         stats_collector.add_source(election_schedulers.clone());
         stats_collector.add_source(network.clone());
         stats_collector.add_source(backlog_scan.stats());
+        stats_collector.add_source(handshake_stats);
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
         container_info.add("ledger", ledger.clone());
         container_info.add("active", active_elections.clone());
         container_info.add("network", network.clone());
-        container_info.add("syn_cookies", syn_cookies.clone());
+        container_info.add("syn_cookies", syn_cookies);
         container_info.add("telemetry", telemetry.clone());
         container_info.add("wallets", wallets.clone());
         container_info.add("vote_processor", vote_processor_queue.clone());
@@ -1202,7 +1204,6 @@ impl Node {
             work_factory,
             unchecked,
             telemetry,
-            syn_cookies,
             network,
             ledger,
             stats,

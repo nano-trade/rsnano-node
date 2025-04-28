@@ -11,3 +11,5 @@ rsnano_network = { path = "../network" }
 anyhow = "1"
 rand = { version = "0.9.1" }
 tracing = "0"
+strum = "0"
+strum_macros = "0"

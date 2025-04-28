@@ -13,9 +13,8 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
 };
 use rsnano_network::{Channel, TrafficType};
-use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::SynCookies;
+use crate::{handshake_stats::HandshakeStats, SynCookies};
 
 pub enum HandshakeStatus {
     Abort,
@@ -30,7 +29,7 @@ pub struct HandshakeProcess {
     genesis_hash: BlockHash,
     node_id: PrivateKey,
     syn_cookies: Arc<SynCookies>,
-    stats: Arc<Stats>,
+    stats: Arc<HandshakeStats>,
     handshake_received: AtomicBool,
     protocol: ProtocolInfo,
 }
@@ -40,14 +39,14 @@ impl HandshakeProcess {
         genesis_hash: BlockHash,
         node_id: PrivateKey,
         syn_cookies: Arc<SynCookies>,
-        stats: Arc<Stats>,
+        stats2: Arc<HandshakeStats>,
         protocol: ProtocolInfo,
     ) -> Self {
         Self {
             genesis_hash,
             node_id,
             syn_cookies,
-            stats,
+            stats: stats2,
             handshake_received: AtomicBool::new(false),
             protocol,
         }
@@ -59,13 +58,13 @@ impl HandshakeProcess {
             genesis_hash: BlockHash::from(1),
             node_id: PrivateKey::from(2),
             syn_cookies: Arc::new(SynCookies::new(1)),
-            stats: Arc::new(Stats::default()),
+            stats: Arc::new(HandshakeStats::default()),
             handshake_received: AtomicBool::new(false),
             protocol: ProtocolInfo::default(),
         }
     }
 
-    pub fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
+    pub fn initiate_handshake(&mut self, channel: &Channel) -> Result<(), ()> {
         let peer = channel.peer_addr();
         let query = self.prepare_query(&peer);
         if query.is_none() {
@@ -86,18 +85,11 @@ impl HandshakeProcess {
         let enqueued = channel.send(data, TrafficType::Generic);
 
         if enqueued {
-            self.stats
-                .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
-            self.stats.inc_dir(
-                StatType::TcpServer,
-                DetailType::HandshakeInitiate,
-                Direction::Out,
-            );
-
+            self.stats.handshakes_sent.fetch_add(1, Ordering::Relaxed);
+            self.stats.initiate.fetch_add(1, Ordering::Relaxed);
             Ok(())
         } else {
-            self.stats
-                .inc(StatType::TcpServer, DetailType::HandshakeNetworkError);
+            self.stats.network_error.fetch_add(1, Ordering::Relaxed);
             debug!(peer = %peer, "Could not enqueue handshake query");
             // Stop invalid handshake
             Err(())
@@ -110,11 +102,7 @@ impl HandshakeProcess {
         channel: &Channel,
     ) -> HandshakeStatus {
         if message.query.is_none() && message.response.is_none() {
-            self.stats.inc_dir(
-                StatType::TcpServer,
-                DetailType::HandshakeError,
-                Direction::In,
-            );
+            self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
             debug!(
                 "Invalid handshake message received ({})",
                 channel.peer_addr()
@@ -123,11 +111,7 @@ impl HandshakeProcess {
         }
         if message.query.is_some() && self.handshake_received.load(Ordering::SeqCst) {
             // Second handshake message should be a response only
-            self.stats.inc_dir(
-                StatType::TcpServer,
-                DetailType::HandshakeError,
-                Direction::In,
-            );
+            self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
             warn!(
                 "Detected multiple handshake queries ({})",
                 channel.peer_addr()
@@ -137,11 +121,9 @@ impl HandshakeProcess {
 
         self.handshake_received.store(true, Ordering::SeqCst);
 
-        self.stats.inc_dir(
-            StatType::TcpServer,
-            DetailType::NodeIdHandshake,
-            Direction::In,
-        );
+        self.stats
+            .handshakes_received
+            .fetch_add(1, Ordering::Relaxed);
 
         let log_type = match (message.query.is_some(), message.response.is_some()) {
             (true, true) => "query + response",
@@ -166,8 +148,7 @@ impl HandshakeProcess {
         if let Some(response) = &message.response {
             match self.verify_response(response, &channel.peer_addr()) {
                 Ok(()) => {
-                    self.stats
-                        .inc_dir(StatType::Handshake, DetailType::Ok, Direction::In);
+                    self.stats.response_ok.fetch_add(1, Ordering::Relaxed);
                     return HandshakeStatus::Realtime(response.node_id); // Switch to realtime
                 }
                 Err(HandshakeResponseError::OwnNodeId) => {
@@ -178,13 +159,8 @@ impl HandshakeProcess {
                     return HandshakeStatus::AbortOwnNodeId;
                 }
                 Err(e) => {
-                    self.stats
-                        .inc_dir(StatType::Handshake, e.into(), Direction::In);
-                    self.stats.inc_dir(
-                        StatType::TcpServer,
-                        DetailType::HandshakeResponseInvalid,
-                        Direction::In,
-                    );
+                    self.stats.errors[e as usize].fetch_add(1, Ordering::Relaxed);
+                    self.stats.response_invalid.fetch_add(1, Ordering::Relaxed);
                     warn!(
                         "Invalid handshake response received ({}, {:?})",
                         channel.peer_addr(),
@@ -220,20 +196,11 @@ impl HandshakeProcess {
         let enqueued = channel.send(buffer, TrafficType::Generic);
 
         if enqueued {
-            self.stats
-                .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
-            self.stats.inc_dir(
-                StatType::TcpServer,
-                DetailType::HandshakeResponse,
-                Direction::Out,
-            );
+            self.stats.handshakes_sent.fetch_add(1, Ordering::Relaxed);
+            self.stats.response_sent.fetch_add(1, Ordering::Relaxed);
             Ok(())
         } else {
-            self.stats.inc_dir(
-                StatType::TcpServer,
-                DetailType::HandshakeNetworkError,
-                Direction::In,
-            );
+            self.stats.network_error.fetch_add(1, Ordering::Relaxed);
             warn!(peer = %channel.peer_addr(), "Error sending handshake response");
             Err(anyhow!("Could now enqueue handshake response"))
         }
@@ -286,22 +253,11 @@ impl HandshakeProcess {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum HandshakeResponseError {
+#[derive(Debug, Clone, Copy, EnumCount, EnumIter)]
+pub(crate) enum HandshakeResponseError {
     /// The node tried to connect to itself
     OwnNodeId,
     InvalidGenesis,
     MissingCookie,
     InvalidSignature,
-}
-
-impl From<HandshakeResponseError> for DetailType {
-    fn from(value: HandshakeResponseError) -> Self {
-        match value {
-            HandshakeResponseError::OwnNodeId => Self::InvalidNodeId,
-            HandshakeResponseError::InvalidGenesis => Self::InvalidGenesis,
-            HandshakeResponseError::MissingCookie => Self::MissingCookie,
-            HandshakeResponseError::InvalidSignature => Self::InvalidSignature,
-        }
-    }
 }

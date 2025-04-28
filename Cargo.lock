@@ -4190,6 +4190,8 @@ dependencies = [
  "rsnano_messages",
  "rsnano_network",
  "rsnano_stats",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
  "tracing",
 ]
 

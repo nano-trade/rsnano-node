@@ -62,7 +62,7 @@ impl NanoDataReceiver {
         }
     }
 
-    fn initiate_handshake(&self) {
+    fn initiate_handshake(&mut self) {
         if self
             .handshake_process
             .initiate_handshake(&self.channel)
