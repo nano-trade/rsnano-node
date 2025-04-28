@@ -1,7 +1,3 @@
-use super::{InboundMessageQueue, RealtimeMessageHandler};
-use crate::config::NodeConfig;
-use rsnano_messages::Message;
-use rsnano_network::{Channel, ChannelId};
 use std::{
     cmp::{max, min},
     collections::VecDeque,
@@ -12,7 +8,15 @@ use std::{
     thread::JoinHandle,
     time::Instant,
 };
+
 use tracing::debug;
+
+use rsnano_messages::Message;
+use rsnano_network::{Channel, ChannelId};
+use rsnano_network_protocol::InboundMessageQueue;
+
+use super::RealtimeMessageHandler;
+use crate::config::NodeConfig;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MessageProcessorConfig {

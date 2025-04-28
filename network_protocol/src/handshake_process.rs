@@ -39,14 +39,14 @@ impl HandshakeProcess {
         genesis_hash: BlockHash,
         node_id: PrivateKey,
         syn_cookies: Arc<SynCookies>,
-        stats2: Arc<HandshakeStats>,
+        stats: Arc<HandshakeStats>,
         protocol: ProtocolInfo,
     ) -> Self {
         Self {
             genesis_hash,
             node_id,
             syn_cookies,
-            stats: stats2,
+            stats,
             handshake_received: AtomicBool::new(false),
             protocol,
         }

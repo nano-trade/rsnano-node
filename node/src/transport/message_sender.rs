@@ -5,10 +5,9 @@ use tracing::trace;
 use rsnano_core::ProtocolInfo;
 use rsnano_messages::{Message, MessageSerializer};
 use rsnano_network::{Channel, ChannelId, TrafficType};
+use rsnano_network_protocol::MessageCallback;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{Direction, StatType, Stats};
-
-pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 
 /// Sends messages via a given channel to a peered node
 #[derive(Clone)]

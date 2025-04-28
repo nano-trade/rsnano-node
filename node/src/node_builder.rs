@@ -1,16 +1,18 @@
+use std::{
+    path::PathBuf,
+    sync::{mpsc::SyncSender, Arc},
+};
+
+use rsnano_core::{utils::get_cpu_count, Networks};
+use rsnano_messages::Message;
+use rsnano_network::ChannelId;
+use rsnano_network_protocol::MessageCallback;
+
 use crate::{
     config::{
         get_node_toml_config_path, DaemonConfig, DaemonToml, NetworkParams, NodeConfig, NodeFlags,
     },
-    transport::MessageCallback,
     working_path_for, Node, NodeArgs, NodeEvent,
-};
-use rsnano_core::{utils::get_cpu_count, Networks};
-use rsnano_messages::Message;
-use rsnano_network::ChannelId;
-use std::{
-    path::PathBuf,
-    sync::{mpsc::SyncSender, Arc},
 };
 
 #[derive(Default)]

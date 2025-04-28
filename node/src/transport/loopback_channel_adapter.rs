@@ -1,10 +1,11 @@
-use super::InboundMessageQueue;
+use std::sync::Arc;
+use tokio::select;
+
 use rsnano_core::{Networks, NodeId, ProtocolInfo};
 use rsnano_messages::MessageDeserializer;
 use rsnano_network::Channel;
+use rsnano_network_protocol::InboundMessageQueue;
 use rsnano_work::WorkThresholds;
-use std::sync::Arc;
-use tokio::select;
 
 pub(crate) async fn run_loopback_channel_adapter(
     loopback: Arc<Channel>,

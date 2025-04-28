@@ -1,6 +1,6 @@
 use crate::{
-    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DeadChannelCleanupStep, Network,
-    NetworkError, ReceiveResult, TcpChannelAdapter,
+    utils::into_ipv6_socket_address, Channel, ChannelDirection, ChannelId, DeadChannelCleanupStep,
+    Network, NetworkError, ReceiveResult, TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -53,7 +53,11 @@ impl TcpNetworkAdapter {
         !network.is_inbound_slot_available() && !network.is_stopped()
     }
 
-    pub fn add(&self, stream: TcpStream, direction: ChannelDirection) -> anyhow::Result<()> {
+    pub fn add(
+        &self,
+        stream: TcpStream,
+        direction: ChannelDirection,
+    ) -> anyhow::Result<Arc<Channel>> {
         let peer_addr = stream
             .peer_addr()
             .map(into_ipv6_socket_address)
@@ -81,6 +85,8 @@ impl TcpNetworkAdapter {
             .insert(channel_id, channel_adapter.clone());
 
         debug!(?peer_addr, ?direction, "Accepted connection");
+
+        let channel = channel_adapter.channel.clone();
 
         self.tokio.spawn(async move {
             let channel = channel_adapter.channel.clone();
@@ -134,7 +140,7 @@ impl TcpNetworkAdapter {
             }
         });
 
-        Ok(())
+        Ok(channel)
     }
 
     pub fn add_outbound_attempt(&self, peer: SocketAddrV6) -> Result<(), NetworkError> {

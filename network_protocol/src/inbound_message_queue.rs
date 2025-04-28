@@ -8,7 +8,7 @@ use rsnano_messages::Message;
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::MessageCallback;
+use crate::MessageCallback;
 
 pub struct InboundMessageQueue {
     state: Mutex<State>,
@@ -72,7 +72,7 @@ impl InboundMessageQueue {
         added
     }
 
-    pub(crate) fn next_batch(
+    pub fn next_batch(
         &self,
         max_batch_size: usize,
     ) -> VecDeque<(ChannelId, (Message, Arc<Channel>))> {

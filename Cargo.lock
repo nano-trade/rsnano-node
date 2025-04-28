@@ -2881,6 +2881,10 @@ dependencies = [
  "anyhow",
  "rsnano_core",
  "rsnano_messages",
+ "rsnano_network",
+ "rsnano_network_protocol",
+ "rsnano_nullable_clock",
+ "rsnano_nullable_tcp",
  "tokio",
 ]
 
