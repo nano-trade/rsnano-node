@@ -61,12 +61,12 @@ impl LatestKeepalives {
     }
 }
 
-pub(crate) struct LatestKeepalivesCleanup {
+pub struct LatestKeepalivesCleanup {
     keepalives: Arc<Mutex<LatestKeepalives>>,
 }
 
 impl LatestKeepalivesCleanup {
-    pub(crate) fn new(keepalives: Arc<Mutex<LatestKeepalives>>) -> Self {
+    pub fn new(keepalives: Arc<Mutex<LatestKeepalives>>) -> Self {
         Self { keepalives }
     }
 }

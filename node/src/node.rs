@@ -74,9 +74,9 @@ use crate::{
     tokio_runner::TokioRunner,
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
-        run_loopback_channel_adapter, BlockFlooder, LatestKeepalives, LatestKeepalivesCleanup,
-        MessageFlooder, MessageProcessor, MessageSender, NanoDataReceiverFactory, NetworkThreads,
-        PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler,
+        run_loopback_channel_adapter, BlockFlooder, MessageFlooder, MessageProcessor,
+        MessageSender, NanoDataReceiverFactory, NetworkThreads, PeerCacheConnector,
+        PeerCacheUpdater, RealtimeMessageHandler,
     },
     utils::{
         spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
@@ -87,7 +87,8 @@ use crate::{
     NodeCallbacks, OnlineWeightSampler,
 };
 use rsnano_network_protocol::{
-    HandshakeStats, InboundMessageQueue, InboundMessageQueueCleanup, SynCookies,
+    HandshakeStats, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
+    LatestKeepalivesCleanup, SynCookies,
 };
 use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;
