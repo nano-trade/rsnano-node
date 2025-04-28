@@ -28,9 +28,10 @@ async fn main() -> anyhow::Result<()> {
     )
     .unwrap();
 
-    let network = Arc::new(RwLock::new(Network::new(NetworkConfig::default_for(
-        Networks::NanoTestNetwork,
-    ))));
+    let mut network = Network::new(NetworkConfig::default_for(Networks::NanoTestNetwork));
+    //network.set_data_receiver_factory(Box::new());
+
+    let network = Arc::new(RwLock::new(network));
 
     let network_adapter = Arc::new(TcpNetworkAdapter::new(
         network.clone(),

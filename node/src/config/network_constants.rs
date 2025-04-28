@@ -40,8 +40,6 @@ pub struct NetworkConstants {
     pub vote_broadcast_interval: Duration,
     pub block_broadcast_interval: Duration,
 
-    /** We do not reply to telemetry requests made within cooldown period */
-    pub telemetry_request_cooldown: Duration,
     /** How often to request telemetry from peers */
     pub telemetry_request_interval_ms: i64,
     /** How often to broadcast telemetry to peers */
@@ -107,7 +105,6 @@ impl NetworkConstants {
             silent_connection_tolerance_time_s: 120,
             vote_broadcast_interval: Duration::from_secs(15),
             block_broadcast_interval: Duration::from_secs(150),
-            telemetry_request_cooldown: Duration::from_secs(15),
             telemetry_request_interval_ms: 1000 * 60,
             telemetry_broadcast_interval_ms: 1000 * 60,
             telemetry_cache_cutoff_ms: 1000 * 130, //  2 * `telemetry_broadcast_interval` + some margin
@@ -171,7 +168,6 @@ impl NetworkConstants {
             peer_dump_interval: Duration::from_secs(1),
             vote_broadcast_interval: Duration::from_millis(500),
             block_broadcast_interval: Duration::from_millis(500),
-            telemetry_request_cooldown: Duration::from_millis(500),
             telemetry_cache_cutoff_ms: 2000,
             telemetry_request_interval_ms: 500,
             telemetry_broadcast_interval_ms: 500,

@@ -5,11 +5,12 @@ use rsnano_messages::*;
 use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
 use rsnano_stats::Stats;
 
-use super::nano_data_receiver::NanoDataReceiver;
-use crate::config::NetworkParams;
 use rsnano_network_protocol::{
     HandshakeProcess, HandshakeStats, InboundMessageQueue, LatestKeepalives, SynCookies,
 };
+
+use super::nano_data_receiver::NanoDataReceiver;
+use crate::config::NetworkParams;
 
 pub(crate) struct NanoDataReceiverFactory {
     network_params: Arc<NetworkParams>,
@@ -67,7 +68,6 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
 
         let mut receiver = NanoDataReceiver::new(
             channel,
-            self.network_params.clone(),
             handshake_process,
             message_deserializer,
             self.inbound_queue.clone(),

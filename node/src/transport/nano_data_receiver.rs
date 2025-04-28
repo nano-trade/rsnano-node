@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, Mutex, RwLock, Weak},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 
 use tracing::debug;
 
@@ -15,15 +12,11 @@ use rsnano_network_protocol::{
 };
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::config::NetworkParams;
-
 pub(crate) struct NanoDataReceiver {
     channel: Arc<Channel>,
     handshake_process: HandshakeProcess,
     message_deserializer: MessageDeserializer,
     inbound_queue: Arc<InboundMessageQueue>,
-    last_telemetry_req: Mutex<Option<Instant>>,
-    network_params: Arc<NetworkParams>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     stats: Arc<Stats>,
     network: Weak<RwLock<Network>>,
@@ -34,7 +27,6 @@ pub(crate) struct NanoDataReceiver {
 impl NanoDataReceiver {
     pub fn new(
         channel: Arc<Channel>,
-        network_params: Arc<NetworkParams>,
         handshake_process: HandshakeProcess,
         message_deserializer: MessageDeserializer,
         inbound_queue: Arc<InboundMessageQueue>,
@@ -47,8 +39,6 @@ impl NanoDataReceiver {
             handshake_process,
             message_deserializer,
             inbound_queue,
-            last_telemetry_req: Mutex::new(None),
-            network_params,
             latest_keepalives,
             stats,
             network,
@@ -78,21 +68,6 @@ impl NanoDataReceiver {
         // TODO: Throttle if not added
     }
 
-    fn is_outside_cooldown_period(&self) -> bool {
-        let lock = self.last_telemetry_req.lock().unwrap();
-        match *lock {
-            Some(last_req) => {
-                last_req.elapsed() >= self.network_params.network.telemetry_request_cooldown
-            }
-            None => true,
-        }
-    }
-
-    fn set_last_telemetry_req(&self) {
-        let mut lk = self.last_telemetry_req.lock().unwrap();
-        *lk = Some(Instant::now());
-    }
-
     fn set_last_keepalive(&self, keepalive: Keepalive) {
         self.latest_keepalives
             .lock()
@@ -113,20 +88,6 @@ impl NanoDataReceiver {
             | Message::ConfirmReq(_)
             | Message::FrontierReq(_)
             | Message::TelemetryAck(_) => true,
-            Message::TelemetryReq => {
-                // Only handle telemetry requests if they are outside of the cooldown period
-                if self.is_outside_cooldown_period() {
-                    self.set_last_telemetry_req();
-                    true
-                } else {
-                    self.stats.inc_dir(
-                        StatType::Telemetry,
-                        DetailType::RequestWithinProtectionCacheZone,
-                        Direction::In,
-                    );
-                    false
-                }
-            }
             _ => false,
         };
 
