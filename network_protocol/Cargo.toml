@@ -10,3 +10,4 @@ rsnano_messages = { path = "../messages" }
 rsnano_network = { path = "../network" }
 anyhow = "1"
 rand = { version = "0.9.1" }
+tracing = "0"

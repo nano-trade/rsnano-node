@@ -46,10 +46,8 @@ pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
 pub use write_queue::*;
 
 use primitive_types::U256;
-use rsnano_core::utils::get_cpu_count;
 use std::{
     any::Any,
-    cmp::{max, min},
     mem,
     sync::Arc,
     time::{Duration, Instant},

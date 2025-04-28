@@ -10,9 +10,10 @@ use rsnano_messages::*;
 use rsnano_network::{
     Channel, ChannelDirection, ChannelMode, DataReceiver, Network, ReceiveResult,
 };
+use rsnano_network_protocol::{HandshakeProcess, HandshakeStatus};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use super::{HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives};
+use super::{InboundMessageQueue, LatestKeepalives};
 use crate::config::NetworkParams;
 
 pub(crate) struct NanoDataReceiver {

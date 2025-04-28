@@ -1,6 +1,5 @@
 mod block_deserializer;
 mod block_flooder;
-mod handshake_process;
 mod inbound_message_queue;
 pub mod keepalive;
 mod latest_keepalives;
@@ -18,7 +17,6 @@ mod vec_buffer_reader;
 
 pub use block_deserializer::read_block;
 pub(crate) use block_flooder::BlockFlooder;
-pub(crate) use handshake_process::*;
 pub use inbound_message_queue::*;
 pub use latest_keepalives::*;
 pub(crate) use loopback_channel_adapter::run_loopback_channel_adapter;

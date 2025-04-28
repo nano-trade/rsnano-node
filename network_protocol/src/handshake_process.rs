@@ -13,8 +13,9 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
 };
 use rsnano_network::{Channel, TrafficType};
-use rsnano_network_protocol::SynCookies;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
+
+use crate::SynCookies;
 
 pub enum HandshakeStatus {
     Abort,
@@ -25,7 +26,7 @@ pub enum HandshakeStatus {
 }
 
 /// Responsible for performing a correct handshake when connecting to another node
-pub(crate) struct HandshakeProcess {
+pub struct HandshakeProcess {
     genesis_hash: BlockHash,
     node_id: PrivateKey,
     syn_cookies: Arc<SynCookies>,
@@ -35,7 +36,7 @@ pub(crate) struct HandshakeProcess {
 }
 
 impl HandshakeProcess {
-    pub(crate) fn new(
+    pub fn new(
         genesis_hash: BlockHash,
         node_id: PrivateKey,
         syn_cookies: Arc<SynCookies>,
@@ -64,7 +65,7 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
+    pub fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
         let peer = channel.peer_addr();
         let query = self.prepare_query(&peer);
         if query.is_none() {
@@ -103,7 +104,7 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) fn process_handshake(
+    pub fn process_handshake(
         &self,
         message: &NodeIdHandshake,
         channel: &Channel,
