@@ -11,7 +11,7 @@ use tracing::{debug, warn};
 use rsnano_core::{BlockHash, NodeId, PrivateKey};
 use rsnano_messages::{NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse};
 
-use crate::{handshake_stats::HandshakeStats, SynCookies};
+use crate::SynCookies;
 
 pub enum HandshakeStatus {
     Abort,
@@ -25,22 +25,15 @@ pub struct HandshakeProcess {
     genesis_hash: BlockHash,
     node_id: PrivateKey,
     syn_cookies: Arc<SynCookies>,
-    stats: Arc<HandshakeStats>,
     handshake_received: AtomicBool,
 }
 
 impl HandshakeProcess {
-    pub fn new(
-        genesis_hash: BlockHash,
-        node_id: PrivateKey,
-        syn_cookies: Arc<SynCookies>,
-        stats: Arc<HandshakeStats>,
-    ) -> Self {
+    pub fn new(genesis_hash: BlockHash, node_id: PrivateKey, syn_cookies: Arc<SynCookies>) -> Self {
         Self {
             genesis_hash,
             node_id,
             syn_cookies,
-            stats,
             handshake_received: AtomicBool::new(false),
         }
     }
@@ -62,16 +55,14 @@ impl HandshakeProcess {
         &self,
         message: &NodeIdHandshake,
         peer: SocketAddrV6,
-    ) -> Result<(HandshakeStatus, Option<NodeIdHandshake>), HandshakeResponseError> {
+    ) -> Result<(Option<NodeId>, Option<NodeIdHandshake>), HandshakeResponseError> {
         if message.query.is_none() && message.response.is_none() {
-            self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
-            debug!(%peer, ?message, "Invalid handshake message received");
+            // There must be a query or a response or both!
             return Err(HandshakeResponseError::EmptyResponse);
         }
+
         if message.query.is_some() && self.handshake_received.load(Ordering::SeqCst) {
             // Second handshake message should be a response only
-            self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
-            warn!("Detected multiple handshake queries ({})", peer);
             return Err(HandshakeResponseError::MultipleQueries);
         }
 
@@ -95,11 +86,7 @@ impl HandshakeProcess {
         if let Some(their_response) = &message.response {
             match self.verify_response(their_response, peer) {
                 Ok(()) => {
-                    self.stats.response_ok.fetch_add(1, Ordering::Relaxed);
-                    return Ok((
-                        HandshakeStatus::Realtime(their_response.node_id),
-                        our_response,
-                    ));
+                    return Ok((Some(their_response.node_id), our_response));
                 }
                 Err(HandshakeResponseError::OwnNodeId) => {
                     warn!(
@@ -109,20 +96,12 @@ impl HandshakeProcess {
                     return Err(HandshakeResponseError::OwnNodeId);
                 }
                 Err(e) => {
-                    self.stats.errors[e as usize].fetch_add(1, Ordering::Relaxed);
-                    self.stats.response_invalid.fetch_add(1, Ordering::Relaxed);
-                    warn!(
-                        %peer,
-                        error = ?e,
-                        response =?their_response,
-                        "Invalid handshake response received",
-                    );
                     return Err(e);
                 }
             }
         }
         // Handshake is in progress
-        Ok((HandshakeStatus::Handshake, our_response))
+        Ok((None, our_response))
     }
 
     fn create_response(

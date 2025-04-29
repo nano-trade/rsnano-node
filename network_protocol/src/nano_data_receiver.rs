@@ -195,8 +195,28 @@ impl NanoDataReceiver {
                         .handshake_process
                         .process_handshake(payload, self.channel.peer_addr())
                     {
-                        Ok((status, response)) => (status, response),
-                        Err(e) => (HandshakeStatus::Abort, None),
+                        Ok((their_node_id, response)) => {
+                            self.handshake_stats
+                                .response_ok
+                                .fetch_add(1, Ordering::Relaxed);
+
+                            match their_node_id {
+                                Some(node_id) => (HandshakeStatus::Realtime(node_id), response),
+                                None => (HandshakeStatus::Handshake, response),
+                            }
+                        }
+                        Err(e) => {
+                            self.handshake_stats.errors[e as usize].fetch_add(1, Ordering::Relaxed);
+                            self.handshake_stats
+                                .handshake_error
+                                .fetch_add(1, Ordering::Relaxed);
+                            debug!(
+                                peer = %self.channel.peer_addr(),
+                                error = ?e,
+                                "Invalid handshake response received"
+                            );
+                            (HandshakeStatus::Abort, None)
+                        }
                     }
                 }
 

@@ -12,7 +12,6 @@ pub struct HandshakeStats {
     pub network_error: AtomicUsize,
     pub handshake_error: AtomicUsize,
     pub response_ok: AtomicUsize,
-    pub response_invalid: AtomicUsize,
     pub errors: [AtomicUsize; HandshakeResponseError::COUNT],
 }
 
@@ -51,12 +50,6 @@ impl StatsSource for HandshakeStats {
             "handshake",
             Direction::In,
             self.handshakes_received.load(Relaxed),
-        );
-
-        result.insert(
-            "tcp_server",
-            "handshake_response_invalid",
-            self.response_invalid.load(Relaxed),
         );
 
         result.insert("handshake", "ok", self.response_ok.load(Relaxed));
