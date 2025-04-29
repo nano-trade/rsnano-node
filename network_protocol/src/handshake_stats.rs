@@ -67,6 +67,8 @@ impl StatsSource for HandshakeStats {
                 HandshakeResponseError::InvalidGenesis => "invalid_genesis",
                 HandshakeResponseError::MissingCookie => "missing_cookie",
                 HandshakeResponseError::InvalidSignature => "invalid_signature",
+                HandshakeResponseError::EmptyResponse => "empty_response",
+                HandshakeResponseError::MultipleQueries => "multiple_queries",
             };
             result.insert("handshake", detail, self.handshake_error.load(Relaxed));
         }

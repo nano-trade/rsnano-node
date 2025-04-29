@@ -8,9 +8,8 @@ use std::{
 
 use tracing::{debug, warn};
 
-use rsnano_core::{BlockHash, NodeId, PrivateKey, ProtocolInfo};
+use rsnano_core::{BlockHash, NodeId, PrivateKey};
 use rsnano_messages::{NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse};
-use rsnano_network::Channel;
 
 use crate::{handshake_stats::HandshakeStats, SynCookies};
 
@@ -47,7 +46,7 @@ impl HandshakeProcess {
     }
 
     pub fn initiate_handshake(&mut self, peer: SocketAddrV6) -> anyhow::Result<NodeIdHandshake> {
-        let query = self.prepare_query(&peer);
+        let query = self.prepare_query(peer);
         if query.is_none() {
             return Err(anyhow!("Could not create cookie for {:?}", peer));
         }
@@ -62,32 +61,21 @@ impl HandshakeProcess {
     pub fn process_handshake(
         &self,
         message: &NodeIdHandshake,
-        channel: &Channel,
-    ) -> (HandshakeStatus, Option<NodeIdHandshake>) {
+        peer: SocketAddrV6,
+    ) -> Result<(HandshakeStatus, Option<NodeIdHandshake>), HandshakeResponseError> {
         if message.query.is_none() && message.response.is_none() {
             self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
-            debug!(
-                peer = %channel.peer_addr(),
-                ?message,
-                "Invalid handshake message received",
-            );
-            return (HandshakeStatus::Abort, None);
+            debug!(%peer, ?message, "Invalid handshake message received");
+            return Err(HandshakeResponseError::EmptyResponse);
         }
         if message.query.is_some() && self.handshake_received.load(Ordering::SeqCst) {
             // Second handshake message should be a response only
             self.stats.handshake_error.fetch_add(1, Ordering::Relaxed);
-            warn!(
-                "Detected multiple handshake queries ({})",
-                channel.peer_addr()
-            );
-            return (HandshakeStatus::Abort, None);
+            warn!("Detected multiple handshake queries ({})", peer);
+            return Err(HandshakeResponseError::MultipleQueries);
         }
 
         self.handshake_received.store(true, Ordering::SeqCst);
-
-        self.stats
-            .handshakes_received
-            .fetch_add(1, Ordering::Relaxed);
 
         let log_type = match (message.query.is_some(), message.response.is_some()) {
             (true, true) => "query + response",
@@ -95,60 +83,56 @@ impl HandshakeProcess {
             (false, true) => "response",
             (false, false) => "none",
         };
-        debug!(
-            "Handshake message received: {} ({})",
-            log_type,
-            channel.peer_addr()
-        );
+        debug!("Handshake message received: {} ({})", log_type, peer);
 
         let our_response = if let Some(query) = message.query.clone() {
             // Send response + our own query
-            Some(self.create_response(&query, message.is_v2, &channel))
+            Some(self.create_response(&query, message.is_v2, peer))
         } else {
             None
         };
 
         if let Some(their_response) = &message.response {
-            match self.verify_response(their_response, &channel.peer_addr()) {
+            match self.verify_response(their_response, peer) {
                 Ok(()) => {
                     self.stats.response_ok.fetch_add(1, Ordering::Relaxed);
-                    return (
+                    return Ok((
                         HandshakeStatus::Realtime(their_response.node_id),
                         our_response,
-                    );
+                    ));
                 }
                 Err(HandshakeResponseError::OwnNodeId) => {
                     warn!(
                         "This node tried to connect to itself. Closing channel ({})",
-                        channel.peer_addr()
+                        peer
                     );
-                    return (HandshakeStatus::AbortOwnNodeId, None);
+                    return Err(HandshakeResponseError::OwnNodeId);
                 }
                 Err(e) => {
                     self.stats.errors[e as usize].fetch_add(1, Ordering::Relaxed);
                     self.stats.response_invalid.fetch_add(1, Ordering::Relaxed);
                     warn!(
-                        peer = %channel.peer_addr(),
+                        %peer,
                         error = ?e,
                         response =?their_response,
                         "Invalid handshake response received",
                     );
-                    return (HandshakeStatus::Abort, None);
+                    return Err(e);
                 }
             }
         }
         // Handshake is in progress
-        (HandshakeStatus::Handshake, our_response)
+        Ok((HandshakeStatus::Handshake, our_response))
     }
 
     fn create_response(
         &self,
         query: &NodeIdHandshakeQuery,
         v2: bool,
-        channel: &Channel,
+        peer: SocketAddrV6,
     ) -> NodeIdHandshake {
         let response = self.prepare_response(query, v2);
-        let own_query = self.prepare_query(&channel.peer_addr());
+        let own_query = self.prepare_query(peer);
 
         NodeIdHandshake {
             is_v2: own_query.is_some() || response.v2.is_some(),
@@ -160,7 +144,7 @@ impl HandshakeProcess {
     fn verify_response(
         &self,
         response: &NodeIdHandshakeResponse,
-        peer_addr: &SocketAddrV6,
+        peer_addr: SocketAddrV6,
     ) -> Result<(), HandshakeResponseError> {
         // Prevent connection with ourselves
         if response.node_id == self.node_id.public_key().into() {
@@ -174,7 +158,7 @@ impl HandshakeProcess {
             }
         }
 
-        let Some(cookie) = self.syn_cookies.cookie(peer_addr) else {
+        let Some(cookie) = self.syn_cookies.cookie(&peer_addr) else {
             return Err(HandshakeResponseError::MissingCookie);
         };
 
@@ -197,18 +181,20 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) fn prepare_query(&self, peer_addr: &SocketAddrV6) -> Option<NodeIdHandshakeQuery> {
+    pub(crate) fn prepare_query(&self, peer_addr: SocketAddrV6) -> Option<NodeIdHandshakeQuery> {
         self.syn_cookies
-            .assign(peer_addr)
+            .assign(&peer_addr)
             .map(|cookie| NodeIdHandshakeQuery { cookie })
     }
 }
 
 #[derive(Debug, Clone, Copy, EnumCount, EnumIter)]
-pub(crate) enum HandshakeResponseError {
+pub enum HandshakeResponseError {
     /// The node tried to connect to itself
     OwnNodeId,
     InvalidGenesis,
     MissingCookie,
     InvalidSignature,
+    EmptyResponse,
+    MultipleQueries,
 }

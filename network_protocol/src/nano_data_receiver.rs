@@ -186,9 +186,19 @@ impl NanoDataReceiver {
          */
         if self.channel.mode() == ChannelMode::Undefined {
             let (mut status, response) = match &message {
-                Message::NodeIdHandshake(payload) => self
-                    .handshake_process
-                    .process_handshake(payload, &self.channel),
+                Message::NodeIdHandshake(payload) => {
+                    self.handshake_stats
+                        .handshakes_received
+                        .fetch_add(1, Ordering::Relaxed);
+
+                    match self
+                        .handshake_process
+                        .process_handshake(payload, self.channel.peer_addr())
+                    {
+                        Ok((status, response)) => (status, response),
+                        Err(e) => (HandshakeStatus::Abort, None),
+                    }
+                }
 
                 _ => (HandshakeStatus::Abort, None),
             };
