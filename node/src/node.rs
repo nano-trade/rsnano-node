@@ -643,9 +643,14 @@ impl Node {
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
         let handshake_stats = Arc::new(HandshakeStats::default());
 
+        let inbound_clone = inbound_message_queue.clone();
+        let inbound = Arc::new(move |msg, channel| {
+            inbound_clone.put(msg, channel);
+        });
+
         let data_receiver_factory = Box::new(NanoDataReceiverFactory::new(
             &network,
-            inbound_message_queue.clone(),
+            inbound,
             network_filter.clone(),
             stats.clone(),
             handshake_stats.clone(),

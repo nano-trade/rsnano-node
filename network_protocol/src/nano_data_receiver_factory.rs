@@ -5,16 +5,13 @@ use rsnano_messages::*;
 use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
 use rsnano_stats::Stats;
 
-use crate::{
-    HandshakeProcess, HandshakeStats, InboundMessageQueue, LatestKeepalives, NanoDataReceiver,
-    SynCookies,
-};
+use crate::{HandshakeProcess, HandshakeStats, LatestKeepalives, NanoDataReceiver, SynCookies};
 
 pub struct NanoDataReceiverFactory {
     stats: Arc<Stats>,
     stats2: Arc<HandshakeStats>,
     network: Weak<RwLock<Network>>,
-    inbound_queue: Arc<InboundMessageQueue>,
+    received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
     network_filter: Arc<NetworkFilter>,
     syn_cookies: Arc<SynCookies>,
     node_id: PrivateKey,
@@ -26,7 +23,7 @@ pub struct NanoDataReceiverFactory {
 impl NanoDataReceiverFactory {
     pub fn new(
         network: &Arc<RwLock<Network>>,
-        inbound_queue: Arc<InboundMessageQueue>,
+        received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
         network_filter: Arc<NetworkFilter>,
         stats: Arc<Stats>,
         stats2: Arc<HandshakeStats>,
@@ -38,7 +35,7 @@ impl NanoDataReceiverFactory {
     ) -> Self {
         Self {
             network: Arc::downgrade(network),
-            inbound_queue,
+            received,
             syn_cookies: syn_cookies.clone(),
             node_id: node_id_key.clone(),
             stats: stats.clone(),
@@ -68,7 +65,7 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             channel,
             handshake_process,
             message_deserializer,
-            self.inbound_queue.clone(),
+            self.received.clone(),
             self.latest_keepalives.clone(),
             self.stats.clone(),
             self.network.clone(),

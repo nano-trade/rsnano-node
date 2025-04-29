@@ -2,7 +2,7 @@ use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{Network, NetworkConfig, PeerConnector, TcpNetworkAdapter};
 use rsnano_network_protocol::{
-    HandshakeStats, InboundMessageQueue, LatestKeepalives, NanoDataReceiverFactory, SynCookies,
+    HandshakeStats, LatestKeepalives, NanoDataReceiverFactory, SynCookies,
 };
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::Stats;
@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
-use tokio::task::spawn_blocking;
+use tokio::time::sleep;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -23,7 +23,6 @@ async fn main() -> anyhow::Result<()> {
     let node_id_key = PrivateKey::from(42);
     let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
     let genesis_hash = get_genesis_hash_from_env()?;
-    let inbound_queue = Arc::new(InboundMessageQueue::default());
 
     // Unimportant details
     //--------------------------------------------------------------------------------
@@ -40,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
 
     let receiver_factory = Box::new(NanoDataReceiverFactory::new(
         &network,
-        inbound_queue.clone(),
+        Arc::new(|message, _| info!(?message, "received message")),
         network_filter,
         stats,
         stats2,
@@ -73,15 +72,9 @@ async fn main() -> anyhow::Result<()> {
 
     connector.connect_to(node_addr)?;
 
-    spawn_blocking(move || loop {
-        inbound_queue.wait_for_messages();
-        let batch = inbound_queue.next_batch(8);
-        for (_, (message, _)) in batch {
-            info!(?message, "received message");
-        }
-    })
-    .await?;
-    Ok(())
+    loop {
+        sleep(Duration::from_millis(100)).await;
+    }
 }
 
 fn setup_tracing() {

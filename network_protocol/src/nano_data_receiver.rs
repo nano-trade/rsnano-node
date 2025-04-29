@@ -9,13 +9,13 @@ use rsnano_network::{
 };
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::{HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives};
+use crate::{HandshakeProcess, HandshakeStatus, LatestKeepalives};
 
 pub struct NanoDataReceiver {
     channel: Arc<Channel>,
     handshake_process: HandshakeProcess,
     message_deserializer: MessageDeserializer,
-    inbound_queue: Arc<InboundMessageQueue>,
+    received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     stats: Arc<Stats>,
     network: Weak<RwLock<Network>>,
@@ -28,7 +28,7 @@ impl NanoDataReceiver {
         channel: Arc<Channel>,
         handshake_process: HandshakeProcess,
         message_deserializer: MessageDeserializer,
-        inbound_queue: Arc<InboundMessageQueue>,
+        received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         stats: Arc<Stats>,
         network: Weak<RwLock<Network>>,
@@ -37,7 +37,7 @@ impl NanoDataReceiver {
             channel,
             handshake_process,
             message_deserializer,
-            inbound_queue,
+            received,
             latest_keepalives,
             stats,
             network,
@@ -63,8 +63,8 @@ impl NanoDataReceiver {
     }
 
     fn queue_realtime(&self, message: Message) {
-        self.inbound_queue.put(message, self.channel.clone());
         // TODO: Throttle if not added
+        (self.received)(message, self.channel.clone());
     }
 
     fn set_last_keepalive(&self, keepalive: Keepalive) {

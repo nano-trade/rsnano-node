@@ -12,7 +12,7 @@ use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use crate::MessageCallback;
-use strum::{EnumCount, IntoEnumIterator};
+use strum::IntoEnumIterator;
 
 pub struct InboundMessageQueue {
     state: Mutex<State>,
