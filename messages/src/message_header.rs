@@ -15,8 +15,7 @@ use super::*;
 
 /// Message types are serialized to the network and existing values must thus never change as
 /// types are added, removed and reordered in the enum.
-#[repr(u8)]
-#[derive(FromPrimitive, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(FromPrimitive, Clone, Copy, PartialEq, Eq, Hash, EnumCount, EnumIter)]
 pub enum MessageType {
     Invalid = 0x0,
     NotAType = 0x1,
@@ -55,6 +54,10 @@ impl MessageType {
             MessageType::AscPullReq => "asc_pull_req",
             MessageType::AscPullAck => "asc_pull_ack",
         }
+    }
+
+    pub const fn max_id() -> usize {
+        Self::AscPullAck as usize
     }
 }
 

@@ -1,34 +1,38 @@
 use std::{
     collections::VecDeque,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Condvar, Mutex,
+    },
 };
 
 use rsnano_core::utils::{ContainerInfo, ContainerInfoProvider, FairQueue};
-use rsnano_messages::Message;
+use rsnano_messages::{Message, MessageType};
 use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use crate::MessageCallback;
+use strum::{EnumCount, IntoEnumIterator};
 
 pub struct InboundMessageQueue {
     state: Mutex<State>,
     condition: Condvar,
-    stats: Arc<Stats>,
     inbound_callback: Option<MessageCallback>,
     inbound_dropped_callback: Option<MessageCallback>,
+    stats: MsgQueueStats,
 }
 
 impl InboundMessageQueue {
-    pub fn new(max_queue: usize, stats: Arc<Stats>) -> Self {
+    pub fn new(max_queue: usize) -> Self {
         Self {
             state: Mutex::new(State {
                 queue: FairQueue::new(move |_| max_queue, |_| 1),
                 stopped: false,
             }),
             condition: Condvar::new(),
-            stats,
             inbound_callback: None,
             inbound_dropped_callback: None,
+            stats: Default::default(),
         }
     }
 
@@ -50,20 +54,15 @@ impl InboundMessageQueue {
             .push(channel.channel_id(), (message.clone(), channel.clone()));
 
         if added {
-            self.stats
-                .inc(StatType::MessageProcessor, DetailType::Process);
-            self.stats
-                .inc(StatType::MessageProcessorType, message_type.into());
-
+            self.stats.processed.fetch_add(1, Ordering::Relaxed);
+            self.stats.processed_type[message_type as usize].fetch_add(1, Ordering::Relaxed);
             self.condition.notify_all();
             if let Some(cb) = &self.inbound_callback {
                 cb(channel.channel_id(), &message);
             }
         } else {
-            self.stats
-                .inc(StatType::MessageProcessor, DetailType::Overfill);
-            self.stats
-                .inc(StatType::MessageProcessorOverfill, message_type.into());
+            self.stats.overfill.fetch_add(1, Ordering::Relaxed);
+            self.stats.overfill_type[message_type as usize].fetch_add(1, Ordering::Relaxed);
             if let Some(cb) = &self.inbound_dropped_callback {
                 cb(channel.channel_id(), &message);
             }
@@ -106,7 +105,7 @@ impl InboundMessageQueue {
 
 impl Default for InboundMessageQueue {
     fn default() -> Self {
-        Self::new(64, Arc::new(Stats::default()))
+        Self::new(64)
     }
 }
 
@@ -141,6 +140,49 @@ struct State {
     stopped: bool,
 }
 
+impl StatsSource for InboundMessageQueue {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.stats.collect_stats(result);
+    }
+}
+
+#[derive(Default)]
+struct MsgQueueStats {
+    processed: AtomicUsize,
+    processed_type: [AtomicUsize; MessageType::max_id() + 1],
+    overfill: AtomicUsize,
+    overfill_type: [AtomicUsize; MessageType::max_id() + 1],
+}
+
+impl StatsSource for MsgQueueStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert(
+            "message_processor",
+            "process",
+            self.processed.load(Ordering::Relaxed),
+        );
+        for i in MessageType::iter() {
+            result.insert(
+                "message_processor_type",
+                i.as_str(),
+                self.processed_type[i as usize].load(Ordering::Relaxed),
+            );
+        }
+        result.insert(
+            "message_processor",
+            "overfill",
+            self.overfill.load(Ordering::Relaxed),
+        );
+        for i in MessageType::iter() {
+            result.insert(
+                "message_processor_overfill",
+                i.as_str(),
+                self.overfill_type[i as usize].load(Ordering::Relaxed),
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,7 +190,7 @@ mod tests {
 
     #[test]
     fn put_and_get_one_message() {
-        let manager = InboundMessageQueue::new(1, Arc::new(Stats::default()));
+        let manager = InboundMessageQueue::new(1);
         assert_eq!(manager.size(), 0);
         manager.put(Message::BulkPush, Arc::new(Channel::new_test_instance()));
         assert_eq!(manager.size(), 1);

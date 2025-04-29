@@ -7,6 +7,9 @@ extern crate anyhow;
 #[macro_use]
 extern crate static_assertions;
 
+#[macro_use]
+extern crate strum_macros;
+
 mod message;
 mod message_deserializer;
 mod network_filter;

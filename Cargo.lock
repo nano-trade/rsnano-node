@@ -4163,6 +4163,8 @@ dependencies = [
  "serde_json",
  "siphasher",
  "static_assertions",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
 ]
 
 [[package]]

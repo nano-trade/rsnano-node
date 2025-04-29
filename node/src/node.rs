@@ -352,7 +352,7 @@ impl Node {
             Arc::new(ThreadPoolImpl::create(1, "Wallet work"));
 
         let mut inbound_message_queue =
-            InboundMessageQueue::new(config.message_processor.max_queue, stats.clone());
+            InboundMessageQueue::new(config.message_processor.max_queue);
         if let Some(cb) = args.callbacks.on_inbound {
             inbound_message_queue.set_inbound_callback(cb);
         }
@@ -1165,6 +1165,7 @@ impl Node {
         stats_collector.add_source(network.clone());
         stats_collector.add_source(backlog_scan.stats());
         stats_collector.add_source(handshake_stats);
+        stats_collector.add_source(inbound_message_queue.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());

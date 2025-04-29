@@ -23,6 +23,7 @@ async fn main() -> anyhow::Result<()> {
     let node_id_key = PrivateKey::from(42);
     let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
     let genesis_hash = get_genesis_hash_from_env()?;
+    let inbound_queue = Arc::new(InboundMessageQueue::default());
 
     // Unimportant details
     //--------------------------------------------------------------------------------
@@ -32,7 +33,6 @@ async fn main() -> anyhow::Result<()> {
     ))));
 
     let stats = Arc::new(Stats::default());
-    let inbound_queue = Arc::new(InboundMessageQueue::new(1024, stats.clone()));
     let network_filter = Arc::new(NetworkFilter::default());
     let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
     let syn_cookies = Arc::new(SynCookies::default());
