@@ -1,5 +1,5 @@
 use crate::{ChannelDirection, NetworkError, TcpNetworkAdapter};
-use rsnano_nullable_tcp::TcpStream;
+use rsnano_nullable_tcp::{TcpSocket, TcpStream};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{net::SocketAddrV6, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -93,9 +93,7 @@ async fn connect_impl(peer: SocketAddrV6, network_adapter: &TcpNetworkAdapter) {
 }
 
 async fn connect_stream(peer: SocketAddrV6) -> tokio::io::Result<TcpStream> {
-    let socket = tokio::net::TcpSocket::new_v6()?;
-    let tcp_stream = socket.connect(peer.into()).await?;
-    Ok(TcpStream::new(tcp_stream))
+    TcpSocket::new_v6()?.connect(peer.into()).await
 }
 
 #[cfg(test)]

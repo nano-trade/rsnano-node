@@ -1,10 +1,11 @@
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::NetworkFilter;
-use rsnano_network::{Network, NetworkConfig, PeerConnector, TcpNetworkAdapter};
+use rsnano_network::{ChannelDirection, Network, NetworkConfig, TcpNetworkAdapter};
 use rsnano_network_protocol::{
     HandshakeStats, LatestKeepalives, NanoDataReceiverFactory, SynCookies,
 };
 use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_tcp::TcpSocket;
 use rsnano_stats::Stats;
 use std::{
     net::SocketAddrV6,
@@ -23,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let node_id_key = PrivateKey::from(42);
     let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
     let genesis_hash = get_genesis_hash_from_env()?;
+    let msg_received = Arc::new(|message, _| info!(?message, "received message"));
 
     // Unimportant details
     //--------------------------------------------------------------------------------
@@ -35,14 +37,14 @@ async fn main() -> anyhow::Result<()> {
     let network_filter = Arc::new(NetworkFilter::default());
     let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
     let syn_cookies = Arc::new(SynCookies::default());
-    let stats2 = Arc::new(HandshakeStats::default());
+    let handshake_stats = Arc::new(HandshakeStats::default());
 
     let receiver_factory = Box::new(NanoDataReceiverFactory::new(
         &network,
-        Arc::new(|message, _| info!(?message, "received message")),
+        msg_received,
         network_filter,
         stats,
-        stats2,
+        handshake_stats,
         syn_cookies,
         node_id_key,
         latest_keepalives,
@@ -62,15 +64,10 @@ async fn main() -> anyhow::Result<()> {
         tokio::runtime::Handle::current(),
     ));
 
-    let connector = PeerConnector::new(
-        Duration::from_secs(3),
-        network_adapter,
-        tokio::runtime::Handle::current(),
-    );
-
     //--------------------------------------------------------------------------------
 
-    connector.connect_to(node_addr)?;
+    let tcp_stream = TcpSocket::new_v6()?.connect(node_addr.into()).await?;
+    network_adapter.add(tcp_stream, ChannelDirection::Outbound)?;
 
     loop {
         sleep(Duration::from_millis(100)).await;
