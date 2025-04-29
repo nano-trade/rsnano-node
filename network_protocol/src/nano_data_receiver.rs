@@ -1,19 +1,20 @@
-use std::sync::{Arc, Mutex, RwLock, Weak};
+use std::sync::{atomic::Ordering, Arc, Mutex, RwLock, Weak};
 
-use tracing::debug;
+use tracing::{debug, warn};
 
-use rsnano_core::NodeId;
+use rsnano_core::{NodeId, ProtocolInfo};
 use rsnano_messages::*;
 use rsnano_network::{
-    Channel, ChannelDirection, ChannelMode, DataReceiver, Network, ReceiveResult,
+    Channel, ChannelDirection, ChannelMode, DataReceiver, Network, ReceiveResult, TrafficType,
 };
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::{HandshakeProcess, HandshakeStatus, LatestKeepalives};
+use crate::{HandshakeProcess, HandshakeStats, HandshakeStatus, LatestKeepalives};
 
 pub struct NanoDataReceiver {
     channel: Arc<Channel>,
     handshake_process: HandshakeProcess,
+    serializer: MessageSerializer,
     message_deserializer: MessageDeserializer,
     received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
@@ -21,6 +22,7 @@ pub struct NanoDataReceiver {
     network: Weak<RwLock<Network>>,
     first_message: bool,
     node_id: NodeId,
+    handshake_stats: Arc<HandshakeStats>,
 }
 
 impl NanoDataReceiver {
@@ -32,10 +34,13 @@ impl NanoDataReceiver {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         stats: Arc<Stats>,
         network: Weak<RwLock<Network>>,
+        handshake_stats: Arc<HandshakeStats>,
+        protocol: ProtocolInfo,
     ) -> Self {
         Self {
             channel,
             handshake_process,
+            serializer: MessageSerializer::new_with_buffer_size(protocol, 512),
             message_deserializer,
             received,
             latest_keepalives,
@@ -43,6 +48,7 @@ impl NanoDataReceiver {
             network,
             first_message: true,
             node_id: NodeId::ZERO,
+            handshake_stats,
         }
     }
 
@@ -53,12 +59,36 @@ impl NanoDataReceiver {
     }
 
     fn initiate_handshake(&mut self) {
-        if self
-            .handshake_process
-            .initiate_handshake(&self.channel)
-            .is_err()
-        {
-            self.channel.close();
+        let peer = self.channel.peer_addr();
+        let result = self.handshake_process.initiate_handshake(peer);
+
+        match result {
+            Ok(handshake) => {
+                let data = self
+                    .serializer
+                    .serialize(&Message::NodeIdHandshake(handshake));
+
+                debug!("Initiating handshake query ({})", peer);
+                let enqueued = self.channel.send(data, TrafficType::Generic);
+                if enqueued {
+                    self.handshake_stats
+                        .handshakes_sent
+                        .fetch_add(1, Ordering::Relaxed);
+                    self.handshake_stats
+                        .initiate
+                        .fetch_add(1, Ordering::Relaxed);
+                } else {
+                    self.handshake_stats
+                        .network_error
+                        .fetch_add(1, Ordering::Relaxed);
+                    warn!(%peer, "Could not send handshake");
+                    self.channel.close();
+                }
+            }
+            Err(e) => {
+                warn!("Could not initiate handshake: {:?}", e);
+                self.channel.close();
+            }
         }
     }
 
@@ -155,19 +185,38 @@ impl NanoDataReceiver {
          * In bootstrap mode any realtime messages are ignored
          */
         if self.channel.mode() == ChannelMode::Undefined {
-            let result = match &message {
-                Message::BulkPull(_)
-                | Message::BulkPullAccount(_)
-                | Message::BulkPush
-                | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
+            let (mut status, response) = match &message {
                 Message::NodeIdHandshake(payload) => self
                     .handshake_process
                     .process_handshake(payload, &self.channel),
 
-                _ => HandshakeStatus::Abort,
+                _ => (HandshakeStatus::Abort, None),
             };
 
-            match result {
+            if let Some(response) = response {
+                debug!("Responding to handshake ({})", self.channel.peer_addr());
+                let buffer = self
+                    .serializer
+                    .serialize(&Message::NodeIdHandshake(response));
+
+                let enqueued = self.channel.send(buffer, TrafficType::Generic);
+                if enqueued {
+                    self.handshake_stats
+                        .handshakes_sent
+                        .fetch_add(1, Ordering::Relaxed);
+                    self.handshake_stats
+                        .response_sent
+                        .fetch_add(1, Ordering::Relaxed);
+                } else {
+                    self.handshake_stats
+                        .network_error
+                        .fetch_add(1, Ordering::Relaxed);
+                    warn!(peer = %self.channel.peer_addr(), "Error sending handshake response");
+                    status = HandshakeStatus::Abort;
+                }
+            }
+
+            match status {
                 HandshakeStatus::Abort | HandshakeStatus::AbortOwnNodeId => {
                     self.stats.inc_dir(
                         StatType::TcpServer,
@@ -179,7 +228,7 @@ impl NanoDataReceiver {
                         message.message_type(),
                         self.channel.peer_addr()
                     );
-                    if matches!(result, HandshakeStatus::AbortOwnNodeId) {
+                    if matches!(status, HandshakeStatus::AbortOwnNodeId) {
                         if let Some(peering_addr) = self.channel.peering_addr() {
                             if let Some(network) = self.network.upgrade() {
                                 network.write().unwrap().perma_ban(peering_addr);
@@ -195,11 +244,6 @@ impl NanoDataReceiver {
                     self.node_id = node_id;
                     // Wait until send queue is empty for the handshake to complete
                     return ReceiveResult::Pause;
-                }
-                HandshakeStatus::Bootstrap => {
-                    debug!(peer = ?self.channel.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
-                    // Legacy bootstrap is not supported anymore
-                    return ReceiveResult::Abort;
                 }
             }
         } else if self.channel.mode() == ChannelMode::Realtime {

@@ -9,7 +9,7 @@ use crate::{HandshakeProcess, HandshakeStats, LatestKeepalives, NanoDataReceiver
 
 pub struct NanoDataReceiverFactory {
     stats: Arc<Stats>,
-    stats2: Arc<HandshakeStats>,
+    handshake_stats: Arc<HandshakeStats>,
     network: Weak<RwLock<Network>>,
     received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
     network_filter: Arc<NetworkFilter>,
@@ -39,7 +39,7 @@ impl NanoDataReceiverFactory {
             syn_cookies: syn_cookies.clone(),
             node_id: node_id_key.clone(),
             stats: stats.clone(),
-            stats2,
+            handshake_stats: stats2,
             network_filter,
             latest_keepalives,
             genesis_hash,
@@ -54,8 +54,7 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             self.genesis_hash,
             self.node_id.clone(),
             self.syn_cookies.clone(),
-            self.stats2.clone(),
-            self.protocol,
+            self.handshake_stats.clone(),
         );
 
         let message_deserializer =
@@ -69,6 +68,8 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             self.latest_keepalives.clone(),
             self.stats.clone(),
             self.network.clone(),
+            self.handshake_stats.clone(),
+            self.protocol,
         );
 
         receiver.ensure_handshake();
