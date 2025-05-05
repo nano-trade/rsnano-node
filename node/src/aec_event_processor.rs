@@ -19,6 +19,7 @@ use crate::{
     NodeEvent,
 };
 use rsnano_stats::{Sample, Stats};
+use tracing::debug;
 
 /// Processes events from the active election container (AEC)
 pub(crate) struct AecEventProcessor {
@@ -109,6 +110,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 self.clear_network_filter(&block);
             }
             AecEvent::WinnerChanged(previous_winner, new_winner) => {
+                debug!(from = ?previous_winner, to = ?new_winner.hash(), "Winning fork changed");
                 self.local_votes_remover
                     .remove_local_votes(&previous_winner, &new_winner.qualified_root());
 
