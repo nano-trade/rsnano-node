@@ -49,6 +49,7 @@ pub struct BootstrapResponder {
     stats: Arc<Stats>,
     threads: Mutex<Vec<JoinHandle<()>>>,
     pub(crate) server_impl: Arc<BootstrapResponderImpl>,
+    running: AtomicBool,
 }
 
 impl BootstrapResponder {
@@ -80,6 +81,7 @@ impl BootstrapResponder {
             stats: Arc::clone(&stats),
             threads: Mutex::new(Vec::new()),
             server_impl,
+            running: AtomicBool::new(false),
         }
     }
 
@@ -98,6 +100,8 @@ impl BootstrapResponder {
                     .unwrap(),
             );
         }
+
+        self.running.store(true, Ordering::Relaxed);
     }
 
     pub fn stop(&self) {
@@ -108,6 +112,8 @@ impl BootstrapResponder {
         for thread in threads.drain(..) {
             thread.join().unwrap();
         }
+
+        self.running.store(false, Ordering::Relaxed);
     }
 
     pub fn set_response_callback(&self, cb: Box<dyn Fn(&AscPullAck, &Arc<Channel>) + Send + Sync>) {
@@ -115,6 +121,10 @@ impl BootstrapResponder {
     }
 
     pub fn enqueue(&self, message: AscPullReq, channel: Arc<Channel>) -> bool {
+        if !self.running.load(Ordering::Relaxed) {
+            return false;
+        }
+
         if !self.verify(&message) {
             self.stats
                 .inc(StatType::BootstrapServer, DetailType::Invalid);

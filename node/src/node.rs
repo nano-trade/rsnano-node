@@ -1520,7 +1520,9 @@ impl Node {
         if self.config.enable_bounded_backlog {
             self.bounded_backlog.start();
         }
-        self.bootstrap_responder.start();
+        if self.config.enable_bootstrap_responder {
+            self.bootstrap_responder.start();
+        }
         self.bootstrapper.start();
         self.telemetry.start();
         self.local_block_broadcaster.start();

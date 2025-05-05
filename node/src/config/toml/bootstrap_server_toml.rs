@@ -1,19 +1,13 @@
-use crate::bootstrap::BootstrapResponderConfig;
+use crate::{bootstrap::BootstrapResponderConfig, config::NodeConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct BootstrapServerToml {
+    pub enable: Option<bool>,
     pub batch_size: Option<usize>,
     pub max_queue: Option<usize>,
     pub threads: Option<usize>,
     pub limiter: Option<usize>,
-}
-
-impl Default for BootstrapServerToml {
-    fn default() -> Self {
-        let config = BootstrapResponderConfig::default();
-        (&config).into()
-    }
 }
 
 impl From<&BootstrapServerToml> for BootstrapResponderConfig {
@@ -36,13 +30,14 @@ impl From<&BootstrapServerToml> for BootstrapResponderConfig {
     }
 }
 
-impl From<&BootstrapResponderConfig> for BootstrapServerToml {
-    fn from(config: &BootstrapResponderConfig) -> Self {
+impl From<&NodeConfig> for BootstrapServerToml {
+    fn from(config: &NodeConfig) -> Self {
         Self {
-            max_queue: Some(config.max_queue),
-            threads: Some(config.threads),
-            batch_size: Some(config.batch_size),
-            limiter: Some(config.limiter),
+            enable: Some(config.enable_bootstrap_responder),
+            max_queue: Some(config.bootstrap_responder.max_queue),
+            threads: Some(config.bootstrap_responder.threads),
+            batch_size: Some(config.bootstrap_responder.batch_size),
+            limiter: Some(config.bootstrap_responder.limiter),
         }
     }
 }

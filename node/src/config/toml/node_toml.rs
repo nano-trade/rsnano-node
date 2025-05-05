@@ -268,8 +268,11 @@ impl NodeConfig {
                 config.optimistic_request_percentage = percent;
             }
         }
-        if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
-            self.bootstrap_responder = bootstrap_server_toml.into();
+        if let Some(toml) = &toml.bootstrap_server {
+            self.bootstrap_responder = toml.into();
+            if let Some(enable) = toml.enable {
+                self.enable_bootstrap_responder = enable;
+            }
         }
         if let Some(websocket_config_toml) = &toml.websocket {
             self.websocket_config.merge_toml(&websocket_config_toml);
@@ -372,6 +375,15 @@ impl NodeConfig {
                 self.network.minimum_fanout = i;
             }
         }
+
+        if let Some(toml) = &toml.fork_cache {
+            if let Some(i) = toml.max_size {
+                self.fork_cache_max_size = i;
+            }
+            if let Some(i) = toml.max_forks_per_root {
+                self.fork_cache_max_forks_per_root = i;
+            }
+        }
     }
 }
 
@@ -449,7 +461,7 @@ impl From<&NodeConfig> for NodeToml {
             }),
             priority_bucket: Some((&config.priority_bucket).into()),
             bootstrap: Some((&config.bootstrap).into()),
-            bootstrap_server: Some((&config.bootstrap_responder).into()),
+            bootstrap_server: Some(config.into()),
             websocket: Some((&config.websocket_config).into()),
             diagnostics: Some((&config.diagnostics_config).into()),
             lmdb: Some((&config.lmdb_config).into()),
@@ -563,5 +575,22 @@ mod tests {
         assert_eq!(sets_toml.priorities_max, Some(1024 * 256));
         assert_eq!(sets_toml.blocking_max, Some(1024 * 256));
         assert_eq!(sets_toml.cooldown, Some(3000));
+    }
+
+    #[test]
+    fn merge_fork_cache() {
+        let toml = NodeToml {
+            fork_cache: Some(ForkCacheToml {
+                max_size: Some(222),
+                max_forks_per_root: Some(22),
+            }),
+            ..Default::default()
+        };
+
+        let mut cfg = NodeConfig::new_test_instance();
+        cfg.merge_toml(&toml);
+
+        assert_eq!(cfg.fork_cache_max_size, 222);
+        assert_eq!(cfg.fork_cache_max_forks_per_root, 22);
     }
 }
