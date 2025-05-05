@@ -94,19 +94,19 @@ fn send_open_receive_rollback() {
     let rep_account = PublicKey::from(2);
     let change = inserter.genesis().change(rep_account);
 
-    ledger.rollback(&receive.hash()).unwrap();
+    ledger.roll_back(&receive.hash()).unwrap();
 
     assert_eq!(ledger.weight(&receiver.public_key()), Amount::raw(50));
     assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
     assert_eq!(ledger.weight(&rep_account), Amount::MAX - Amount::raw(100));
 
-    ledger.rollback(&open.hash()).unwrap();
+    ledger.roll_back(&open.hash()).unwrap();
 
     assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
     assert_eq!(ledger.weight(&rep_account), Amount::MAX - Amount::raw(100));
 
-    ledger.rollback(&change.hash()).unwrap();
+    ledger.roll_back(&change.hash()).unwrap();
 
     assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ledger.weight(&rep_account), Amount::zero());
@@ -115,7 +115,7 @@ fn send_open_receive_rollback() {
         Amount::MAX - Amount::raw(100)
     );
 
-    ledger.rollback(&send2.hash()).unwrap();
+    ledger.roll_back(&send2.hash()).unwrap();
 
     assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ledger.weight(&rep_account), Amount::zero());
@@ -124,7 +124,7 @@ fn send_open_receive_rollback() {
         Amount::MAX - Amount::raw(50)
     );
 
-    ledger.rollback(&send1.hash()).unwrap();
+    ledger.roll_back(&send1.hash()).unwrap();
 
     assert_eq!(ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ledger.weight(&rep_account), Amount::zero());

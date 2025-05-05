@@ -63,7 +63,7 @@ fn rollback_dependent_blocks_too() {
     inserter.account(&destination).legacy_open(send.hash());
 
     // Rollback send block. This requires the rollback of the open block first.
-    ledger.rollback(&send.hash()).unwrap();
+    ledger.roll_back(&send.hash()).unwrap();
 
     assert_eq!(
         ledger.any().account_balance(&DEV_GENESIS_ACCOUNT),
@@ -85,7 +85,7 @@ fn rollback_dependent_blocks_too() {
 
 fn roll_back_send() -> Fixture {
     let fixture = create_fixture();
-    fixture.ledger.rollback(&fixture.send.hash()).unwrap();
+    fixture.ledger.roll_back(&fixture.send.hash()).unwrap();
     fixture
 }
 

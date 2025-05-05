@@ -452,7 +452,7 @@ impl BlockProcessorLoopImpl {
         let can_roll_back = self.can_roll_back.read().unwrap();
         let mut results =
             self.ledger
-                .rollback_batch(&request.targets, request.max_rollbacks, &*can_roll_back);
+                .roll_back_batch(&request.targets, request.max_rollbacks, &*can_roll_back);
 
         let mut processed_hashes = Vec::new();
         for result in results.drain(..) {

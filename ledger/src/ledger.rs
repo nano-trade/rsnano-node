@@ -498,13 +498,13 @@ impl Ledger {
     }
     ///
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
-    pub fn rollback(&self, block: &BlockHash) -> Result<usize, RollbackError> {
-        let result = self.rollback_batch(&[*block], usize::MAX, |_| true);
+    pub fn roll_back(&self, block: &BlockHash) -> Result<usize, RollbackError> {
+        let result = self.roll_back_batch(&[*block], usize::MAX, |_| true);
         let rolled_back = result[0].rolled_back.len();
         result[0].error.map_or(Ok(rolled_back), |e| Err(e))
     }
 
-    pub fn rollback_batch(
+    pub fn roll_back_batch(
         &self,
         targets: &[BlockHash],
         max_rollbacks: usize,

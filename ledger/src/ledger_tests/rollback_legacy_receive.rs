@@ -6,7 +6,7 @@ use crate::{AnySet, Ledger, LedgerInserter, LedgerSet};
 fn clear_successor() {
     let fixture = create_fixture();
 
-    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
+    fixture.ledger.roll_back(&fixture.receive.hash()).unwrap();
 
     assert_eq!(
         fixture.ledger.any().block_successor(&fixture.open.hash()),
@@ -18,7 +18,7 @@ fn clear_successor() {
 fn update_account_info() {
     let fixture = create_fixture();
 
-    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
+    fixture.ledger.roll_back(&fixture.receive.hash()).unwrap();
 
     let account_info = fixture
         .ledger
@@ -35,7 +35,7 @@ fn update_account_info() {
 fn rollback_pending_info() {
     let fixture = create_fixture();
 
-    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
+    fixture.ledger.roll_back(&fixture.receive.hash()).unwrap();
 
     let pending = fixture
         .ledger
@@ -54,7 +54,7 @@ fn rollback_pending_info() {
 fn rollback_vote_weight() {
     let fixture = create_fixture();
 
-    fixture.ledger.rollback(&fixture.receive.hash()).unwrap();
+    fixture.ledger.roll_back(&fixture.receive.hash()).unwrap();
 
     assert_eq!(
         fixture.ledger.weight(&fixture.receive.account().into()),

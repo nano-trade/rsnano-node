@@ -128,7 +128,7 @@ fn pruning_source_rollback() {
     ledger.process_one(&receive1).unwrap();
 
     // Rollback receive block
-    ledger.rollback(&receive1.hash()).unwrap();
+    ledger.roll_back(&receive1.hash()).unwrap();
 
     let any = ledger.any();
     let info2 = any
@@ -183,7 +183,7 @@ fn pruning_source_rollback_legacy() {
     ledger.process_one(&receive1).unwrap();
 
     // Rollback receive block
-    ledger.rollback(&receive1.hash()).unwrap();
+    ledger.roll_back(&receive1.hash()).unwrap();
 
     let mut any = ledger.any();
     let info3 = any
@@ -215,7 +215,7 @@ fn pruning_source_rollback_legacy() {
     ledger.process_one(&open1).unwrap();
 
     // Rollback open block
-    ledger.rollback(&open1.hash()).unwrap();
+    ledger.roll_back(&open1.hash()).unwrap();
 
     any = ledger.any();
     let info4 = any

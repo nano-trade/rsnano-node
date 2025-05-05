@@ -10,7 +10,7 @@ fn rollback_dependent_blocks_too() {
     let change = inserter.genesis().legacy_change(123);
     let send = inserter.genesis().legacy_send(Account::from(1), 100);
 
-    ledger.rollback(&change.hash()).unwrap();
+    ledger.roll_back(&change.hash()).unwrap();
 
     assert_eq!(ledger.any().get_block(&send.hash()), None);
     assert_eq!(ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::MAX);

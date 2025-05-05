@@ -28,36 +28,6 @@ impl<'a> BlockRollbackPerformer<'a> {
         Ok(())
     }
 
-    fn any(&self) -> BorrowingAnySet {
-        BorrowingAnySet {
-            constants: &self.ledger.constants,
-            store: &self.ledger.store,
-            tx: self.txn,
-        }
-    }
-
-    fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), RollbackError> {
-        let any = self.any();
-        let planner =
-            RollbackPlannerFactory::new(self.ledger, &any, &head_block).create_planner()?;
-        let step = planner.roll_back_head_block()?;
-        self.execute(step, head_block)?;
-        Ok(())
-    }
-
-    fn execute(&mut self, step: RollbackStep, head_block: SavedBlock) -> Result<(), RollbackError> {
-        match step {
-            RollbackStep::RollBackBlock(instructions) => {
-                RollbackInstructionsExecutor::new(self.ledger, self.txn, &instructions).execute();
-                self.rolled_back.push(head_block);
-                Ok(())
-            }
-            RollbackStep::RequestDependencyRollback(dependency_hash) => {
-                self.roll_back_block_and_successors(&dependency_hash)
-            }
-        }
-    }
-
     fn roll_back_block_and_successors(
         &mut self,
         block_hash: &BlockHash,
@@ -85,6 +55,36 @@ impl<'a> BlockRollbackPerformer<'a> {
         self.any()
             .get_block(block_hash)
             .ok_or(RollbackError::BlockNotFound)
+    }
+
+    fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), RollbackError> {
+        let any = self.any();
+        let planner =
+            RollbackPlannerFactory::new(self.ledger, &any, &head_block).create_planner()?;
+        let step = planner.roll_back_head_block()?;
+        self.execute(step, head_block)?;
+        Ok(())
+    }
+
+    fn execute(&mut self, step: RollbackStep, head_block: SavedBlock) -> Result<(), RollbackError> {
+        match step {
+            RollbackStep::RollBackBlock(instructions) => {
+                RollbackInstructionsExecutor::new(self.ledger, self.txn, &instructions).execute();
+                self.rolled_back.push(head_block);
+                Ok(())
+            }
+            RollbackStep::RequestDependencyRollback(dependency_hash) => {
+                self.roll_back_block_and_successors(&dependency_hash)
+            }
+        }
+    }
+
+    fn any(&self) -> BorrowingAnySet {
+        BorrowingAnySet {
+            constants: &self.ledger.constants,
+            store: &self.ledger.store,
+            tx: self.txn,
+        }
     }
 }
 

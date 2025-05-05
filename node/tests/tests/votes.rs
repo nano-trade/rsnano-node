@@ -297,7 +297,7 @@ fn vote_spacing_vote_generator() {
         1,
     );
 
-    node.ledger.rollback(&send1.hash()).unwrap();
+    node.ledger.roll_back(&send1.hash()).unwrap();
     node.ledger.process_one(&send2).unwrap();
     node.vote_generators
         .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
@@ -380,7 +380,7 @@ fn vote_spacing_rapid() {
         1,
     );
 
-    node.ledger.rollback(&send1.hash()).unwrap();
+    node.ledger.roll_back(&send1.hash()).unwrap();
     node.ledger.process_one(&send2).unwrap();
     node.vote_generators
         .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
