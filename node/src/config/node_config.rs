@@ -26,7 +26,8 @@ use crate::{
         election_schedulers::{
             priority::PriorityBucketConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
         },
-        ActiveElectionsConfig, RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
+        ActiveElectionsConfig, ForkCache, RequestAggregatorConfig, VoteCacheConfig,
+        VoteProcessorConfig,
     },
     transport::MessageProcessorConfig,
 };
@@ -114,6 +115,8 @@ pub struct NodeConfig {
 
     /// Maximum confirmation history size
     pub confirmation_history_size: usize,
+    pub fork_cache_max_size: usize,
+    pub fork_cache_max_forks_per_root: usize,
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
@@ -338,6 +341,8 @@ impl NodeConfig {
                 ..NetworkConfig::default_for(network)
             },
             confirmation_history_size: 2048,
+            fork_cache_max_size: ForkCache::DEFAULT_MAX_LEN,
+            fork_cache_max_forks_per_root: ForkCache::DEFAULT_MAX_FORKS_PER_ROOT,
         }
     }
 
@@ -403,5 +408,21 @@ impl Default for TcpConfig {
             max_attempts_per_ip: 1,
             connect_timeout: Duration::from_secs(60),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consensus::ForkCache;
+
+    #[test]
+    fn default_values() {
+        let config = NodeConfig::default_for(Networks::NanoLiveNetwork, 2);
+        assert_eq!(config.fork_cache_max_size, ForkCache::DEFAULT_MAX_LEN);
+        assert_eq!(
+            config.fork_cache_max_forks_per_root,
+            ForkCache::DEFAULT_MAX_FORKS_PER_ROOT
+        );
     }
 }

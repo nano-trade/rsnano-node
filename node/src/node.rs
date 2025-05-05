@@ -480,7 +480,10 @@ impl Node {
             stats.clone(),
         )));
 
-        let fork_cache = Arc::new(RwLock::new(ForkCache::default()));
+        let fork_cache = Arc::new(RwLock::new(ForkCache::with(
+            config.fork_cache_max_size,
+            config.fork_cache_max_forks_per_root,
+        )));
 
         let block_processor = Arc::new(BlockProcessor::new(
             global_config.into(),

@@ -1,4 +1,4 @@
-use super::*;
+use super::{fork_cache_toml::ForkCacheToml, *};
 use crate::config::NodeConfig;
 use bounded_backlog_toml::BoundedBacklogToml;
 use rsnano_core::{utils::Peer, Account, Amount};
@@ -67,6 +67,7 @@ pub struct NodeToml {
     pub bounded_backlog: Option<BoundedBacklogToml>,
     pub tcp: Option<TcpToml>,
     pub network: Option<NetworkToml>,
+    pub fork_cache: Option<ForkCacheToml>,
 }
 
 impl NodeConfig {
@@ -469,6 +470,7 @@ impl From<&NodeConfig> for NodeToml {
             bounded_backlog: Some(config.into()),
             tcp: Some((&config.tcp).into()),
             network: Some(config.into()),
+            fork_cache: Some(config.into()),
         }
     }
 }
