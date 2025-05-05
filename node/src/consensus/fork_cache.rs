@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
+use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Block, BlockHash, QualifiedRoot,
@@ -11,22 +12,29 @@ pub(crate) struct ForkCache {
     sequential: VecDeque<QualifiedRoot>,
     empty: Entry,
     max_len: usize,
+    max_forks_per_root: usize,
     inserted: u64,
 }
 
 impl ForkCache {
-    const MAX_FORKS_PER_ROOT: usize = 5;
+    pub const DEFAULT_MAX_FORKS_PER_ROOT: usize = 10;
+    pub const DEFAULT_MAX_LEN: usize = 1024 * 16;
 
     pub(crate) fn new() -> Self {
-        Self::with_max_len(1024)
+        Self::with_max_len(Self::DEFAULT_MAX_LEN)
     }
 
     pub fn with_max_len(max_len: usize) -> Self {
+        Self::with(max_len, Self::DEFAULT_MAX_FORKS_PER_ROOT)
+    }
+
+    pub fn with(max_len: usize, max_forks_per_root: usize) -> Self {
         Self {
             forks: HashMap::new(),
             sequential: VecDeque::new(),
-            empty: Entry::new(),
+            empty: Entry::new(0),
             max_len,
+            max_forks_per_root,
             inserted: 0,
         }
     }
@@ -41,7 +49,10 @@ impl ForkCache {
     }
 
     pub fn add(&mut self, fork: Block) {
-        let forks = self.forks.entry(fork.qualified_root()).or_default();
+        let forks = self
+            .forks
+            .entry(fork.qualified_root())
+            .or_insert_with(|| Entry::new(self.max_forks_per_root));
 
         if forks.contains(&fork.hash()) {
             return;
@@ -83,33 +94,18 @@ impl ContainerInfoProvider for ForkCache {
 }
 
 struct Entry {
-    blocks: [Block; ForkCache::MAX_FORKS_PER_ROOT],
-    count: usize,
+    blocks: BoundedVecDeque<Block>,
 }
 
 impl Entry {
-    fn new() -> Self {
-        let dummy = Block::new_test_instance();
+    fn new(max_forks: usize) -> Self {
         Self {
-            blocks: [
-                dummy.clone(),
-                dummy.clone(),
-                dummy.clone(),
-                dummy.clone(),
-                dummy,
-            ],
-            count: 0,
+            blocks: BoundedVecDeque::new(max_forks),
         }
     }
 
     fn add(&mut self, block: Block) {
-        if self.count < ForkCache::MAX_FORKS_PER_ROOT {
-            self.blocks[self.count] = block;
-            self.count += 1;
-        } else {
-            self.blocks.rotate_left(1);
-            self.blocks[ForkCache::MAX_FORKS_PER_ROOT - 1] = block;
-        }
+        self.blocks.push_back(block);
     }
 
     fn contains(&self, hash: &BlockHash) -> bool {
@@ -117,17 +113,11 @@ impl Entry {
     }
 
     fn is_empty(&self) -> bool {
-        self.count == 0
+        self.blocks.is_empty()
     }
 
     fn iter(&self) -> impl Iterator<Item = &Block> {
-        self.blocks[..self.count].iter()
-    }
-}
-
-impl Default for Entry {
-    fn default() -> Self {
-        Self::new()
+        self.blocks.iter()
     }
 }
 
@@ -147,7 +137,8 @@ mod tests {
     fn empty() {
         let cache = ForkCache::default();
         assert_eq!(cache.len(), 0);
-        assert_eq!(cache.max_len(), 1024);
+        assert_eq!(ForkCache::DEFAULT_MAX_LEN, 1024 * 16);
+        assert_eq!(cache.max_len(), ForkCache::DEFAULT_MAX_LEN);
         assert_forks(&cache, &QualifiedRoot::new_test_instance(), &[]);
         assert!(!cache.contains(&QualifiedRoot::new_test_instance()))
     }
@@ -206,8 +197,8 @@ mod tests {
     }
 
     #[test]
-    fn limit_to_5_forks_per_root() {
-        let mut cache = ForkCache::default();
+    fn limit_forks_per_root() {
+        let mut cache = ForkCache::with(1024, 5);
 
         let fork1 = create_block(BlockHash::from(1), Amount::from(2));
         let fork2 = create_block(BlockHash::from(1), Amount::from(3));

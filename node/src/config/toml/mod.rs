@@ -7,6 +7,7 @@ mod bounded_backlog_toml;
 mod daemon_toml;
 mod diagnostics_toml;
 mod experimental_toml;
+mod fork_cache_toml;
 mod hinted_scheduler_toml;
 mod httpcallback_toml;
 mod lmdb_toml;
