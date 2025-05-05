@@ -1,10 +1,4 @@
-use std::{
-    net::SocketAddrV6,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
+use std::{net::SocketAddrV6, sync::Arc};
 
 use tracing::{debug, warn};
 
@@ -23,18 +17,22 @@ pub enum HandshakeStatus {
 /// Responsible for performing a correct handshake when connecting to another node
 pub struct HandshakeProcess {
     genesis_hash: BlockHash,
-    node_id: PrivateKey,
+    node_id_key: PrivateKey,
     syn_cookies: Arc<SynCookies>,
-    handshake_received: AtomicBool,
+    handshake_received: bool,
 }
 
 impl HandshakeProcess {
-    pub fn new(genesis_hash: BlockHash, node_id: PrivateKey, syn_cookies: Arc<SynCookies>) -> Self {
+    pub fn new(
+        genesis_hash: BlockHash,
+        node_id_key: PrivateKey,
+        syn_cookies: Arc<SynCookies>,
+    ) -> Self {
         Self {
             genesis_hash,
-            node_id,
+            node_id_key,
             syn_cookies,
-            handshake_received: AtomicBool::new(false),
+            handshake_received: false,
         }
     }
 
@@ -52,7 +50,7 @@ impl HandshakeProcess {
     }
 
     pub fn process_handshake(
-        &self,
+        &mut self,
         message: &NodeIdHandshake,
         peer: SocketAddrV6,
     ) -> Result<(Option<NodeId>, Option<NodeIdHandshake>), HandshakeResponseError> {
@@ -61,12 +59,12 @@ impl HandshakeProcess {
             return Err(HandshakeResponseError::EmptyResponse);
         }
 
-        if message.query.is_some() && self.handshake_received.load(Ordering::SeqCst) {
+        if message.query.is_some() && self.handshake_received {
             // Second handshake message should be a response only
             return Err(HandshakeResponseError::MultipleQueries);
         }
 
-        self.handshake_received.store(true, Ordering::SeqCst);
+        self.handshake_received = true;
 
         let log_type = match (message.query.is_some(), message.response.is_some()) {
             (true, true) => "query + response",
@@ -126,7 +124,7 @@ impl HandshakeProcess {
         peer_addr: SocketAddrV6,
     ) -> Result<(), HandshakeResponseError> {
         // Prevent connection with ourselves
-        if response.node_id == self.node_id.public_key().into() {
+        if response.node_id == self.node_id_key.public_key().into() {
             return Err(HandshakeResponseError::OwnNodeId);
         }
 
@@ -154,9 +152,9 @@ impl HandshakeProcess {
         v2: bool,
     ) -> NodeIdHandshakeResponse {
         if v2 {
-            NodeIdHandshakeResponse::new_v2(&query.cookie, &self.node_id, self.genesis_hash)
+            NodeIdHandshakeResponse::new_v2(&query.cookie, &self.node_id_key, self.genesis_hash)
         } else {
-            NodeIdHandshakeResponse::new_v1(&query.cookie, &self.node_id)
+            NodeIdHandshakeResponse::new_v1(&query.cookie, &self.node_id_key)
         }
     }
 

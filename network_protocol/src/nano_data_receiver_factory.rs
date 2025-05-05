@@ -57,7 +57,7 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
         );
 
         let message_deserializer =
-            MessageDeserializer::new(self.protocol, Some(self.network_filter.clone()));
+            MessageDeserializer::with_filter(self.protocol, self.network_filter.clone());
 
         let mut receiver = NanoDataReceiver::new(
             channel,

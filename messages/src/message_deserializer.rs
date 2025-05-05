@@ -15,11 +15,20 @@ pub struct MessageDeserializer {
 }
 
 impl MessageDeserializer {
-    pub fn new(protocol: ProtocolInfo, network_filter: Option<Arc<NetworkFilter>>) -> Self {
+    pub fn new(protocol: ProtocolInfo) -> Self {
         Self {
             buffer: VecDeque::with_capacity(Message::MAX_MESSAGE_SIZE),
             current_header: None,
-            network_filter,
+            network_filter: None,
+            protocol,
+        }
+    }
+
+    pub fn with_filter(protocol: ProtocolInfo, network_filter: Arc<NetworkFilter>) -> Self {
+        Self {
+            buffer: VecDeque::with_capacity(Message::MAX_MESSAGE_SIZE),
+            current_header: None,
+            network_filter: Some(network_filter),
             protocol,
         }
     }
@@ -318,6 +327,6 @@ mod tests {
 
     fn create_deserializer() -> MessageDeserializer {
         let filter = Arc::new(NetworkFilter::default());
-        MessageDeserializer::new(ProtocolInfo::default(), Some(filter))
+        MessageDeserializer::with_filter(ProtocolInfo::default(), filter)
     }
 }

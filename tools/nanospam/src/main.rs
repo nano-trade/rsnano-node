@@ -1,77 +1,60 @@
+use anyhow::bail;
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
-use rsnano_messages::NetworkFilter;
-use rsnano_network::{ChannelDirection, Network, NetworkConfig, TcpNetworkAdapter};
-use rsnano_network_protocol::{
-    HandshakeStats, LatestKeepalives, NanoDataReceiverFactory, SynCookies,
-};
-use rsnano_nullable_clock::SteadyClock;
-use rsnano_nullable_tcp::TcpSocket;
-use rsnano_stats::Stats;
+use rsnano_messages::{Keepalive, Message, MessageDeserializer, MessageSerializer};
+use rsnano_network_protocol::{HandshakeProcess, SynCookies};
 use std::{
-    net::SocketAddrV6,
-    sync::{Arc, Mutex, RwLock},
+    net::{SocketAddr, SocketAddrV6},
+    sync::Arc,
     time::Duration,
 };
-use tokio::time::sleep;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpSocket, TcpStream},
+    time::sleep,
+};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> anyhow::Result<()> {
     setup_tracing();
 
-    let node_addr: SocketAddrV6 = "[::1]:17075".parse()?;
+    let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
     let node_id_key = PrivateKey::from(42);
     let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
     let genesis_hash = get_genesis_hash_from_env()?;
-    let msg_received = Arc::new(|message, _| info!(?message, "received message"));
+    let mut tcp_stream = TcpSocket::new_v6()?.connect(peer_addr.into()).await?;
 
-    // Unimportant details
-    //--------------------------------------------------------------------------------
+    perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
 
-    let network = Arc::new(RwLock::new(Network::new(NetworkConfig::default_for(
-        Networks::NanoTestNetwork,
-    ))));
+    let mut serializer = MessageSerializer::new(protocol);
+    let mut deserializer = MessageDeserializer::new(protocol);
 
-    let stats = Arc::new(Stats::default());
-    let network_filter = Arc::new(NetworkFilter::default());
-    let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
-    let syn_cookies = Arc::new(SynCookies::default());
-    let handshake_stats = Arc::new(HandshakeStats::default());
+    let (mut read, mut write) = tokio::io::split(tcp_stream);
 
-    let receiver_factory = Box::new(NanoDataReceiverFactory::new(
-        &network,
-        msg_received,
-        network_filter,
-        stats,
-        handshake_stats,
-        syn_cookies,
-        node_id_key,
-        latest_keepalives,
-        genesis_hash,
-        protocol,
-    ));
+    tokio_scoped::scope(|scope| {
+        scope.spawn(async {
+            let mut recv_buffer = vec![0; 1024 * 4];
+            loop {
+                let n = read.read(&mut recv_buffer).await.unwrap();
+                deserializer.push(&recv_buffer[..n]);
+                while let Some(msg) = deserializer.try_deserialize() {
+                    let msg = msg.unwrap();
+                    info!(message = ?msg.message, "received message");
+                }
+            }
+        });
 
-    network
-        .write()
-        .unwrap()
-        .set_data_receiver_factory(receiver_factory);
-
-    let clock = Arc::new(SteadyClock::default());
-    let network_adapter = Arc::new(TcpNetworkAdapter::new(
-        network.clone(),
-        clock.clone(),
-        tokio::runtime::Handle::current(),
-    ));
-
-    //--------------------------------------------------------------------------------
-
-    let tcp_stream = TcpSocket::new_v6()?.connect(node_addr.into()).await?;
-    network_adapter.add(tcp_stream, ChannelDirection::Outbound)?;
-
-    loop {
-        sleep(Duration::from_millis(100)).await;
-    }
+        scope.spawn(async {
+            loop {
+                println!("SENDING KEEPALIVE");
+                let buffer = serializer.serialize(&Message::Keepalive(Keepalive::default()));
+                write.write(&buffer).await.unwrap();
+                sleep(Duration::from_secs(1)).await;
+            }
+        });
+    });
+    Ok(())
 }
 
 fn setup_tracing() {
@@ -88,4 +71,52 @@ fn get_genesis_hash_from_env() -> anyhow::Result<BlockHash> {
         std::env::var("NANO_TEST_GENESIS_BLOCK").expect("Genesis block not set");
     let genesis_block: Block = serde_json::from_str(&genesis_block_json).unwrap();
     Ok(genesis_block.hash())
+}
+
+async fn perform_handshake(
+    protocol: ProtocolInfo,
+    genesis_hash: BlockHash,
+    node_id_key: PrivateKey,
+    tcp_stream: &mut TcpStream,
+) -> anyhow::Result<()> {
+    let peer_addr = match tcp_stream.peer_addr()? {
+        SocketAddr::V4(v4) => SocketAddrV6::new(v4.ip().to_ipv6_mapped(), v4.port(), 0, 0),
+        SocketAddr::V6(v6) => v6,
+    };
+    let mut serializer = MessageSerializer::new(protocol);
+    let mut deserializer = MessageDeserializer::new(protocol);
+
+    let syn_cookies = Arc::new(SynCookies::default());
+    let mut handshake = HandshakeProcess::new(genesis_hash, node_id_key, syn_cookies);
+
+    let handshake_payload = handshake.initiate_handshake(peer_addr)?;
+    let buffer = serializer.serialize(&Message::NodeIdHandshake(handshake_payload));
+    tcp_stream.write_all(buffer).await?;
+
+    let mut recv_buffer = vec![0; 1024];
+    let response;
+    loop {
+        let size = tcp_stream.read(&mut recv_buffer).await?;
+        deserializer.push(&recv_buffer[..size]);
+        if let Some(msg) = deserializer.try_deserialize() {
+            response = msg.unwrap().message;
+            break;
+        }
+    }
+
+    let Message::NodeIdHandshake(handshake_response) = response else {
+        bail!("no handshake response received");
+    };
+
+    match handshake
+        .process_handshake(&handshake_response, peer_addr)
+        .unwrap()
+    {
+        (Some(_node_id), Some(response)) => {
+            let buffer = serializer.serialize(&Message::NodeIdHandshake(response));
+            tcp_stream.write(buffer).await?;
+        }
+        _ => unreachable!(),
+    }
+    Ok(())
 }

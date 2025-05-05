@@ -14,7 +14,7 @@ pub(crate) async fn run_loopback_channel_adapter(
 ) {
     loopback.set_node_id(node_id);
     let protocol = ProtocolInfo::default_for(network);
-    let mut deserializer = MessageDeserializer::new(protocol, None);
+    let mut deserializer = MessageDeserializer::new(protocol);
     loop {
         let res = select! {
             _ = loopback.cancelled() =>{

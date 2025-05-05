@@ -12,7 +12,8 @@ rsnano_network_protocol = { path = "../../network_protocol" }
 rsnano_nullable_clock = { path = "../../nullables/clock" }
 rsnano_nullable_tcp = { path = "../../nullables/tcp" }
 anyhow = "1.0.98"
-tokio = { version = "1.44.2", features = ["macros", "rt", "net", "io-util"] }
+tokio = { version = "1.44.2", features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
+tokio-scoped = "0.2.0"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 tracing = "0.1.41"
 serde = { version = "1", features = ["derive"] }
