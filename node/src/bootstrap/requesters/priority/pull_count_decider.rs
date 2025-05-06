@@ -1,4 +1,4 @@
-use crate::bootstrap::{state::Priority, BootstrapResponder};
+use crate::bootstrap::{state::Priority, BootstrapServer};
 use num::clamp;
 use rsnano_messages::BlocksAckPayload;
 use std::cmp::min;
@@ -20,7 +20,7 @@ impl PullCountDecider {
         let pull_count = clamp(
             f64::from(priority) as u8,
             MIN_PULL_COUNT,
-            BootstrapResponder::MAX_BLOCKS,
+            BootstrapServer::MAX_BLOCKS,
         );
 
         // Limit the max number of blocks to pull
@@ -37,7 +37,7 @@ impl Default for PullCountDecider {
 #[cfg(test)]
 mod tests {
     use super::PullCountDecider;
-    use crate::bootstrap::{state::Priority, BootstrapResponder};
+    use crate::bootstrap::{state::Priority, BootstrapServer};
 
     #[test]
     fn min_count() {
@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn max() {
-        assert_pull_count(Priority::new(999.0), BootstrapResponder::MAX_BLOCKS as u8);
+        assert_pull_count(Priority::new(999.0), BootstrapServer::MAX_BLOCKS as u8);
     }
 
     #[test]

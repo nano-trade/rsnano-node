@@ -20,7 +20,7 @@ use crate::{
     block_processing::{
         BacklogScanConfig, BlockProcessorConfig, BoundedBacklogConfig, LocalBlockBroadcasterConfig,
     },
-    bootstrap::{BootstrapConfig, BootstrapResponderConfig},
+    bootstrap::{BootstrapConfig, BootstrapServerConfig},
     cementation::ConfirmingSetConfig,
     consensus::{
         election_schedulers::{
@@ -75,7 +75,7 @@ pub struct NodeConfig {
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
     pub bootstrap: BootstrapConfig,
-    pub bootstrap_responder: BootstrapResponderConfig,
+    pub bootstrap_server: BootstrapServerConfig,
     pub bootstrap_bandwidth_limit: usize,
     pub bootstrap_bandwidth_burst_ratio: f64,
     pub confirming_set_batch_time: Duration,
@@ -283,7 +283,7 @@ impl NodeConfig {
             // Bootstrap traffic does not need bursts
             bootstrap_bandwidth_burst_ratio: 1.,
             bootstrap: Default::default(),
-            bootstrap_responder: Default::default(),
+            bootstrap_server: Default::default(),
             confirming_set_batch_time: Duration::from_millis(250),
             backup_before_upgrade: false,
             max_work_generate_multiplier: 64_f64,

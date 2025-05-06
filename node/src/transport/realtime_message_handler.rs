@@ -13,7 +13,7 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
     block_processing::BlockProcessor,
-    bootstrap::{BootstrapResponder, Bootstrapper},
+    bootstrap::{BootstrapServer, Bootstrapper},
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,
     wallets::Wallets,
@@ -29,7 +29,7 @@ pub struct RealtimeMessageHandler {
     request_aggregator: Arc<RequestAggregator>,
     vote_processor_queue: Arc<VoteProcessorQueue>,
     telemetry: Arc<Telemetry>,
-    bootstrap_responder: Arc<BootstrapResponder>,
+    bootstrap_server: Arc<BootstrapServer>,
     bootstrapper: Arc<Bootstrapper>,
 }
 
@@ -43,7 +43,7 @@ impl RealtimeMessageHandler {
         request_aggregator: Arc<RequestAggregator>,
         vote_processor_queue: Arc<VoteProcessorQueue>,
         telemetry: Arc<Telemetry>,
-        bootstrap_responder: Arc<BootstrapResponder>,
+        bootstrap_server: Arc<BootstrapServer>,
         bootstrapper: Arc<Bootstrapper>,
     ) -> Self {
         Self {
@@ -55,7 +55,7 @@ impl RealtimeMessageHandler {
             request_aggregator,
             vote_processor_queue,
             telemetry,
-            bootstrap_responder,
+            bootstrap_server,
             bootstrapper,
         }
     }
@@ -156,7 +156,7 @@ impl RealtimeMessageHandler {
             }
             Message::TelemetryAck(ack) => self.telemetry.process(&ack, channel),
             Message::AscPullReq(req) => {
-                self.bootstrap_responder.enqueue(req, channel.clone());
+                self.bootstrap_server.enqueue(req, channel.clone());
             }
             Message::AscPullAck(ack) => self.bootstrapper.process(ack, channel.channel_id()),
             Message::FrontierReq(_)

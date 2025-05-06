@@ -269,7 +269,7 @@ impl NodeConfig {
             }
         }
         if let Some(toml) = &toml.bootstrap_server {
-            self.bootstrap_responder = toml.into();
+            self.bootstrap_server = toml.into();
             if let Some(enable) = toml.enable {
                 self.enable_bootstrap_responder = enable;
             }

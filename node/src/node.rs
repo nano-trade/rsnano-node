@@ -43,8 +43,7 @@ use crate::{
         LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{
-        BootstrapExt, BootstrapResponder, BootstrapResponderCleanup, Bootstrapper,
-        BootstrapperCleanup,
+        BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
     },
     cementation::ConfirmingSet,
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
@@ -110,7 +109,7 @@ pub struct Node {
     pub ledger: Arc<Ledger>,
     pub network: Arc<RwLock<Network>>,
     pub telemetry: Arc<Telemetry>,
-    pub bootstrap_responder: Arc<BootstrapResponder>,
+    pub bootstrap_server: Arc<BootstrapServer>,
     online_weight_calculation: TimerThread<OnlineWeightCalculation>,
     pub online_reps: Arc<Mutex<OnlineReps>>,
     rep_tiers_calculator: TimerThread<RepTiersCalculator>,
@@ -445,14 +444,14 @@ impl Node {
             steady_clock.clone(),
         ));
 
-        let bootstrap_responder = Arc::new(BootstrapResponder::new(
-            config.bootstrap_responder.clone(),
+        let bootstrap_server = Arc::new(BootstrapServer::new(
+            config.bootstrap_server.clone(),
             stats.clone(),
             ledger.clone(),
             message_sender.clone(),
         ));
         dead_channel_cleanup.add_step(BootstrapResponderCleanup::new(
-            bootstrap_responder.server_impl.clone(),
+            bootstrap_server.server_impl.clone(),
         ));
 
         let vote_processor_queue = Arc::new(VoteProcessorQueue::new(
@@ -893,7 +892,7 @@ impl Node {
             request_aggregator.clone(),
             vote_processor_queue.clone(),
             telemetry.clone(),
-            bootstrap_responder.clone(),
+            bootstrap_server.clone(),
             bootstrapper.clone(),
         ));
 
@@ -1224,7 +1223,7 @@ impl Node {
             config,
             flags,
             runtime,
-            bootstrap_responder,
+            bootstrap_server,
             online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
             online_reps,
             rep_tiers_calculator: TimerThread::new("Rep tiers", rep_tiers_calculator),
@@ -1263,7 +1262,7 @@ impl Node {
             block_flooder,
             vote_rebroadcaster,
             tokio_runner,
-            aec_ticker: TimerThread::new("Request loop", aec_ticker),
+            aec_ticker: TimerThread::new("AEC ticker", aec_ticker),
             recently_cemented,
             stats_collector,
             container_info_factory: container_info,
@@ -1521,7 +1520,7 @@ impl Node {
             self.bounded_backlog.start();
         }
         if self.config.enable_bootstrap_responder {
-            self.bootstrap_responder.start();
+            self.bootstrap_server.start();
         }
         self.bootstrapper.start();
         self.telemetry.start();
@@ -1584,7 +1583,7 @@ impl Node {
         self.vote_generators.stop();
         self.confirming_set.stop();
         self.telemetry.stop();
-        self.bootstrap_responder.stop();
+        self.bootstrap_server.stop();
         self.wallets.stop();
         self.local_block_broadcaster.stop();
         self.message_processor.lock().unwrap().stop();

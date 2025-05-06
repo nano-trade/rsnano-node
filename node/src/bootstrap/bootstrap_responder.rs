@@ -23,14 +23,14 @@ use rsnano_stats::{DetailType, Direction, StatType, Stats};
 use crate::transport::MessageSender;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct BootstrapResponderConfig {
+pub struct BootstrapServerConfig {
     pub max_queue: usize,
     pub threads: usize,
     pub batch_size: usize,
     pub limiter: usize,
 }
 
-impl Default for BootstrapResponderConfig {
+impl Default for BootstrapServerConfig {
     fn default() -> Self {
         Self {
             max_queue: 16,
@@ -44,21 +44,21 @@ impl Default for BootstrapResponderConfig {
 /**
  * Processes bootstrap requests (`asc_pull_req` messages) and replies with bootstrap responses (`asc_pull_ack`)
  */
-pub struct BootstrapResponder {
-    config: BootstrapResponderConfig,
+pub struct BootstrapServer {
+    config: BootstrapServerConfig,
     stats: Arc<Stats>,
     threads: Mutex<Vec<JoinHandle<()>>>,
     pub(crate) server_impl: Arc<BootstrapResponderImpl>,
     running: AtomicBool,
 }
 
-impl BootstrapResponder {
+impl BootstrapServer {
     /** Maximum number of blocks to send in a single response, cannot be higher than capacity of a single `asc_pull_ack` message */
     pub const MAX_BLOCKS: u8 = BlocksAckPayload::MAX_BLOCKS as u8;
     pub const MAX_FRONTIERS: usize = AscPullAck::MAX_FRONTIERS;
 
     pub(crate) fn new(
-        config: BootstrapResponderConfig,
+        config: BootstrapServerConfig,
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
         message_sender: MessageSender,
@@ -171,7 +171,7 @@ impl BootstrapResponder {
     }
 }
 
-impl Drop for BootstrapResponder {
+impl Drop for BootstrapServer {
     fn drop(&mut self) {
         debug_assert!(self.threads.lock().unwrap().is_empty());
     }
@@ -262,7 +262,7 @@ impl BootstrapResponderImpl {
     }
 
     fn process_blocks(&self, any: &dyn AnySet, id: u64, request: BlocksReqPayload) -> AscPullAck {
-        let count = min(request.count, BootstrapResponder::MAX_BLOCKS);
+        let count = min(request.count, BootstrapServer::MAX_BLOCKS);
 
         match request.start_type {
             HashType::Account => {

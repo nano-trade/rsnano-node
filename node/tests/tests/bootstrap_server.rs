@@ -10,7 +10,7 @@ use rsnano_messages::{
     AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq, AscPullReqType,
     BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_node::{bootstrap::BootstrapResponder, Node};
+use rsnano_node::{bootstrap::BootstrapServer, Node};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_always_eq, assert_timely_eq, assert_timely_eq2, make_fake_channel, setup_chains, System,
@@ -33,7 +33,7 @@ fn serve_account_blocks() {
         req_type: AscPullReqType::Blocks(BlocksReqPayload {
             start_type: HashType::Account,
             start: first_account.into(),
-            count: BootstrapResponder::MAX_BLOCKS as u8,
+            count: BootstrapServer::MAX_BLOCKS as u8,
         }),
     });
 
@@ -76,7 +76,7 @@ fn serve_hash() {
         req_type: AscPullReqType::Blocks(BlocksReqPayload {
             start_type: HashType::Block,
             start: blocks[0].hash().into(),
-            count: BootstrapResponder::MAX_BLOCKS as u8,
+            count: BootstrapServer::MAX_BLOCKS as u8,
         }),
     });
 
@@ -157,7 +157,7 @@ fn serve_end_of_chain() {
         req_type: AscPullReqType::Blocks(BlocksReqPayload {
             start_type: HashType::Block,
             start: blocks.last().unwrap().hash().into(),
-            count: BootstrapResponder::MAX_BLOCKS as u8,
+            count: BootstrapServer::MAX_BLOCKS as u8,
         }),
     });
 
@@ -197,7 +197,7 @@ fn serve_missing() {
         req_type: AscPullReqType::Blocks(BlocksReqPayload {
             start_type: HashType::Block,
             start: HashOrAccount::from(42),
-            count: BootstrapResponder::MAX_BLOCKS as u8,
+            count: BootstrapServer::MAX_BLOCKS as u8,
         }),
     });
 
@@ -236,7 +236,7 @@ fn serve_multiple() {
                 req_type: AscPullReqType::Blocks(BlocksReqPayload {
                     start_type: HashType::Account,
                     start: (*account).into(),
-                    count: BootstrapResponder::MAX_BLOCKS as u8,
+                    count: BootstrapServer::MAX_BLOCKS as u8,
                 }),
             });
             next_id += 1;
@@ -372,7 +372,7 @@ fn serve_frontiers() {
         id: 7,
         req_type: AscPullReqType::Frontiers(FrontiersReqPayload {
             start: Account::zero(),
-            count: BootstrapResponder::MAX_FRONTIERS as u16,
+            count: BootstrapServer::MAX_FRONTIERS as u16,
         }),
     });
 
@@ -446,7 +446,7 @@ fn serve_frontiers_invalid_count() {
             id: 7,
             req_type: AscPullReqType::Frontiers(FrontiersReqPayload {
                 start: Account::zero(),
-                count: BootstrapResponder::MAX_FRONTIERS as u16 + 1,
+                count: BootstrapServer::MAX_FRONTIERS as u16 + 1,
             }),
         });
 
@@ -514,7 +514,7 @@ impl ResponseHelper {
 
     fn connect(&self, node: &Node) {
         let responses = self.responses.clone();
-        node.bootstrap_responder
+        node.bootstrap_server
             .set_response_callback(Box::new(move |response, _channel| {
                 responses.lock().unwrap().push(response.clone());
             }));
