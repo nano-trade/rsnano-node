@@ -1,5 +1,5 @@
 mod block_inspector;
-mod bootstrap_responder;
+mod bootstrap_server;
 mod bootstrapper;
 mod cleanup;
 mod requesters;
@@ -10,7 +10,7 @@ use state::QueryType;
 pub use state::{BootstrapCounters, FrontierHeadInfo, FrontierScanConfig};
 use std::sync::Arc;
 
-pub use bootstrap_responder::*;
+pub use bootstrap_server::*;
 pub use bootstrapper::*;
 use rsnano_core::{Account, BlockHash};
 use rsnano_messages::{AscPullReqType, FrontiersReqPayload, HashType};
