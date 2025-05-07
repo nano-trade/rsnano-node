@@ -51,11 +51,11 @@ use crate::{
     consensus::{
         election::ConfirmedElection, election_schedulers::ElectionSchedulers,
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
-        BlockVoter, BootstrapElectionActivator, ConfirmReqSender, ConfirmationSolicitorPlugin,
-        CurrentRepTiers, DependentElectionsConfirmer, ForkCache, ForkCacheUpdater, ForkProcessor,
-        LocalVoteHistory, LocalVotesRemover, RepTiersCalculator, RequestAggregator,
-        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
-        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
+        ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
+        ForkCacheUpdater, ForkProcessor, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
         WinnerBlockBroadcaster,
     },
@@ -608,18 +608,6 @@ impl Node {
 
         let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
 
-        let mut aec_ticker = AecTicker::new(active_elections.clone(), steady_clock.clone());
-
-        aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
-            message_flooder: message_flooder.clone(),
-            network_params: network_params.clone(),
-            online_reps: online_reps.clone(),
-            network: network.clone(),
-            block_voter: block_voter.clone(),
-            winner_block_broadcaster,
-            confirm_req_sender,
-        });
-
         let election_schedulers = Arc::new(ElectionSchedulers::new(
             config.clone(),
             network_params.network.clone(),
@@ -795,6 +783,23 @@ impl Node {
         ));
         bootstrapper.initialize(&network_params.ledger.genesis_account);
         dead_channel_cleanup.add_step(BootstrapperCleanup(bootstrapper.clone()));
+
+        let mut aec_ticker = AecTicker::new(active_elections.clone(), steady_clock.clone());
+
+        aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
+            message_flooder: message_flooder.clone(),
+            network_params: network_params.clone(),
+            online_reps: online_reps.clone(),
+            network: network.clone(),
+            block_voter: block_voter.clone(),
+            winner_block_broadcaster,
+            confirm_req_sender,
+        });
+
+        aec_ticker.add_plugin(BootstrapStaleElections::new(
+            bootstrapper.clone(),
+            steady_clock.clone(),
+        ));
 
         let local_block_broadcaster = Arc::new(LocalBlockBroadcaster::new(
             config.local_block_broadcaster.clone(),
@@ -1641,11 +1646,15 @@ impl CompositeNodeEventHandler {
 mod tests {
     use super::*;
     use crate::{
+        consensus::BootstrapStaleElections,
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
     use rsnano_core::Networks;
-    use std::ops::{Deref, DerefMut};
+    use std::{
+        any::type_name,
+        ops::{Deref, DerefMut},
+    };
     use uuid::Uuid;
 
     #[test]
@@ -1704,13 +1713,16 @@ mod tests {
     #[test]
     fn initializes_aec_ticker() {
         let node = Node::new_null();
+        assert_has_aec_ticker_plugin::<ConfirmationSolicitorPlugin>(&node);
+        assert_has_aec_ticker_plugin::<BootstrapStaleElections>(&node);
+    }
 
-        assert!(node
-            .aec_ticker
-            .task()
-            .as_ref()
-            .unwrap()
-            .has_plugin::<ConfirmationSolicitorPlugin>());
+    fn assert_has_aec_ticker_plugin<T: 'static>(node: &Node) {
+        assert!(
+            node.aec_ticker.task().as_ref().unwrap().has_plugin::<T>(),
+            "AEC ticker plugin missing: {}",
+            type_name::<T>()
+        );
     }
 
     struct TestNode {

@@ -1,6 +1,7 @@
 mod active_elections;
 mod aec_ticker;
 mod bootstrap_election_activator;
+mod bootstrap_stale_elections;
 mod bootstrap_weights;
 mod bounded_hash_map;
 mod confirm_req_sender;
@@ -29,6 +30,7 @@ mod winner_block_broadcaster;
 pub use active_elections::*;
 pub(crate) use aec_ticker::*;
 pub(crate) use bootstrap_election_activator::*;
+pub(crate) use bootstrap_stale_elections::*;
 pub(crate) use bootstrap_weights::*;
 pub(crate) use confirm_req_sender::*;
 pub use confirmation_solicitor::ConfirmationSolicitor;

@@ -6,7 +6,7 @@ use std::{
 
 use super::{block_tallies::BlockTallies, ConfirmationType, ConfirmedElection, ElectionState};
 use rsnano_core::{
-    utils::UnixMillisTimestamp, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
+    utils::UnixMillisTimestamp, Account, Amount, Block, BlockHash, MaybeSavedBlock, PublicKey,
     QualifiedRoot, SavedBlock, Vote, VoteError,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -40,6 +40,7 @@ pub struct Election {
     start: Timestamp,
     /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
     base_latency: Duration,
+    account: Account,
 }
 
 impl Election {
@@ -68,6 +69,7 @@ impl Election {
             has_quorum: false,
             start: now,
             base_latency,
+            account: block.account(),
             winner: MaybeSavedBlock::Saved(block),
         }
     }
@@ -87,6 +89,10 @@ impl Election {
 
     pub fn behavior(&self) -> ElectionBehavior {
         self.behavior
+    }
+
+    pub fn account(&self) -> Account {
+        self.account
     }
 
     pub fn state(&self) -> ElectionState {
