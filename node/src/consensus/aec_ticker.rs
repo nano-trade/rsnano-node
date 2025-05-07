@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 
 use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_nullable_clock::SteadyClock;
@@ -35,6 +38,12 @@ impl AecTicker {
     pub fn add_plugin(&mut self, plugin: impl AecTickerPlugin + 'static) {
         self.plugins.push(Box::new(plugin));
     }
+
+    pub fn has_plugin<T: 'static>(&self) -> bool {
+        self.plugins
+            .iter()
+            .any(|p| p.type_id() == TypeId::of::<T>())
+    }
 }
 
 impl Runnable for AecTicker {
@@ -51,8 +60,11 @@ impl Runnable for AecTicker {
     }
 }
 
-pub trait AecTickerPlugin: Send {
+pub trait AecTickerPlugin: Send + 'static {
     fn process(&mut self, elections: &[Election]);
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
 }
 
 #[cfg(test)]

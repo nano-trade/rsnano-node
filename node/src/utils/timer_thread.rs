@@ -41,6 +41,10 @@ impl<T: Runnable> TimerThread<T> {
         }
     }
 
+    pub fn task(&self) -> std::sync::MutexGuard<Option<T>> {
+        self.task.lock().unwrap()
+    }
+
     pub fn is_running(&self) -> bool {
         self.thread.lock().unwrap().is_some()
     }

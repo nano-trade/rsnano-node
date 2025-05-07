@@ -51,11 +51,11 @@ use crate::{
     consensus::{
         election::ConfirmedElection, election_schedulers::ElectionSchedulers,
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
-        BlockVoter, BootstrapElectionActivator, ConfirmReqSender, ConfirmationSolicitor,
-        ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
-        ForkCacheUpdater, ForkProcessor, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        BlockVoter, BootstrapElectionActivator, ConfirmReqSender, ConfirmationSolicitorPlugin,
+        CurrentRepTiers, DependentElectionsConfirmer, ForkCache, ForkCacheUpdater, ForkProcessor,
+        LocalVoteHistory, LocalVotesRemover, RepTiersCalculator, RequestAggregator,
+        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
+        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
         WinnerBlockBroadcaster,
     },
@@ -1699,6 +1699,18 @@ mod tests {
             false,
             "peer_cache_connector running"
         );
+    }
+
+    #[test]
+    fn initializes_aec_ticker() {
+        let node = Node::new_null();
+
+        assert!(node
+            .aec_ticker
+            .task()
+            .as_ref()
+            .unwrap()
+            .has_plugin::<ConfirmationSolicitorPlugin>());
     }
 
     struct TestNode {
