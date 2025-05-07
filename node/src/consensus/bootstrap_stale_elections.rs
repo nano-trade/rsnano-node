@@ -1,6 +1,6 @@
 use super::{election::Election, AecTickerPlugin};
 use crate::bootstrap::Bootstrapper;
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{StatsCollection, StatsSource};
 use std::{
     any::Any,
@@ -10,6 +10,7 @@ use std::{
     },
     time::Duration,
 };
+use tracing::debug;
 
 /// If an election isn't confirmed within "stale_threshold", then try to bootstrap
 /// the election account, so that missing dependencies will be pulled
@@ -36,21 +37,36 @@ impl BootstrapStaleElections {
         self.stale_threshold = threshold;
     }
 
+    #[allow(dead_code)]
     pub fn get_stale_threshold(&self) -> Duration {
         self.stale_threshold
+    }
+
+    fn is_stale(&mut self, now: Timestamp, election: &Election) -> bool {
+        election.start().elapsed(now) >= self.stale_threshold
+    }
+
+    fn bootstrap_stale(&mut self, election: &Election) {
+        debug!(
+            account = %election.account().encode_account(), 
+            root = ?election.qualified_root(),
+            "Bootstrapping account with stale election");
+
+        self.bootstrapper
+            .state()
+            .candidate_accounts
+            .priority_set_initial(&election.account());
+
+        self.stats.bootstrap_stale.fetch_add(1, Ordering::Relaxed);
     }
 }
 
 impl AecTickerPlugin for BootstrapStaleElections {
     fn process(&mut self, elections: &[Election]) {
+        let now = self.clock.now();
         for election in elections {
-            if election.start().elapsed(self.clock.now()) >= self.stale_threshold {
-                self.bootstrapper
-                    .state()
-                    .candidate_accounts
-                    .priority_set_initial(&election.account());
-
-                self.stats.bootstrap_stale.fetch_add(1, Ordering::Relaxed);
+            if self.is_stale(now, election) {
+                self.bootstrap_stale(election);
             }
         }
     }
@@ -80,6 +96,7 @@ mod tests {
     use super::*;
     use crate::consensus::election::ElectionBehavior;
     use rsnano_core::SavedBlock;
+    use tracing_test::traced_test;
 
     #[test]
     fn process_empty() {
@@ -94,6 +111,7 @@ mod tests {
     }
 
     #[test]
+    #[traced_test]
     fn bootstrap_stale_election() {
         let bootstrapper = Arc::new(Bootstrapper::new_null());
         let clock = Arc::new(SteadyClock::new_null());
@@ -113,6 +131,7 @@ mod tests {
             .candidate_accounts
             .prioritized(&election.account()));
         assert_eq!(plugin.stats.bootstrap_stale.load(Ordering::Relaxed), 1);
+        assert!(logs_contain("Bootstrapping account with stale election"))
     }
 
     #[test]
