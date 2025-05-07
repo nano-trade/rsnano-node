@@ -51,12 +51,13 @@ use crate::{
     consensus::{
         election::ConfirmedElection, election_schedulers::ElectionSchedulers,
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
-        BlockVoter, BootstrapElectionActivator, ConfirmReqSender, CurrentRepTiers,
-        DependentElectionsConfirmer, ForkCache, ForkCacheUpdater, ForkProcessor, LocalVoteHistory,
-        LocalVotesRemover, RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup,
-        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
+        BlockVoter, BootstrapElectionActivator, ConfirmReqSender, ConfirmationSolicitor,
+        ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
+        ForkCacheUpdater, ForkProcessor, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
+        WinnerBlockBroadcaster,
     },
     ledger_event_processor::LedgerEventProcessor,
     monitor::Monitor,
@@ -607,8 +608,9 @@ impl Node {
 
         let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
 
-        let aec_ticker = AecTicker {
-            active_elections: active_elections.clone(),
+        let mut aec_ticker = AecTicker::new(active_elections.clone(), steady_clock.clone());
+
+        aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
             message_flooder: message_flooder.clone(),
             network_params: network_params.clone(),
             online_reps: online_reps.clone(),
@@ -616,9 +618,7 @@ impl Node {
             block_voter: block_voter.clone(),
             winner_block_broadcaster,
             confirm_req_sender,
-            clock: steady_clock.clone(),
-            plugins: Vec::new(),
-        };
+        });
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(
             config.clone(),
