@@ -796,8 +796,9 @@ impl Node {
             confirm_req_sender,
         });
 
-        let bootstrap_stale =
+        let mut bootstrap_stale =
             BootstrapStaleElections::new(bootstrapper.clone(), steady_clock.clone());
+        bootstrap_stale.set_stale_threshold(config.bootstrap_stale_threshold);
         let bootstrap_stale_stats = bootstrap_stale.stats.clone();
         aec_ticker.add_plugin(bootstrap_stale);
 
@@ -1647,7 +1648,7 @@ impl CompositeNodeEventHandler {
 mod tests {
     use super::*;
     use crate::{
-        consensus::{BootstrapStaleElections, StaleElectionsStats},
+        consensus::{AecTickerPlugin, BootstrapStaleElections, StaleElectionsStats},
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
@@ -1714,17 +1715,38 @@ mod tests {
 
     #[test]
     fn initialize_aec_ticker() {
-        let node = Node::new_null();
-        assert_has_aec_ticker_plugin::<ConfirmationSolicitorPlugin>(&node);
-        assert_has_aec_ticker_plugin::<BootstrapStaleElections>(&node);
+        let config = NodeConfig {
+            bootstrap_stale_threshold: Duration::from_secs(42),
+            ..NodeConfig::new_test_instance()
+        };
+        let args = NodeArgs {
+            config: config.clone(),
+            ..NodeArgs::create_test_instance()
+        };
+        let node = Node::new(args, true, NodeIdKeyFile::new_null());
+        let task = node.aec_ticker.task();
+        let ticker = task.as_ref().unwrap();
+
+        assert_has_aec_ticker_plugin::<ConfirmationSolicitorPlugin>(ticker);
+
+        let stale = assert_has_aec_ticker_plugin::<BootstrapStaleElections>(ticker);
+        assert_eq!(
+            stale.get_stale_threshold(),
+            config.bootstrap_stale_threshold
+        );
     }
 
-    fn assert_has_aec_ticker_plugin<T: 'static>(node: &Node) {
+    fn assert_has_aec_ticker_plugin<T>(ticker: &AecTicker) -> &T
+    where
+        T: AecTickerPlugin + 'static,
+    {
+        let plugin = ticker.get_plugin::<T>();
         assert!(
-            node.aec_ticker.task().as_ref().unwrap().has_plugin::<T>(),
+            plugin.is_some(),
             "AEC ticker plugin missing: {}",
             type_name::<T>()
         );
+        plugin.unwrap()
     }
 
     #[test]

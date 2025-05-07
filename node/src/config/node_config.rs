@@ -26,8 +26,8 @@ use crate::{
         election_schedulers::{
             priority::PriorityBucketConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
         },
-        ActiveElectionsConfig, ForkCache, RequestAggregatorConfig, VoteCacheConfig,
-        VoteProcessorConfig,
+        ActiveElectionsConfig, BootstrapStaleElections, ForkCache, RequestAggregatorConfig,
+        VoteCacheConfig, VoteProcessorConfig,
     },
     transport::MessageProcessorConfig,
 };
@@ -118,6 +118,7 @@ pub struct NodeConfig {
     pub confirmation_history_size: usize,
     pub fork_cache_max_size: usize,
     pub fork_cache_max_forks_per_root: usize,
+    pub bootstrap_stale_threshold: Duration,
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
@@ -345,6 +346,7 @@ impl NodeConfig {
             confirmation_history_size: 2048,
             fork_cache_max_size: ForkCache::DEFAULT_MAX_LEN,
             fork_cache_max_forks_per_root: ForkCache::DEFAULT_MAX_FORKS_PER_ROOT,
+            bootstrap_stale_threshold: BootstrapStaleElections::DEFAULT_STALE_THRESHOLD,
         }
     }
 
@@ -416,7 +418,6 @@ impl Default for TcpConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consensus::ForkCache;
 
     #[test]
     fn default_values() {
@@ -425,6 +426,10 @@ mod tests {
         assert_eq!(
             config.fork_cache_max_forks_per_root,
             ForkCache::DEFAULT_MAX_FORKS_PER_ROOT
+        );
+        assert_eq!(
+            config.bootstrap_stale_threshold,
+            BootstrapStaleElections::DEFAULT_STALE_THRESHOLD
         );
     }
 }

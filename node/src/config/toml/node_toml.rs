@@ -305,6 +305,9 @@ impl NodeConfig {
             if let Some(cache) = i.confirmation_cache {
                 self.active_elections.confirmation_cache = cache;
             };
+            if let Some(threshold) = i.bootstrap_stale_threshold {
+                self.bootstrap_stale_threshold = Duration::from_secs(threshold as u64);
+            }
         }
         if let Some(vote_processor_toml) = &toml.vote_processor {
             self.vote_processor.merge_toml(&vote_processor_toml);
@@ -578,11 +581,15 @@ mod tests {
     }
 
     #[test]
-    fn merge_fork_cache() {
+    fn merge_node_config() {
         let toml = NodeToml {
             fork_cache: Some(ForkCacheToml {
                 max_size: Some(222),
                 max_forks_per_root: Some(22),
+            }),
+            active_elections: Some(ActiveElectionsToml {
+                bootstrap_stale_threshold: Some(42),
+                ..Default::default()
             }),
             ..Default::default()
         };
@@ -592,5 +599,24 @@ mod tests {
 
         assert_eq!(cfg.fork_cache_max_size, 222);
         assert_eq!(cfg.fork_cache_max_forks_per_root, 22);
+        assert_eq!(cfg.bootstrap_stale_threshold, Duration::from_secs(42));
+    }
+
+    #[test]
+    fn convert_config_to_toml() {
+        let config = NodeConfig {
+            bootstrap_stale_threshold: Duration::from_secs(42),
+            ..NodeConfig::new_test_instance()
+        };
+
+        let toml = NodeToml::from(&config);
+
+        assert_eq!(
+            toml.active_elections
+                .as_ref()
+                .unwrap()
+                .bootstrap_stale_threshold,
+            Some(42)
+        );
     }
 }

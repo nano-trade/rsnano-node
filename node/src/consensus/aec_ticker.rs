@@ -1,5 +1,5 @@
 use std::{
-    any::TypeId,
+    any::{Any, TypeId},
     sync::{Arc, RwLock},
 };
 
@@ -39,10 +39,19 @@ impl AecTicker {
         self.plugins.push(Box::new(plugin));
     }
 
-    pub fn has_plugin<T: 'static>(&self) -> bool {
-        self.plugins
+    pub fn get_plugin<T>(&self) -> Option<&T>
+    where
+        T: AecTickerPlugin + 'static,
+    {
+        let Some(p) = self
+            .plugins
             .iter()
-            .any(|p| p.type_id() == TypeId::of::<T>())
+            .find(|p| (***p).type_id() == TypeId::of::<T>())
+        else {
+            return None;
+        };
+
+        (*p).as_any().downcast_ref::<T>()
     }
 }
 
@@ -65,6 +74,7 @@ pub trait AecTickerPlugin: Send + 'static {
     fn type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[cfg(test)]
@@ -103,6 +113,10 @@ mod tests {
     impl AecTickerPlugin for StubPlugin {
         fn process(&mut self, elections: &[Election]) {
             *self.0.lock().unwrap() = elections.to_vec();
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
         }
     }
 }

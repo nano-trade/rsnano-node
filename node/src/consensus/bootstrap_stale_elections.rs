@@ -3,6 +3,7 @@ use crate::bootstrap::Bootstrapper;
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{StatsCollection, StatsSource};
 use std::{
+    any::Any,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -10,30 +11,40 @@ use std::{
     time::Duration,
 };
 
-/// If an election isn't confirmed within STALE_THRESHOLD, then try to bootstrap
+/// If an election isn't confirmed within "stale_threshold", then try to bootstrap
 /// the election account, so that missing dependencies will be pulled
 pub(crate) struct BootstrapStaleElections {
     bootstrapper: Arc<Bootstrapper>,
     clock: Arc<SteadyClock>,
     pub stats: Arc<StaleElectionsStats>,
+    stale_threshold: Duration,
 }
 
 impl BootstrapStaleElections {
-    const STALE_THRESHOLD: Duration = Duration::from_secs(60);
+    pub const DEFAULT_STALE_THRESHOLD: Duration = Duration::from_secs(60);
 
     pub(crate) fn new(bootstrapper: Arc<Bootstrapper>, clock: Arc<SteadyClock>) -> Self {
         Self {
             bootstrapper,
             clock,
             stats: Arc::new(StaleElectionsStats::default()),
+            stale_threshold: Self::DEFAULT_STALE_THRESHOLD,
         }
+    }
+
+    pub fn set_stale_threshold(&mut self, threshold: Duration) {
+        self.stale_threshold = threshold;
+    }
+
+    pub fn get_stale_threshold(&self) -> Duration {
+        self.stale_threshold
     }
 }
 
 impl AecTickerPlugin for BootstrapStaleElections {
     fn process(&mut self, elections: &[Election]) {
         for election in elections {
-            if election.start().elapsed(self.clock.now()) >= Self::STALE_THRESHOLD {
+            if election.start().elapsed(self.clock.now()) >= self.stale_threshold {
                 self.bootstrapper
                     .state()
                     .candidate_accounts
@@ -42,6 +53,10 @@ impl AecTickerPlugin for BootstrapStaleElections {
                 self.stats.bootstrap_stale.fetch_add(1, Ordering::Relaxed);
             }
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -87,7 +102,7 @@ mod tests {
             block,
             ElectionBehavior::Manual,
             Duration::from_secs(1),
-            clock.now() - BootstrapStaleElections::STALE_THRESHOLD,
+            clock.now() - BootstrapStaleElections::DEFAULT_STALE_THRESHOLD,
         );
         let mut plugin = BootstrapStaleElections::new(bootstrapper.clone(), clock);
 

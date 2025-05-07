@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    any::Any,
+    sync::{Arc, Mutex, RwLock},
+};
 
 use rsnano_network::Network;
 
@@ -85,6 +88,10 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
         }
 
         solicitor.flush();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
