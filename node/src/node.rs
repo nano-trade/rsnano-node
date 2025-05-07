@@ -617,6 +617,7 @@ impl Node {
             winner_block_broadcaster,
             confirm_req_sender,
             clock: steady_clock.clone(),
+            plugins: Vec::new(),
         };
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(

@@ -4,7 +4,7 @@ use super::{Election, VoteSummary};
 
 /// Counts the tally per block in an election.
 /// It is sorted by descending tally
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BlockTallies {
     tallies: [(BlockHash, Amount); Election::MAX_BLOCKS],
     len: usize,

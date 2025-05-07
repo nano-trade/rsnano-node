@@ -9,9 +9,10 @@ use rsnano_network::Network;
 use crate::{config::NetworkParams, representatives::OnlineReps, transport::MessageFlooder};
 
 use super::{
-    confirm_req_sender::ConfirmReqSender, election::ElectionState,
-    winner_block_broadcaster::WinnerBlockBroadcaster, ActiveElectionsContainer, BlockVoter,
-    ConfirmationSolicitor,
+    confirm_req_sender::ConfirmReqSender,
+    election::{Election, ElectionState},
+    winner_block_broadcaster::WinnerBlockBroadcaster,
+    ActiveElectionsContainer, BlockVoter, ConfirmationSolicitor,
 };
 use rsnano_nullable_clock::SteadyClock;
 
@@ -26,6 +27,7 @@ pub struct AecTicker {
     pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
     pub(crate) confirm_req_sender: ConfirmReqSender,
     pub(crate) clock: Arc<SteadyClock>,
+    pub(crate) plugins: Vec<Box<dyn AecTickerPlugin>>,
 }
 
 impl AecTicker {
@@ -40,13 +42,19 @@ impl AecTicker {
             winner_block_broadcaster: WinnerBlockBroadcaster::new_null(),
             confirm_req_sender: ConfirmReqSender::new_null(),
             clock: Arc::new(SteadyClock::new_null()),
+            plugins: Vec::new(),
         }
+    }
+
+    pub fn add_plugin(&mut self, plugin: impl AecTickerPlugin + 'static) {
+        self.plugins.push(Box::new(plugin));
     }
 }
 
 impl Runnable for AecTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        self.active_elections
+        let elections = self
+            .active_elections
             .write()
             .unwrap()
             .transition_time(self.clock.now());
@@ -67,7 +75,7 @@ impl Runnable for AecTicker {
          * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
          * Flushed elections are later re-activated via frontier confirmation
          */
-        for election in self.active_elections.read().unwrap().iter() {
+        for election in &elections {
             match election.state() {
                 ElectionState::Passive => {
                     self.block_voter.try_vote_for_block(
@@ -97,13 +105,16 @@ impl Runnable for AecTicker {
             }
         }
 
-        self.active_elections
-            .write()
-            .unwrap()
-            .erase_ended_elections();
-
         solicitor.flush();
+
+        for plugin in &mut self.plugins {
+            plugin.process(&elections);
+        }
     }
+}
+
+pub trait AecTickerPlugin: Send {
+    fn process(&mut self, elections: &[Election]);
 }
 
 #[cfg(test)]
@@ -112,6 +123,37 @@ mod tests {
     use crate::consensus::{election::VoteType, AecInsertRequest, BlockVoteRequest};
     use rsnano_core::SavedBlock;
     use rsnano_nullable_clock::Timestamp;
+
+    #[test]
+    fn call_plugins() {
+        let mut ticker = AecTicker::new_null();
+        let plugin = StubPlugin::default();
+        let called = plugin.0.clone();
+        ticker.add_plugin(plugin);
+
+        let block = SavedBlock::new_test_instance_with_key(1);
+        let now = Timestamp::new_test_instance();
+
+        ticker
+            .active_elections
+            .write()
+            .unwrap()
+            .insert(AecInsertRequest::new_manual(block.clone()), now)
+            .unwrap();
+
+        ticker.run(&CancellationToken::new_null());
+
+        assert_eq!(called.lock().unwrap().len(), 1);
+    }
+
+    #[derive(Default)]
+    struct StubPlugin(Arc<Mutex<Vec<Election>>>);
+
+    impl AecTickerPlugin for StubPlugin {
+        fn process(&mut self, elections: &[Election]) {
+            *self.0.lock().unwrap() = elections.to_vec();
+        }
+    }
 
     #[test]
     fn vote_for_passive_block() {
