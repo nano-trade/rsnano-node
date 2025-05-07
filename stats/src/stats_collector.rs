@@ -57,6 +57,11 @@ impl StatsCollection {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    pub fn contains(&self, stat: &'static str, detail: &'static str, dir: Direction) -> bool {
+        let key = StatsKey { stat, detail, dir };
+        self.0.contains_key(&key)
+    }
 }
 
 impl Default for StatsCollection {

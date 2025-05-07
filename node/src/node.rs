@@ -796,10 +796,10 @@ impl Node {
             confirm_req_sender,
         });
 
-        aec_ticker.add_plugin(BootstrapStaleElections::new(
-            bootstrapper.clone(),
-            steady_clock.clone(),
-        ));
+        let bootstrap_stale =
+            BootstrapStaleElections::new(bootstrapper.clone(), steady_clock.clone());
+        let bootstrap_stale_stats = bootstrap_stale.stats.clone();
+        aec_ticker.add_plugin(bootstrap_stale);
 
         let local_block_broadcaster = Arc::new(LocalBlockBroadcaster::new(
             config.local_block_broadcaster.clone(),
@@ -1179,6 +1179,7 @@ impl Node {
         stats_collector.add_source(backlog_scan.stats());
         stats_collector.add_source(handshake_stats);
         stats_collector.add_source(inbound_message_queue.clone());
+        stats_collector.add_source(bootstrap_stale_stats);
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
@@ -1646,11 +1647,12 @@ impl CompositeNodeEventHandler {
 mod tests {
     use super::*;
     use crate::{
-        consensus::BootstrapStaleElections,
+        consensus::{BootstrapStaleElections, StaleElectionsStats},
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
     use rsnano_core::Networks;
+    use rsnano_stats::StatsSource;
     use std::{
         any::type_name,
         ops::{Deref, DerefMut},
@@ -1711,7 +1713,7 @@ mod tests {
     }
 
     #[test]
-    fn initializes_aec_ticker() {
+    fn initialize_aec_ticker() {
         let node = Node::new_null();
         assert_has_aec_ticker_plugin::<ConfirmationSolicitorPlugin>(&node);
         assert_has_aec_ticker_plugin::<BootstrapStaleElections>(&node);
@@ -1723,6 +1725,20 @@ mod tests {
             "AEC ticker plugin missing: {}",
             type_name::<T>()
         );
+    }
+
+    #[test]
+    fn initialize_stats_collector() {
+        let node = Node::new_null();
+        let node_stats = node.stats();
+        assert_contains_stats_source(&node_stats, StaleElectionsStats::default());
+    }
+
+    fn assert_contains_stats_source(node_stats: &StatsCollection, source: impl StatsSource) {
+        let mut col = StatsCollection::default();
+        source.collect_stats(&mut col);
+        let (key, _) = col.iter().next().unwrap().clone();
+        assert!(node_stats.contains(key.stat, key.detail, key.dir));
     }
 
     struct TestNode {
