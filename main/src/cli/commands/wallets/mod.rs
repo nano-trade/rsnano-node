@@ -24,7 +24,13 @@ use remove_account::RemoveAccountArgs;
 use rsnano_core::Account;
 use set_wallet_representative::SetWalletRepresentativeArgs;
 
-#[derive(Subcommand)]
+#[derive(Parser, PartialEq, Debug)]
+pub(crate) struct WalletsCommand {
+    #[command(subcommand)]
+    pub subcommand: Option<WalletSubcommands>,
+}
+
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum WalletSubcommands {
     /// Creates a new account in a wallet
     CreateAccount(CreateAccountArgs),
@@ -50,12 +56,6 @@ pub(crate) enum WalletSubcommands {
     List,
     /// Removes all send IDs from the wallets (dangerous: not intended for production use)
     ClearSendIds,
-}
-
-#[derive(Parser)]
-pub(crate) struct WalletsCommand {
-    #[command(subcommand)]
-    pub subcommand: Option<WalletSubcommands>,
 }
 
 pub(crate) fn run_wallets_command(global_args: GlobalArgs, cmd: WalletsCommand) -> Result<()> {

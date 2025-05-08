@@ -8,7 +8,13 @@ use confirmation_height::ConfirmationHeightArgs;
 use final_vote::FinalVoteArgs;
 use rsnano_store_lmdb::{LmdbEnvFactory, LmdbOnlineWeightStore, LmdbPeerStore};
 
-#[derive(Subcommand)]
+#[derive(Parser, PartialEq, Debug)]
+pub(crate) struct ClearCommand {
+    #[command(subcommand)]
+    pub subcommand: Option<ClearSubcommands>,
+}
+
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum ClearSubcommands {
     /// Clears final votes
     FinalVote(FinalVoteArgs),
@@ -18,12 +24,6 @@ pub(crate) enum ClearSubcommands {
     Peers,
     /// Clears the confirmation height of accounts
     ConfirmationHeight(ConfirmationHeightArgs),
-}
-
-#[derive(Parser)]
-pub(crate) struct ClearCommand {
-    #[command(subcommand)]
-    pub subcommand: Option<ClearSubcommands>,
 }
 
 impl ClearCommand {

@@ -4,7 +4,7 @@ use rsnano_daemon::DaemonBuilder;
 use rsnano_node::config::NodeFlags;
 use tracing_subscriber::EnvFilter;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct RunDaemonArgs {
     /// Turn off automatic wallet backup process
     #[arg(long)]

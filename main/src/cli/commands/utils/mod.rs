@@ -2,13 +2,13 @@ use crate::cli::CliInfrastructure;
 use clap::{CommandFactory, Parser, Subcommand};
 use rsnano_core::{Account, PrivateKey, PublicKey};
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct UtilsCommand {
     #[command(subcommand)]
     pub subcommand: Option<UtilsSubcommands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum UtilsSubcommands {
     /// Converts a <public_key> into the account
     PublicKeyToAccount(PublicKeyArgs),
@@ -20,21 +20,21 @@ pub(crate) enum UtilsSubcommands {
     CreateKeyPair,
 }
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct PublicKeyArgs {
     /// Converts the public_key into the account
     #[arg(long)]
     public_key: String,
 }
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct AccountToPublicKeyArgs {
     /// Converts the account into the public key
     #[arg(long)]
     account: String,
 }
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct ExpandPrivateKeyArgs {
     /// Derives the public key and the account from the private_key
     #[arg(long)]

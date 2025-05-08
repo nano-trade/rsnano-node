@@ -9,7 +9,7 @@ use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::fs::read_to_string;
 use toml::{from_str, to_string};
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 #[command(group = ArgGroup::new("input1")
     .args(&["node", "rpc"])
     .required(true))]

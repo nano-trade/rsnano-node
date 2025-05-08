@@ -6,7 +6,7 @@ use rsnano_core::WalletId;
 use rsnano_node::wallets::WalletsExt;
 use std::{fs::File, io::Read, path::PathBuf};
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct ImportKeysArgs {
     /// The path of the file that contains the keys
     #[arg(long)]

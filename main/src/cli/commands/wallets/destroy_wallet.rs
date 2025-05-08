@@ -3,7 +3,7 @@ use clap::Parser;
 use rsnano_core::WalletId;
 use rsnano_node::wallets::WalletsExt;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct DestroyWalletArgs {
     /// The wallet to be destroyed
     #[arg(long)]

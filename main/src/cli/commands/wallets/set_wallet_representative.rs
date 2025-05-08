@@ -4,7 +4,7 @@ use clap::Parser;
 use rsnano_core::{Account, WalletId};
 use rsnano_node::wallets::WalletsExt;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct SetWalletRepresentativeArgs {
     /// Sets the representative for the supplied <wallet>
     #[arg(long)]

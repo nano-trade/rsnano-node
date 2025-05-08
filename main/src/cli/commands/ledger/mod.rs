@@ -1,5 +1,6 @@
 mod clear;
 mod info;
+mod roll_back;
 
 use crate::cli::GlobalArgs;
 use anyhow::Context;
@@ -9,7 +10,13 @@ use info::InfoCommand;
 use rsnano_store_lmdb::LmdbEnvFactory;
 use std::fs;
 
-#[derive(Subcommand)]
+#[derive(Parser, PartialEq, Debug)]
+pub(crate) struct LedgerCommand {
+    #[command(subcommand)]
+    pub subcommand: Option<LedgerSubcommands>,
+}
+
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum LedgerSubcommands {
     /// Commands that get some info from the ledger
     Info(InfoCommand),
@@ -19,12 +26,15 @@ pub(crate) enum LedgerSubcommands {
     Vacuum,
     /// Similar to vacuum but does not replace the existing database
     Snapshot,
+    /// Roll back an unconfirmed block
+    RollBack(HashArgs),
 }
 
-#[derive(Parser)]
-pub(crate) struct LedgerCommand {
-    #[command(subcommand)]
-    pub subcommand: Option<LedgerSubcommands>,
+#[derive(Parser, PartialEq, Debug)]
+pub(crate) struct HashArgs {
+    /// Clears the confirmation height of the account
+    #[arg(long)]
+    hash: String,
 }
 
 pub(crate) fn run_ledger_command(
@@ -36,6 +46,7 @@ pub(crate) fn run_ledger_command(
         Some(LedgerSubcommands::Clear(command)) => command.run(global_args)?,
         Some(LedgerSubcommands::Vacuum) => vacuum(global_args)?,
         Some(LedgerSubcommands::Snapshot) => snapshot(global_args)?,
+        Some(LedgerSubcommands::RollBack(args)) => unimplemented!(),
         None => LedgerCommand::command().print_long_help()?,
     }
 

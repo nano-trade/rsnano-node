@@ -5,7 +5,7 @@ use rsnano_node::config::{DaemonConfig, DaemonToml, NetworkParams};
 use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::io::BufRead;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 #[command(group = ArgGroup::new("input1")
     .args(&["node", "rpc"])
     .required(true))]

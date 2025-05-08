@@ -3,7 +3,7 @@ use clap::{ArgGroup, Parser};
 use rsnano_core::QualifiedRoot;
 use rsnano_store_lmdb::{LmdbEnvFactory, LmdbFinalVoteStore};
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 #[command(group = ArgGroup::new("input1")
     .args(&["root", "all"])
     .required(true))]

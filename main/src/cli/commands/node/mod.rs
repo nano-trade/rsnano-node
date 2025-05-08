@@ -7,7 +7,13 @@ use generate_config::GenerateConfigArgs;
 use rsnano_node::telemetry::{rsnano_build_info, rsnano_version_string};
 use run_daemon::RunDaemonArgs;
 
-#[derive(Subcommand)]
+#[derive(Parser, PartialEq, Debug)]
+pub(crate) struct NodeCommand {
+    #[command(subcommand)]
+    pub subcommand: Option<NodeSubcommands>,
+}
+
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum NodeSubcommands {
     /// Start node daemon.
     Run(RunDaemonArgs),
@@ -22,12 +28,6 @@ pub(crate) enum NodeSubcommands {
     /// Pass the configuration type node or rpc.
     /// See also use_defaults.
     GenerateConfig(GenerateConfigArgs),
-}
-
-#[derive(Parser)]
-pub(crate) struct NodeCommand {
-    #[command(subcommand)]
-    pub subcommand: Option<NodeSubcommands>,
 }
 
 impl NodeCommand {

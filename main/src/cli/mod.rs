@@ -14,7 +14,7 @@ use std::{path::PathBuf, str::FromStr};
 
 mod commands;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug, Default)]
 pub(crate) struct CommandLineArgs {
     /// Uses the supplied network (live, test, beta or dev)
     #[arg(long)]
@@ -26,6 +26,20 @@ pub(crate) struct CommandLineArgs {
 
     #[command(subcommand)]
     pub command: Option<Commands>,
+}
+
+#[derive(Subcommand, PartialEq, Debug)]
+pub(crate) enum Commands {
+    /// Commands related to configs
+    Config(ConfigCommand),
+    /// Commands related to the ledger
+    Ledger(LedgerCommand),
+    /// Commands related to running the node
+    Node(NodeCommand),
+    /// Utils related to keys and accounts
+    Utils(UtilsCommand),
+    /// Commands to manage wallets
+    Wallets(WalletsCommand),
 }
 
 pub(crate) struct Cli {}
@@ -74,20 +88,6 @@ impl Cli {
 pub(crate) struct GlobalArgs {
     pub network: Networks,
     pub data_path: PathBuf,
-}
-
-#[derive(Subcommand)]
-pub(crate) enum Commands {
-    /// Commands related to configs
-    Config(ConfigCommand),
-    /// Commands related to the ledger
-    Ledger(LedgerCommand),
-    /// Commands related to running the node
-    Node(NodeCommand),
-    /// Utils related to keys and accounts
-    Utils(UtilsCommand),
-    /// Commands to manage wallets
-    Wallets(WalletsCommand),
 }
 
 pub(crate) fn build_node(args: &GlobalArgs) -> anyhow::Result<Node> {

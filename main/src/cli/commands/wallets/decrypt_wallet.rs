@@ -4,7 +4,7 @@ use clap::Parser;
 use rsnano_core::WalletId;
 use rsnano_node::wallets::WalletsExt;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct DecryptWalletArgs {
     /// The wallet to be decrypted
     #[arg(long)]

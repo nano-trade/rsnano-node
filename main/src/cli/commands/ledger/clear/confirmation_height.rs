@@ -4,7 +4,7 @@ use rsnano_core::{Account, ConfirmationHeightInfo, Networks};
 use rsnano_ledger::LedgerConstants;
 use rsnano_store_lmdb::{LmdbConfirmationHeightStore, LmdbEnvFactory};
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 #[command(group = ArgGroup::new("input1")
     .args(&["account", "all"])
     .required(true))]

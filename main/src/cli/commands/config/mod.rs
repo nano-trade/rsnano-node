@@ -6,18 +6,18 @@ use clap::{CommandFactory, Parser, Subcommand};
 use current::CurrentArgs;
 use default::DefaultArgs;
 
-#[derive(Subcommand)]
+#[derive(Parser, PartialEq, Debug)]
+pub(crate) struct ConfigCommand {
+    #[command(subcommand)]
+    pub subcommand: Option<ConfigSubcommands>,
+}
+
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum ConfigSubcommands {
     /// Prints the default configs.
     Default(DefaultArgs),
     /// Prints the current configs
     Current(CurrentArgs),
-}
-
-#[derive(Parser)]
-pub(crate) struct ConfigCommand {
-    #[command(subcommand)]
-    pub subcommand: Option<ConfigSubcommands>,
 }
 
 impl ConfigCommand {

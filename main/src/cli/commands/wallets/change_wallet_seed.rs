@@ -4,7 +4,7 @@ use clap::Parser;
 use rsnano_core::{RawKey, WalletId};
 use rsnano_node::wallets::WalletsExt;
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct ChangeWalletSeedArgs {
     /// Changes the seed of the supplied wallet
     #[arg(long)]

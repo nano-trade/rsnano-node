@@ -2,13 +2,13 @@ use crate::cli::GlobalArgs;
 use clap::{CommandFactory, Parser, Subcommand};
 use rsnano_store_lmdb::{LmdbEnvFactory, LmdbPeerStore};
 
-#[derive(Subcommand)]
+#[derive(Subcommand, PartialEq, Debug)]
 pub(crate) enum InfoSubcommands {
     /// Displays peer IPv6:port connections
     Peers,
 }
 
-#[derive(Parser)]
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) struct InfoCommand {
     #[command(subcommand)]
     pub subcommand: Option<InfoSubcommands>,
