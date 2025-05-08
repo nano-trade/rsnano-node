@@ -12,7 +12,7 @@ use std::{path::PathBuf, str::FromStr};
 mod commands;
 
 #[derive(Parser)]
-pub(crate) struct Cli {
+pub(crate) struct CommandLineArgs {
     /// Uses the supplied network (live, test, beta or dev)
     #[arg(long)]
     network: Option<String>,
@@ -25,40 +25,46 @@ pub(crate) struct Cli {
     pub command: Option<Commands>,
 }
 
-impl Cli {
-    pub(crate) fn run(&self, infra: &mut CliInfrastructure) -> anyhow::Result<()> {
-        let global_args = self.get_global_args()?;
+pub(crate) struct Cli {}
 
-        match &self.command {
+impl Cli {
+    pub(crate) fn run(
+        &self,
+        infra: &mut CliInfrastructure,
+        args: CommandLineArgs,
+    ) -> anyhow::Result<()> {
+        let global_args = self.get_global_args(&args)?;
+
+        match &args.command {
             Some(Commands::Wallets(command)) => command.run(global_args)?,
             Some(Commands::Utils(command)) => command.run(infra)?,
             Some(Commands::Node(command)) => command.run(global_args)?,
             Some(Commands::Ledger(command)) => command.run(global_args)?,
             Some(Commands::Config(command)) => command.run(global_args)?,
-            None => Cli::command().print_long_help()?,
+            None => CommandLineArgs::command().print_long_help()?,
         }
         Ok(())
     }
 
-    fn get_global_args(&self) -> anyhow::Result<GlobalArgs> {
-        let network = self.get_network()?;
-        let data_path = self.get_data_path()?;
+    fn get_global_args(&self, args: &CommandLineArgs) -> anyhow::Result<GlobalArgs> {
+        let network = self.get_network(args)?;
+        let data_path = self.get_data_path(args)?;
         Ok(GlobalArgs { network, data_path })
     }
 
-    fn get_network(&self) -> anyhow::Result<Networks> {
-        self.network
+    fn get_network(&self, args: &CommandLineArgs) -> anyhow::Result<Networks> {
+        args.network
             .as_ref()
             .map(|str| Networks::from_str(str).map_err(|e| anyhow!(e)))
             .transpose()
             .map(|net| net.unwrap_or(Networks::NanoLiveNetwork))
     }
 
-    fn get_data_path(&self) -> anyhow::Result<PathBuf> {
-        if let Some(path) = &self.data_path {
+    fn get_data_path(&self, args: &CommandLineArgs) -> anyhow::Result<PathBuf> {
+        if let Some(path) = &args.data_path {
             return PathBuf::from_str(path).context("Not a valid data path");
         }
-        working_path_for(self.get_network()?).ok_or_else(|| anyhow!("No data path found"))
+        working_path_for(self.get_network(args)?).ok_or_else(|| anyhow!("No data path found"))
     }
 }
 

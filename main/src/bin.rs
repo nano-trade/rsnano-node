@@ -2,11 +2,11 @@ mod cli;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, CliInfrastructure};
+use cli::{Cli, CliInfrastructure, CommandLineArgs};
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let args = CommandLineArgs::parse();
     let mut infra = CliInfrastructure::default();
-    cli.run(&mut infra)?;
+    Cli {}.run(&mut infra, args)?;
     Ok(())
 }

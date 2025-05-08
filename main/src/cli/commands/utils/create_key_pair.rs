@@ -14,16 +14,17 @@ pub(crate) fn create_key_pair(infra: &mut CliInfrastructure) {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::{Cli, CliInfrastructure};
+    use crate::{cli::CliInfrastructure, Cli, CommandLineArgs};
     use clap::Parser;
 
     #[test]
     fn create_key_pair() {
-        let cli = Cli::try_parse_from(["nulled_node", "utils", "create-key-pair"]).unwrap();
+        let args =
+            CommandLineArgs::try_parse_from(["nulled_node", "utils", "create-key-pair"]).unwrap();
         let mut infra = CliInfrastructure::new_null();
         let print_tracker = infra.console.track();
 
-        cli.run(&mut infra).unwrap();
+        Cli {}.run(&mut infra, args).unwrap();
 
         let output = print_tracker.output();
         assert_eq!(
