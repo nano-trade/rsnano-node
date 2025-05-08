@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Context};
 use clap::{CommandFactory, Parser, Subcommand};
 use commands::{
-    config::ConfigCommand, ledger::LedgerCommand, node::NodeCommand, utils::UtilsCommand,
+    config::ConfigCommand,
+    ledger::{run_ledger_command, LedgerCommand},
+    node::NodeCommand,
+    utils::UtilsCommand,
     wallets::WalletsCommand,
 };
 use rsnano_core::{Networks, PrivateKeyFactory};
@@ -35,11 +38,11 @@ impl Cli {
     ) -> anyhow::Result<()> {
         let global_args = self.get_global_args(&args)?;
 
-        match &args.command {
+        match args.command {
             Some(Commands::Wallets(command)) => command.run(global_args)?,
             Some(Commands::Utils(command)) => command.run(infra)?,
             Some(Commands::Node(command)) => command.run(global_args)?,
-            Some(Commands::Ledger(command)) => command.run(global_args)?,
+            Some(Commands::Ledger(command)) => run_ledger_command(global_args, command)?,
             Some(Commands::Config(command)) => command.run(global_args)?,
             None => CommandLineArgs::command().print_long_help()?,
         }
