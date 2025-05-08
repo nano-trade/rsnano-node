@@ -15,8 +15,4 @@ pub(crate) struct InitializeArgs {
 }
 
 impl InitializeArgs {
-    pub(crate) fn initialize(&self) -> Result<()> {
-        build_node(&self.data_path, &self.network)?;
-        Ok(())
-    }
 }

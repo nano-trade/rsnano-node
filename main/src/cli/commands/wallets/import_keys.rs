@@ -1,14 +1,12 @@
-use crate::cli::build_node;
+use crate::cli::{build_node, GlobalArgs};
+use anyhow::anyhow;
 use anyhow::Context;
-use anyhow::{anyhow, Result};
-use clap::{ArgGroup, Parser};
+use clap::Parser;
 use rsnano_core::WalletId;
 use rsnano_node::wallets::WalletsExt;
 use std::{fs::File, io::Read, path::PathBuf};
 
 #[derive(Parser)]
-#[command(group = ArgGroup::new("input")
-    .args(&["data_path", "network"]))]
 pub(crate) struct ImportKeysArgs {
     /// The path of the file that contains the keys
     #[arg(long)]
@@ -22,23 +20,17 @@ pub(crate) struct ImportKeysArgs {
     /// The wallet importing the keys
     #[arg(long)]
     wallet: String,
-    /// Uses the supplied path as the data directory
-    #[arg(long, group = "input")]
-    data_path: Option<String>,
-    /// Uses the supplied network (live, test, beta or dev)
-    #[arg(long, group = "input")]
-    network: Option<String>,
 }
 
 impl ImportKeysArgs {
-    pub(crate) fn import_keys(&self) -> Result<()> {
+    pub(crate) fn import_keys(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
         let mut file = File::open(PathBuf::from(&self.file))?;
         let mut contents = String::new();
 
         file.read_to_string(&mut contents)
             .context("Unable to read <file> contents")?;
 
-        let node = build_node(&self.data_path, &self.network)?;
+        let node = build_node(&global_args)?;
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
         let password = self.password.clone().unwrap_or_default();
 

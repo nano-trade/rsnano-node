@@ -1,14 +1,13 @@
+mod account_to_public_key;
+mod create_key_pair;
+mod expand_private_key;
+mod public_key_to_account;
+
 use crate::cli::CliInfrastructure;
 use account_to_public_key::AccountToPublicKeyArgs;
-use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use expand_private_key::ExpandPrivateKeyArgs;
 use public_key_to_account::PublicKeyToAccountArgs;
-
-pub(crate) mod account_to_public_key;
-mod create_key_pair;
-pub(crate) mod expand_private_key;
-pub(crate) mod public_key_to_account;
 
 #[derive(Subcommand)]
 pub(crate) enum UtilsSubcommands {
@@ -29,7 +28,7 @@ pub(crate) struct UtilsCommand {
 }
 
 impl UtilsCommand {
-    pub(crate) fn run(&self, infra: &mut CliInfrastructure) -> Result<()> {
+    pub(crate) fn run(&self, infra: &mut CliInfrastructure) -> anyhow::Result<()> {
         match &self.subcommand {
             Some(UtilsSubcommands::PublicKeyToAccount(args)) => args.public_key_to_account()?,
             Some(UtilsSubcommands::AccountToPublicKey(args)) => args.account_to_public_key()?,

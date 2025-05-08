@@ -1,19 +1,11 @@
-use anyhow::{anyhow, Result};
+use crate::cli::GlobalArgs;
 use clap::Parser;
-use rsnano_core::Networks;
 use rsnano_daemon::DaemonBuilder;
 use rsnano_node::config::NodeFlags;
-use std::{path::PathBuf, str::FromStr};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 pub(crate) struct RunDaemonArgs {
-    /// Uses the supplied path as the data directory
-    #[arg(long)]
-    data_path: Option<String>,
-    /// Uses the supplied network (live, test, beta or dev)
-    #[arg(long)]
-    network: Option<String>,
     /// Turn off automatic wallet backup process
     #[arg(long)]
     disable_backup: bool,
@@ -59,29 +51,14 @@ pub(crate) struct RunDaemonArgs {
 }
 
 impl RunDaemonArgs {
-    pub(crate) fn run_daemon(&self) -> Result<()> {
+    pub(crate) fn run_daemon(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
         init_tracing();
-        let network = self.get_network()?;
+        let network = global_args.network;
         let flags = self.get_flags();
-        let mut daemon = DaemonBuilder::new(network).flags(flags);
-        if let Some(path) = self.specified_data_path() {
-            daemon = daemon.data_path(path);
-        }
-        daemon.run(shutdown_signal())
-    }
-
-    pub fn specified_data_path(&self) -> Option<PathBuf> {
-        self.data_path
-            .as_ref()
-            .map(|p| PathBuf::from_str(p).unwrap())
-    }
-
-    pub fn get_network(&self) -> anyhow::Result<Networks> {
-        self.network
-            .as_ref()
-            .map(|s| Networks::from_str(s).map_err(|e| anyhow!(e)))
-            .transpose()
-            .map(|n| n.unwrap_or(Networks::NanoLiveNetwork))
+        DaemonBuilder::new(network)
+            .flags(flags)
+            .data_path(&global_args.data_path)
+            .run(shutdown_signal())
     }
 
     pub(crate) fn get_flags(&self) -> NodeFlags {

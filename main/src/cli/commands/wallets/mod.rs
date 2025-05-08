@@ -1,30 +1,28 @@
+mod add_private_key;
+mod change_wallet_seed;
+mod create_account;
+mod create_wallet;
+mod decrypt_wallet;
+mod destroy_wallet;
+mod get_wallet_representative;
+mod import_keys;
+mod remove_account;
+mod set_wallet_representative;
+
+use crate::cli::{build_node, GlobalArgs};
 use add_private_key::AddPrivateKeyArgs;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use change_wallet_seed::ChangeWalletSeedArgs;
 use clap::{CommandFactory, Parser, Subcommand};
-use clear_send_ids::ClearSendIdsArgs;
 use create_account::CreateAccountArgs;
 use create_wallet::CreateWalletArgs;
 use decrypt_wallet::DecryptWalletArgs;
 use destroy_wallet::DestroyWalletArgs;
 use get_wallet_representative::GetWalletRepresentativeArgs;
 use import_keys::ImportKeysArgs;
-use list_wallets::ListWalletsArgs;
 use remove_account::RemoveAccountArgs;
+use rsnano_core::Account;
 use set_wallet_representative::SetWalletRepresentativeArgs;
-
-pub(crate) mod add_private_key;
-pub(crate) mod change_wallet_seed;
-pub(crate) mod clear_send_ids;
-pub(crate) mod create_account;
-pub(crate) mod create_wallet;
-pub(crate) mod decrypt_wallet;
-pub(crate) mod destroy_wallet;
-pub(crate) mod get_wallet_representative;
-pub(crate) mod import_keys;
-pub(crate) mod list_wallets;
-pub(crate) mod remove_account;
-pub(crate) mod set_wallet_representative;
 
 #[derive(Subcommand)]
 pub(crate) enum WalletSubcommands {
@@ -49,9 +47,9 @@ pub(crate) enum WalletSubcommands {
     /// Decrypts a wallet (WARNING: THIS WILL PRINT YOUR PRIVATE KEY TO STDOUT!)
     DecryptWallet(DecryptWalletArgs),
     /// List all wallets and their public keys
-    List(ListWalletsArgs),
+    List,
     /// Removes all send IDs from the wallets (dangerous: not intended for production use)
-    ClearSendIds(ClearSendIdsArgs),
+    ClearSendIds,
 }
 
 #[derive(Parser)]
@@ -61,27 +59,56 @@ pub(crate) struct WalletsCommand {
 }
 
 impl WalletsCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) fn run(&self, global_args: GlobalArgs) -> Result<()> {
         match &self.subcommand {
-            Some(WalletSubcommands::List(args)) => args.list_wallets()?,
-            Some(WalletSubcommands::CreateWallet(args)) => args.create_wallet()?,
-            Some(WalletSubcommands::CreateAccount(args)) => args.create_account()?,
-            Some(WalletSubcommands::Destroy(args)) => args.destroy_wallet()?,
-            Some(WalletSubcommands::AddPrivateKey(args)) => args.add_key()?,
-            Some(WalletSubcommands::ChangeWalletSeed(args)) => args.change_wallet_seed()?,
-            Some(WalletSubcommands::ImportKeys(args)) => args.import_keys()?,
-            Some(WalletSubcommands::RemoveAccount(args)) => args.remove_account()?,
-            Some(WalletSubcommands::DecryptWallet(args)) => args.decrypt_wallet()?,
+            Some(WalletSubcommands::List) => self.list_wallets(global_args)?,
+            Some(WalletSubcommands::CreateWallet(args)) => args.create_wallet(global_args)?,
+            Some(WalletSubcommands::CreateAccount(args)) => args.create_account(global_args)?,
+            Some(WalletSubcommands::Destroy(args)) => args.destroy_wallet(global_args)?,
+            Some(WalletSubcommands::AddPrivateKey(args)) => args.add_key(global_args)?,
+            Some(WalletSubcommands::ChangeWalletSeed(args)) => {
+                args.change_wallet_seed(global_args)?
+            }
+            Some(WalletSubcommands::ImportKeys(args)) => args.import_keys(global_args)?,
+            Some(WalletSubcommands::RemoveAccount(args)) => args.remove_account(global_args)?,
+            Some(WalletSubcommands::DecryptWallet(args)) => args.decrypt_wallet(global_args)?,
             Some(WalletSubcommands::GetWalletRepresentative(args)) => {
-                args.get_wallet_representative()?
+                args.get_wallet_representative(global_args)?
             }
             Some(WalletSubcommands::SetWalletRepresentative(args)) => {
-                args.set_representative_wallet()?
+                args.set_representative_wallet(global_args)?
             }
-            Some(WalletSubcommands::ClearSendIds(args)) => args.clear_send_ids()?,
+            Some(WalletSubcommands::ClearSendIds) => self.clear_send_ids(global_args)?,
             None => WalletsCommand::command().print_long_help()?,
         }
 
+        Ok(())
+    }
+
+    fn list_wallets(&self, global_args: GlobalArgs) -> Result<()> {
+        let node = build_node(&global_args)?;
+        let wallet_ids = node.wallets.get_wallet_ids();
+
+        for wallet_id in wallet_ids {
+            println!("{:?}", wallet_id);
+            let accounts = node
+                .wallets
+                .get_accounts_of_wallet(&wallet_id)
+                .map_err(|e| anyhow!("Failed to get accounts of wallets: {:?}", e))?;
+            if !accounts.is_empty() {
+                for account in accounts {
+                    println!("{:?}", Account::encode_account(&account));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn clear_send_ids(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        let node = build_node(&global_args)?;
+        node.wallets.clear_send_ids();
+        println!("Send IDs deleted");
         Ok(())
     }
 }

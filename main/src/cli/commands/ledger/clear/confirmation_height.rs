@@ -1,17 +1,13 @@
-use crate::cli::get_path;
-use anyhow::Result;
+use crate::cli::GlobalArgs;
 use clap::{ArgGroup, Parser};
 use rsnano_core::{Account, ConfirmationHeightInfo, Networks};
 use rsnano_ledger::LedgerConstants;
-use rsnano_node::config::NetworkConstants;
 use rsnano_store_lmdb::{LmdbConfirmationHeightStore, LmdbEnvFactory};
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input1")
     .args(&["account", "all"])
     .required(true))]
-#[command(group = ArgGroup::new("input2")
-    .args(&["data_path", "network"]))]
 pub(crate) struct ConfirmationHeightArgs {
     /// Clears the confirmation height of the account
     #[arg(long, group = "input1")]
@@ -19,19 +15,13 @@ pub(crate) struct ConfirmationHeightArgs {
     /// Clears the confirmation height of all accounts
     #[arg(long, group = "input1")]
     all: bool,
-    /// Uses the supplied path as the data directory
-    #[arg(long, group = "input")]
-    data_path: Option<String>,
-    /// Uses the supplied network (live, test, beta or dev)
-    #[arg(long, group = "input")]
-    network: Option<String>,
 }
 
 impl ConfirmationHeightArgs {
-    pub(crate) fn confirmation_height(&self) -> Result<()> {
-        let path = get_path(&self.data_path, &self.network).join("data.ldb");
+    pub(crate) fn confirmation_height(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        let path = global_args.data_path.join("data.ldb");
 
-        let genesis_block = match NetworkConstants::active_network() {
+        let genesis_block = match global_args.network {
             Networks::NanoDevNetwork => LedgerConstants::dev().genesis_block,
             Networks::NanoBetaNetwork => LedgerConstants::beta().genesis_block,
             Networks::NanoLiveNetwork => LedgerConstants::live().genesis_block,

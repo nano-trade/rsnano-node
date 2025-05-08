@@ -48,10 +48,6 @@ pub fn get_default_rpc_filepath_from(node_exe_path: &Path) -> PathBuf {
     result
 }
 
-pub fn force_nano_dev_network() {
-    NetworkConstants::set_active_network(Networks::NanoDevNetwork);
-}
-
 pub struct GlobalConfig {
     pub node_config: NodeConfig,
     pub flags: NodeFlags,

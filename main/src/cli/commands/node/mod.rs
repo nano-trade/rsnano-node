@@ -1,13 +1,11 @@
-use anyhow::Result;
+mod generate_config;
+mod run_daemon;
+
+use crate::cli::{build_node, GlobalArgs};
 use clap::{CommandFactory, Parser, Subcommand};
 use generate_config::GenerateConfigArgs;
-use initialize::InitializeArgs;
 use rsnano_node::telemetry::{rsnano_build_info, rsnano_version_string};
 use run_daemon::RunDaemonArgs;
-
-pub(crate) mod generate_config;
-pub(crate) mod initialize;
-pub(crate) mod run_daemon;
 
 #[derive(Subcommand)]
 pub(crate) enum NodeSubcommands {
@@ -16,7 +14,7 @@ pub(crate) enum NodeSubcommands {
     /// Initialize the data folder, if it is not already initialised.
     ///
     /// This command is meant to be run when the data folder is empty, to populate it with the genesis block.
-    Initialize(InitializeArgs),
+    Initialize,
     /// Prints out version.
     Version,
     /// Writes node or rpc configuration to stdout, populated with defaults suitable for this system.
@@ -33,10 +31,10 @@ pub(crate) struct NodeCommand {
 }
 
 impl NodeCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) fn run(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
         match &self.subcommand {
-            Some(NodeSubcommands::Run(args)) => args.run_daemon()?,
-            Some(NodeSubcommands::Initialize(args)) => args.initialize()?,
+            Some(NodeSubcommands::Run(args)) => args.run_daemon(global_args)?,
+            Some(NodeSubcommands::Initialize) => self.initialize(global_args)?,
             Some(NodeSubcommands::GenerateConfig(args)) => args.generate_config()?,
             Some(NodeSubcommands::Version) => Self::print_version(),
             None => NodeCommand::command().print_long_help()?,
@@ -48,5 +46,10 @@ impl NodeCommand {
     fn print_version() {
         println!("{}", rsnano_version_string());
         println!("{}", rsnano_build_info());
+    }
+
+    fn initialize(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        build_node(&global_args)?;
+        Ok(())
     }
 }

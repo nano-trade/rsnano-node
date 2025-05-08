@@ -1,10 +1,10 @@
-use anyhow::Result;
+mod current;
+mod default;
+
+use crate::cli::GlobalArgs;
 use clap::{CommandFactory, Parser, Subcommand};
 use current::CurrentArgs;
 use default::DefaultArgs;
-
-pub(crate) mod current;
-pub(crate) mod default;
 
 #[derive(Subcommand)]
 pub(crate) enum ConfigSubcommands {
@@ -21,10 +21,10 @@ pub(crate) struct ConfigCommand {
 }
 
 impl ConfigCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) fn run(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
         match &self.subcommand {
             Some(ConfigSubcommands::Default(args)) => args.default()?,
-            Some(ConfigSubcommands::Current(args)) => args.current()?,
+            Some(ConfigSubcommands::Current(args)) => args.current(global_args)?,
             None => ConfigCommand::command().print_long_help()?,
         }
 

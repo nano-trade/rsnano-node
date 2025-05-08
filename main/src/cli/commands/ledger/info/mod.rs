@@ -1,13 +1,11 @@
-use anyhow::Result;
+use crate::cli::GlobalArgs;
 use clap::{CommandFactory, Parser, Subcommand};
-use peers::PeersArgs;
-
-pub(crate) mod peers;
+use rsnano_store_lmdb::{LmdbEnvFactory, LmdbPeerStore};
 
 #[derive(Subcommand)]
 pub(crate) enum InfoSubcommands {
     /// Displays peer IPv6:port connections
-    Peers(PeersArgs),
+    Peers,
 }
 
 #[derive(Parser)]
@@ -17,10 +15,23 @@ pub(crate) struct InfoCommand {
 }
 
 impl InfoCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) fn run(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
         match &self.subcommand {
-            Some(InfoSubcommands::Peers(args)) => args.peers()?,
+            Some(InfoSubcommands::Peers) => self.peers(global_args)?,
             None => InfoCommand::command().print_long_help()?,
+        }
+
+        Ok(())
+    }
+
+    fn peers(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        let path = global_args.data_path.join("data.ldb");
+        let env = LmdbEnvFactory::default().create_env(&path)?;
+        let peer_store = LmdbPeerStore::new(&env)?;
+        let txn = env.tx_begin_read();
+
+        for peer in peer_store.iter(&txn) {
+            println!("{:?}", peer.0);
         }
 
         Ok(())

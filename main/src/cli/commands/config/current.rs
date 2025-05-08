@@ -1,5 +1,4 @@
-use crate::cli::get_path;
-use anyhow::Result;
+use crate::cli::GlobalArgs;
 use clap::{ArgGroup, Parser};
 use rsnano_core::{utils::get_cpu_count, Networks};
 use rsnano_node::config::{
@@ -14,8 +13,6 @@ use toml::{from_str, to_string};
 #[command(group = ArgGroup::new("input1")
     .args(&["node", "rpc"])
     .required(true))]
-#[command(group = ArgGroup::new("input2")
-    .args(&["data_path", "network"]))]
 pub(crate) struct CurrentArgs {
     /// Prints the current node config
     #[arg(long, group = "input1")]
@@ -23,17 +20,11 @@ pub(crate) struct CurrentArgs {
     /// Prints the current rpc config
     #[arg(long, group = "input1")]
     rpc: bool,
-    /// Uses the supplied path as the data directory
-    #[arg(long, group = "input2")]
-    data_path: Option<String>,
-    /// Uses the supplied network (live, test, beta or dev)
-    #[arg(long, group = "input2")]
-    network: Option<String>,
 }
 
 impl CurrentArgs {
-    pub(crate) fn current(&self) -> Result<()> {
-        let path = get_path(&self.data_path, &self.network);
+    pub(crate) fn current(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        let path = global_args.data_path.clone();
         let network = Networks::NanoBetaNetwork;
         let network_params = NetworkParams::new(network);
         let parallelism = get_cpu_count();

@@ -77,11 +77,9 @@ pub use unchecked_info::{UncheckedInfo, UncheckedKey};
 
 mod kdf;
 pub use kdf::KeyDerivationFunction;
-use std::sync::LazyLock;
 use std::{
     fmt::{Debug, Display},
     str::FromStr,
-    sync::Mutex,
 };
 use utils::{BufferWriter, Deserialize, Serialize, Stream};
 
@@ -349,10 +347,6 @@ impl FromStr for Networks {
         }
     }
 }
-//
-//todo: make configurable in builld script again!
-pub static ACTIVE_NETWORK: LazyLock<Mutex<Networks>> =
-    LazyLock::new(|| Mutex::new(Networks::NanoBetaNetwork));
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct Frontier {

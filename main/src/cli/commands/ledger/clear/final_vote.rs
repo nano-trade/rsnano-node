@@ -1,5 +1,4 @@
-use crate::cli::get_path;
-use anyhow::Result;
+use crate::cli::GlobalArgs;
 use clap::{ArgGroup, Parser};
 use rsnano_core::QualifiedRoot;
 use rsnano_store_lmdb::{LmdbEnvFactory, LmdbFinalVoteStore};
@@ -8,8 +7,6 @@ use rsnano_store_lmdb::{LmdbEnvFactory, LmdbFinalVoteStore};
 #[command(group = ArgGroup::new("input1")
     .args(&["root", "all"])
     .required(true))]
-#[command(group = ArgGroup::new("input2")
-    .args(&["data_path", "network"]))]
 pub(crate) struct FinalVoteArgs {
     /// Clears the supplied final vote
     #[arg(long, group = "input1")]
@@ -17,17 +14,11 @@ pub(crate) struct FinalVoteArgs {
     /// Clears all final votes (not recommended)
     #[arg(long, group = "input1")]
     all: bool,
-    /// Uses the supplied path as the data directory
-    #[arg(long, group = "input")]
-    data_path: Option<String>,
-    /// Uses the supplied network (live, test, beta or dev)
-    #[arg(long, group = "input")]
-    network: Option<String>,
 }
 
 impl FinalVoteArgs {
-    pub(crate) fn final_vote(&self) -> Result<()> {
-        let path = get_path(&self.data_path, &self.network).join("data.ldb");
+    pub(crate) fn final_vote(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        let path = global_args.data_path.join("data.ldb");
         let env = LmdbEnvFactory::default().create_env(&path)?;
         let final_vote_store = LmdbFinalVoteStore::new(&env)?;
         let mut txn = env.tx_begin_write();

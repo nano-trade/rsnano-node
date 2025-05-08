@@ -14,25 +14,4 @@ pub(crate) struct SnapshotArgs {
 }
 
 impl SnapshotArgs {
-    pub(crate) fn snapshot(&self) -> Result<()> {
-        let source_path = get_path(&self.data_path, &self.network).join("data.ldb");
-        let snapshot_path = get_path(&self.data_path, &self.network).join("snapshot.ldb");
-
-        println!(
-            "Database snapshot of {:?} to {:?} in progress",
-            source_path, snapshot_path
-        );
-
-        println!("This may take a while...");
-
-        let env = LmdbEnvFactory::default().create_env(&source_path)?;
-        env.copy_db(&snapshot_path)?;
-
-        println!(
-            "Snapshot completed, This can be found at {:?}",
-            snapshot_path
-        );
-
-        Ok(())
-    }
 }

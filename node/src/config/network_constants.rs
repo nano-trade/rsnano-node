@@ -1,7 +1,6 @@
 use std::time::Duration;
 
-use anyhow::Result;
-use rsnano_core::{utils::get_env_or_default, Networks, ProtocolInfo, ACTIVE_NETWORK};
+use rsnano_core::{utils::get_env_or_default, Networks, ProtocolInfo};
 use rsnano_work::WorkThresholds;
 
 use crate::bootstrap::BootstrapConfig;
@@ -192,37 +191,6 @@ impl NetworkConstants {
 
     pub fn is_test_network(&self) -> bool {
         self.current_network == Networks::NanoTestNetwork
-    }
-
-    /** Initial value is ACTIVE_NETWORK compile flag, but can be overridden by a CLI flag */
-    pub fn active_network() -> Networks {
-        *ACTIVE_NETWORK.lock().unwrap()
-    }
-
-    /**
-     * Optionally called on startup to override the global active network.
-     * If not called, the compile-time option will be used.
-     * @param network The new active network
-     */
-    pub fn set_active_network(network: Networks) {
-        *ACTIVE_NETWORK.lock().unwrap() = network;
-    }
-
-    /**
-     * Optionally called on startup to override the global active network.
-     * If not called, the compile-time option will be used.
-     * @param network The new active network. Valid values are "live", "beta" and "dev"
-     */
-    pub fn set_active_network_from_str(network: impl AsRef<str>) -> Result<()> {
-        let net = match network.as_ref() {
-            "live" => Networks::NanoLiveNetwork,
-            "beta" => Networks::NanoBetaNetwork,
-            "dev" => Networks::NanoDevNetwork,
-            "test" => Networks::NanoTestNetwork,
-            _ => bail!("invalid network"),
-        };
-        Self::set_active_network(net);
-        Ok(())
     }
 
     pub fn cleanup_cutoff(&self) -> Duration {

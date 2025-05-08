@@ -1,23 +1,21 @@
+mod confirmation_height;
+mod final_vote;
+
+use crate::cli::GlobalArgs;
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use confirmation_height::ConfirmationHeightArgs;
 use final_vote::FinalVoteArgs;
-use online_weight::OnlineWeightArgs;
-use peers::PeersArgs;
-
-pub(crate) mod confirmation_height;
-pub(crate) mod final_vote;
-pub(crate) mod online_weight;
-pub(crate) mod peers;
+use rsnano_store_lmdb::{LmdbEnvFactory, LmdbOnlineWeightStore, LmdbPeerStore};
 
 #[derive(Subcommand)]
 pub(crate) enum ClearSubcommands {
     /// Clears final votes
     FinalVote(FinalVoteArgs),
     /// Clears online weight history records
-    OnlineWeight(OnlineWeightArgs),
+    OnlineWeight,
     /// Clears online peers database
-    Peers(PeersArgs),
+    Peers,
     /// Clears the confirmation height of accounts
     ConfirmationHeight(ConfirmationHeightArgs),
 }
@@ -29,15 +27,41 @@ pub(crate) struct ClearCommand {
 }
 
 impl ClearCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) fn run(&self, global_args: GlobalArgs) -> Result<()> {
         match &self.subcommand {
-            Some(ClearSubcommands::FinalVote(args)) => args.final_vote()?,
-            Some(ClearSubcommands::ConfirmationHeight(args)) => args.confirmation_height()?,
-            Some(ClearSubcommands::OnlineWeight(args)) => args.online_weight()?,
-            Some(ClearSubcommands::Peers(args)) => args.peers()?,
+            Some(ClearSubcommands::FinalVote(args)) => args.final_vote(global_args)?,
+            Some(ClearSubcommands::ConfirmationHeight(args)) => {
+                args.confirmation_height(global_args)?
+            }
+            Some(ClearSubcommands::OnlineWeight) => self.online_weight(global_args)?,
+            Some(ClearSubcommands::Peers) => self.peers(global_args)?,
             None => ClearCommand::command().print_long_help()?,
         }
 
+        Ok(())
+    }
+
+    fn online_weight(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
+        let path = global_args.data_path.join("data.ldb");
+        let env = LmdbEnvFactory::default().create_env(&path)?;
+        let online_weight_store = LmdbOnlineWeightStore::new(&env)?;
+        let mut txn = env.tx_begin_write();
+
+        online_weight_store.clear(&mut txn);
+
+        println!("Online weight records were cleared from the database");
+        Ok(())
+    }
+
+    fn peers(&self, global_args: GlobalArgs) -> Result<()> {
+        let path = global_args.data_path.join("data.ldb");
+        let env = LmdbEnvFactory::default().create_env(&path)?;
+        let peer_store = LmdbPeerStore::new(&env)?;
+        let mut txn = env.tx_begin_write();
+
+        peer_store.clear(&mut txn);
+
+        println!("Peers were cleared from the database");
         Ok(())
     }
 }
