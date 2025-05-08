@@ -1,3 +1,17 @@
+use super::HashArgs;
+use crate::cli::{build_node, GlobalArgs};
+use rsnano_core::BlockHash;
+
+pub(crate) fn roll_back(global_args: GlobalArgs, args: HashArgs) -> anyhow::Result<()> {
+    let node = build_node(&global_args)?;
+    let block_hash = BlockHash::decode_hex(&args.hash)?;
+    println!("Rolling back {block_hash:?}");
+    let rolled_back = node.ledger.roll_back(&block_hash)?;
+    println!("Block rollback complete");
+    println!("Rolled back {rolled_back} dependent blocks");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{

@@ -7,6 +7,7 @@ use anyhow::Context;
 use clap::{CommandFactory, Parser, Subcommand};
 use clear::ClearCommand;
 use info::InfoCommand;
+use roll_back::roll_back;
 use rsnano_store_lmdb::LmdbEnvFactory;
 use std::fs;
 
@@ -46,7 +47,7 @@ pub(crate) fn run_ledger_command(
         Some(LedgerSubcommands::Clear(command)) => command.run(global_args)?,
         Some(LedgerSubcommands::Vacuum) => vacuum(global_args)?,
         Some(LedgerSubcommands::Snapshot) => snapshot(global_args)?,
-        Some(LedgerSubcommands::RollBack(args)) => unimplemented!(),
+        Some(LedgerSubcommands::RollBack(args)) => roll_back(global_args, args)?,
         None => LedgerCommand::command().print_long_help()?,
     }
 

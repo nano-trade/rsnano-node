@@ -101,3 +101,19 @@ pub enum RollbackError {
     /// Some other component rejected the rollback
     Rejected,
 }
+
+impl std::fmt::Display for RollbackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RollbackError::BlockNotFound => f.write_str("Block not found"),
+            RollbackError::BlockConfirmed => f.write_str("Cannot roll back confirmed block"),
+            RollbackError::PreviousBlockMissing => f.write_str("Previous block missing"),
+            RollbackError::RepresentativeBlockMissing => {
+                f.write_str("Representative block missing")
+            }
+            RollbackError::Rejected => f.write_str("Rollback rejected"),
+        }
+    }
+}
+
+impl std::error::Error for RollbackError {}
