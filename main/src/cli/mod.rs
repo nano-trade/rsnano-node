@@ -4,8 +4,8 @@ use commands::{
     config::ConfigCommand,
     ledger::{run_ledger_command, LedgerCommand},
     node::NodeCommand,
-    utils::UtilsCommand,
-    wallets::WalletsCommand,
+    utils::{run_utils_command, UtilsCommand},
+    wallets::{run_wallets_command, WalletsCommand},
 };
 use rsnano_core::{Networks, PrivateKeyFactory};
 use rsnano_node::{working_path_for, Node, NodeBuilder};
@@ -39,8 +39,8 @@ impl Cli {
         let global_args = self.get_global_args(&args)?;
 
         match args.command {
-            Some(Commands::Wallets(command)) => command.run(global_args)?,
-            Some(Commands::Utils(command)) => command.run(infra)?,
+            Some(Commands::Wallets(command)) => run_wallets_command(global_args, command)?,
+            Some(Commands::Utils(command)) => run_utils_command(infra, command)?,
             Some(Commands::Node(command)) => command.run(global_args)?,
             Some(Commands::Ledger(command)) => run_ledger_command(global_args, command)?,
             Some(Commands::Config(command)) => command.run(global_args)?,
