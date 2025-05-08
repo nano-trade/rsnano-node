@@ -48,7 +48,7 @@ impl BootstrapStaleElections {
 
     fn bootstrap_stale(&mut self, election: &Election) {
         debug!(
-            account = %election.account().encode_account(), 
+            account = %election.account().encode_account(),
             root = ?election.qualified_root(),
             "Bootstrapping account with stale election");
 
