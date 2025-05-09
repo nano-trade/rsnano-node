@@ -260,8 +260,8 @@ impl PriorityScheduler {
                 drop(stopped);
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Cleanup);
-                let mut aec = self.active_elections.write().unwrap();
                 let mut buckets = self.buckets.lock().unwrap();
+                let mut aec = self.active_elections.write().unwrap();
                 for bucket in buckets.iter_mut() {
                     if let Some(root) = bucket.election_to_cancel(aec.vacancy()) {
                         aec.cancel(&root);
