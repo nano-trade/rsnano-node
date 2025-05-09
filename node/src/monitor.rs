@@ -42,8 +42,10 @@ impl Monitor {
     fn log(&self, last: Instant, blocks_confirmed: u64, blocks_total: u64) {
         // TODO: Maybe emphasize somehow that confirmed doesn't need to be equal to total; backlog is OK
         info!(
-            "Blocks confirmed: {} | total: {}",
-            blocks_confirmed, blocks_total
+            "Blocks confirmed: {} | total: {} (backlog: {})",
+            blocks_confirmed,
+            blocks_total,
+            blocks_total - blocks_confirmed
         );
 
         // Calculate the rates
@@ -60,13 +62,13 @@ impl Monitor {
             };
 
         info!(
-            "Blocks rate (average over last {}s: confirmed: {:.2}/s | total {:.2}/s)",
+            "Blocks rate (avg over {}s): confirmed: {:.2}/s | total {:.2}/s)",
             elapsed_secs, blocks_confirmed_rate, blocks_checked_rate
         );
 
         let channels = self.network.read().unwrap().channels_info();
         info!(
-            "Peers: {} (realtime: {} | inbound connections: {} | outbound connections: {})",
+            "Peers: {} (realtime: {} | inbound: {} | outbound: {})",
             channels.total, channels.realtime, channels.inbound, channels.outbound
         );
 
