@@ -6,7 +6,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 #[cfg(test)]
 use crate::consensus::ForkCache;
 use crate::{
-    block_processing::{BlockProcessor, LocalBlockBroadcaster},
+    block_processing::BlockProcessor,
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     consensus::{
@@ -20,7 +20,6 @@ use rsnano_core::Networks;
 
 pub(crate) struct LedgerEventProcessor {
     pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
-    pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub confirming_set: Arc<ConfirmingSet>,
     pub stats: Arc<Stats>,
     pub(crate) dependent_elections_confirmer: DependentElectionsConfirmer,
@@ -37,7 +36,6 @@ impl LedgerEventProcessor {
     pub fn new_null() -> Self {
         Self {
             node_event_sender: None,
-            local_block_broadcaster: Arc::new(LocalBlockBroadcaster::new_null()),
             confirming_set: Arc::new(ConfirmingSet::new_null()),
             stats: Arc::new(Stats::default()),
             dependent_elections_confirmer: DependentElectionsConfirmer::new_null(),
@@ -75,7 +73,6 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
             LedgerEvent::BlocksProcessed(results) => {
                 self.confirming_set.requeue_blocks(&results);
                 self.bootstrapper.inspect_blocks(&results);
-                self.local_block_broadcaster.blocks_processed(&results);
                 self.fork_cache_updater.update(&results);
                 if let Some(sender) = &self.node_event_sender {
                     sender.send(NodeEvent::BlocksProcessed(results)).unwrap();
@@ -84,9 +81,6 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
             LedgerEvent::BlocksConfirmed(confirmed) => {
                 self.dependent_elections_confirmer
                     .confirm_dependent_elections(&confirmed);
-
-                self.local_block_broadcaster
-                    .confirmed(confirmed.iter().map(|i| i.1));
             }
             LedgerEvent::BlocksRolledBack(rolled_back) => {
                 {
@@ -105,9 +99,6 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
 
                 self.bootstrapper
                     .unblock_batch(rolled_back.affected_accounts());
-
-                self.local_block_broadcaster
-                    .rolled_back(rolled_back.hashes());
             }
         }
     }

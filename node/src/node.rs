@@ -40,7 +40,8 @@ use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
         BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog,
-        BoundedBacklogLedgerEvProc, LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
+        BoundedBacklogLedgerEvProc, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
+        LocalBlockBroadcasterPlugin, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -825,6 +826,10 @@ impl Node {
             !flags.disable_block_processor_republishing,
         ));
 
+        ledger_event_processor_plugins.push(Box::new(LocalBlockBroadcasterPlugin::new(
+            local_block_broadcaster.clone(),
+        )));
+
         let vote_cache_w = Arc::downgrade(&vote_cache);
         let active_w = Arc::downgrade(&active_elections);
         let scheduler_w = Arc::downgrade(&election_schedulers);
@@ -1180,7 +1185,6 @@ impl Node {
 
         let ledger_event_processor = LedgerEventProcessor {
             node_event_sender: node_observer.clone(),
-            local_block_broadcaster: local_block_broadcaster.clone(),
             dependent_elections_confirmer,
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),

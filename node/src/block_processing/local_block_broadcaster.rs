@@ -13,12 +13,15 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Block, BlockHash, Networks,
 };
-use rsnano_ledger::{BlockSource, ConfirmedSet, Ledger, ProcessedResult};
+use rsnano_ledger::{BlockSource, ConfirmedSet, Ledger, LedgerEvent, ProcessedResult};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
-use crate::{cementation::ConfirmingSet, transport::MessageFlooder};
+use crate::{
+    cementation::ConfirmingSet, ledger_event_processor::LedgerEventProcessorPlugin,
+    transport::MessageFlooder,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalBlockBroadcasterConfig {
@@ -470,5 +473,36 @@ fn remove_by_next_broadcast(
     if hashes.len() > 1 {
         hashes.retain(|i| i != hash);
         map.insert(next, hashes);
+    }
+}
+
+pub(crate) struct LocalBlockBroadcasterPlugin {
+    local_block_broadcaster: Arc<LocalBlockBroadcaster>,
+}
+
+impl LocalBlockBroadcasterPlugin {
+    pub(crate) fn new(local_block_broadcaster: Arc<LocalBlockBroadcaster>) -> Self {
+        Self {
+            local_block_broadcaster,
+        }
+    }
+}
+
+impl LedgerEventProcessorPlugin for LocalBlockBroadcasterPlugin {
+    fn process(&mut self, event: &LedgerEvent) {
+        match event {
+            LedgerEvent::BlocksProcessed(results) => {
+                self.local_block_broadcaster.blocks_processed(&results);
+            }
+            LedgerEvent::BlocksConfirmed(confirmed) => {
+                self.local_block_broadcaster
+                    .confirmed(confirmed.iter().map(|i| i.1));
+            }
+            LedgerEvent::BlocksRolledBack(rolled_back) => {
+                self.local_block_broadcaster
+                    .rolled_back(rolled_back.hashes());
+            }
+            _ => {}
+        }
     }
 }

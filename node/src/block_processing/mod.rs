@@ -12,5 +12,5 @@ pub use block_context::*;
 pub use block_processor::*;
 pub use bounded_backlog::*;
 pub(crate) use bounded_backlog_ev_proc::*;
-pub use local_block_broadcaster::*;
+pub(crate) use local_block_broadcaster::*;
 pub use unchecked_map::*;
