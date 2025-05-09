@@ -220,51 +220,63 @@ impl NodeConfig {
         if let Some(priority_bucket_toml) = &toml.priority_bucket {
             self.priority_bucket = priority_bucket_toml.into();
         }
-        if let Some(ascending_toml) = &toml.bootstrap {
+        if let Some(boot_toml) = &toml.bootstrap {
             let config = &mut self.bootstrap;
-            if let Some(enable) = &ascending_toml.enable {
+            if let Some(enable) = &boot_toml.enable {
                 config.enable = *enable;
             }
-            if let Some(enable) = &ascending_toml.enable_dependency_walker {
+            if let Some(enable) = &boot_toml.enable_priorities {
+                config.enable_priorities = *enable;
+            }
+            if let Some(enable) = &boot_toml.enable_dependency_walker {
                 config.enable_dependency_walker = *enable;
             }
-            if let Some(enable) = &ascending_toml.enable_frontier_scan {
+            if let Some(enable) = &boot_toml.enable_frontier_scan {
                 config.enable_frontier_scan = *enable;
             }
-            if let Some(account_sets) = &ascending_toml.account_sets {
+            if let Some(account_sets) = &boot_toml.account_sets {
                 config.candidate_accounts = account_sets.into();
             }
-            if let Some(block_wait_count) = ascending_toml.block_processor_threshold {
-                config.block_processor_theshold = block_wait_count;
+            if let Some(front) = &boot_toml.frontier_scan {
+                config.merge_toml(front);
+                if let Some(i) = front.max_pending {
+                    config.max_pending_frontier_responses = i;
+                }
             }
-            if let Some(database_rate_limit) = ascending_toml.database_rate_limit {
-                config.database_rate_limit = database_rate_limit;
+            if let Some(threshold) = boot_toml.block_processor_threshold {
+                config.block_processor_theshold = threshold;
             }
-            if let Some(database_warmup_ratio) = ascending_toml.database_warmup_ratio {
+            if let Some(limit) = boot_toml.database_rate_limit {
+                config.database_rate_limit = limit;
+            }
+            if let Some(limit) = boot_toml.frontier_rate_limit {
+                config.frontier_rate_limit = limit;
+            }
+            if let Some(database_warmup_ratio) = boot_toml.database_warmup_ratio {
                 config.database_warmup_ratio = database_warmup_ratio;
             }
-            if let Some(pull_count) = ascending_toml.max_pull_count {
+            if let Some(pull_count) = boot_toml.max_pull_count {
                 config.max_pull_count = pull_count;
             }
-            if let Some(limit) = ascending_toml.channel_limit {
+            if let Some(limit) = boot_toml.channel_limit {
                 config.channel_limit = limit;
             }
-            if let Some(limit) = ascending_toml.rate_limit {
+            if let Some(limit) = boot_toml.rate_limit {
                 config.rate_limit = limit;
             }
-            if let Some(timeout) = &ascending_toml.request_timeout {
+            if let Some(timeout) = &boot_toml.request_timeout {
                 config.request_timeout = Duration::from_millis(*timeout);
             }
-            if let Some(throttle_wait) = &ascending_toml.throttle_wait {
+            if let Some(throttle_wait) = &boot_toml.throttle_wait {
                 config.throttle_wait = Duration::from_millis(*throttle_wait);
             }
-            if let Some(throttle_coefficient) = ascending_toml.throttle_coefficient {
+            if let Some(throttle_coefficient) = boot_toml.throttle_coefficient {
                 config.throttle_coefficient = throttle_coefficient;
             }
-            if let Some(max) = ascending_toml.max_requests {
+            if let Some(max) = boot_toml.max_requests {
                 config.max_requests = max;
             }
-            if let Some(percent) = ascending_toml.optimistic_request_percentage {
+            if let Some(percent) = boot_toml.optimistic_request_percentage {
                 config.optimistic_request_percentage = percent;
             }
         }
@@ -521,6 +533,9 @@ mod tests {
             optimistic_request_percentage: Some(42),
             database_warmup_ratio: Some(108),
             account_sets: Some(sets_toml),
+            frontier_scan: None,
+            enable_priorities: None,
+            frontier_rate_limit: None,
         };
 
         let toml = NodeToml {

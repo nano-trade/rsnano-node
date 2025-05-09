@@ -64,7 +64,7 @@ fn frontier_scan() {
     let config = NodeConfig {
         bootstrap: BootstrapConfig {
             // Disable other bootstrap strategies
-            enable_scan: false,
+            enable_priorities: false,
             enable_dependency_walker: false,
             ..Default::default()
         },
@@ -129,7 +129,7 @@ fn frontier_scan_pending() {
     let config = NodeConfig {
         bootstrap: BootstrapConfig {
             // Disable other bootstrap strategies
-            enable_scan: false,
+            enable_priorities: false,
             enable_dependency_walker: false,
             ..Default::default()
         },
@@ -191,7 +191,7 @@ fn frontier_scan_cannot_prioritize() {
     let config = NodeConfig {
         bootstrap: BootstrapConfig {
             // Disable other bootstrap strategies
-            enable_scan: false,
+            enable_priorities: false,
             enable_dependency_walker: false,
             ..Default::default()
         },

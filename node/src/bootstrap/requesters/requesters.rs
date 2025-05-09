@@ -91,7 +91,7 @@ impl Requesters {
             None
         };
 
-        let priorities = if self.config.enable_scan {
+        let priorities = if self.config.enable_priorities {
             let mut requester = PriorityRequester::new(
                 self.block_processor.clone(),
                 self.stats.clone(),
