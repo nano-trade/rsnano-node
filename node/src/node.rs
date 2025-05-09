@@ -39,9 +39,8 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog,
-        BoundedBacklogLedgerEvProc, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
-        LocalBlockBroadcasterPlugin, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog, BoundedBacklogPlugin,
+        LocalBlockBroadcaster, LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -751,14 +750,10 @@ impl Node {
             }
         });
 
-        if config.enable_bounded_backlog {
-            info!(
-                "Bounded backlog enabled: max backlog={}, batch_size={}, scan_rate={}",
-                config.bounded_backlog.max_backlog,
-                config.bounded_backlog.batch_size,
-                config.bounded_backlog.scan_rate
-            );
+        if config.bounded_backlog.max_backlog == 0 {
+            config.enable_bounded_backlog = false;
         }
+
         let bounded_backlog = Arc::new(BoundedBacklog::new(
             election_schedulers.priority.bucketing().clone(),
             config.bounded_backlog.clone(),
@@ -767,25 +762,33 @@ impl Node {
             stats.clone(),
         ));
 
-        ledger_event_processor_plugins.push(Box::new(BoundedBacklogLedgerEvProc::new(
-            bounded_backlog.clone(),
-        )));
+        if config.enable_bounded_backlog {
+            info!(
+                "Bounded backlog enabled: max backlog={}, batch_size={}, scan_rate={}",
+                config.bounded_backlog.max_backlog,
+                config.bounded_backlog.batch_size,
+                config.bounded_backlog.scan_rate
+            );
 
-        // Activate accounts with unconfirmed blocks
-        let backlog_w = Arc::downgrade(&bounded_backlog);
-        backlog_scan.on_unconfirmed_found(move |batch| {
-            if let Some(backlog) = backlog_w.upgrade() {
-                backlog.activate_batch(batch);
-            }
-        });
+            ledger_event_processor_plugins
+                .push(Box::new(BoundedBacklogPlugin::new(bounded_backlog.clone())));
 
-        // Erase accounts with all confirmed blocks
-        let backlog_w = Arc::downgrade(&bounded_backlog);
-        backlog_scan.on_up_to_date(move |batch| {
-            if let Some(backlog) = backlog_w.upgrade() {
-                backlog.erase_accounts(batch);
-            }
-        });
+            // Activate accounts with unconfirmed blocks
+            let backlog_w = Arc::downgrade(&bounded_backlog);
+            backlog_scan.on_unconfirmed_found(move |batch| {
+                if let Some(backlog) = backlog_w.upgrade() {
+                    backlog.activate_batch(batch);
+                }
+            });
+
+            // Erase accounts with all confirmed blocks
+            let backlog_w = Arc::downgrade(&bounded_backlog);
+            backlog_scan.on_up_to_date(move |batch| {
+                if let Some(backlog) = backlog_w.upgrade() {
+                    backlog.erase_accounts(batch);
+                }
+            });
+        }
 
         let bootstrapper = Arc::new(Bootstrapper::new(
             block_processor.clone(),

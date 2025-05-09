@@ -3,17 +3,17 @@ use crate::ledger_event_processor::LedgerEventProcessorPlugin;
 use rsnano_ledger::LedgerEvent;
 use std::sync::Arc;
 
-pub(crate) struct BoundedBacklogLedgerEvProc {
+pub(crate) struct BoundedBacklogPlugin {
     bounded_backlog: Arc<BoundedBacklog>,
 }
 
-impl BoundedBacklogLedgerEvProc {
+impl BoundedBacklogPlugin {
     pub(crate) fn new(bounded_backlog: Arc<BoundedBacklog>) -> Self {
         Self { bounded_backlog }
     }
 }
 
-impl LedgerEventProcessorPlugin for BoundedBacklogLedgerEvProc {
+impl LedgerEventProcessorPlugin for BoundedBacklogPlugin {
     fn process(&mut self, event: &LedgerEvent) {
         match event {
             LedgerEvent::BlocksProcessed(results) => {
