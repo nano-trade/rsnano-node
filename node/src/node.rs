@@ -59,7 +59,9 @@ use crate::{
         VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
         WinnerBlockBroadcaster,
     },
-    ledger_event_processor::LedgerEventProcessor,
+    ledger_event_processor::{
+        BoundedBacklogLedgerEvProc, LedgerEventProcessor, LedgerEventProcessorPlugin,
+    },
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
@@ -344,6 +346,9 @@ impl Node {
         info!("Representative count: {}", rep_weights.len());
 
         log_bootstrap_weights(&rep_weights);
+
+        let mut ledger_event_processor_plugins: Vec<Box<dyn LedgerEventProcessorPlugin>> =
+            Vec::new();
 
         let syn_cookies = Arc::new(SynCookies::new(network_params.network.max_peers_per_ip));
 
@@ -758,6 +763,10 @@ impl Node {
             block_processor.clone(),
             stats.clone(),
         ));
+
+        ledger_event_processor_plugins.push(Box::new(BoundedBacklogLedgerEvProc::new(
+            bounded_backlog.clone(),
+        )));
 
         // Activate accounts with unconfirmed blocks
         let backlog_w = Arc::downgrade(&bounded_backlog);
@@ -1179,6 +1188,7 @@ impl Node {
             block_processor: block_processor.clone(),
             fork_cache_updater,
             fork_processor,
+            plugins: ledger_event_processor_plugins,
         };
 
         spawn_backpressure_processor("Ledger ev proc", ledger_rx, ledger_event_processor);

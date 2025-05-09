@@ -33,6 +33,7 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) fork_cache_updater: ForkCacheUpdater,
     pub(crate) fork_processor: Arc<ForkProcessor>,
+    pub(crate) plugins: Vec<Box<dyn LedgerEventProcessorPlugin>>,
 }
 
 impl LedgerEventProcessor {
@@ -52,6 +53,7 @@ impl LedgerEventProcessor {
             block_processor: Arc::new(BlockProcessor::new_null()),
             fork_cache_updater: ForkCacheUpdater::new(Arc::new(RwLock::new(ForkCache::default()))),
             fork_processor: Arc::new(ForkProcessor::new_test_instance()),
+            plugins: Vec::new(),
         }
     }
 }
@@ -72,6 +74,10 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
     }
 
     fn process(&mut self, event: LedgerEvent) {
+        for plugin in &mut self.plugins {
+            plugin.process(&event);
+        }
+
         match event {
             LedgerEvent::BlocksProcessed(results) => {
                 // Notify elections about alternative (forked) blocks
@@ -126,6 +132,24 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
             }
         }
     }
+}
+
+pub(crate) trait LedgerEventProcessorPlugin: Send {
+    fn process(&mut self, event: &LedgerEvent);
+}
+
+pub(crate) struct BoundedBacklogLedgerEvProc {
+    bounded_backlog: Arc<BoundedBacklog>,
+}
+
+impl BoundedBacklogLedgerEvProc {
+    pub(crate) fn new(bounded_backlog: Arc<BoundedBacklog>) -> Self {
+        Self { bounded_backlog }
+    }
+}
+
+impl LedgerEventProcessorPlugin for BoundedBacklogLedgerEvProc {
+    fn process(&mut self, event: &LedgerEvent) {}
 }
 
 #[cfg(test)]
