@@ -49,7 +49,8 @@ use crate::{
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     confirming_set_event_processor::ConfirmingSetEventProcessor,
     consensus::{
-        election::ConfirmedElection, election_schedulers::ElectionSchedulers,
+        election::ConfirmedElection,
+        election_schedulers::{ElectionSchedulers, ElectionSchedulersPlugin},
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
         BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
         ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
@@ -625,6 +626,9 @@ impl Node {
             online_reps.clone(),
             steady_clock.clone(),
         ));
+        ledger_event_processor_plugins.push(Box::new(ElectionSchedulersPlugin::new(
+            election_schedulers.clone(),
+        )));
 
         let mut bootstrap_sender = MessageSender::new_with_buffer_size(
             stats.clone(),
@@ -1177,7 +1181,6 @@ impl Node {
         let ledger_event_processor = LedgerEventProcessor {
             node_event_sender: node_observer.clone(),
             local_block_broadcaster: local_block_broadcaster.clone(),
-            election_schedulers: election_schedulers.clone(),
             dependent_elections_confirmer,
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
