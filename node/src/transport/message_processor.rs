@@ -82,8 +82,7 @@ impl MessageProcessor {
 
 impl Drop for MessageProcessor {
     fn drop(&mut self) {
-        // All threads must be stopped before this destructor
-        debug_assert!(self.processing_threads.is_empty());
+        self.stop();
     }
 }
 

@@ -15,7 +15,7 @@ pub struct Monitor {
     ledger: Arc<Ledger>,
     network: Arc<RwLock<Network>>,
     online_reps: Arc<Mutex<OnlineReps>>,
-    active: Arc<RwLock<ActiveElectionsContainer>>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     last_time: Option<Instant>,
     last_blocks_confirmed: u64,
     last_blocks_total: u64,
@@ -26,13 +26,13 @@ impl Monitor {
         ledger: Arc<Ledger>,
         network: Arc<RwLock<Network>>,
         online_peers: Arc<Mutex<OnlineReps>>,
-        active: Arc<RwLock<ActiveElectionsContainer>>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     ) -> Self {
         Self {
             ledger,
             network,
             online_reps: online_peers,
-            active,
+            active_elections,
             last_time: None,
             last_blocks_total: 0,
             last_blocks_confirmed: 0,
@@ -87,7 +87,7 @@ impl Monitor {
             );
         }
 
-        let elections = self.active.read().unwrap().info();
+        let elections = self.active_elections.read().unwrap().info();
         info!(
             "Elections active: {} (priority: {} | hinted: {} | optimistic: {})",
             elections.total, elections.priority, elections.hinted, elections.optimistic

@@ -105,13 +105,11 @@ impl VoteApplier {
         results: &HashMap<BlockHash, Result<(), VoteError>>,
     ) {
         for sender in self.event_senders.read().unwrap().iter() {
-            sender
-                .send(AecEvent::VoteProcessed(
-                    vote.clone(),
-                    voter_weight,
-                    results.clone(),
-                ))
-                .unwrap();
+            let _ = sender.send(AecEvent::VoteProcessed(
+                vote.clone(),
+                voter_weight,
+                results.clone(),
+            ));
         }
     }
 }

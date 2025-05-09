@@ -16,21 +16,21 @@ pub struct ManualScheduler {
     condition: Condvar,
     mutex: Mutex<ManualSchedulerImpl>,
     stats: Arc<Stats>,
-    active: Arc<RwLock<ActiveElectionsContainer>>,
+    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
 }
 
 impl ManualScheduler {
     pub fn new(
         stats: Arc<Stats>,
-        active: Arc<RwLock<ActiveElectionsContainer>>,
+        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             thread: Mutex::new(None),
             condition: Condvar::new(),
             stats,
-            active,
+            active_elections,
             clock,
             mutex: Mutex::new(ManualSchedulerImpl {
                 queue: Default::default(),
@@ -91,14 +91,10 @@ impl ManualScheduler {
                         .inc(StatType::ElectionScheduler, DetailType::InsertManual);
 
                     let now = self.clock.now();
-                    if self
-                        .active
-                        .write()
-                        .unwrap()
-                        .insert(AecInsertRequest::new_manual(block), now)
-                        .is_ok()
-                    {
-                        self.active.write().unwrap().transition_active(&hash);
+
+                    let mut aec = self.active_elections.write().unwrap();
+                    if aec.insert(AecInsertRequest::new_manual(block), now).is_ok() {
+                        aec.transition_active(&hash);
                     }
                 } else {
                     drop(guard);
