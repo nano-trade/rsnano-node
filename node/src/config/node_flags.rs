@@ -15,6 +15,7 @@ pub struct NodeFlags {
     pub allow_bootstrap_peers_duplicates: bool,
     pub disable_search_pending: bool, // For testing only
     pub enable_pruning: bool,
+    pub enable_voting: bool,
     pub fast_bootstrap: bool,
     pub read_only: bool,
     pub disable_connection_cleanup: bool,
@@ -42,6 +43,7 @@ impl NodeFlags {
             allow_bootstrap_peers_duplicates: false,
             disable_search_pending: false,
             enable_pruning: false,
+            enable_voting: false,
             fast_bootstrap: false,
             read_only: false,
             disable_connection_cleanup: false,

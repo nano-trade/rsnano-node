@@ -33,6 +33,9 @@ pub(crate) struct RunDaemonArgs {
     /// Enable experimental ledger pruning
     #[arg(long)]
     enable_pruning: bool,
+    /// Enable voting
+    #[arg(long)]
+    enable_voting: bool,
     /// Increase bootstrap processor limits to allow more blocks before hitting full state and verify/write more per database call. Also disable deletion of processed unchecked blocks.
     #[arg(long)]
     fast_bootstrap: bool,
@@ -73,6 +76,7 @@ impl RunDaemonArgs {
         flags.disable_block_processor_republishing = self.disable_block_processor_republishing;
         flags.allow_bootstrap_peers_duplicates = self.allow_bootstrap_peers_duplicates;
         flags.enable_pruning = self.enable_pruning;
+        flags.enable_voting = self.enable_voting;
         flags.fast_bootstrap = self.fast_bootstrap;
         if let Some(block_processor_batch_size) = self.block_processor_batch_size {
             flags.block_processor_batch_size = block_processor_batch_size;

@@ -212,8 +212,11 @@ impl Node {
 
         let network_params = args.network_params;
         let current_network = network_params.network.current_network;
-        let config = args.config;
+        let mut config = args.config;
         let flags = args.flags;
+        if flags.enable_voting {
+            config.enable_voting = true;
+        }
 
         let work_factory = Arc::new(
             WorkFactory::builder(runtime.clone())
@@ -998,16 +1001,35 @@ impl Node {
             config.bandwidth_limit, config.bandwidth_limit_burst_ratio
         );
 
-        if config.enable_voting {
-            info!(
+        let has_local_reps = {
+            let wallet_reps = wallets.wallet_reps.lock().unwrap();
+            let has_local_reps = wallet_reps.voting_reps() > 0;
+            if has_local_reps {
+                info!(
+                    "Found {} local representatives in wallets",
+                    wallet_reps.voting_reps()
+                );
+                for rep in &wallet_reps.accounts {
+                    info!("Local representative: {}", rep.encode_account());
+                }
+            }
+
+            has_local_reps
+        };
+
+        if has_local_reps {
+            if config.enable_voting {
+                info!(
                 "Voting is enabled, more system resources will be used, local representatives: {}",
                 wallets.voting_reps_count()
             );
-            if wallets.voting_reps_count() > 1 {
-                warn!("Voting with more than one representative can limit performance");
+                if wallets.voting_reps_count() > 1 {
+                    warn!("Voting with more than one representative can limit performance");
+                }
+            } else {
+                warn!("Found local representatives in wallets, but voting is disabled. To enable voting, set `[node] enable_voting=true`n the `config-node.toml` file or use `--enable_voting` command line argument");
             }
         }
-
         if flags.enable_pruning {
             ledger.enable_pruning();
         }
