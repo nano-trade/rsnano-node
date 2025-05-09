@@ -28,13 +28,13 @@ rsnano_ledger = { path = "../ledger" }
 rsnano_websocket_messages = { path = "../websocket_messages" }
 anyhow = "1"
 bitvec = "1"
-blake2 = "0"
+blake2 = "0.10.6"
 bounded-vec-deque = "0"
 chrono = "0"
 dirs = "6"
 num = "0"
 num-derive = "0"
-num-traits = "0"
+num-traits = "0.2.19"
 once_cell = "1"
 rand = { version = "0.9.1" }
 serde = { version = "1", features = ["derive"] }
