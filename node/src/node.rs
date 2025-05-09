@@ -980,14 +980,19 @@ impl Node {
             }
         }));
 
-        let vote_rebroadcast_queue =
-            Arc::new(VoteRebroadcastQueue::build().stats(stats.clone()).finish());
+        let vote_rebroadcast_queue = Arc::new(
+            VoteRebroadcastQueue::build()
+                .max_len(config.vote_rebroadcaster_max_queue)
+                .stats(stats.clone())
+                .finish(),
+        );
 
         let vote_rebroadcaster = VoteRebroadcaster::new(
             vote_rebroadcast_queue.clone(),
             message_flooder.clone(),
             rep_weights.clone(),
             steady_clock.clone(),
+            config.rebroadcast_history.clone(),
         );
 
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);

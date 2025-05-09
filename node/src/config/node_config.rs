@@ -26,8 +26,8 @@ use crate::{
         election_schedulers::{
             priority::PriorityBucketConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
         },
-        ActiveElectionsConfig, BootstrapStaleElections, ForkCache, RequestAggregatorConfig,
-        VoteCacheConfig, VoteProcessorConfig,
+        ActiveElectionsConfig, BootstrapStaleElections, ForkCache, RebroadcastHistoryConfig,
+        RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig, VoteRebroadcastQueue,
     },
     transport::MessageProcessorConfig,
 };
@@ -119,6 +119,8 @@ pub struct NodeConfig {
     pub fork_cache_max_size: usize,
     pub fork_cache_max_forks_per_root: usize,
     pub bootstrap_stale_threshold: Duration,
+    pub vote_rebroadcaster_max_queue: usize,
+    pub rebroadcast_history: RebroadcastHistoryConfig,
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
@@ -347,6 +349,8 @@ impl NodeConfig {
             fork_cache_max_size: ForkCache::DEFAULT_MAX_LEN,
             fork_cache_max_forks_per_root: ForkCache::DEFAULT_MAX_FORKS_PER_ROOT,
             bootstrap_stale_threshold: BootstrapStaleElections::DEFAULT_STALE_THRESHOLD,
+            vote_rebroadcaster_max_queue: VoteRebroadcastQueue::DEFAULT_MAX_QUEUE,
+            rebroadcast_history: Default::default(),
         }
     }
 

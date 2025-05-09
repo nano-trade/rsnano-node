@@ -68,6 +68,7 @@ pub struct NodeToml {
     pub tcp: Option<TcpToml>,
     pub network: Option<NetworkToml>,
     pub fork_cache: Option<ForkCacheToml>,
+    pub vote_rebroadcaster: Option<VoteRebroadcasterToml>,
 }
 
 impl NodeConfig {
@@ -399,6 +400,24 @@ impl NodeConfig {
                 self.fork_cache_max_forks_per_root = i;
             }
         }
+
+        if let Some(toml) = &toml.vote_rebroadcaster {
+            if let Some(i) = toml.enable {
+                self.enable_vote_rebroadcast = i;
+            }
+            if let Some(i) = toml.max_queue {
+                self.vote_rebroadcaster_max_queue = i;
+            }
+            if let Some(i) = toml.max_history {
+                self.rebroadcast_history.max_blocks_per_rep = i;
+            }
+            if let Some(i) = toml.max_representatives {
+                self.rebroadcast_history.max_representatives = i;
+            }
+            if let Some(i) = toml.rebroadcast_threshold {
+                self.rebroadcast_history.rebroadcast_min_gap = Duration::from_millis(i);
+            }
+        }
     }
 }
 
@@ -498,6 +517,7 @@ impl From<&NodeConfig> for NodeToml {
             tcp: Some((&config.tcp).into()),
             network: Some(config.into()),
             fork_cache: Some(config.into()),
+            vote_rebroadcaster: Some(config.into()),
         }
     }
 }

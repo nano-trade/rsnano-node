@@ -24,6 +24,7 @@ mod request_aggregator_toml;
 mod tcp_toml;
 mod vote_cache_toml;
 mod vote_processor_toml;
+mod vote_rebroadcaster_toml;
 mod websocket_toml;
 
 pub use active_elections_toml::*;
@@ -49,4 +50,5 @@ pub use rep_crawler_toml::*;
 pub use request_aggregator_toml::*;
 pub use vote_cache_toml::*;
 pub use vote_processor_toml::*;
+pub use vote_rebroadcaster_toml::*;
 pub use websocket_toml::*;

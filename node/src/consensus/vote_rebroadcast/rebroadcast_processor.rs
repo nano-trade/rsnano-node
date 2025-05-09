@@ -11,7 +11,7 @@ use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::TrafficType;
 use rsnano_stats::{StatsCollection, StatsSource};
 
-use super::history::{RebroadcastError, RebroadcastHistory};
+use super::history::{RebroadcastError, RebroadcastHistory, RebroadcastHistoryConfig};
 use crate::{consensus::RepTier, transport::MessageFlooder};
 use rsnano_ledger::RepWeightCache;
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
@@ -33,10 +33,11 @@ impl RebroadcastProcessor {
         rep_weights: Arc<RepWeightCache>,
         clock: Arc<SteadyClock>,
         stats: Arc<RebroadcastStats>,
+        history_config: RebroadcastHistoryConfig,
     ) -> Self {
         Self {
             message_flooder,
-            history: RebroadcastHistory::default(),
+            history: RebroadcastHistory::new(history_config),
             rep_weights,
             last_rep_weight_update: clock.now(),
             clock,
@@ -179,7 +180,13 @@ mod tests {
         let rep_weights = Arc::new(RepWeightCache::new());
         let clock = Arc::new(SteadyClock::new_null());
         let stats = Arc::new(RebroadcastStats::default());
-        let mut processor = RebroadcastProcessor::new(message_flooder, rep_weights, clock, stats);
+        let mut processor = RebroadcastProcessor::new(
+            message_flooder,
+            rep_weights,
+            clock,
+            stats,
+            Default::default(),
+        );
 
         processor.rebroadcast(RepTier::Tier1, &input.vote);
 

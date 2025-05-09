@@ -66,7 +66,7 @@ pub(crate) struct VoteRebroadcastQueue {
 }
 
 impl VoteRebroadcastQueue {
-    const DEFAULT_MAX_QUEUE: usize = 1024 * 16;
+    pub const DEFAULT_MAX_QUEUE: usize = 1024 * 16;
 
     pub fn build() -> VoteRebroadcastQueueBuilder {
         Default::default()

@@ -123,7 +123,8 @@ impl Default for RebroadcastHistory {
     }
 }
 
-pub(crate) struct RebroadcastHistoryConfig {
+#[derive(Clone, Debug, PartialEq)]
+pub struct RebroadcastHistoryConfig {
     /// Minimum amount of time between rebroadcasts for the same hash from the same representative
     pub rebroadcast_min_gap: Duration,
 
@@ -134,12 +135,18 @@ pub(crate) struct RebroadcastHistoryConfig {
     pub max_blocks_per_rep: usize,
 }
 
+impl RebroadcastHistoryConfig {
+    pub const DEFAULT_MAX_REPS: usize = 100;
+    pub const DEFAULT_MAX_BLOCKS_PER_REP: usize = 1024 * 32;
+    pub const DEFAULT_REBROADCAST_MIN_GAP: Duration = Duration::from_secs(90);
+}
+
 impl Default for RebroadcastHistoryConfig {
     fn default() -> Self {
         Self {
-            rebroadcast_min_gap: Duration::from_secs(90),
-            max_representatives: 100,
-            max_blocks_per_rep: 1024 * 32,
+            rebroadcast_min_gap: Self::DEFAULT_REBROADCAST_MIN_GAP,
+            max_representatives: Self::DEFAULT_MAX_REPS,
+            max_blocks_per_rep: Self::DEFAULT_MAX_BLOCKS_PER_REP,
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::{sync::Arc, thread::JoinHandle, time::Duration};
 
 use super::{
+    history::RebroadcastHistoryConfig,
     rebroadcast_processor::{RebroadcastProcessor, RebroadcastStats},
     VoteRebroadcastQueue,
 };
@@ -17,6 +18,7 @@ pub(crate) struct VoteRebroadcaster {
     clock: Arc<SteadyClock>,
     vote_processed_callback: Option<Box<dyn Fn() + Send + Sync>>,
     pub stats: Arc<RebroadcastStats>,
+    history_config: RebroadcastHistoryConfig,
 }
 
 impl VoteRebroadcaster {
@@ -25,6 +27,7 @@ impl VoteRebroadcaster {
         message_flooder: MessageFlooder,
         rep_weights: Arc<RepWeightCache>,
         clock: Arc<SteadyClock>,
+        history_config: RebroadcastHistoryConfig,
     ) -> Self {
         Self {
             queue,
@@ -34,6 +37,7 @@ impl VoteRebroadcaster {
             clock,
             vote_processed_callback: None,
             stats: Arc::new(RebroadcastStats::default()),
+            history_config,
         }
     }
 
@@ -44,6 +48,7 @@ impl VoteRebroadcaster {
             self.rep_weights.clone(),
             self.clock.clone(),
             self.stats.clone(),
+            self.history_config.clone(),
         );
         let callback = self.vote_processed_callback.take();
 
@@ -127,8 +132,13 @@ mod tests {
         let flood_tracker = message_flooder.track_floods();
         let rep_weights = Arc::new(RepWeightCache::new());
         let clock = Arc::new(SteadyClock::new_null());
-        let rebroadcaster =
-            VoteRebroadcaster::new(queue.clone(), message_flooder, rep_weights, clock);
+        let rebroadcaster = VoteRebroadcaster::new(
+            queue.clone(),
+            message_flooder,
+            rep_weights,
+            clock,
+            Default::default(),
+        );
 
         (rebroadcaster, queue, flood_tracker)
     }
