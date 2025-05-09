@@ -40,7 +40,7 @@ pub(crate) use dependent_elections_confirmer::*;
 pub use filtered_vote::*;
 pub(crate) use fork_cache::*;
 pub(crate) use fork_cache_updater::*;
-pub(crate) use fork_processor::ForkProcessor;
+pub(crate) use fork_processor::*;
 pub(crate) use local_votes_remover::LocalVotesRemover;
 pub use rep_tiers::*;
 pub(crate) use vote_applier::*;

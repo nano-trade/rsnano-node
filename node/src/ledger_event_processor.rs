@@ -6,12 +6,12 @@ use rsnano_stats::{DetailType, StatType, Stats};
 #[cfg(test)]
 use crate::consensus::ForkCache;
 use crate::{
-    block_processing::{BlockProcessor, BoundedBacklog, LocalBlockBroadcaster},
+    block_processing::{BlockProcessor, LocalBlockBroadcaster},
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     consensus::{
         election_schedulers::ElectionSchedulers, ActiveElectionsContainer,
-        DependentElectionsConfirmer, ForkCacheUpdater, ForkProcessor, LocalVoteHistory,
+        DependentElectionsConfirmer, ForkCacheUpdater, LocalVoteHistory,
     },
     utils::BackpressureEventProcessor,
     NodeEvent,
@@ -23,7 +23,6 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub election_schedulers: Arc<ElectionSchedulers>,
-    pub bounded_backlog: Arc<BoundedBacklog>,
     pub confirming_set: Arc<ConfirmingSet>,
     pub stats: Arc<Stats>,
     pub(crate) dependent_elections_confirmer: DependentElectionsConfirmer,
@@ -32,7 +31,6 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) fork_cache_updater: ForkCacheUpdater,
-    pub(crate) fork_processor: Arc<ForkProcessor>,
     pub(crate) plugins: Vec<Box<dyn LedgerEventProcessorPlugin>>,
 }
 
@@ -43,7 +41,6 @@ impl LedgerEventProcessor {
             node_event_sender: None,
             local_block_broadcaster: Arc::new(LocalBlockBroadcaster::new_null()),
             election_schedulers: Arc::new(ElectionSchedulers::new_null()),
-            bounded_backlog: Arc::new(BoundedBacklog::new_null()),
             confirming_set: Arc::new(ConfirmingSet::new_null()),
             stats: Arc::new(Stats::default()),
             dependent_elections_confirmer: DependentElectionsConfirmer::new_null(),
@@ -52,7 +49,6 @@ impl LedgerEventProcessor {
             active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
             block_processor: Arc::new(BlockProcessor::new_null()),
             fork_cache_updater: ForkCacheUpdater::new(Arc::new(RwLock::new(ForkCache::default()))),
-            fork_processor: Arc::new(ForkProcessor::new_test_instance()),
             plugins: Vec::new(),
         }
     }
@@ -80,13 +76,10 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
 
         match event {
             LedgerEvent::BlocksProcessed(results) => {
-                // Notify elections about alternative (forked) blocks
-                self.fork_processor.handle_forks(&results);
                 self.election_schedulers
                     .activate_accounts_with_fresh_blocks(&results);
 
                 self.confirming_set.requeue_blocks(&results);
-                self.bounded_backlog.insert_processed(&results);
                 self.bootstrapper.inspect_blocks(&results);
                 self.local_block_broadcaster.blocks_processed(&results);
                 self.fork_cache_updater.update(&results);
@@ -100,8 +93,6 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
 
                 self.election_schedulers
                     .activate_successors(confirmed.iter().map(|(b, _)| b));
-
-                self.bounded_backlog.remove(&confirmed);
 
                 self.local_block_broadcaster
                     .confirmed(confirmed.iter().map(|i| i.1));
@@ -119,9 +110,6 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
                     }
                 }
 
-                // Unblock rolled back accounts as the dependency is no longer valid
-                self.bounded_backlog.erase_hashes(rolled_back.hashes());
-
                 self.vote_history.erase_batch(rolled_back.roots());
 
                 self.bootstrapper
@@ -136,20 +124,6 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
 
 pub(crate) trait LedgerEventProcessorPlugin: Send {
     fn process(&mut self, event: &LedgerEvent);
-}
-
-pub(crate) struct BoundedBacklogLedgerEvProc {
-    bounded_backlog: Arc<BoundedBacklog>,
-}
-
-impl BoundedBacklogLedgerEvProc {
-    pub(crate) fn new(bounded_backlog: Arc<BoundedBacklog>) -> Self {
-        Self { bounded_backlog }
-    }
-}
-
-impl LedgerEventProcessorPlugin for BoundedBacklogLedgerEvProc {
-    fn process(&mut self, event: &LedgerEvent) {}
 }
 
 #[cfg(test)]

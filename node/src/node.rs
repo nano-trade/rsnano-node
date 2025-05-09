@@ -39,8 +39,8 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog, LocalBlockBroadcaster,
-        LocalBlockBroadcasterExt, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog,
+        BoundedBacklogLedgerEvProc, LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -53,15 +53,13 @@ use crate::{
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
         BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
         ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
-        ForkCacheUpdater, ForkProcessor, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
-        VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker,
-        WinnerBlockBroadcaster,
+        ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory, LocalVotesRemover,
+        RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
-    ledger_event_processor::{
-        BoundedBacklogLedgerEvProc, LedgerEventProcessor, LedgerEventProcessorPlugin,
-    },
+    ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
@@ -1141,6 +1139,8 @@ impl Node {
             active_elections: active_elections.clone(),
             vote_cache: vote_cache.clone(),
         });
+        ledger_event_processor_plugins
+            .push(Box::new(ForkProcessorPlugin::new(fork_processor.clone())));
 
         let aec_event_processor = AecEventProcessor {
             vote_cache_processor: vote_cache_processor.clone(),
@@ -1160,7 +1160,7 @@ impl Node {
             rep_crawler: rep_crawler.clone(),
             clock: steady_clock.clone(),
             local_votes_remover,
-            fork_processor: fork_processor.clone(),
+            fork_processor,
             stats: stats.clone(),
         };
 
@@ -1178,7 +1178,6 @@ impl Node {
             node_event_sender: node_observer.clone(),
             local_block_broadcaster: local_block_broadcaster.clone(),
             election_schedulers: election_schedulers.clone(),
-            bounded_backlog: bounded_backlog.clone(),
             dependent_elections_confirmer,
             confirming_set: confirming_set.clone(),
             stats: stats.clone(),
@@ -1187,7 +1186,6 @@ impl Node {
             active_elections: active_elections.clone(),
             block_processor: block_processor.clone(),
             fork_cache_updater,
-            fork_processor,
             plugins: ledger_event_processor_plugins,
         };
 

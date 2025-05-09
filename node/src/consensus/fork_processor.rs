@@ -1,6 +1,7 @@
 use super::{ActiveElectionsContainer, ForkCache, VoteCache};
+use crate::ledger_event_processor::LedgerEventProcessorPlugin;
 use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot};
-use rsnano_ledger::{BlockError, ProcessedResult, RepWeightCache};
+use rsnano_ledger::{BlockError, LedgerEvent, ProcessedResult, RepWeightCache};
 #[cfg(test)]
 use rsnano_stats::Stats;
 use std::sync::{Arc, Mutex, RwLock};
@@ -64,5 +65,27 @@ impl ForkProcessor {
             tally += weights.weight(&vote.voter);
         }
         tally
+    }
+}
+
+pub(crate) struct ForkProcessorPlugin {
+    fork_processor: Arc<ForkProcessor>,
+}
+
+impl ForkProcessorPlugin {
+    pub fn new(fork_processor: Arc<ForkProcessor>) -> Self {
+        Self { fork_processor }
+    }
+}
+
+impl LedgerEventProcessorPlugin for ForkProcessorPlugin {
+    fn process(&mut self, event: &LedgerEvent) {
+        match event {
+            LedgerEvent::BlocksProcessed(results) => {
+                // Notify elections about alternative (forked) blocks
+                self.fork_processor.handle_forks(&results);
+            }
+            _ => {}
+        }
     }
 }
