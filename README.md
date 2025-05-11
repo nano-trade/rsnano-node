@@ -63,11 +63,10 @@ using RsNano. Let us know by [filing an issue](https://github.com/simpago/rsnano
 
 # The codebase
 
-Have a look at the AI generated documentation of the codebase: [https://deepwiki.com/rsnano-node/rsnano-node]
+Have a look at the [AI generated documentation of the codebase]([https://deepwiki.com/rsnano-node/rsnano-node]).
 
-The Rust code is structured according to A-frame architecture and is built with nullable infrastructure. This design and testing approach is extensively documented here:
-
-[http://www.jamesshore.com/v2/projects/nullables/testing-without-mocks]
+The Rust code is structured according to A-frame architecture and is built with nullable infrastructure. 
+This design and testing approach is [extensively documented on James Shore's website](http://www.jamesshore.com/v2/projects/nullables/testing-without-mocks)
 
 Watch James Shore's presentation of nullables on YouTube: [Testing Without Mocks - James Shore | Craft Conference 2024](https://www.youtube.com/watch?v=GjZg6lDBKkk)
 
