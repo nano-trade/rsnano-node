@@ -18,17 +18,15 @@ RsNano is a Rust port of the original Nano node.
 
 ### Installation
 
-**Please mind that this project is still in its early stages and hasn't been thoroughly tested yet!**
-
 ## Option 1: Run the official docker image
 
-    docker run -p 7075:7075 -v ~/Nano:/root/Nano simpago/rsnano-dev:V1.0-dev.2 nano_node daemon --network=live
+    docker run -p 7075:7075 -v ~/Nano:/root/Nano simpago/rsnano-dev:latest --network=live node run
 
 ## Option 2: Build your own docker image
 
     docker build -f scripts/docker/node/Dockerfile -t rsnano-node https://github.com/simpago/rsnano-node.git#develop
 
-    docker run -p 7075:7075 -v ~/Nano:/root/Nano rsnano-node:latest node run --network=live
+    docker run -p 7075:7075 -v ~/Nano:/root/Nano rsnano-node:latest --network=live node run
 
 ## Option 3: Build from source
 
@@ -39,14 +37,14 @@ To just build and run the rsnano_node:
     git clone https://github.com/simpago/rsnano-node.git
     cd rsnano-node/main
     cargo build --release
-    cargo run --release -- node run --network=live
+    cargo run --release -- --network=live node run
 
 To install and run the rsnano_node executable:
 
     git clone https://github.com/simpago/rsnano-node.git
     cd rsnano-node
     cargo install --path main
-    rsnano_node node run --network=live
+    rsnano_node --network=live node run
 
 ## Running it with a GUI
 
@@ -65,9 +63,13 @@ using RsNano. Let us know by [filing an issue](https://github.com/simpago/rsnano
 
 # The codebase
 
+Have a look at the AI generated documentation of the codebase: [https://deepwiki.com/rsnano-node/rsnano-node]
+
 The Rust code is structured according to A-frame architecture and is built with nullable infrastructure. This design and testing approach is extensively documented here:
 
 [http://www.jamesshore.com/v2/projects/nullables/testing-without-mocks]
+
+Watch James Shore's presentation of nullables on YouTube: [Testing Without Mocks - James Shore | Craft Conference 2024](https://www.youtube.com/watch?v=GjZg6lDBKkk)
 
 The following diagram shows how the crates are organized. The crates will be split up more when the codebase grows.
 
