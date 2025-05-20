@@ -258,7 +258,7 @@ impl BlockProcessorLoop {
                     info!(
                         "{} blocks (+ {} forced) in processing_queue",
                         guard.process_queue.len(),
-                        guard.process_queue.queue_len(BlockSource::Forced)
+                        guard.process_queue.source_len(BlockSource::Forced)
                     );
                 }
 
@@ -376,7 +376,7 @@ impl BlockProcessorLoop {
     }
 
     pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.mutex.lock().unwrap().process_queue.queue_len(source)
+        self.mutex.lock().unwrap().process_queue.source_len(source)
     }
 
     fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
@@ -384,7 +384,7 @@ impl BlockProcessorLoop {
         let added;
         {
             let mut guard = self.mutex.lock().unwrap();
-            added = guard.process_queue.push((source, channel_id), context);
+            added = guard.process_queue.push(source, channel_id, context);
         }
         if added {
             self.condition.notify_all();

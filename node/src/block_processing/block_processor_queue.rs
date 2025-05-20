@@ -64,6 +64,15 @@ impl BlockProcessorQueue {
         Self(FairQueue::new(max_size_query, priority_query))
     }
 
+    pub fn push(
+        &mut self,
+        source: BlockSource,
+        channel_id: ChannelId,
+        context: Arc<BlockContext>,
+    ) -> bool {
+        self.0.push((source, channel_id), context)
+    }
+
     pub fn next_batch(&mut self, max_count: usize) -> VecDeque<Arc<BlockContext>> {
         let mut results = VecDeque::new();
         while !self.is_empty() && results.len() < max_count {
@@ -86,7 +95,7 @@ impl BlockProcessorQueue {
         self.0.remove(&(source, channel_id));
     }
 
-    pub fn queue_len(&self, source: BlockSource) -> usize {
+    pub fn source_len(&self, source: BlockSource) -> usize {
         self.0
             .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
     }
