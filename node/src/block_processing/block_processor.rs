@@ -65,7 +65,7 @@ impl BlockProcessorConfig {
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
-    pub(crate) processor_loop: Arc<BlockProcessorLoopImpl>,
+    pub(crate) processor_loop: Arc<BlockProcessorLoop>,
 }
 
 impl BlockProcessor {
@@ -94,7 +94,7 @@ impl BlockProcessor {
         };
 
         Self {
-            processor_loop: Arc::new(BlockProcessorLoopImpl {
+            processor_loop: Arc::new(BlockProcessorLoop {
                 mutex: Mutex::new(BlockProcessorImpl {
                     add_queue: FairQueue::new(max_size_query, priority_query),
                     rollback_queue: VecDeque::new(),
@@ -249,7 +249,7 @@ impl ContainerInfoProvider for BlockProcessor {
     }
 }
 
-pub(crate) struct BlockProcessorLoopImpl {
+pub(crate) struct BlockProcessorLoop {
     mutex: Mutex<BlockProcessorImpl>,
     condition: Condvar,
     ledger: Arc<Ledger>,
@@ -259,11 +259,7 @@ pub(crate) struct BlockProcessorLoopImpl {
     can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
-trait BlockProcessorLoop {
-    fn run(&self);
-}
-
-impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
+impl BlockProcessorLoop {
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
@@ -311,9 +307,7 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
             }
         }
     }
-}
 
-impl BlockProcessorLoopImpl {
     pub fn process_active(&self, block: Block) {
         self.add(block, BlockSource::Live, ChannelId::LOOPBACK, None);
     }
@@ -604,8 +598,7 @@ impl BlockProcessorLoopImpl {
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        let guard = self.mutex.lock().unwrap();
-        guard.info()
+        self.mutex.lock().unwrap().info()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -660,10 +653,10 @@ impl BlockProcessorImpl {
     }
 }
 
-pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoopImpl>);
+pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoop>);
 
 impl BlockProcessorCleanup {
-    pub fn new(processor_loop: Arc<BlockProcessorLoopImpl>) -> Self {
+    pub fn new(processor_loop: Arc<BlockProcessorLoop>) -> Self {
         Self(processor_loop)
     }
 }
