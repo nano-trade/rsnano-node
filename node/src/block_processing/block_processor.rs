@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     mem::size_of,
-    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -18,7 +18,9 @@ use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_work::WorkThresholds;
 
-use super::{BlockContext, BlockProcessorCallback, UncheckedMap};
+use super::{
+    block_processor_queue::BlockProcessorQueue, BlockContext, BlockProcessorCallback, UncheckedMap,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
@@ -75,28 +77,10 @@ impl BlockProcessor {
         unchecked_map: Arc<UncheckedMap>,
         stats: Arc<Stats>,
     ) -> Self {
-        let config_l = config.clone();
-        let max_size_query = move |origin: &(BlockSource, ChannelId)| match origin.0 {
-            BlockSource::Live | BlockSource::LiveOriginator => config_l.max_peer_queue,
-            _ => config_l.max_system_queue,
-        };
-
-        let config_l = config.clone();
-        let priority_query = move |origin: &(BlockSource, ChannelId)| match origin.0 {
-            BlockSource::Live | BlockSource::LiveOriginator => config.priority_live,
-            BlockSource::Bootstrap | BlockSource::BootstrapLegacy | BlockSource::Unchecked => {
-                config_l.priority_bootstrap
-            }
-            BlockSource::Local => config_l.priority_local,
-            BlockSource::Election | BlockSource::Forced | BlockSource::Unknown => {
-                config.priority_system
-            }
-        };
-
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
                 mutex: Mutex::new(BlockProcessorImpl {
-                    add_queue: FairQueue::new(max_size_query, priority_query),
+                    add_queue: BlockProcessorQueue::new(config.clone()),
                     rollback_queue: VecDeque::new(),
                     last_log: None,
                     stopped: false,
@@ -607,7 +591,7 @@ impl BlockProcessorLoop {
 }
 
 struct BlockProcessorImpl {
-    add_queue: FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>,
+    add_queue: BlockProcessorQueue,
     rollback_queue: VecDeque<RollbackRequest>,
     last_log: Option<Instant>,
     stopped: bool,
