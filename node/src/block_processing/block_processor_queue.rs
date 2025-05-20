@@ -1,5 +1,8 @@
 use super::BlockContext;
-use rsnano_core::utils::FairQueue;
+use rsnano_core::{
+    utils::{ContainerInfo, FairQueue},
+    Block,
+};
 use rsnano_ledger::BlockSource;
 use rsnano_network::ChannelId;
 use std::{
@@ -58,6 +61,24 @@ impl BlockProcessorQueue {
         };
 
         Self(FairQueue::new(max_size_query, priority_query))
+    }
+
+    pub fn queue_len(&self, source: BlockSource) -> usize {
+        self.0
+            .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        ContainerInfo::builder()
+            .leaf("blocks", self.0.len(), size_of::<Arc<Block>>())
+            .leaf(
+                "forced",
+                self.0
+                    .queue_len(&(BlockSource::Forced, ChannelId::LOOPBACK)),
+                size_of::<Arc<Block>>(),
+            )
+            .node("queue", self.0.container_info())
+            .finish()
     }
 }
 

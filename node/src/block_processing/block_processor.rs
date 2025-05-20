@@ -67,7 +67,7 @@ impl BlockProcessor {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
                 mutex: Mutex::new(BlockProcessorImpl {
-                    add_queue: BlockProcessorQueue::new(config.queue.clone()),
+                    process_queue: BlockProcessorQueue::new(config.queue.clone()),
                     rollback_queue: VecDeque::new(),
                     last_log: None,
                     stopped: false,
@@ -234,7 +234,7 @@ impl BlockProcessorLoop {
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
-            if !guard.add_queue.is_empty() || !guard.rollback_queue.is_empty() {
+            if !guard.process_queue.is_empty() || !guard.rollback_queue.is_empty() {
                 while guard.cool_down && !guard.stopped {
                     drop(guard);
                     // It's possible that ledger processing happens faster than the
@@ -254,14 +254,12 @@ impl BlockProcessorLoop {
                 drop(guard);
                 self.process_rollback(request);
                 guard = self.mutex.lock().unwrap();
-            } else if !guard.add_queue.is_empty() {
+            } else if !guard.process_queue.is_empty() {
                 if guard.should_log() {
                     info!(
                         "{} blocks (+ {} forced) in processing_queue",
-                        guard.add_queue.len(),
-                        guard
-                            .add_queue
-                            .queue_len(&(BlockSource::Forced, ChannelId::LOOPBACK))
+                        guard.process_queue.len(),
+                        guard.process_queue.queue_len(BlockSource::Forced)
                     );
                 }
 
@@ -275,7 +273,7 @@ impl BlockProcessorLoop {
                 guard = self
                     .condition
                     .wait_while(guard, |i| {
-                        !i.stopped && i.add_queue.is_empty() && i.rollback_queue.is_empty()
+                        !i.stopped && i.process_queue.is_empty() && i.rollback_queue.is_empty()
                     })
                     .unwrap();
             }
@@ -375,15 +373,11 @@ impl BlockProcessorLoop {
 
     // TODO: Remove and replace all checks with calls to size (block_source)
     pub fn total_queue_len(&self) -> usize {
-        self.mutex.lock().unwrap().add_queue.len()
+        self.mutex.lock().unwrap().process_queue.len()
     }
 
     pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.mutex
-            .lock()
-            .unwrap()
-            .add_queue
-            .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
+        self.mutex.lock().unwrap().process_queue.queue_len(source)
     }
 
     fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
@@ -391,7 +385,7 @@ impl BlockProcessorLoop {
         let added;
         {
             let mut guard = self.mutex.lock().unwrap();
-            added = guard.add_queue.push((source, channel_id), context);
+            added = guard.process_queue.push((source, channel_id), context);
         }
         if added {
             self.condition.notify_all();
@@ -562,23 +556,12 @@ impl BlockProcessorLoop {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let guard = self.mutex.lock().unwrap();
-        ContainerInfo::builder()
-            .leaf("blocks", guard.add_queue.len(), size_of::<Arc<Block>>())
-            .leaf(
-                "forced",
-                guard
-                    .add_queue
-                    .queue_len(&(BlockSource::Forced, ChannelId::LOOPBACK)),
-                size_of::<Arc<Block>>(),
-            )
-            .node("queue", guard.add_queue.container_info())
-            .finish()
+        self.mutex.lock().unwrap().process_queue.container_info()
     }
 }
 
 struct BlockProcessorImpl {
-    add_queue: BlockProcessorQueue,
+    process_queue: BlockProcessorQueue,
     rollback_queue: VecDeque<RollbackRequest>,
     last_log: Option<Instant>,
     stopped: bool,
@@ -588,16 +571,16 @@ struct BlockProcessorImpl {
 impl BlockProcessorImpl {
     fn next_batch(&mut self, max_count: usize) -> VecDeque<Arc<BlockContext>> {
         let mut results = VecDeque::new();
-        while !self.add_queue.is_empty() && results.len() < max_count {
+        while !self.process_queue.is_empty() && results.len() < max_count {
             results.push_back(self.next());
         }
         results
     }
 
     fn next(&mut self) -> Arc<BlockContext> {
-        debug_assert!(!self.add_queue.is_empty()); // This should be checked before calling next
-        if !self.add_queue.is_empty() {
-            let ((source, _), request) = self.add_queue.next().unwrap();
+        debug_assert!(!self.process_queue.is_empty()); // This should be checked before calling next
+        if !self.process_queue.is_empty() {
+            let ((source, _), request) = self.process_queue.next().unwrap();
             assert!(source != BlockSource::Forced || request.source == BlockSource::Forced);
             return request;
         }
@@ -617,7 +600,7 @@ impl BlockProcessorImpl {
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.add_queue.compacted_info(|(source, _)| *source)
+        self.process_queue.compacted_info(|(source, _)| *source)
     }
 }
 
@@ -635,7 +618,7 @@ impl DeadChannelCleanupStep for BlockProcessorCleanup {
         for channel_id in dead_channel_ids {
             let iter = BlockSource::iter();
             for source in iter {
-                guard.add_queue.remove(&(source, *channel_id))
+                guard.process_queue.remove(&(source, *channel_id))
             }
         }
     }
