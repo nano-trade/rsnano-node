@@ -25,6 +25,7 @@ impl ConfirmReqSender {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn new_null() -> Self {
         let stats = Arc::new(Stats::default());
         let clock = Arc::new(SteadyClock::new_null());

@@ -502,7 +502,6 @@ impl LedgerEventProcessorPlugin for LocalBlockBroadcasterPlugin {
                 self.local_block_broadcaster
                     .rolled_back(rolled_back.hashes());
             }
-            _ => {}
         }
     }
 }

@@ -1,22 +1,20 @@
 use std::sync::{mpsc::SyncSender, Arc, RwLock};
 
+use rsnano_core::Networks;
 use rsnano_ledger::LedgerEvent;
 use rsnano_stats::{DetailType, StatType, Stats};
 
-#[cfg(test)]
-use crate::consensus::ForkCache;
 use crate::{
     block_processing::BlockProcessor,
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     consensus::{
-        ActiveElectionsContainer, DependentElectionsConfirmer, ForkCacheUpdater, LocalVoteHistory,
+        ActiveElectionsContainer, DependentElectionsConfirmer, ForkCache, ForkCacheUpdater,
+        LocalVoteHistory,
     },
     utils::BackpressureEventProcessor,
     NodeEvent,
 };
-#[cfg(test)]
-use rsnano_core::Networks;
 
 pub(crate) struct LedgerEventProcessor {
     pub(crate) node_event_sender: Option<SyncSender<NodeEvent>>,
@@ -32,7 +30,7 @@ pub(crate) struct LedgerEventProcessor {
 }
 
 impl LedgerEventProcessor {
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn new_null() -> Self {
         Self {
             node_event_sender: None,

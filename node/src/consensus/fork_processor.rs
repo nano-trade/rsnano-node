@@ -1,11 +1,13 @@
-use super::{ActiveElectionsContainer, ForkCache, VoteCache};
-use crate::ledger_event_processor::LedgerEventProcessorPlugin;
+use std::sync::{Arc, Mutex, RwLock};
+
+use tracing::debug;
+
 use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot};
 use rsnano_ledger::{BlockError, LedgerEvent, ProcessedResult, RepWeightCache};
-#[cfg(test)]
 use rsnano_stats::Stats;
-use std::sync::{Arc, Mutex, RwLock};
-use tracing::debug;
+
+use super::{ActiveElectionsContainer, ForkCache, VoteCache};
+use crate::ledger_event_processor::LedgerEventProcessorPlugin;
 
 pub(crate) struct ForkProcessor {
     pub(crate) rep_weights: Arc<RepWeightCache>,
@@ -15,7 +17,7 @@ pub(crate) struct ForkProcessor {
 }
 
 impl ForkProcessor {
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn new_test_instance() -> Self {
         Self {
             rep_weights: Arc::new(RepWeightCache::new()),

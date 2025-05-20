@@ -47,6 +47,7 @@ impl BlockVoter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_null() -> Self {
         let stats = Arc::new(Stats::default());
         let vote_generators = Arc::new(VoteGenerators::new_null());

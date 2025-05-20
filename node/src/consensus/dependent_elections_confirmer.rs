@@ -12,7 +12,6 @@ pub(crate) struct DependentElectionsConfirmer {
 }
 
 impl DependentElectionsConfirmer {
-    #[cfg(test)]
     pub fn new_null() -> Self {
         Self {
             confirming_set: Arc::new(ConfirmingSet::new_null()),
