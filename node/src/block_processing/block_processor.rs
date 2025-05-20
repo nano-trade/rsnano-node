@@ -65,7 +65,7 @@ impl BlockProcessor {
     ) -> Self {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
-                mutex: Mutex::new(BlockProcessorImpl {
+                mutex: Mutex::new(BlockProcessorLogic {
                     process_queue: BlockProcessorQueue::new(config.queue.clone()),
                     rollback_queue: VecDeque::new(),
                     last_log: None,
@@ -220,7 +220,7 @@ impl ContainerInfoProvider for BlockProcessor {
 }
 
 pub(crate) struct BlockProcessorLoop {
-    mutex: Mutex<BlockProcessorImpl>,
+    mutex: Mutex<BlockProcessorLogic>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
@@ -271,9 +271,7 @@ impl BlockProcessorLoop {
             } else {
                 guard = self
                     .condition
-                    .wait_while(guard, |i| {
-                        !i.stopped && i.process_queue.is_empty() && i.rollback_queue.is_empty()
-                    })
+                    .wait_while(guard, |i| i.should_wait())
                     .unwrap();
             }
         }
@@ -559,7 +557,7 @@ impl BlockProcessorLoop {
     }
 }
 
-struct BlockProcessorImpl {
+struct BlockProcessorLogic {
     process_queue: BlockProcessorQueue,
     rollback_queue: VecDeque<RollbackRequest>,
     last_log: Option<Instant>,
@@ -567,7 +565,11 @@ struct BlockProcessorImpl {
     cool_down: bool,
 }
 
-impl BlockProcessorImpl {
+impl BlockProcessorLogic {
+    pub fn should_wait(&self) -> bool {
+        !self.stopped && self.process_queue.is_empty() && self.rollback_queue.is_empty()
+    }
+
     pub fn should_log(&mut self) -> bool {
         if let Some(last) = &self.last_log {
             if last.elapsed() >= Duration::from_secs(15) {
