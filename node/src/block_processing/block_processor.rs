@@ -294,7 +294,10 @@ impl BlockProcessorLoop {
                     );
                 }
 
-                self.process_batch(guard);
+                let batch = guard.next_batch(self.config.batch_size);
+                drop(guard);
+
+                self.process_batch(batch);
 
                 guard = self.mutex.lock().unwrap();
             } else {
@@ -430,18 +433,6 @@ impl BlockProcessorLoop {
         added
     }
 
-    fn next_batch(
-        &self,
-        data: &mut BlockProcessorImpl,
-        max_count: usize,
-    ) -> VecDeque<Arc<BlockContext>> {
-        let mut results = VecDeque::new();
-        while !data.add_queue.is_empty() && results.len() < max_count {
-            results.push_back(data.next());
-        }
-        results
-    }
-
     fn process_rollback(&self, request: RollbackRequest) {
         let can_roll_back = self.can_roll_back.read().unwrap();
         let mut results =
@@ -463,9 +454,7 @@ impl BlockProcessorLoop {
         request.result.done.notify_all();
     }
 
-    fn process_batch(&self, mut guard: MutexGuard<BlockProcessorImpl>) {
-        let mut batch = self.next_batch(&mut guard, self.config.batch_size);
-        drop(guard);
+    fn process_batch(&self, mut batch: VecDeque<Arc<BlockContext>>) {
         let timer = Instant::now();
 
         let mut result = self
@@ -626,6 +615,14 @@ struct BlockProcessorImpl {
 }
 
 impl BlockProcessorImpl {
+    fn next_batch(&mut self, max_count: usize) -> VecDeque<Arc<BlockContext>> {
+        let mut results = VecDeque::new();
+        while !self.add_queue.is_empty() && results.len() < max_count {
+            results.push_back(self.next());
+        }
+        results
+    }
+
     fn next(&mut self) -> Arc<BlockContext> {
         debug_assert!(!self.add_queue.is_empty()); // This should be checked before calling next
         if !self.add_queue.is_empty() {
