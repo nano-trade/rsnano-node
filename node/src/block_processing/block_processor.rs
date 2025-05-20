@@ -10,7 +10,7 @@ use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoProvider, FairQueue, FairQueueInfo},
+    utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
     Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerSet};
@@ -19,22 +19,14 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_work::WorkThresholds;
 
 use super::{
-    block_processor_queue::BlockProcessorQueue, BlockContext, BlockProcessorCallback, UncheckedMap,
+    block_processor_queue::{BlockProcessorQueue, BlockProcessorQueueConfig},
+    BlockContext, BlockProcessorCallback, UncheckedMap,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
-    // Maximum number of blocks to queue from network peers
-    pub max_peer_queue: usize,
-    //
-    // Maximum number of blocks to queue from system components (local RPC, bootstrap)
-    pub max_system_queue: usize,
+    pub queue: BlockProcessorQueueConfig,
 
-    // Higher priority gets processed more frequently
-    pub priority_live: usize,
-    pub priority_bootstrap: usize,
-    pub priority_local: usize,
-    pub priority_system: usize,
     pub batch_max_time: Duration,
     pub full_size: usize,
     pub batch_size: usize,
@@ -48,12 +40,7 @@ impl BlockProcessorConfig {
     pub fn new(work_thresholds: WorkThresholds) -> Self {
         Self {
             work_thresholds,
-            max_peer_queue: 128,
-            max_system_queue: 16 * 1024,
-            priority_live: 1,
-            priority_bootstrap: 8,
-            priority_local: 16,
-            priority_system: 32,
+            queue: Default::default(),
             batch_max_time: Duration::from_millis(500),
             full_size: Self::DEFAULT_FULL_SIZE,
             batch_size: 256,
@@ -80,7 +67,7 @@ impl BlockProcessor {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
                 mutex: Mutex::new(BlockProcessorImpl {
-                    add_queue: BlockProcessorQueue::new(config.clone()),
+                    add_queue: BlockProcessorQueue::new(config.queue.clone()),
                     rollback_queue: VecDeque::new(),
                     last_log: None,
                     stopped: false,

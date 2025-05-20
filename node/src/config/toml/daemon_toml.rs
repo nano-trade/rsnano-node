@@ -444,24 +444,24 @@ mod tests {
 
         // Block Processor section
         assert_ne!(
-            deserialized.node.block_processor.max_peer_queue,
-            default_cfg.node.block_processor.max_peer_queue
+            deserialized.node.block_processor.queue.max_peer_queue,
+            default_cfg.node.block_processor.queue.max_peer_queue
         );
         assert_ne!(
-            deserialized.node.block_processor.max_system_queue,
-            default_cfg.node.block_processor.max_system_queue
+            deserialized.node.block_processor.queue.max_system_queue,
+            default_cfg.node.block_processor.queue.max_system_queue
         );
         assert_ne!(
-            deserialized.node.block_processor.priority_live,
-            default_cfg.node.block_processor.priority_live
+            deserialized.node.block_processor.queue.priority_live,
+            default_cfg.node.block_processor.queue.priority_live
         );
         assert_ne!(
-            deserialized.node.block_processor.priority_bootstrap,
-            default_cfg.node.block_processor.priority_bootstrap
+            deserialized.node.block_processor.queue.priority_bootstrap,
+            default_cfg.node.block_processor.queue.priority_bootstrap
         );
         assert_ne!(
-            deserialized.node.block_processor.priority_local,
-            default_cfg.node.block_processor.priority_local
+            deserialized.node.block_processor.queue.priority_local,
+            default_cfg.node.block_processor.queue.priority_local
         );
 
         // Active Elections section
