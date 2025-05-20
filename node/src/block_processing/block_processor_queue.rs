@@ -1,11 +1,12 @@
 use super::BlockContext;
 use rsnano_core::{
-    utils::{ContainerInfo, FairQueue},
+    utils::{ContainerInfo, FairQueue, FairQueueInfo},
     Block,
 };
 use rsnano_ledger::BlockSource;
 use rsnano_network::ChannelId;
 use std::{
+    collections::VecDeque,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
@@ -63,9 +64,35 @@ impl BlockProcessorQueue {
         Self(FairQueue::new(max_size_query, priority_query))
     }
 
+    pub fn next_batch(&mut self, max_count: usize) -> VecDeque<Arc<BlockContext>> {
+        let mut results = VecDeque::new();
+        while !self.is_empty() && results.len() < max_count {
+            results.push_back(self.next());
+        }
+        results
+    }
+
+    fn next(&mut self) -> Arc<BlockContext> {
+        if !self.0.is_empty() {
+            let ((source, _), request) = self.0.next().unwrap();
+            assert!(source != BlockSource::Forced || request.source == BlockSource::Forced);
+            return request;
+        }
+
+        panic!("next() called when no blocks are ready");
+    }
+
+    pub fn remove(&mut self, source: BlockSource, channel_id: ChannelId) {
+        self.0.remove(&(source, channel_id));
+    }
+
     pub fn queue_len(&self, source: BlockSource) -> usize {
         self.0
             .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
+    }
+
+    pub fn info(&self) -> FairQueueInfo<BlockSource> {
+        self.compacted_info(|(source, _)| *source)
     }
 
     pub fn container_info(&self) -> ContainerInfo {

@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    mem::size_of,
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -263,7 +262,7 @@ impl BlockProcessorLoop {
                     );
                 }
 
-                let batch = guard.next_batch(self.config.batch_size);
+                let batch = guard.process_queue.next_batch(self.config.batch_size);
                 drop(guard);
 
                 self.process_batch(batch);
@@ -552,7 +551,7 @@ impl BlockProcessorLoop {
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.mutex.lock().unwrap().info()
+        self.mutex.lock().unwrap().process_queue.info()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -569,25 +568,6 @@ struct BlockProcessorImpl {
 }
 
 impl BlockProcessorImpl {
-    fn next_batch(&mut self, max_count: usize) -> VecDeque<Arc<BlockContext>> {
-        let mut results = VecDeque::new();
-        while !self.process_queue.is_empty() && results.len() < max_count {
-            results.push_back(self.next());
-        }
-        results
-    }
-
-    fn next(&mut self) -> Arc<BlockContext> {
-        debug_assert!(!self.process_queue.is_empty()); // This should be checked before calling next
-        if !self.process_queue.is_empty() {
-            let ((source, _), request) = self.process_queue.next().unwrap();
-            assert!(source != BlockSource::Forced || request.source == BlockSource::Forced);
-            return request;
-        }
-
-        panic!("next() called when no blocks are ready");
-    }
-
     pub fn should_log(&mut self) -> bool {
         if let Some(last) = &self.last_log {
             if last.elapsed() >= Duration::from_secs(15) {
@@ -597,10 +577,6 @@ impl BlockProcessorImpl {
         }
 
         false
-    }
-
-    pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.process_queue.compacted_info(|(source, _)| *source)
     }
 }
 
@@ -618,7 +594,7 @@ impl DeadChannelCleanupStep for BlockProcessorCleanup {
         for channel_id in dead_channel_ids {
             let iter = BlockSource::iter();
             for source in iter {
-                guard.process_queue.remove(&(source, *channel_id))
+                guard.process_queue.remove(source, *channel_id)
             }
         }
     }
