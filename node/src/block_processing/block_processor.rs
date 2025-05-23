@@ -7,10 +7,7 @@ use std::{
 
 use tracing::{debug, error};
 
-use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
-    Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo,
-};
+use rsnano_core::{Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo};
 use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerSet};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
@@ -161,22 +158,12 @@ impl BlockProcessor {
             );
         }
     }
-
-    pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.processor_loop.info()
-    }
 }
 
 impl Drop for BlockProcessor {
     fn drop(&mut self) {
         // Thread must be stopped before destruction
         debug_assert!(self.thread.lock().unwrap().is_none());
-    }
-}
-
-impl ContainerInfoProvider for BlockProcessor {
-    fn container_info(&self) -> ContainerInfo {
-        self.processor_loop.container_info()
     }
 }
 
@@ -423,14 +410,6 @@ impl BlockProcessorLoop {
             context.set_result(*res);
         }
     }
-
-    pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.queue.info()
-    }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        self.queue.container_info()
-    }
 }
 
 pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoop>);
@@ -444,38 +423,5 @@ impl BlockProcessorCleanup {
 impl DeadChannelCleanupStep for BlockProcessorCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
         self.0.queue.clean_up_dead_channels(dead_channel_ids);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rsnano_stats::Direction;
-
-    #[test]
-    fn insufficient_work() {
-        let config = BlockProcessorConfig::new(WorkThresholds::new_stub());
-        let ledger = Arc::new(Ledger::new_null());
-        let unchecked = Arc::new(UncheckedMap::default());
-        let stats = Arc::new(Stats::default());
-        let queue = Arc::new(BlockProcessorQueue::default());
-        let block_processor =
-            BlockProcessor::new(queue.clone(), config, ledger, unchecked, stats.clone());
-
-        let mut block = Block::new_test_instance();
-        block.set_work(3.into());
-
-        block_processor.add(block, BlockSource::Live, ChannelId::LOOPBACK);
-
-        assert_eq!(
-            stats.count(
-                StatType::BlockProcessor,
-                DetailType::InsufficientWork,
-                Direction::In
-            ),
-            1
-        );
-
-        assert_eq!(queue.total_queue_len(), 0);
     }
 }

@@ -2493,15 +2493,19 @@ fn block_confirm() {
     let hash1 = send1.hash();
 
     assert_eq!(
-        node1
-            .block_processor
-            .add(send1.clone().into(), BlockSource::Live, ChannelId::LOOPBACK),
+        node1.block_processor_queue.add(
+            send1.clone().into(),
+            BlockSource::Live,
+            ChannelId::LOOPBACK
+        ),
         true
     );
     assert_eq!(
-        node2
-            .block_processor
-            .add(send1.clone().into(), BlockSource::Live, ChannelId::LOOPBACK,),
+        node2.block_processor_queue.add(
+            send1.clone().into(),
+            BlockSource::Live,
+            ChannelId::LOOPBACK,
+        ),
         true
     );
 

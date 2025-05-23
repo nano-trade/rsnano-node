@@ -115,7 +115,7 @@ mod tests {
 
     use super::PriorityRequester;
     use crate::{
-        block_processing::{BlockProcessor, BlockProcessorQueue},
+        block_processing::BlockProcessorQueue,
         bootstrap::{
             progress,
             requesters::{

@@ -100,7 +100,7 @@ fn epoch_open_pending() {
 
     let status = node1.try_process(epoch_open.clone()).unwrap_err();
     assert_eq!(status, BlockError::GapEpochOpenPending);
-    node1.block_processor.add(
+    node1.block_processor_queue.add(
         epoch_open.clone().into(),
         BlockSource::Live,
         ChannelId::LOOPBACK,
@@ -113,7 +113,7 @@ fn epoch_open_pending() {
     assert_eq!(blocks[0].block.hash(), epoch_open.hash());
     // New block to process epoch open
     node1
-        .block_processor
+        .block_processor_queue
         .add(send1.into(), BlockSource::Live, ChannelId::LOOPBACK);
     assert_timely(Duration::from_secs(10), || {
         node1.block_exists(&epoch_open.hash())
@@ -199,7 +199,7 @@ fn unchecked_epoch() {
     let open1 = lattice.account(&destination).receive(&send1);
     let epoch1 = lattice.account(&destination).epoch1();
 
-    node1.block_processor.add(
+    node1.block_processor_queue.add(
         epoch1.clone().into(),
         BlockSource::Live,
         ChannelId::LOOPBACK,
@@ -208,10 +208,10 @@ fn unchecked_epoch() {
     // Waits for the epoch1 block to pass through block_processor and unchecked.put queues
     assert_timely_eq(Duration::from_secs(10), || node1.unchecked.len(), 1);
     node1
-        .block_processor
+        .block_processor_queue
         .add(send1.into(), BlockSource::Live, ChannelId::LOOPBACK);
     node1
-        .block_processor
+        .block_processor_queue
         .add(open1.into(), BlockSource::Live, ChannelId::LOOPBACK);
     assert_timely2(|| node1.ledger.any().block_exists(&epoch1.hash()));
 
@@ -261,12 +261,12 @@ fn unchecked_epoch_invalid() {
     }
     .into();
 
-    node1.block_processor.add(
+    node1.block_processor_queue.add(
         epoch1.clone().into(),
         BlockSource::Live,
         ChannelId::LOOPBACK,
     );
-    node1.block_processor.add(
+    node1.block_processor_queue.add(
         epoch2.clone().into(),
         BlockSource::Live,
         ChannelId::LOOPBACK,
@@ -275,10 +275,10 @@ fn unchecked_epoch_invalid() {
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
     assert_timely_eq(Duration::from_secs(10), || node1.unchecked.len(), 2);
     node1
-        .block_processor
+        .block_processor_queue
         .add(send1.into(), BlockSource::Live, ChannelId::LOOPBACK);
     node1
-        .block_processor
+        .block_processor_queue
         .add(open1.into(), BlockSource::Live, ChannelId::LOOPBACK);
 
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
@@ -312,17 +312,17 @@ fn unchecked_open() {
 
     // Insert open2 in to the queue before open1
     node1
-        .block_processor
+        .block_processor_queue
         .add(open2.into(), BlockSource::Live, ChannelId::LOOPBACK);
     node1
-        .block_processor
+        .block_processor_queue
         .add(open1.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
     // Waits for the last blocks to pass through block_processor and unchecked.put queues
     assert_timely_eq(Duration::from_secs(5), || node1.unchecked.len(), 1);
     // When open1 existists in unchecked, we know open2 has been processed.
     node1
-        .block_processor
+        .block_processor_queue
         .add(send1.into(), BlockSource::Live, ChannelId::LOOPBACK);
     // Waits for the send1 block to pass through block_processor and unchecked.put queues
     assert_timely(Duration::from_secs(5), || node1.block_exists(&open1.hash()));
@@ -341,9 +341,9 @@ fn unchecked_receive() {
     let open1 = lattice.account(&destination).receive(&send1);
     let receive1 = lattice.account(&destination).receive(&send2);
     node1
-        .block_processor
+        .block_processor_queue
         .add(send1.into(), BlockSource::Live, ChannelId::LOOPBACK);
-    node1.block_processor.add(
+    node1.block_processor_queue.add(
         receive1.clone().into(),
         BlockSource::Live,
         ChannelId::LOOPBACK,
@@ -360,7 +360,7 @@ fn unchecked_receive() {
 
     // Waits for the open1 block to pass through block_processor and unchecked.put queues
     node1
-        .block_processor
+        .block_processor_queue
         .add(open1.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
     assert_timely(Duration::from_secs(15), || {
         check_block_is_listed(&receive1.source_or_link())
@@ -371,7 +371,7 @@ fn unchecked_receive() {
         1
     );
     node1
-        .block_processor
+        .block_processor_queue
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
     assert_timely(Duration::from_secs(10), || {
         node1.block_exists(&receive1.hash())

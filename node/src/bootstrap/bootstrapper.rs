@@ -24,10 +24,7 @@ use super::{
     state::{BootstrapState, CandidateAccountsConfig},
     FrontierScanConfig,
 };
-use crate::{
-    block_processing::{BlockProcessor, BlockProcessorQueue},
-    transport::MessageSender,
-};
+use crate::{block_processing::BlockProcessorQueue, transport::MessageSender};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapConfig {
@@ -101,7 +98,6 @@ struct Threads {
 
 impl Bootstrapper {
     pub(crate) fn new(
-        block_processor: Arc<BlockProcessor>,
         block_processor_queue: Arc<BlockProcessorQueue>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
@@ -117,7 +113,7 @@ impl Bootstrapper {
         let mut response_handler = ResponseProcessor::new(
             state.clone(),
             stats.clone(),
-            block_processor.clone(),
+            block_processor_queue.clone(),
             ledger.clone(),
         );
         response_handler.set_max_pending_frontiers(config.max_pending_frontier_responses);
@@ -134,7 +130,7 @@ impl Bootstrapper {
             state_changed.clone(),
             clock.clone(),
             ledger.clone(),
-            block_processor_queue.clone(),
+            block_processor_queue,
             network,
         );
 
@@ -152,7 +148,6 @@ impl Bootstrapper {
     }
 
     pub fn new_null() -> Self {
-        let block_processor = Arc::new(BlockProcessor::new_null());
         let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let ledger = Arc::new(Ledger::new_null());
         let stats = Arc::new(Stats::default());
@@ -162,7 +157,6 @@ impl Bootstrapper {
         let clock = Arc::new(SteadyClock::new_null());
 
         Self::new(
-            block_processor,
             block_processor_queue,
             ledger,
             stats,

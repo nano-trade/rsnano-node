@@ -6,15 +6,15 @@ use std::{
 use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_core::{
-    utils::{ContainerInfo, FairQueueInfo},
-    BlockHash,
+    utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
+    Block, BlockHash,
 };
 use rsnano_ledger::BlockSource;
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 
 use super::{
     process_queue::{ProcessQueue, ProcessQueueConfig},
-    BlockContext,
+    BlockContext, BlockProcessorCallback,
 };
 use rsnano_stats::{StatsCollection, StatsSource};
 
@@ -113,6 +113,22 @@ impl BlockProcessorQueue {
         self.queue.lock().unwrap().process_queue.source_len(source)
     }
 
+    pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
+        let context = Arc::new(BlockContext::new(block, source, None));
+        self.push(context, channel_id)
+    }
+
+    pub fn add_with_callback(
+        &self,
+        block: Block,
+        source: BlockSource,
+        channel_id: ChannelId,
+        callback: BlockProcessorCallback,
+    ) -> bool {
+        let context = Arc::new(BlockContext::new(block, source, Some(callback)));
+        self.push(context, channel_id)
+    }
+
     pub fn push(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
         let added = self.queue.lock().unwrap().push(context, channel_id);
 
@@ -160,10 +176,6 @@ impl BlockProcessorQueue {
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
         self.queue.lock().unwrap().process_queue.info()
     }
-
-    pub fn container_info(&self) -> ContainerInfo {
-        self.queue.lock().unwrap().process_queue.container_info()
-    }
 }
 
 impl Default for BlockProcessorQueue {
@@ -187,6 +199,12 @@ impl DeadChannelCleanupStep for BlockProcessorQueue {
 impl StatsSource for BlockProcessorQueue {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.queue.lock().unwrap().collect_stats(result)
+    }
+}
+
+impl ContainerInfoProvider for BlockProcessorQueue {
+    fn container_info(&self) -> ContainerInfo {
+        self.queue.lock().unwrap().process_queue.container_info()
     }
 }
 
@@ -255,5 +273,20 @@ impl StatsSource for BlockProcessorQueueImpl {
                 self.overfill_by_source[i as usize],
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enqueue() {
+        let queue = Arc::new(BlockProcessorQueue::default());
+        let block = Block::new_test_instance();
+
+        queue.add(block, BlockSource::Live, ChannelId::LOOPBACK);
+
+        assert_eq!(queue.total_queue_len(), 1);
     }
 }

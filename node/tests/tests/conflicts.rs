@@ -47,7 +47,7 @@ fn add_existing() {
     // the block processor will notice that the block is a fork and it will try to publish it
     // which will update the election object
     node1
-        .block_processor
+        .block_processor_queue
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
     assert!(node1.is_active_root(&send1.qualified_root()));

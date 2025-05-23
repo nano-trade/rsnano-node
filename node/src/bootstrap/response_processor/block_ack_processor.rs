@@ -6,26 +6,26 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::BlockProcessorQueue,
     bootstrap::state::{BootstrapState, PriorityDownResult, RunningQuery, VerifyResult},
 };
 
 pub(crate) struct BlockAckProcessor {
     state: Arc<Mutex<BootstrapState>>,
     stats: Arc<Stats>,
-    block_processor: Arc<BlockProcessor>,
+    block_processor_queue: Arc<BlockProcessorQueue>,
 }
 
 impl BlockAckProcessor {
     pub(crate) fn new(
         state: Arc<Mutex<BootstrapState>>,
         stats: Arc<Stats>,
-        block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
     ) -> Self {
         Self {
             state,
             stats,
-            block_processor,
+            block_processor_queue,
         }
     }
 
@@ -75,7 +75,7 @@ impl BlockAckProcessor {
                 let stats = self.stats.clone();
                 let state = self.state.clone();
                 let account = query.account;
-                self.block_processor.add_with_callback(
+                self.block_processor_queue.add_with_callback(
                     block,
                     BlockSource::Bootstrap,
                     ChannelId::LOOPBACK,
@@ -88,7 +88,7 @@ impl BlockAckProcessor {
                     }),
                 );
             } else {
-                self.block_processor
+                self.block_processor_queue
                     .add(block, BlockSource::Bootstrap, ChannelId::LOOPBACK);
             }
         }
@@ -139,8 +139,8 @@ mod tests {
     fn response_doesnt_match_query() {
         let state = Arc::new(Mutex::new(BootstrapState::default()));
         let stats = Arc::new(Stats::default());
-        let block_processor = Arc::new(BlockProcessor::new_null());
-        let processor = BlockAckProcessor::new(state, stats.clone(), block_processor);
+        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
+        let processor = BlockAckProcessor::new(state, stats.clone(), block_processor_queue);
 
         let query = RunningQuery::new_test_instance();
         let response = BlocksAckPayload::new_test_instance();
@@ -168,8 +168,8 @@ mod tests {
     fn handle_empty_response() {
         let state = Arc::new(Mutex::new(BootstrapState::default()));
         let stats = Arc::new(Stats::default());
-        let block_processor = Arc::new(BlockProcessor::new_null());
-        let processor = BlockAckProcessor::new(state, stats.clone(), block_processor);
+        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
+        let processor = BlockAckProcessor::new(state, stats.clone(), block_processor_queue);
 
         let account = Account::from(42);
 

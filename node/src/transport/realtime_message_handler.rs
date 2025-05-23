@@ -92,9 +92,11 @@ impl RealtimeMessageHandler {
                 } else {
                     BlockSource::Live
                 };
+
                 let added = self
                     .block_processor
                     .add(publish.block, source, channel.channel_id());
+
                 if !added {
                     // The message couldn't be handled. We have to remove it from the duplicate
                     // filter, so that it can be retransmitted and handled later

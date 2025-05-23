@@ -775,7 +775,6 @@ impl Node {
         }
 
         let bootstrapper = Arc::new(Bootstrapper::new(
-            block_processor.clone(),
             block_processor_queue.clone(),
             ledger.clone(),
             stats.clone(),
@@ -978,10 +977,10 @@ impl Node {
         }
 
         // Requeue blocks that could not be immediately processed
-        let block_processor_w = Arc::downgrade(&block_processor);
+        let queue_w = Arc::downgrade(&block_processor_queue);
         unchecked.set_satisfied_observer(Box::new(move |info| {
-            if let Some(processor) = block_processor_w.upgrade() {
-                processor.add(
+            if let Some(queue) = queue_w.upgrade() {
+                queue.add(
                     info.block.clone().into(),
                     BlockSource::Unchecked,
                     ChannelId::LOOPBACK,
@@ -1249,7 +1248,7 @@ impl Node {
         container_info.add("vote_processor", vote_processor_queue.clone());
         container_info.add("vote_cache_processor", vote_cache_processor.clone());
         container_info.add("rep_crawler", rep_crawler.clone());
-        container_info.add("block_processor", block_processor.clone());
+        container_info.add("block_processor", block_processor_queue.clone());
         container_info.add("online_reps", online_reps.clone());
         container_info.add("history", vote_history.clone());
         container_info.add("confirming_set", confirming_set.clone());

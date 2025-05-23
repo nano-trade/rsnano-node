@@ -103,7 +103,7 @@ impl RpcCommandHandler {
             }
         } else if block.block_type() == BlockType::State {
             self.node
-                .block_processor
+                .block_processor_queue
                 .add(block, BlockSource::Local, ChannelId::LOOPBACK);
             Ok(serde_json::to_value(StartedResponse::new(true))?)
         } else {

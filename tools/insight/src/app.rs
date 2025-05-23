@@ -105,7 +105,7 @@ impl InsightApp {
             self.max_optimistic = node.election_schedulers.optimistic.max_elections;
             self.max_hinted = node.election_schedulers.hinted.max_elections;
             self.confirming_set = node.confirming_set.info();
-            self.block_processor_info = node.block_processor.info();
+            self.block_processor_info = node.block_processor_queue.info();
             self.vote_processor_info = node.vote_processor_queue.info();
             {
                 let state = node.bootstrapper.state();
