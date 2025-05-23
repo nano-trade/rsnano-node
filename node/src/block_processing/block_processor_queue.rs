@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Condvar, Mutex},
 };
 
-use strum::IntoEnumIterator;
+use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_core::{
     utils::{ContainerInfo, FairQueueInfo},
@@ -16,6 +16,7 @@ use super::{
     process_queue::{ProcessQueue, ProcessQueueConfig},
     BlockContext,
 };
+use rsnano_stats::{StatsCollection, StatsSource};
 
 pub(crate) enum BlockProcessorAction {
     RollBack(RollbackRequest),
@@ -77,7 +78,7 @@ impl BlockProcessorQueue {
         self.queue.lock().unwrap().cool_down
     }
 
-    pub fn pop_blocking(&self) -> Option<BlockProcessorAction> {
+    pub(crate) fn pop_blocking(&self) -> Option<BlockProcessorAction> {
         let mut queue = self.queue.lock().unwrap();
 
         loop {
@@ -113,20 +114,12 @@ impl BlockProcessorQueue {
     }
 
     pub fn push(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
-        let added;
-        {
-            let mut guard = self.queue.lock().unwrap();
-            if guard.stopped {
-                return false;
-            }
+        let added = self.queue.lock().unwrap().push(context, channel_id);
 
-            added = guard
-                .process_queue
-                .push(context.source, channel_id, context);
-        }
         if added {
             self.condition.notify_all();
         }
+
         added
     }
 
@@ -191,11 +184,20 @@ impl DeadChannelCleanupStep for BlockProcessorQueue {
     }
 }
 
+impl StatsSource for BlockProcessorQueue {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.queue.lock().unwrap().collect_stats(result)
+    }
+}
+
 struct BlockProcessorQueueImpl {
     process_queue: ProcessQueue,
     rollback_queue: VecDeque<RollbackRequest>,
     stopped: bool,
     cool_down: bool,
+    processed: u64,
+    overfill_count: u64,
+    overfill_by_source: [u64; BlockSource::COUNT],
 }
 
 impl BlockProcessorQueueImpl {
@@ -205,6 +207,9 @@ impl BlockProcessorQueueImpl {
             rollback_queue: VecDeque::new(),
             stopped: false,
             cool_down: false,
+            processed: 0,
+            overfill_count: 0,
+            overfill_by_source: Default::default(),
         }
     }
 
@@ -218,5 +223,37 @@ impl BlockProcessorQueueImpl {
         }
 
         self.process_queue.is_empty() && self.rollback_queue.is_empty()
+    }
+
+    pub fn push(&mut self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
+        if self.stopped {
+            return false;
+        }
+
+        let source = context.source;
+        let added = self.process_queue.push(context.source, channel_id, context);
+
+        if added {
+            self.processed += 1;
+        } else {
+            self.overfill_count += 1;
+            self.overfill_by_source[source as usize] += 1;
+        }
+
+        added
+    }
+}
+
+impl StatsSource for BlockProcessorQueueImpl {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert("block_processor", "process", self.processed);
+        result.insert("block_processor", "overfill", self.overfill_count);
+        for i in BlockSource::iter() {
+            result.insert(
+                "block_processor_overfill",
+                i.into(),
+                self.overfill_by_source[i as usize],
+            );
+        }
     }
 }

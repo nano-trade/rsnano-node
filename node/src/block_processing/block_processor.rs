@@ -230,19 +230,8 @@ impl BlockProcessorLoop {
             return false; // Not added
         }
 
-        self.stats
-            .inc(StatType::BlockProcessor, DetailType::Process);
-        debug!(
-            "Processing block (async): {} (source: {:?} channel id: {})",
-            block.hash(),
-            source,
-            channel_id
-        );
-
-        self.add_impl(
-            Arc::new(BlockContext::new(block, source, callback)),
-            channel_id,
-        )
+        let context = Arc::new(BlockContext::new(block, source, callback));
+        self.queue.push(context, channel_id)
     }
 
     pub fn add_blocking(
@@ -261,7 +250,7 @@ impl BlockProcessorLoop {
         let hash = block.hash();
         let ctx = Arc::new(BlockContext::new(block.as_ref().clone(), source, None));
         let waiter = ctx.get_waiter();
-        self.add_impl(ctx.clone(), ChannelId::LOOPBACK);
+        self.queue.push(ctx.clone(), ChannelId::LOOPBACK);
 
         match waiter.wait_result() {
             Some(Ok(())) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
@@ -279,19 +268,7 @@ impl BlockProcessorLoop {
         self.stats.inc(StatType::BlockProcessor, DetailType::Force);
         debug!("Forcing block: {}", block.hash());
         let ctx = Arc::new(BlockContext::new(block, BlockSource::Forced, None));
-        self.add_impl(ctx, ChannelId::LOOPBACK);
-    }
-
-    fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
-        let source = context.source;
-        let added = self.queue.push(context, channel_id);
-        if !added {
-            self.stats
-                .inc(StatType::BlockProcessor, DetailType::Overfill);
-            self.stats
-                .inc(StatType::BlockProcessorOverfill, source.into());
-        }
-        added
+        self.queue.push(ctx, ChannelId::LOOPBACK);
     }
 
     fn process_rollback(&self, request: RollbackRequest) {

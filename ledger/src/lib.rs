@@ -40,7 +40,9 @@ pub(crate) use representative_block_finder::RepresentativeBlockFinder;
 use rsnano_stats::DetailType;
 pub use rsnano_store_lmdb::{WriteGuard, WriteQueue, Writer};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, Hash)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, EnumCount, Hash, IntoStaticStr,
+)]
 pub enum BlockSource {
     Unknown = 0,
     Live,
