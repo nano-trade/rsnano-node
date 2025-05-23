@@ -1,6 +1,7 @@
 use crate::{ChannelId, Network};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
+    ops::Deref,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -47,5 +48,14 @@ impl DeadChannelCleanup {
         for step in &self.cleanup_steps {
             step.clean_up_dead_channels(&channel_ids);
         }
+    }
+}
+
+impl<T> DeadChannelCleanupStep for Arc<T>
+where
+    T: DeadChannelCleanupStep + Sync,
+{
+    fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
+        self.deref().clean_up_dead_channels(dead_channel_ids)
     }
 }

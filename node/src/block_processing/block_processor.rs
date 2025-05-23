@@ -9,7 +9,7 @@ use tracing::{debug, error};
 
 use rsnano_core::{Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo};
 use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerSet};
-use rsnano_network::{ChannelId, DeadChannelCleanupStep};
+use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 use rsnano_work::WorkThresholds;
 
@@ -113,17 +113,6 @@ impl BlockProcessor {
 
     pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
         self.processor_loop.add(block, source, channel_id, None)
-    }
-
-    pub fn add_with_callback(
-        &self,
-        block: Block,
-        source: BlockSource,
-        channel_id: ChannelId,
-        callback: BlockProcessorCallback,
-    ) -> bool {
-        self.processor_loop
-            .add(block, source, channel_id, Some(callback))
     }
 
     pub fn add_blocking(
@@ -409,19 +398,5 @@ impl BlockProcessorLoop {
             }
             context.set_result(*res);
         }
-    }
-}
-
-pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoop>);
-
-impl BlockProcessorCleanup {
-    pub fn new(processor_loop: Arc<BlockProcessorLoop>) -> Self {
-        Self(processor_loop)
-    }
-}
-
-impl DeadChannelCleanupStep for BlockProcessorCleanup {
-    fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
-        self.0.queue.clean_up_dead_channels(dead_channel_ids);
     }
 }

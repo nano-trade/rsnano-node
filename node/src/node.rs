@@ -39,9 +39,9 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockProcessorConfig,
-        BlockProcessorQueue, BoundedBacklog, BoundedBacklogPlugin, LocalBlockBroadcaster,
-        LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorConfig, BlockProcessorQueue, BoundedBacklog,
+        BoundedBacklogPlugin, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
+        LocalBlockBroadcasterPlugin, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -909,9 +909,7 @@ impl Node {
             bootstrap_server.server_impl.clone(),
         ));
         dead_channel_cleanup.add_step(VoteProcessorQueueCleanup::new(vote_processor_queue.clone()));
-        dead_channel_cleanup.add_step(BlockProcessorCleanup::new(
-            block_processor.processor_loop.clone(),
-        ));
+        dead_channel_cleanup.add_step(block_processor_queue.clone());
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
         dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
 
