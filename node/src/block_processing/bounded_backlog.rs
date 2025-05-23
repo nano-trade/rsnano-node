@@ -16,7 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
-    BlockProcessor,
+    BlockProcessorQueue,
 };
 use crate::consensus::election_schedulers::priority::Bucketing;
 
@@ -49,7 +49,7 @@ impl BoundedBacklog {
         bucketing: Bucketing,
         config: BoundedBacklogConfig,
         ledger: Arc<Ledger>,
-        block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
         stats: Arc<Stats>,
     ) -> Self {
         let backlog_impl = Arc::new(BoundedBacklogImpl {
@@ -65,7 +65,7 @@ impl BoundedBacklog {
             config,
             stats,
             ledger,
-            block_processor,
+            block_processor_queue,
             can_rollback: RwLock::new(Box::new(|_| true)),
         });
 
@@ -81,10 +81,10 @@ impl BoundedBacklog {
         let bucketing = Bucketing::default();
         let config = BoundedBacklogConfig::default();
         let ledger = Arc::new(Ledger::new_null());
-        let block_processor = Arc::new(BlockProcessor::new_null());
+        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let stats = Arc::new(Stats::default());
 
-        Self::new(bucketing, config, ledger, block_processor, stats)
+        Self::new(bucketing, config, ledger, block_processor_queue, stats)
     }
 
     pub fn start(&self) {
@@ -248,7 +248,7 @@ struct BoundedBacklogImpl {
     config: BoundedBacklogConfig,
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
-    block_processor: Arc<BlockProcessor>,
+    block_processor_queue: Arc<BlockProcessorQueue>,
     can_rollback: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
@@ -265,7 +265,7 @@ impl BoundedBacklogImpl {
                 .0;
 
             // Wait until all notification about the previous rollbacks are processed
-            while self.block_processor.is_cooling_down() && !guard.stopped {
+            while self.block_processor_queue.is_cooling_down() && !guard.stopped {
                 drop(guard);
                 self.stats
                     .inc(StatType::BoundedBacklog, DetailType::Cooldown);
@@ -301,7 +301,7 @@ impl BoundedBacklogImpl {
                     targets.len() as u64,
                 );
                 let processed = self
-                    .block_processor
+                    .block_processor_queue
                     .roll_back_blocking(targets, target_count);
                 guard = self.mutex.lock().unwrap();
 

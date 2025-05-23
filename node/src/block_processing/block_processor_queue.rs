@@ -42,7 +42,7 @@ impl RollbackResult {
     }
 }
 
-pub(crate) struct BlockProcessorQueue {
+pub struct BlockProcessorQueue {
     queue: Mutex<BlockProcessorQueueImpl>,
     condition: Condvar,
 }
@@ -128,6 +128,27 @@ impl BlockProcessorQueue {
             self.condition.notify_all();
         }
         added
+    }
+
+    pub fn roll_back_blocking(
+        &self,
+        targets: Vec<BlockHash>,
+        max_rollbacks: usize,
+    ) -> Vec<BlockHash> {
+        let result = Arc::new(RollbackResult::new());
+        let request = RollbackRequest {
+            targets,
+            max_rollbacks,
+            result: result.clone(),
+        };
+        let added = self.roll_back(request);
+        if !added {
+            return Vec::new();
+        }
+
+        let mut guard = result.rolled_back.lock().unwrap();
+        guard = result.done.wait_while(guard, |i| i.is_none()).unwrap();
+        guard.take().unwrap()
     }
 
     pub fn roll_back(&self, request: RollbackRequest) -> bool {

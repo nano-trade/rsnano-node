@@ -122,6 +122,7 @@ pub struct Node {
     pub confirming_set: Arc<ConfirmingSet>,
     pub vote_cache: Arc<Mutex<VoteCache>>,
     pub block_processor: Arc<BlockProcessor>,
+    pub block_processor_queue: Arc<BlockProcessorQueue>,
     pub wallets: Arc<Wallets>,
     pub vote_generators: Arc<VoteGenerators>,
     pub active: Arc<RwLock<ActiveElectionsContainer>>,
@@ -484,7 +485,7 @@ impl Node {
         ));
 
         let block_processor = Arc::new(BlockProcessor::new(
-            block_processor_queue,
+            block_processor_queue.clone(),
             global_config.into(),
             ledger.clone(),
             unchecked.clone(),
@@ -741,7 +742,7 @@ impl Node {
             election_schedulers.priority.bucketing().clone(),
             config.bounded_backlog.clone(),
             ledger.clone(),
-            block_processor.clone(),
+            block_processor_queue.clone(),
             stats.clone(),
         ));
 
@@ -1294,6 +1295,7 @@ impl Node {
             confirming_set,
             vote_cache,
             block_processor,
+            block_processor_queue,
             wallets,
             vote_generators,
             active: active_elections,

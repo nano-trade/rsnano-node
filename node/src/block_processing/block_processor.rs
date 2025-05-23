@@ -18,7 +18,7 @@ use rsnano_work::WorkThresholds;
 
 use super::{
     process_queue::ProcessQueueConfig, BlockContext, BlockProcessorAction, BlockProcessorCallback,
-    BlockProcessorQueue, RollbackRequest, RollbackResult, UncheckedMap,
+    BlockProcessorQueue, RollbackRequest, UncheckedMap,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -147,15 +147,6 @@ impl BlockProcessor {
         source: BlockSource,
     ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
         self.processor_loop.add_blocking(block, source)
-    }
-
-    pub fn roll_back_blocking(
-        &self,
-        targets: Vec<BlockHash>,
-        max_rollbacks: usize,
-    ) -> Vec<BlockHash> {
-        self.processor_loop
-            .roll_back_blocking(targets, max_rollbacks)
     }
 
     pub fn process_active(&self, block: Block) {
@@ -298,23 +289,6 @@ impl BlockProcessorLoop {
                 Err(anyhow!("Block dropped when processing"))
             }
         }
-    }
-
-    fn roll_back_blocking(&self, targets: Vec<BlockHash>, max_rollbacks: usize) -> Vec<BlockHash> {
-        let result = Arc::new(RollbackResult::new());
-        let request = RollbackRequest {
-            targets,
-            max_rollbacks,
-            result: result.clone(),
-        };
-        let added = self.queue.roll_back(request);
-        if !added {
-            return Vec::new();
-        }
-
-        let mut guard = result.rolled_back.lock().unwrap();
-        guard = result.done.wait_while(guard, |i| i.is_none()).unwrap();
-        guard.take().unwrap()
     }
 
     pub fn force(&self, block: Block) {
