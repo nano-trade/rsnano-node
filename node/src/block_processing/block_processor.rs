@@ -1,12 +1,11 @@
 use std::{
     collections::VecDeque,
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
 
-use strum::IntoEnumIterator;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
@@ -19,7 +18,7 @@ use rsnano_work::WorkThresholds;
 
 use super::{
     process_queue::ProcessQueueConfig, BlockContext, BlockProcessorAction, BlockProcessorCallback,
-    BlockProcessorQueue, UncheckedMap,
+    BlockProcessorQueue, RollbackRequest, RollbackResult, UncheckedMap,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,8 +64,7 @@ impl BlockProcessor {
     ) -> Self {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
-                logic: Mutex::new(BlockProcessorQueue::new(config.clone())),
-                condition: Condvar::new(),
+                queue: BlockProcessorQueue::new(config.clone()),
                 ledger,
                 unchecked: unchecked_map,
                 config,
@@ -109,22 +107,15 @@ impl BlockProcessor {
     }
 
     pub fn stop(&self) {
-        self.processor_loop.logic.lock().unwrap().stopped = true;
-        self.processor_loop.condition.notify_all();
+        self.processor_loop.queue.stop();
         let join_handle = self.thread.lock().unwrap().take();
         if let Some(join_handle) = join_handle {
             join_handle.join().unwrap();
         }
-        let mut guard = self.processor_loop.logic.lock().unwrap();
-        for req in guard.rollback_queue.drain(..) {
-            *req.result.rolled_back.lock().unwrap() = Some(Vec::new());
-            req.result.done.notify_all();
-        }
     }
 
     pub fn set_cooldown(&self, cool_down: bool) {
-        self.processor_loop.logic.lock().unwrap().cool_down = cool_down;
-        self.processor_loop.condition.notify_all();
+        self.processor_loop.queue.set_cooldown(cool_down);
     }
 
     pub fn total_queue_len(&self) -> usize {
@@ -176,7 +167,7 @@ impl BlockProcessor {
     }
 
     pub fn is_cooling_down(&self) -> bool {
-        self.processor_loop.logic.lock().unwrap().cool_down
+        self.processor_loop.queue.is_cooling_down()
     }
 
     pub fn reprocess_election_winner(&self, winner: &Block) {
@@ -216,17 +207,12 @@ impl ContainerInfoProvider for BlockProcessor {
 
 impl StatsSource for BlockProcessor {
     fn collect_stats(&self, result: &mut StatsCollection) {
-        self.processor_loop
-            .logic
-            .lock()
-            .unwrap()
-            .collect_stats(result);
+        // TODO
     }
 }
 
 pub(crate) struct BlockProcessorLoop {
-    logic: Mutex<BlockProcessorQueue>,
-    condition: Condvar,
+    queue: BlockProcessorQueue,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
     config: BlockProcessorConfig,
@@ -236,23 +222,8 @@ pub(crate) struct BlockProcessorLoop {
 
 impl BlockProcessorLoop {
     fn run(&self) {
-        let mut logic = self.logic.lock().unwrap();
-
-        while let Some(action) = logic.pop() {
-            if matches!(action, BlockProcessorAction::Wait) {
-                logic = self
-                    .condition
-                    .wait_while(logic, |i| i.should_wait())
-                    .unwrap();
-                continue;
-            }
-
-            Self::try_log(&mut logic);
-            drop(logic);
-
+        while let Some(action) = self.queue.pop_blocking() {
             self.process(action);
-
-            logic = self.logic.lock().unwrap();
         }
     }
 
@@ -264,21 +235,6 @@ impl BlockProcessorLoop {
             BlockProcessorAction::Process(batch) => {
                 self.process_batch(batch);
             }
-            BlockProcessorAction::Wait => {
-                // "Wait" is handled earlier
-                unreachable!()
-            }
-        }
-    }
-
-    fn try_log(logic: &mut BlockProcessorQueue) {
-        if logic.can_log() {
-            info!(
-                "{} blocks (+ {} forced) in processing_queue",
-                logic.process_queue.len(),
-                logic.process_queue.source_len(BlockSource::Forced)
-            );
-            logic.logged();
         }
     }
 
@@ -347,7 +303,7 @@ impl BlockProcessorLoop {
     fn roll_back_blocking(&self, targets: Vec<BlockHash>, max_rollbacks: usize) -> Vec<BlockHash> {
         let result = Arc::new(RollbackResult::new());
         {
-            let mut guard = self.logic.lock().unwrap();
+            let mut guard = self.queue.queue.lock().unwrap();
             if guard.stopped {
                 return Vec::new();
             }
@@ -359,7 +315,7 @@ impl BlockProcessorLoop {
             };
             guard.rollback_queue.push_back(request);
         }
-        self.condition.notify_all();
+        self.queue.condition.notify_all();
 
         let mut guard = result.rolled_back.lock().unwrap();
         guard = result.done.wait_while(guard, |i| i.is_none()).unwrap();
@@ -375,23 +331,17 @@ impl BlockProcessorLoop {
 
     // TODO: Remove and replace all checks with calls to size (block_source)
     pub fn total_queue_len(&self) -> usize {
-        self.logic.lock().unwrap().process_queue.len()
+        self.queue.total_queue_len()
     }
 
     pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.logic.lock().unwrap().process_queue.source_len(source)
+        self.queue.queue_len(source)
     }
 
     fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
         let source = context.source;
-        let added;
-        {
-            let mut guard = self.logic.lock().unwrap();
-            added = guard.process_queue.push(source, channel_id, context);
-        }
-        if added {
-            self.condition.notify_all();
-        } else {
+        let added = self.queue.push(context, channel_id);
+        if !added {
             self.stats
                 .inc(StatType::BlockProcessor, DetailType::Overfill);
             self.stats
@@ -554,11 +504,11 @@ impl BlockProcessorLoop {
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.logic.lock().unwrap().process_queue.info()
+        self.queue.info()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        self.logic.lock().unwrap().process_queue.container_info()
+        self.queue.container_info()
     }
 }
 
@@ -572,33 +522,7 @@ impl BlockProcessorCleanup {
 
 impl DeadChannelCleanupStep for BlockProcessorCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
-        let mut guard = self.0.logic.lock().unwrap();
-        for channel_id in dead_channel_ids {
-            let iter = BlockSource::iter();
-            for source in iter {
-                guard.process_queue.remove(source, *channel_id)
-            }
-        }
-    }
-}
-
-pub struct RollbackRequest {
-    targets: Vec<BlockHash>,
-    max_rollbacks: usize,
-    result: Arc<RollbackResult>,
-}
-
-struct RollbackResult {
-    rolled_back: Mutex<Option<Vec<BlockHash>>>,
-    done: Condvar,
-}
-
-impl RollbackResult {
-    fn new() -> Self {
-        Self {
-            rolled_back: Mutex::new(None),
-            done: Condvar::new(),
-        }
+        self.0.queue.clean_up_dead_channels(dead_channel_ids);
     }
 }
 
