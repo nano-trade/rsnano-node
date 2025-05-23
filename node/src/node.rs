@@ -1226,6 +1226,7 @@ impl Node {
         stats_collector.add_source(handshake_stats);
         stats_collector.add_source(inbound_message_queue.clone());
         stats_collector.add_source(bootstrap_stale_stats);
+        stats_collector.add_source(block_processor.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());

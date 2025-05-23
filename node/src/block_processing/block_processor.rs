@@ -14,7 +14,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerSet};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 use rsnano_work::WorkThresholds;
 
 use super::{
@@ -65,14 +65,14 @@ impl BlockProcessor {
     ) -> Self {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
-                mutex: Mutex::new(BlockProcessorLogic {
+                logic: Mutex::new(BlockProcessorLogic {
                     process_queue: BlockProcessorQueue::new(config.queue.clone()),
                     rollback_queue: VecDeque::new(),
                     last_log: None,
                     stopped: false,
                     cool_down: false,
                     config: config.clone(),
-                    stats: stats.clone(),
+                    cooldown_count: 0,
                 }),
                 condition: Condvar::new(),
                 ledger,
@@ -117,13 +117,13 @@ impl BlockProcessor {
     }
 
     pub fn stop(&self) {
-        self.processor_loop.mutex.lock().unwrap().stopped = true;
+        self.processor_loop.logic.lock().unwrap().stopped = true;
         self.processor_loop.condition.notify_all();
         let join_handle = self.thread.lock().unwrap().take();
         if let Some(join_handle) = join_handle {
             join_handle.join().unwrap();
         }
-        let mut guard = self.processor_loop.mutex.lock().unwrap();
+        let mut guard = self.processor_loop.logic.lock().unwrap();
         for req in guard.rollback_queue.drain(..) {
             *req.result.rolled_back.lock().unwrap() = Some(Vec::new());
             req.result.done.notify_all();
@@ -131,7 +131,7 @@ impl BlockProcessor {
     }
 
     pub fn set_cooldown(&self, cool_down: bool) {
-        self.processor_loop.mutex.lock().unwrap().cool_down = cool_down;
+        self.processor_loop.logic.lock().unwrap().cool_down = cool_down;
         self.processor_loop.condition.notify_all();
     }
 
@@ -184,7 +184,7 @@ impl BlockProcessor {
     }
 
     pub fn is_cooling_down(&self) -> bool {
-        self.processor_loop.mutex.lock().unwrap().cool_down
+        self.processor_loop.logic.lock().unwrap().cool_down
     }
 
     pub fn reprocess_election_winner(&self, winner: &Block) {
@@ -222,8 +222,18 @@ impl ContainerInfoProvider for BlockProcessor {
     }
 }
 
+impl StatsSource for BlockProcessor {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.processor_loop
+            .logic
+            .lock()
+            .unwrap()
+            .collect_stats(result);
+    }
+}
+
 pub(crate) struct BlockProcessorLoop {
-    mutex: Mutex<BlockProcessorLogic>,
+    logic: Mutex<BlockProcessorLogic>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
@@ -234,23 +244,23 @@ pub(crate) struct BlockProcessorLoop {
 
 impl BlockProcessorLoop {
     fn run(&self) {
-        let mut guard = self.mutex.lock().unwrap();
+        let mut logic = self.logic.lock().unwrap();
 
-        while let Some(action) = guard.next_action() {
+        while let Some(action) = logic.next_action() {
             if matches!(action, BlockProcessorAction::Wait) {
-                guard = self
+                logic = self
                     .condition
-                    .wait_while(guard, |i| i.should_wait())
+                    .wait_while(logic, |i| i.should_wait())
                     .unwrap();
                 continue;
             }
 
-            Self::try_log(&mut guard);
-            drop(guard);
+            Self::try_log(&mut logic);
+            drop(logic);
 
             self.process(action);
 
-            guard = self.mutex.lock().unwrap();
+            logic = self.logic.lock().unwrap();
         }
     }
 
@@ -345,7 +355,7 @@ impl BlockProcessorLoop {
     fn roll_back_blocking(&self, targets: Vec<BlockHash>, max_rollbacks: usize) -> Vec<BlockHash> {
         let result = Arc::new(RollbackResult::new());
         {
-            let mut guard = self.mutex.lock().unwrap();
+            let mut guard = self.logic.lock().unwrap();
             if guard.stopped {
                 return Vec::new();
             }
@@ -373,18 +383,18 @@ impl BlockProcessorLoop {
 
     // TODO: Remove and replace all checks with calls to size (block_source)
     pub fn total_queue_len(&self) -> usize {
-        self.mutex.lock().unwrap().process_queue.len()
+        self.logic.lock().unwrap().process_queue.len()
     }
 
     pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.mutex.lock().unwrap().process_queue.source_len(source)
+        self.logic.lock().unwrap().process_queue.source_len(source)
     }
 
     fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
         let source = context.source;
         let added;
         {
-            let mut guard = self.mutex.lock().unwrap();
+            let mut guard = self.logic.lock().unwrap();
             added = guard.process_queue.push(source, channel_id, context);
         }
         if added {
@@ -552,11 +562,11 @@ impl BlockProcessorLoop {
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
-        self.mutex.lock().unwrap().process_queue.info()
+        self.logic.lock().unwrap().process_queue.info()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        self.mutex.lock().unwrap().process_queue.container_info()
+        self.logic.lock().unwrap().process_queue.container_info()
     }
 }
 
@@ -567,7 +577,7 @@ struct BlockProcessorLogic {
     stopped: bool,
     cool_down: bool,
     config: BlockProcessorConfig,
-    stats: Arc<Stats>,
+    cooldown_count: u64,
 }
 
 impl BlockProcessorLogic {
@@ -603,8 +613,7 @@ impl BlockProcessorLogic {
         if self.cool_down {
             // It's possible that ledger processing happens faster than the
             // notifications can be processed by other components, cooldown here
-            self.stats
-                .inc(StatType::BlockProcessor, DetailType::Cooldown);
+            self.cooldown_count += 1;
             return Some(BlockProcessorAction::Wait);
         }
 
@@ -621,6 +630,12 @@ impl BlockProcessorLogic {
     }
 }
 
+impl StatsSource for BlockProcessorLogic {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert("block_processor", "cooldown", self.cooldown_count);
+    }
+}
+
 pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoop>);
 
 impl BlockProcessorCleanup {
@@ -631,7 +646,7 @@ impl BlockProcessorCleanup {
 
 impl DeadChannelCleanupStep for BlockProcessorCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
-        let mut guard = self.0.mutex.lock().unwrap();
+        let mut guard = self.0.logic.lock().unwrap();
         for channel_id in dead_channel_ids {
             let iter = BlockSource::iter();
             for source in iter {
