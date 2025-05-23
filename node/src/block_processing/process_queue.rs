@@ -24,6 +24,7 @@ pub struct ProcessQueueConfig {
     pub priority_bootstrap: usize,
     pub priority_local: usize,
     pub priority_system: usize,
+    pub batch_size: usize,
 }
 
 impl Default for ProcessQueueConfig {
@@ -35,11 +36,15 @@ impl Default for ProcessQueueConfig {
             priority_bootstrap: 8,
             priority_local: 16,
             priority_system: 32,
+            batch_size: 256,
         }
     }
 }
 
-pub(crate) struct ProcessQueue(FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>);
+pub(crate) struct ProcessQueue {
+    queue: FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>,
+    batch_size: usize,
+}
 
 impl ProcessQueue {
     pub fn new(config: ProcessQueueConfig) -> Self {
@@ -61,7 +66,10 @@ impl ProcessQueue {
             }
         };
 
-        Self(FairQueue::new(max_size_query, priority_query))
+        Self {
+            queue: FairQueue::new(max_size_query, priority_query),
+            batch_size: config.batch_size,
+        }
     }
 
     pub fn push(
@@ -70,20 +78,20 @@ impl ProcessQueue {
         channel_id: ChannelId,
         context: Arc<BlockContext>,
     ) -> bool {
-        self.0.push((source, channel_id), context)
+        self.queue.push((source, channel_id), context)
     }
 
-    pub fn next_batch(&mut self, max_count: usize) -> VecDeque<Arc<BlockContext>> {
+    pub fn next_batch(&mut self) -> VecDeque<Arc<BlockContext>> {
         let mut results = VecDeque::new();
-        while !self.is_empty() && results.len() < max_count {
+        while !self.is_empty() && results.len() < self.batch_size {
             results.push_back(self.next());
         }
         results
     }
 
     fn next(&mut self) -> Arc<BlockContext> {
-        if !self.0.is_empty() {
-            let ((source, _), request) = self.0.next().unwrap();
+        if !self.queue.is_empty() {
+            let ((source, _), request) = self.queue.next().unwrap();
             assert!(source != BlockSource::Forced || request.source == BlockSource::Forced);
             return request;
         }
@@ -92,11 +100,11 @@ impl ProcessQueue {
     }
 
     pub fn remove(&mut self, source: BlockSource, channel_id: ChannelId) {
-        self.0.remove(&(source, channel_id));
+        self.queue.remove(&(source, channel_id));
     }
 
     pub fn source_len(&self, source: BlockSource) -> usize {
-        self.0
+        self.queue
             .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
     }
 
@@ -106,14 +114,14 @@ impl ProcessQueue {
 
     pub fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
-            .leaf("blocks", self.0.len(), size_of::<Arc<Block>>())
+            .leaf("blocks", self.queue.len(), size_of::<Arc<Block>>())
             .leaf(
                 "forced",
-                self.0
+                self.queue
                     .queue_len(&(BlockSource::Forced, ChannelId::LOOPBACK)),
                 size_of::<Arc<Block>>(),
             )
-            .node("queue", self.0.container_info())
+            .node("queue", self.queue.container_info())
             .finish()
     }
 }
@@ -122,12 +130,12 @@ impl Deref for ProcessQueue {
     type Target = FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.queue
     }
 }
 
 impl DerefMut for ProcessQueue {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.queue
     }
 }

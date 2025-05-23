@@ -377,19 +377,9 @@ impl Node {
         ));
         let network = Arc::new(RwLock::new(network));
 
-        let mut dead_channel_cleanup = DeadChannelCleanup::new(
-            steady_clock.clone(),
-            network.clone(),
-            network_params.network.cleanup_cutoff(),
-        );
-
         let mut network_filter = NetworkFilter::new(config.network_duplicate_filter_size);
         network_filter.age_cutoff = config.network_duplicate_filter_cutoff;
         let network_filter = Arc::new(network_filter);
-
-        dead_channel_cleanup.add_step(InboundMessageQueueCleanup::new(
-            inbound_message_queue.clone(),
-        ));
 
         let unchecked = Arc::new(UncheckedMap::new(
             config.max_unchecked_blocks as usize,
@@ -414,7 +404,6 @@ impl Node {
             online_reps.clone(),
             steady_clock.clone(),
         );
-        dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let mut message_sender =
             MessageSender::new(stats.clone(), network_params.network.protocol_info());
@@ -458,15 +447,11 @@ impl Node {
             ledger.clone(),
             message_sender.clone(),
         ));
-        dead_channel_cleanup.add_step(BootstrapResponderCleanup::new(
-            bootstrap_server.server_impl.clone(),
-        ));
 
         let vote_processor_queue = Arc::new(VoteProcessorQueue::new(
             config.vote_processor.clone(),
             stats.clone(),
         ));
-        dead_channel_cleanup.add_step(VoteProcessorQueueCleanup::new(vote_processor_queue.clone()));
 
         let vote_history = Arc::new(LocalVoteHistory::new(
             network_params.network.current_network,
@@ -497,9 +482,6 @@ impl Node {
             ledger.clone(),
             unchecked.clone(),
             stats.clone(),
-        ));
-        dead_channel_cleanup.add_step(BlockProcessorCleanup::new(
-            block_processor.processor_loop.clone(),
         ));
 
         let mut wallets_path = application_path.clone();
@@ -641,7 +623,6 @@ impl Node {
         }
 
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
-        dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
         let handshake_stats = Arc::new(HandshakeStats::default());
 
         let inbound_clone = inbound_message_queue.clone();
@@ -672,8 +653,6 @@ impl Node {
             steady_clock.clone(),
             runtime.clone(),
         ));
-
-        dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
 
         let peer_connector = Arc::new(PeerConnector::new(
             config.tcp.connect_timeout,
@@ -726,9 +705,6 @@ impl Node {
             stats.clone(),
             vote_generators.clone(),
             ledger.clone(),
-        ));
-        dead_channel_cleanup.add_step(RequestAggregatorCleanup::new(
-            request_aggregator.state.clone(),
         ));
 
         let mut backlog_scan = BacklogScan::new(global_config.into(), ledger.clone());
@@ -800,7 +776,6 @@ impl Node {
             steady_clock.clone(),
         ));
         bootstrapper.initialize(&network_params.ledger.genesis_account);
-        dead_channel_cleanup.add_step(BootstrapperCleanup(bootstrapper.clone()));
 
         let mut aec_ticker = AecTicker::new(active_elections.clone(), steady_clock.clone());
 
@@ -911,6 +886,31 @@ impl Node {
             }
             true
         });
+
+        let mut dead_channel_cleanup = DeadChannelCleanup::new(
+            steady_clock.clone(),
+            network.clone(),
+            network_params.network.cleanup_cutoff(),
+        );
+        dead_channel_cleanup.add_step(InboundMessageQueueCleanup::new(
+            inbound_message_queue.clone(),
+        ));
+
+        dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
+        dead_channel_cleanup.add_step(BootstrapResponderCleanup::new(
+            bootstrap_server.server_impl.clone(),
+        ));
+        dead_channel_cleanup.add_step(VoteProcessorQueueCleanup::new(vote_processor_queue.clone()));
+        dead_channel_cleanup.add_step(BlockProcessorCleanup::new(
+            block_processor.processor_loop.clone(),
+        ));
+        dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
+        dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
+
+        dead_channel_cleanup.add_step(RequestAggregatorCleanup::new(
+            request_aggregator.state.clone(),
+        ));
+        dead_channel_cleanup.add_step(BootstrapperCleanup(bootstrapper.clone()));
 
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(
             stats.clone(),

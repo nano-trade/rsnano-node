@@ -85,8 +85,7 @@ impl BlockProcessorQueue {
                     return Some(BlockProcessorAction::RollBack(request));
                 }
 
-                let batch_size = queue.config.batch_size;
-                let batch = queue.process_queue.next_batch(batch_size);
+                let batch = queue.process_queue.next_batch();
                 if !batch.is_empty() {
                     return Some(BlockProcessorAction::Process(batch));
                 }
@@ -165,7 +164,6 @@ struct BlockProcessorQueueImpl {
     rollback_queue: VecDeque<RollbackRequest>,
     stopped: bool,
     cool_down: bool,
-    config: BlockProcessorConfig,
 }
 
 impl BlockProcessorQueueImpl {
@@ -175,7 +173,6 @@ impl BlockProcessorQueueImpl {
             rollback_queue: VecDeque::new(),
             stopped: false,
             cool_down: false,
-            config: config.clone(),
         }
     }
 

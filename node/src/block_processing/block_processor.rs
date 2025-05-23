@@ -27,7 +27,6 @@ pub struct BlockProcessorConfig {
 
     pub batch_max_time: Duration,
     pub full_size: usize,
-    pub batch_size: usize,
     pub work_thresholds: WorkThresholds,
 }
 
@@ -41,7 +40,6 @@ impl BlockProcessorConfig {
             queue: Default::default(),
             batch_max_time: Duration::from_millis(500),
             full_size: Self::DEFAULT_FULL_SIZE,
-            batch_size: 256,
         }
     }
 
@@ -64,7 +62,7 @@ impl BlockProcessor {
     ) -> Self {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
-                queue: BlockProcessorQueue::new(config.clone()),
+                queue: Arc::new(BlockProcessorQueue::new(config.clone())),
                 ledger,
                 unchecked: unchecked_map,
                 config,
@@ -212,7 +210,7 @@ impl StatsSource for BlockProcessor {
 }
 
 pub(crate) struct BlockProcessorLoop {
-    queue: BlockProcessorQueue,
+    queue: Arc<BlockProcessorQueue>,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
     config: BlockProcessorConfig,
