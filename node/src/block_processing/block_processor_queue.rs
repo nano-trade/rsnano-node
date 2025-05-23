@@ -38,8 +38,8 @@ impl RollbackResult {
 }
 
 pub(crate) struct BlockProcessorQueue {
-    pub queue: Mutex<BlockProcessorQueueImpl>,
-    pub condition: Condvar,
+    queue: Mutex<BlockProcessorQueueImpl>,
+    condition: Condvar,
 }
 
 impl BlockProcessorQueue {
@@ -112,6 +112,10 @@ impl BlockProcessorQueue {
         let added;
         {
             let mut guard = self.queue.lock().unwrap();
+            if guard.stopped {
+                return false;
+            }
+
             added = guard
                 .process_queue
                 .push(context.source, channel_id, context);
@@ -120,6 +124,19 @@ impl BlockProcessorQueue {
             self.condition.notify_all();
         }
         added
+    }
+
+    pub fn roll_back(&self, request: RollbackRequest) -> bool {
+        {
+            let mut guard = self.queue.lock().unwrap();
+            if guard.stopped {
+                return false;
+            }
+
+            guard.rollback_queue.push_back(request);
+        }
+        self.condition.notify_all();
+        true
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
@@ -143,10 +160,10 @@ impl DeadChannelCleanupStep for BlockProcessorQueue {
     }
 }
 
-pub(crate) struct BlockProcessorQueueImpl {
+struct BlockProcessorQueueImpl {
     process_queue: ProcessQueue,
-    pub rollback_queue: VecDeque<RollbackRequest>,
-    pub stopped: bool,
+    rollback_queue: VecDeque<RollbackRequest>,
+    stopped: bool,
     cool_down: bool,
     config: BlockProcessorConfig,
 }

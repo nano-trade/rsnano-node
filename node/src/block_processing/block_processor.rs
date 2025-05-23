@@ -302,20 +302,15 @@ impl BlockProcessorLoop {
 
     fn roll_back_blocking(&self, targets: Vec<BlockHash>, max_rollbacks: usize) -> Vec<BlockHash> {
         let result = Arc::new(RollbackResult::new());
-        {
-            let mut guard = self.queue.queue.lock().unwrap();
-            if guard.stopped {
-                return Vec::new();
-            }
-
-            let request = RollbackRequest {
-                targets,
-                max_rollbacks,
-                result: result.clone(),
-            };
-            guard.rollback_queue.push_back(request);
+        let request = RollbackRequest {
+            targets,
+            max_rollbacks,
+            result: result.clone(),
+        };
+        let added = self.queue.roll_back(request);
+        if !added {
+            return Vec::new();
         }
-        self.queue.condition.notify_all();
 
         let mut guard = result.rolled_back.lock().unwrap();
         guard = result.done.wait_while(guard, |i| i.is_none()).unwrap();
