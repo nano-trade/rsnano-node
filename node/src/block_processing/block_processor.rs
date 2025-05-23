@@ -71,6 +71,8 @@ impl BlockProcessor {
                     last_log: None,
                     stopped: false,
                     cool_down: false,
+                    config: config.clone(),
+                    stats: stats.clone(),
                 }),
                 condition: Condvar::new(),
                 ledger,
@@ -130,6 +132,7 @@ impl BlockProcessor {
 
     pub fn set_cooldown(&self, cool_down: bool) {
         self.processor_loop.mutex.lock().unwrap().cool_down = cool_down;
+        self.processor_loop.condition.notify_all();
     }
 
     pub fn total_queue_len(&self) -> usize {
@@ -232,48 +235,48 @@ pub(crate) struct BlockProcessorLoop {
 impl BlockProcessorLoop {
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
-        while !guard.stopped {
-            if !guard.process_queue.is_empty() || !guard.rollback_queue.is_empty() {
-                while guard.cool_down && !guard.stopped {
-                    drop(guard);
-                    // It's possible that ledger processing happens faster than the
-                    // notifications can be processed by other components, cooldown here
-                    self.stats
-                        .inc(StatType::BlockProcessor, DetailType::Cooldown);
-                    std::thread::sleep(Duration::from_millis(50));
-                    guard = self.mutex.lock().unwrap();
-                }
-                if guard.stopped {
-                    return;
-                }
-            }
 
-            if !guard.rollback_queue.is_empty() {
-                let request = guard.rollback_queue.pop_front().unwrap();
-                drop(guard);
-                self.process_rollback(request);
-                guard = self.mutex.lock().unwrap();
-            } else if !guard.process_queue.is_empty() {
-                if guard.should_log() {
-                    info!(
-                        "{} blocks (+ {} forced) in processing_queue",
-                        guard.process_queue.len(),
-                        guard.process_queue.source_len(BlockSource::Forced)
-                    );
-                }
-
-                let batch = guard.process_queue.next_batch(self.config.batch_size);
-                drop(guard);
-
-                self.process_batch(batch);
-
-                guard = self.mutex.lock().unwrap();
-            } else {
+        while let Some(action) = guard.next_action() {
+            if matches!(action, BlockProcessorAction::Wait) {
                 guard = self
                     .condition
                     .wait_while(guard, |i| i.should_wait())
                     .unwrap();
+                continue;
             }
+
+            Self::try_log(&mut guard);
+            drop(guard);
+
+            self.process(action);
+
+            guard = self.mutex.lock().unwrap();
+        }
+    }
+
+    fn process(&self, action: BlockProcessorAction) {
+        match action {
+            BlockProcessorAction::RollBack(request) => {
+                self.process_rollback(request);
+            }
+            BlockProcessorAction::Process(batch) => {
+                self.process_batch(batch);
+            }
+            BlockProcessorAction::Wait => {
+                // "Wait" is handled earlier
+                unreachable!()
+            }
+        }
+    }
+
+    fn try_log(logic: &mut BlockProcessorLogic) {
+        if logic.can_log() {
+            info!(
+                "{} blocks (+ {} forced) in processing_queue",
+                logic.process_queue.len(),
+                logic.process_queue.source_len(BlockSource::Forced)
+            );
+            logic.logged();
         }
     }
 
@@ -563,22 +566,58 @@ struct BlockProcessorLogic {
     last_log: Option<Instant>,
     stopped: bool,
     cool_down: bool,
+    config: BlockProcessorConfig,
+    stats: Arc<Stats>,
 }
 
 impl BlockProcessorLogic {
     pub fn should_wait(&self) -> bool {
-        !self.stopped && self.process_queue.is_empty() && self.rollback_queue.is_empty()
-    }
-
-    pub fn should_log(&mut self) -> bool {
-        if let Some(last) = &self.last_log {
-            if last.elapsed() >= Duration::from_secs(15) {
-                self.last_log = Some(Instant::now());
-                return true;
-            }
+        if self.stopped {
+            return false;
         }
 
-        false
+        if self.cool_down {
+            return true;
+        }
+
+        self.process_queue.is_empty() && self.rollback_queue.is_empty()
+    }
+
+    pub fn can_log(&self) -> bool {
+        if let Some(last) = &self.last_log {
+            last.elapsed() >= Duration::from_secs(15)
+        } else {
+            true
+        }
+    }
+
+    pub fn logged(&mut self) {
+        self.last_log = Some(Instant::now());
+    }
+
+    pub fn next_action(&mut self) -> Option<BlockProcessorAction> {
+        if self.stopped {
+            return None;
+        }
+
+        if self.cool_down {
+            // It's possible that ledger processing happens faster than the
+            // notifications can be processed by other components, cooldown here
+            self.stats
+                .inc(StatType::BlockProcessor, DetailType::Cooldown);
+            return Some(BlockProcessorAction::Wait);
+        }
+
+        if let Some(request) = self.rollback_queue.pop_front() {
+            return Some(BlockProcessorAction::RollBack(request));
+        }
+
+        let batch = self.process_queue.next_batch(self.config.batch_size);
+        if !batch.is_empty() {
+            return Some(BlockProcessorAction::Process(batch));
+        }
+
+        Some(BlockProcessorAction::Wait)
     }
 }
 
@@ -620,6 +659,12 @@ impl RollbackResult {
             done: Condvar::new(),
         }
     }
+}
+
+pub(crate) enum BlockProcessorAction {
+    RollBack(RollbackRequest),
+    Process(VecDeque<Arc<BlockContext>>),
+    Wait,
 }
 
 #[cfg(test)]
