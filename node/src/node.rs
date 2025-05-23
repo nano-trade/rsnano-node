@@ -39,8 +39,9 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BoundedBacklog, BoundedBacklogPlugin,
-        LocalBlockBroadcaster, LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockProcessorConfig,
+        BlockProcessorQueue, BoundedBacklog, BoundedBacklogPlugin, LocalBlockBroadcaster,
+        LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -477,7 +478,13 @@ impl Node {
             config.fork_cache_max_forks_per_root,
         )));
 
+        let block_processor_config = BlockProcessorConfig::from(global_config);
+        let block_processor_queue = Arc::new(BlockProcessorQueue::new(
+            block_processor_config.queue.clone(),
+        ));
+
         let block_processor = Arc::new(BlockProcessor::new(
+            block_processor_queue,
             global_config.into(),
             ledger.clone(),
             unchecked.clone(),

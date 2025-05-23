@@ -3,14 +3,19 @@ use std::{
     sync::{Arc, Condvar, Mutex},
 };
 
-use super::{process_queue::ProcessQueue, BlockContext, BlockProcessorConfig};
+use strum::IntoEnumIterator;
+
 use rsnano_core::{
     utils::{ContainerInfo, FairQueueInfo},
     BlockHash,
 };
 use rsnano_ledger::BlockSource;
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
-use strum::IntoEnumIterator;
+
+use super::{
+    process_queue::{ProcessQueue, ProcessQueueConfig},
+    BlockContext,
+};
 
 pub(crate) enum BlockProcessorAction {
     RollBack(RollbackRequest),
@@ -43,7 +48,7 @@ pub(crate) struct BlockProcessorQueue {
 }
 
 impl BlockProcessorQueue {
-    pub fn new(config: BlockProcessorConfig) -> Self {
+    pub fn new(config: ProcessQueueConfig) -> Self {
         Self {
             queue: Mutex::new(BlockProcessorQueueImpl::new(config)),
             condition: Condvar::new(),
@@ -147,6 +152,12 @@ impl BlockProcessorQueue {
     }
 }
 
+impl Default for BlockProcessorQueue {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
 impl DeadChannelCleanupStep for BlockProcessorQueue {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
         let mut guard = self.queue.lock().unwrap();
@@ -167,9 +178,9 @@ struct BlockProcessorQueueImpl {
 }
 
 impl BlockProcessorQueueImpl {
-    pub fn new(config: BlockProcessorConfig) -> Self {
+    pub fn new(config: ProcessQueueConfig) -> Self {
         Self {
-            process_queue: ProcessQueue::new(config.queue.clone()),
+            process_queue: ProcessQueue::new(config),
             rollback_queue: VecDeque::new(),
             stopped: false,
             cool_down: false,

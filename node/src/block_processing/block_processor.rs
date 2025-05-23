@@ -55,6 +55,7 @@ pub struct BlockProcessor {
 
 impl BlockProcessor {
     pub(crate) fn new(
+        queue: Arc<BlockProcessorQueue>,
         config: BlockProcessorConfig,
         ledger: Arc<Ledger>,
         unchecked_map: Arc<UncheckedMap>,
@@ -62,7 +63,7 @@ impl BlockProcessor {
     ) -> Self {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
-                queue: Arc::new(BlockProcessorQueue::new(config.clone())),
+                queue,
                 ledger,
                 unchecked: unchecked_map,
                 config,
@@ -75,6 +76,7 @@ impl BlockProcessor {
 
     pub fn new_test_instance(ledger: Arc<Ledger>) -> Self {
         BlockProcessor::new(
+            Arc::new(BlockProcessorQueue::default()),
             BlockProcessorConfig::new_for(Networks::NanoDevNetwork),
             ledger,
             Arc::new(UncheckedMap::default()),
@@ -530,7 +532,8 @@ mod tests {
         let ledger = Arc::new(Ledger::new_null());
         let unchecked = Arc::new(UncheckedMap::default());
         let stats = Arc::new(Stats::default());
-        let block_processor = BlockProcessor::new(config, ledger, unchecked, stats.clone());
+        let queue = Arc::new(BlockProcessorQueue::default());
+        let block_processor = BlockProcessor::new(queue, config, ledger, unchecked, stats.clone());
 
         let mut block = Block::new_test_instance();
         block.set_work(3.into());
