@@ -114,18 +114,6 @@ impl BlockProcessor {
         }
     }
 
-    pub fn set_cooldown(&self, cool_down: bool) {
-        self.processor_loop.queue.set_cooldown(cool_down);
-    }
-
-    pub fn total_queue_len(&self) -> usize {
-        self.processor_loop.total_queue_len()
-    }
-
-    pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.processor_loop.queue_len(source)
-    }
-
     pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
         self.processor_loop.add(block, source, channel_id, None)
     }
@@ -155,10 +143,6 @@ impl BlockProcessor {
 
     pub fn force(&self, block: Block) {
         self.processor_loop.force(block);
-    }
-
-    pub fn is_cooling_down(&self) -> bool {
-        self.processor_loop.queue.is_cooling_down()
     }
 
     pub fn reprocess_election_winner(&self, winner: &Block) {
@@ -197,7 +181,7 @@ impl ContainerInfoProvider for BlockProcessor {
 }
 
 impl StatsSource for BlockProcessor {
-    fn collect_stats(&self, result: &mut StatsCollection) {
+    fn collect_stats(&self, _result: &mut StatsCollection) {
         // TODO
     }
 }
@@ -296,15 +280,6 @@ impl BlockProcessorLoop {
         debug!("Forcing block: {}", block.hash());
         let ctx = Arc::new(BlockContext::new(block, BlockSource::Forced, None));
         self.add_impl(ctx, ChannelId::LOOPBACK);
-    }
-
-    // TODO: Remove and replace all checks with calls to size (block_source)
-    pub fn total_queue_len(&self) -> usize {
-        self.queue.total_queue_len()
-    }
-
-    pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.queue.queue_len(source)
     }
 
     fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
@@ -507,7 +482,8 @@ mod tests {
         let unchecked = Arc::new(UncheckedMap::default());
         let stats = Arc::new(Stats::default());
         let queue = Arc::new(BlockProcessorQueue::default());
-        let block_processor = BlockProcessor::new(queue, config, ledger, unchecked, stats.clone());
+        let block_processor =
+            BlockProcessor::new(queue.clone(), config, ledger, unchecked, stats.clone());
 
         let mut block = Block::new_test_instance();
         block.set_work(3.into());
@@ -523,6 +499,6 @@ mod tests {
             1
         );
 
-        assert_eq!(block_processor.total_queue_len(), 0);
+        assert_eq!(queue.total_queue_len(), 0);
     }
 }

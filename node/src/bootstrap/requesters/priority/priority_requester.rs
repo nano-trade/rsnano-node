@@ -10,7 +10,7 @@ use super::{
     query_factory::QueryFactory,
 };
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::BlockProcessorQueue,
     bootstrap::{
         requesters::channel_waiter::ChannelWaiter, state::BootstrapState, AscPullQuerySpec,
         BootstrapConfig, BootstrapPromise, PollResult,
@@ -19,7 +19,7 @@ use crate::{
 
 pub(crate) struct PriorityRequester {
     state: PriorityState,
-    block_processor: Arc<BlockProcessor>,
+    block_processor_queue: Arc<BlockProcessorQueue>,
     stats: Arc<Stats>,
     channel_waiter: ChannelWaiter,
     pub block_processor_threshold: usize,
@@ -29,7 +29,7 @@ pub(crate) struct PriorityRequester {
 
 impl PriorityRequester {
     pub(crate) fn new(
-        block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
         stats: Arc<Stats>,
         channel_waiter: ChannelWaiter,
         clock: Arc<SteadyClock>,
@@ -42,7 +42,7 @@ impl PriorityRequester {
 
         Self {
             state: PriorityState::Initial,
-            block_processor,
+            block_processor_queue,
             stats,
             channel_waiter,
             query_factory,
@@ -52,7 +52,8 @@ impl PriorityRequester {
     }
 
     fn block_processor_free(&self) -> bool {
-        self.block_processor.queue_len(BlockSource::Bootstrap) < self.block_processor_threshold
+        self.block_processor_queue.queue_len(BlockSource::Bootstrap)
+            < self.block_processor_threshold
     }
 }
 
@@ -114,7 +115,7 @@ mod tests {
 
     use super::PriorityRequester;
     use crate::{
-        block_processing::BlockProcessor,
+        block_processing::{BlockProcessor, BlockProcessorQueue},
         bootstrap::{
             progress,
             requesters::{
@@ -177,7 +178,7 @@ mod tests {
     }
 
     fn create_requester() -> (PriorityRequester, Arc<RwLock<Network>>) {
-        let block_processor = Arc::new(BlockProcessor::new_null());
+        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let stats = Arc::new(Stats::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
         let rate_limiter = Arc::new(RateLimiter::new(1024));
@@ -187,7 +188,7 @@ mod tests {
         let config = BootstrapConfig::default();
 
         let requester = PriorityRequester::new(
-            block_processor,
+            block_processor_queue,
             stats,
             channel_waiter,
             clock,

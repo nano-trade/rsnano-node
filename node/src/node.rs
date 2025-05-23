@@ -776,6 +776,7 @@ impl Node {
 
         let bootstrapper = Arc::new(Bootstrapper::new(
             block_processor.clone(),
+            block_processor_queue.clone(),
             ledger.clone(),
             stats.clone(),
             network.clone(),
@@ -1207,7 +1208,7 @@ impl Node {
             bootstrapper: bootstrapper.clone(),
             vote_history: vote_history.clone(),
             active_elections: active_elections.clone(),
-            block_processor: block_processor.clone(),
+            block_processor_queue: block_processor_queue.clone(),
             fork_cache_updater,
             plugins: ledger_event_processor_plugins,
         };

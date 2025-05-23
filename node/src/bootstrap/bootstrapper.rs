@@ -24,7 +24,10 @@ use super::{
     state::{BootstrapState, CandidateAccountsConfig},
     FrontierScanConfig,
 };
-use crate::{block_processing::BlockProcessor, transport::MessageSender};
+use crate::{
+    block_processing::{BlockProcessor, BlockProcessorQueue},
+    transport::MessageSender,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapConfig {
@@ -99,6 +102,7 @@ struct Threads {
 impl Bootstrapper {
     pub(crate) fn new(
         block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         network: Arc<RwLock<Network>>,
@@ -130,7 +134,7 @@ impl Bootstrapper {
             state_changed.clone(),
             clock.clone(),
             ledger.clone(),
-            block_processor.clone(),
+            block_processor_queue.clone(),
             network,
         );
 
@@ -149,6 +153,7 @@ impl Bootstrapper {
 
     pub fn new_null() -> Self {
         let block_processor = Arc::new(BlockProcessor::new_null());
+        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let ledger = Arc::new(Ledger::new_null());
         let stats = Arc::new(Stats::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
@@ -158,6 +163,7 @@ impl Bootstrapper {
 
         Self::new(
             block_processor,
+            block_processor_queue,
             ledger,
             stats,
             network,

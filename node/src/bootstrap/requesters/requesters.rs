@@ -16,7 +16,7 @@ use super::{
     send_queries_promise::SendQueriesPromise,
 };
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::BlockProcessorQueue,
     bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapConfig, BootstrapPromise},
     transport::MessageSender,
 };
@@ -32,7 +32,7 @@ pub(crate) struct Requesters {
     clock: Arc<SteadyClock>,
     threads: Mutex<Option<RequesterThreads>>,
     ledger: Arc<Ledger>,
-    block_processor: Arc<BlockProcessor>,
+    block_processor_queue: Arc<BlockProcessorQueue>,
     network: Arc<RwLock<Network>>,
 }
 
@@ -46,7 +46,7 @@ impl Requesters {
         state_changed: Arc<Condvar>,
         clock: Arc<SteadyClock>,
         ledger: Arc<Ledger>,
-        block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
         network: Arc<RwLock<Network>>,
     ) -> Self {
         Self {
@@ -58,7 +58,7 @@ impl Requesters {
             state_changed,
             clock,
             ledger,
-            block_processor,
+            block_processor_queue,
             network,
             threads: Mutex::new(None),
         }
@@ -93,7 +93,7 @@ impl Requesters {
 
         let priorities = if self.config.enable_priorities {
             let mut requester = PriorityRequester::new(
-                self.block_processor.clone(),
+                self.block_processor_queue.clone(),
                 self.stats.clone(),
                 channel_waiter.clone(),
                 self.clock.clone(),
