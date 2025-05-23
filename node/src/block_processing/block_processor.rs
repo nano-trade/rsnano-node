@@ -18,13 +18,13 @@ use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 use rsnano_work::WorkThresholds;
 
 use super::{
-    block_processor_queue::{BlockProcessorQueue, BlockProcessorQueueConfig},
+    process_queue::{ProcessQueue, ProcessQueueConfig},
     BlockContext, BlockProcessorCallback, UncheckedMap,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
-    pub queue: BlockProcessorQueueConfig,
+    pub queue: ProcessQueueConfig,
 
     pub batch_max_time: Duration,
     pub full_size: usize,
@@ -65,8 +65,8 @@ impl BlockProcessor {
     ) -> Self {
         Self {
             processor_loop: Arc::new(BlockProcessorLoop {
-                logic: Mutex::new(BlockProcessorLogic {
-                    process_queue: BlockProcessorQueue::new(config.queue.clone()),
+                logic: Mutex::new(BlockProcessorQueue {
+                    process_queue: ProcessQueue::new(config.queue.clone()),
                     rollback_queue: VecDeque::new(),
                     last_log: None,
                     stopped: false,
@@ -233,7 +233,7 @@ impl StatsSource for BlockProcessor {
 }
 
 pub(crate) struct BlockProcessorLoop {
-    logic: Mutex<BlockProcessorLogic>,
+    logic: Mutex<BlockProcessorQueue>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
@@ -246,7 +246,7 @@ impl BlockProcessorLoop {
     fn run(&self) {
         let mut logic = self.logic.lock().unwrap();
 
-        while let Some(action) = logic.next_action() {
+        while let Some(action) = logic.pop() {
             if matches!(action, BlockProcessorAction::Wait) {
                 logic = self
                     .condition
@@ -279,7 +279,7 @@ impl BlockProcessorLoop {
         }
     }
 
-    fn try_log(logic: &mut BlockProcessorLogic) {
+    fn try_log(logic: &mut BlockProcessorQueue) {
         if logic.can_log() {
             info!(
                 "{} blocks (+ {} forced) in processing_queue",
@@ -570,8 +570,8 @@ impl BlockProcessorLoop {
     }
 }
 
-struct BlockProcessorLogic {
-    process_queue: BlockProcessorQueue,
+pub(crate) struct BlockProcessorQueue {
+    process_queue: ProcessQueue,
     rollback_queue: VecDeque<RollbackRequest>,
     last_log: Option<Instant>,
     stopped: bool,
@@ -580,7 +580,7 @@ struct BlockProcessorLogic {
     cooldown_count: u64,
 }
 
-impl BlockProcessorLogic {
+impl BlockProcessorQueue {
     pub fn should_wait(&self) -> bool {
         if self.stopped {
             return false;
@@ -605,7 +605,7 @@ impl BlockProcessorLogic {
         self.last_log = Some(Instant::now());
     }
 
-    pub fn next_action(&mut self) -> Option<BlockProcessorAction> {
+    pub fn pop(&mut self) -> Option<BlockProcessorAction> {
         if self.stopped {
             return None;
         }
@@ -630,7 +630,7 @@ impl BlockProcessorLogic {
     }
 }
 
-impl StatsSource for BlockProcessorLogic {
+impl StatsSource for BlockProcessorQueue {
     fn collect_stats(&self, result: &mut StatsCollection) {
         result.insert("block_processor", "cooldown", self.cooldown_count);
     }

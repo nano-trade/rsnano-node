@@ -12,7 +12,7 @@ use std::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct BlockProcessorQueueConfig {
+pub struct ProcessQueueConfig {
     // Maximum number of blocks to queue from network peers
     pub max_peer_queue: usize,
 
@@ -26,7 +26,7 @@ pub struct BlockProcessorQueueConfig {
     pub priority_system: usize,
 }
 
-impl Default for BlockProcessorQueueConfig {
+impl Default for ProcessQueueConfig {
     fn default() -> Self {
         Self {
             max_peer_queue: 128,
@@ -39,10 +39,10 @@ impl Default for BlockProcessorQueueConfig {
     }
 }
 
-pub(crate) struct BlockProcessorQueue(FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>);
+pub(crate) struct ProcessQueue(FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>);
 
-impl BlockProcessorQueue {
-    pub fn new(config: BlockProcessorQueueConfig) -> Self {
+impl ProcessQueue {
+    pub fn new(config: ProcessQueueConfig) -> Self {
         let config_l = config.clone();
         let max_size_query = move |origin: &(BlockSource, ChannelId)| match origin.0 {
             BlockSource::Live | BlockSource::LiveOriginator => config_l.max_peer_queue,
@@ -118,7 +118,7 @@ impl BlockProcessorQueue {
     }
 }
 
-impl Deref for BlockProcessorQueue {
+impl Deref for ProcessQueue {
     type Target = FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>;
 
     fn deref(&self) -> &Self::Target {
@@ -126,7 +126,7 @@ impl Deref for BlockProcessorQueue {
     }
 }
 
-impl DerefMut for BlockProcessorQueue {
+impl DerefMut for ProcessQueue {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

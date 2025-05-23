@@ -2,10 +2,10 @@ mod backlog_index;
 mod backlog_scan;
 mod block_context;
 mod block_processor;
-mod block_processor_queue;
 mod bounded_backlog;
 mod bounded_backlog_plugin;
 mod local_block_broadcaster;
+mod process_queue;
 mod unchecked_map;
 
 pub use backlog_scan::{BacklogScan, BacklogScanConfig};
