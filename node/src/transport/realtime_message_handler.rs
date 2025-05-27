@@ -12,25 +12,27 @@ use rsnano_network::{Channel, Network};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::{BlockProcessor, BlockProcessorQueue},
     bootstrap::{BootstrapServer, Bootstrapper},
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,
     wallets::Wallets,
 };
+use rsnano_work::WorkThresholds;
 
 /// Handle realtime messages (as opposed to bootstrap messages)
 pub struct RealtimeMessageHandler {
     stats: Arc<Stats>,
     network_filter: Arc<NetworkFilter>,
     network: Arc<RwLock<Network>>,
-    block_processor: Arc<BlockProcessor>,
+    block_processor_queue: Arc<BlockProcessorQueue>,
     wallets: Arc<Wallets>,
     request_aggregator: Arc<RequestAggregator>,
     vote_processor_queue: Arc<VoteProcessorQueue>,
     telemetry: Arc<Telemetry>,
     bootstrap_server: Arc<BootstrapServer>,
     bootstrapper: Arc<Bootstrapper>,
+    work_thresholds: WorkThresholds,
 }
 
 impl RealtimeMessageHandler {
@@ -38,25 +40,27 @@ impl RealtimeMessageHandler {
         stats: Arc<Stats>,
         network: Arc<RwLock<Network>>,
         network_filter: Arc<NetworkFilter>,
-        block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
         wallets: Arc<Wallets>,
         request_aggregator: Arc<RequestAggregator>,
         vote_processor_queue: Arc<VoteProcessorQueue>,
         telemetry: Arc<Telemetry>,
         bootstrap_server: Arc<BootstrapServer>,
         bootstrapper: Arc<Bootstrapper>,
+        work_thresholds: WorkThresholds,
     ) -> Self {
         Self {
             stats,
             network,
             network_filter,
-            block_processor,
+            block_processor_queue,
             wallets,
             request_aggregator,
             vote_processor_queue,
             telemetry,
             bootstrap_server,
             bootstrapper,
+            work_thresholds,
         }
     }
 
@@ -85,19 +89,29 @@ impl RealtimeMessageHandler {
                 }
             }
             Message::Publish(publish) => {
-                // Put blocks that are being initially broadcasted in a separate queue, so that they won't have to compete with rebroadcasted blocks
-                // Both queues have the same priority and size, so the potential for exploiting this is limited
-                let source = if publish.is_originator {
-                    BlockSource::LiveOriginator
-                } else {
-                    BlockSource::Live
-                };
+                let mut ok = true;
 
-                let added = self
-                    .block_processor
-                    .add(publish.block, source, channel.channel_id());
+                if !self.work_thresholds.validate_entry_block(&publish.block) {
+                    self.stats
+                        .inc(StatType::BlockProcessor, DetailType::InsufficientWork);
+                    ok = false;
+                }
 
-                if !added {
+                if ok {
+                    // Put blocks that are being initially broadcasted in a separate queue, so that they won't have to compete with rebroadcasted blocks
+                    // Both queues have the same priority and size, so the potential for exploiting this is limited
+                    let source = if publish.is_originator {
+                        BlockSource::LiveOriginator
+                    } else {
+                        BlockSource::Live
+                    };
+
+                    ok =
+                        self.block_processor_queue
+                            .add(publish.block, source, channel.channel_id());
+                }
+
+                if !ok {
                     // The message couldn't be handled. We have to remove it from the duplicate
                     // filter, so that it can be retransmitted and handled later
                     self.network_filter.clear(publish.digest);

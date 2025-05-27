@@ -922,13 +922,14 @@ impl Node {
             stats.clone(),
             network.clone(),
             network_filter.clone(),
-            block_processor.clone(),
+            block_processor_queue.clone(),
             wallets.clone(),
             request_aggregator.clone(),
             vote_processor_queue.clone(),
             telemetry.clone(),
             bootstrap_server.clone(),
             bootstrapper.clone(),
+            network_params.work.clone(),
         ));
 
         let network_threads = Arc::new(Mutex::new(NetworkThreads::new(
