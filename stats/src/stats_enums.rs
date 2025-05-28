@@ -177,8 +177,6 @@ pub enum DetailType {
     BlockPosition,
 
     // block processor
-    ProcessBlocking,
-    ProcessBlockingTimeout,
     Force,
 
     // block source

@@ -111,10 +111,6 @@ impl BlockProcessor {
         }
     }
 
-    pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
-        self.processor_loop.add(block, source, channel_id, None)
-    }
-
     pub fn add_blocking(
         &self,
         block: Arc<Block>,
@@ -198,29 +194,7 @@ impl BlockProcessorLoop {
         block: Arc<Block>,
         source: BlockSource,
     ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
-        self.stats
-            .inc(StatType::BlockProcessor, DetailType::ProcessBlocking);
-        debug!(
-            "Processing block (blocking): {} (source: {:?})",
-            block.hash(),
-            source
-        );
-
-        let hash = block.hash();
-        let ctx = Arc::new(BlockContext::new(block.as_ref().clone(), source, None));
-        let waiter = ctx.get_waiter();
-        self.queue.push(ctx.clone(), ChannelId::LOOPBACK);
-
-        match waiter.wait_result() {
-            Some(Ok(())) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
-            Some(Err(e)) => Ok(Err(e)),
-            None => {
-                self.stats
-                    .inc(StatType::BlockProcessor, DetailType::ProcessBlockingTimeout);
-                error!("Block dropped when processing: {}", hash);
-                Err(anyhow!("Block dropped when processing"))
-            }
-        }
+        self.queue.add_blocking(block, source)
     }
 
     pub fn force(&self, block: Block) {

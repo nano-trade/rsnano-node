@@ -7,9 +7,9 @@ use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
-    Block, BlockHash,
+    Block, BlockHash, SavedBlock,
 };
-use rsnano_ledger::BlockSource;
+use rsnano_ledger::{BlockError, BlockSource};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 
 use super::{
@@ -129,6 +129,26 @@ impl BlockProcessorQueue {
         self.push(context, channel_id)
     }
 
+    pub fn add_blocking(
+        &self,
+        block: Arc<Block>,
+        source: BlockSource,
+    ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
+        let hash = block.hash();
+        let ctx = Arc::new(BlockContext::new(block.as_ref().clone(), source, None));
+        let waiter = ctx.get_waiter();
+        self.push(ctx.clone(), ChannelId::LOOPBACK);
+
+        match waiter.wait_result() {
+            Some(Ok(())) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
+            Some(Err(e)) => Ok(Err(e)),
+            None => {
+                self.queue.lock().unwrap().timeout += 1;
+                Err(anyhow!("Block dropped when processing"))
+            }
+        }
+    }
+
     pub fn push(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
         let added = self.queue.lock().unwrap().push(context, channel_id);
 
@@ -216,6 +236,7 @@ struct BlockProcessorQueueImpl {
     processed: u64,
     overfill_count: u64,
     overfill_by_source: [u64; BlockSource::COUNT],
+    timeout: u64,
 }
 
 impl BlockProcessorQueueImpl {
@@ -228,6 +249,7 @@ impl BlockProcessorQueueImpl {
             processed: 0,
             overfill_count: 0,
             overfill_by_source: Default::default(),
+            timeout: 0,
         }
     }
 
@@ -273,6 +295,7 @@ impl StatsSource for BlockProcessorQueueImpl {
                 self.overfill_by_source[i as usize],
             );
         }
+        result.insert("block_processor", "process_blocking_timeout", self.timeout);
     }
 }
 
