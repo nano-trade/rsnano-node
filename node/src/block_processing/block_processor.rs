@@ -5,17 +5,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tracing::{debug, error};
+use tracing::debug;
 
-use rsnano_core::{Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo};
-use rsnano_ledger::{BlockError, BlockSource, Ledger};
-use rsnano_network::ChannelId;
+use rsnano_core::{BlockHash, BlockType, Epoch, Networks, UncheckedInfo};
+use rsnano_ledger::{BlockError, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 use rsnano_work::WorkThresholds;
 
 use super::{
-    process_queue::ProcessQueueConfig, BlockContext, BlockProcessorAction, BlockProcessorCallback,
-    BlockProcessorQueue, RollbackRequest, UncheckedMap,
+    process_queue::ProcessQueueConfig, BlockContext, BlockProcessorAction, BlockProcessorQueue,
+    RollbackRequest, UncheckedMap,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,7 +52,6 @@ pub struct BlockProcessor {
 impl BlockProcessor {
     pub(crate) fn new(
         queue: Arc<BlockProcessorQueue>,
-        config: BlockProcessorConfig,
         ledger: Arc<Ledger>,
         unchecked_map: Arc<UncheckedMap>,
         stats: Arc<Stats>,
@@ -63,7 +61,6 @@ impl BlockProcessor {
                 queue,
                 ledger,
                 unchecked: unchecked_map,
-                config,
                 stats,
                 can_roll_back: RwLock::new(Box::new(|_| true)),
             }),
@@ -74,7 +71,6 @@ impl BlockProcessor {
     pub fn new_test_instance(ledger: Arc<Ledger>) -> Self {
         BlockProcessor::new(
             Arc::new(BlockProcessorQueue::default()),
-            BlockProcessorConfig::new_for(Networks::NanoDevNetwork),
             ledger,
             Arc::new(UncheckedMap::default()),
             Arc::new(Stats::default()),
@@ -110,22 +106,6 @@ impl BlockProcessor {
             join_handle.join().unwrap();
         }
     }
-
-    pub fn add_blocking(
-        &self,
-        block: Arc<Block>,
-        source: BlockSource,
-    ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
-        self.processor_loop.add_blocking(block, source)
-    }
-
-    pub fn process_active(&self, block: Block) {
-        self.processor_loop.process_active(block);
-    }
-
-    pub fn force(&self, block: Block) {
-        self.processor_loop.force(block);
-    }
 }
 
 impl Drop for BlockProcessor {
@@ -145,7 +125,6 @@ pub(crate) struct BlockProcessorLoop {
     queue: Arc<BlockProcessorQueue>,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
-    config: BlockProcessorConfig,
     stats: Arc<Stats>,
     can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
@@ -166,42 +145,6 @@ impl BlockProcessorLoop {
                 self.process_batch(batch);
             }
         }
-    }
-
-    pub fn process_active(&self, block: Block) {
-        self.add(block, BlockSource::Live, ChannelId::LOOPBACK, None);
-    }
-
-    pub fn add(
-        &self,
-        block: Block,
-        source: BlockSource,
-        channel_id: ChannelId,
-        callback: Option<BlockProcessorCallback>,
-    ) -> bool {
-        if !self.config.work_thresholds.validate_entry_block(&block) {
-            self.stats
-                .inc(StatType::BlockProcessor, DetailType::InsufficientWork);
-            return false; // Not added
-        }
-
-        let context = Arc::new(BlockContext::new(block, source, callback));
-        self.queue.push(context, channel_id)
-    }
-
-    pub fn add_blocking(
-        &self,
-        block: Arc<Block>,
-        source: BlockSource,
-    ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
-        self.queue.add_blocking(block, source)
-    }
-
-    pub fn force(&self, block: Block) {
-        self.stats.inc(StatType::BlockProcessor, DetailType::Force);
-        debug!("Forcing block: {}", block.hash());
-        let ctx = Arc::new(BlockContext::new(block, BlockSource::Forced, None));
-        self.queue.push(ctx, ChannelId::LOOPBACK);
     }
 
     fn process_rollback(&self, request: RollbackRequest) {

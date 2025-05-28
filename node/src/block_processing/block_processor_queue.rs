@@ -134,7 +134,6 @@ impl BlockProcessorQueue {
         block: Arc<Block>,
         source: BlockSource,
     ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
-        let hash = block.hash();
         let ctx = Arc::new(BlockContext::new(block.as_ref().clone(), source, None));
         let waiter = ctx.get_waiter();
         self.push(ctx.clone(), ChannelId::LOOPBACK);

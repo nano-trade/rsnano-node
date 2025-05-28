@@ -149,7 +149,8 @@ fn rollback_gap_source() {
     node.process_local(fork1a.clone()).unwrap();
 
     assert!(!node.block_exists(&send2.hash()));
-    node.block_processor.force(fork1b.clone());
+    node.block_processor_queue
+        .add(fork1b.clone(), BlockSource::Forced, ChannelId::LOOPBACK);
 
     assert_timely2(|| node.block(&fork1a.hash()).is_none());
 
@@ -167,7 +168,8 @@ fn rollback_gap_source() {
     assert_timely2(|| node.block_exists(&fork1a.hash()));
 
     node.process_local(send2.clone()).unwrap();
-    node.block_processor.force(fork1b.clone());
+    node.block_processor_queue
+        .add(fork1b.clone(), BlockSource::Forced, ChannelId::LOOPBACK);
 
     assert_timely_eq2(
         || {

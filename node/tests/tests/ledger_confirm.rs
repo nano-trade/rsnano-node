@@ -2,9 +2,10 @@ use std::time::Duration;
 
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, ConfirmedSet, LedgerSet, DEV_GENESIS_ACCOUNT,
-    DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockSource, ConfirmedSet, LedgerSet,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY,
 };
+use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{assert_timely_eq, System};
 
@@ -358,7 +359,9 @@ fn conflict_rollback_confirmed() {
     let key2 = PrivateKey::new();
     let mut fork_lattice = UnsavedBlockLatticeBuilder::new();
     let fork1b = fork_lattice.genesis().send(&key2, 100);
-    node1.block_processor.force(fork1b.into());
+    node1
+        .block_processor_queue
+        .add(fork1b.into(), BlockSource::Forced, ChannelId::LOOPBACK);
     // node2 already has send2 forced confirmed whilst node1 should have confirmed send1 and therefore we have a confirmed fork on node2
     // and node2 should print an error message on the log that it cannot rollback send2 because it is already confirmed
     assert_timely_eq(

@@ -30,7 +30,7 @@ use rsnano_work::WorkThresholds;
 
 use super::{Wallet, WalletActionThread, WalletRepresentatives};
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::BlockProcessorQueue,
     cementation::ConfirmingSet,
     config::{NetworkParams, NodeConfig},
     representatives::OnlineReps,
@@ -91,7 +91,7 @@ pub struct Wallets {
     pub delayed_work: Mutex<HashMap<Account, Root>>,
     workers: Arc<dyn ThreadPool>,
     wallet_actions: WalletActionThread,
-    block_processor: Arc<BlockProcessor>,
+    block_processor_queue: Arc<BlockProcessorQueue>,
     pub wallet_reps: Arc<Mutex<WalletRepresentatives>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     kdf: KeyDerivationFunction,
@@ -109,7 +109,7 @@ impl Wallets {
         work_factory: Arc<WorkFactory>,
         network_params: NetworkParams,
         workers: Arc<dyn ThreadPool>,
-        block_processor: Arc<BlockProcessor>,
+        block_processor_queue: Arc<BlockProcessorQueue>,
         online_reps: Arc<Mutex<OnlineReps>>,
         confirming_set: Arc<ConfirmingSet>,
         message_flooder: MessageFlooder,
@@ -131,7 +131,7 @@ impl Wallets {
             delayed_work: Mutex::new(HashMap::new()),
             workers,
             wallet_actions: WalletActionThread::new(),
-            block_processor,
+            block_processor_queue,
             wallet_reps: Arc::new(Mutex::new(WalletRepresentatives::new(
                 node_config.vote_minimum,
                 ledger.rep_weights.clone(),
@@ -153,7 +153,7 @@ impl Wallets {
         let work_factory = Arc::new(WorkFactory::disabled());
         let network_params = NetworkParams::new(network);
         let workers = Arc::new(ThreadPoolImpl::new_null());
-        let block_processor = Arc::new(BlockProcessor::new_null());
+        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let online_reps = Arc::new(Mutex::new(OnlineReps::default()));
         let confirming_set = Arc::new(ConfirmingSet::new_null());
         let message_flooder = MessageFlooder::new_null();
@@ -165,7 +165,7 @@ impl Wallets {
             work_factory,
             network_params,
             workers,
-            block_processor,
+            block_processor_queue,
             online_reps,
             confirming_set,
             message_flooder,
@@ -1374,7 +1374,7 @@ impl WalletsExt for Arc<Wallets> {
         }
         let arc_block = Arc::new(block.clone());
         let saved_block = self
-            .block_processor
+            .block_processor_queue
             .add_blocking(arc_block.clone(), BlockSource::Local)?
             .map_err(|s| anyhow!("block processor failed: {:?}", s))?;
 

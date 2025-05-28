@@ -5,7 +5,7 @@ use rsnano_messages::NetworkFilter;
 use rsnano_nullable_clock::SteadyClock;
 
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::{BlockProcessor, BlockProcessorQueue},
     cementation::ConfirmingSet,
     consensus::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
@@ -18,6 +18,8 @@ use crate::{
     utils::BackpressureEventProcessor,
     NodeEvent,
 };
+use rsnano_ledger::BlockSource;
+use rsnano_network::ChannelId;
 use rsnano_stats::{Sample, Stats};
 use tracing::debug;
 
@@ -38,6 +40,7 @@ pub(crate) struct AecEventProcessor {
     pub(crate) recently_cemented_inserter: RecentlyCementedInserter,
     pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
     pub(crate) block_processor: Arc<BlockProcessor>,
+    pub(crate) block_processor_queue: Arc<BlockProcessorQueue>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
     pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
@@ -122,7 +125,11 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     .remove_local_votes(&previous_winner, &new_winner.qualified_root());
 
                 // Roll back the previous winner and add the new winner to the ledger
-                self.block_processor.force(new_winner.clone().into());
+                self.block_processor_queue.add(
+                    new_winner.clone(),
+                    BlockSource::Forced,
+                    ChannelId::LOOPBACK,
+                );
             }
             AecEvent::VoteProcessed(vote, voter_weight, results) => {
                 // Cache the votes that didn't match any election

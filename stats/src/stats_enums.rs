@@ -176,9 +176,6 @@ pub enum DetailType {
     RepresentativeMismatch,
     BlockPosition,
 
-    // block processor
-    Force,
-
     // block source
     Live,
     LiveOriginator,

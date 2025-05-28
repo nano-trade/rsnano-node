@@ -486,7 +486,6 @@ impl Node {
 
         let block_processor = Arc::new(BlockProcessor::new(
             block_processor_queue.clone(),
-            global_config.into(),
             ledger.clone(),
             unchecked.clone(),
             stats.clone(),
@@ -521,7 +520,7 @@ impl Node {
             work_factory.clone(),
             network_params.clone(),
             workers.clone(),
-            block_processor.clone(),
+            block_processor_queue.clone(),
             online_reps.clone(),
             confirming_set.clone(),
             message_flooder.clone(),
@@ -1178,6 +1177,7 @@ impl Node {
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
             vote_processor: vote_processor.clone(),
             block_processor: block_processor.clone(),
+            block_processor_queue: block_processor_queue.clone(),
             confirming_set: confirming_set.clone(),
             online_reps: online_reps.clone(),
             active_elections: active_elections.clone(),
@@ -1353,7 +1353,7 @@ impl Node {
     }
 
     pub fn process_local(&self, block: Block) -> Result<(), BlockError> {
-        self.block_processor
+        self.block_processor_queue
             .add_blocking(Arc::new(block), BlockSource::Local)
             .map_err(|_| BlockError::BadSignature)?
             .map(|_| {})
@@ -1398,7 +1398,8 @@ impl Node {
     }
 
     pub fn process_active(&self, block: Block) {
-        self.block_processor.process_active(block);
+        self.block_processor_queue
+            .add(block, BlockSource::Live, ChannelId::LOOPBACK);
     }
 
     pub fn process_local_multi(&self, blocks: &[Block]) {

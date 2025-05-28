@@ -78,7 +78,11 @@ impl RpcCommandHandler {
                             .write()
                             .unwrap()
                             .erase(&block.qualified_root());
-                        self.node.block_processor.force(block);
+                        self.node.block_processor_queue.add(
+                            block,
+                            BlockSource::Forced,
+                            ChannelId::LOOPBACK,
+                        );
                         Ok(serde_json::to_value(HashRpcMessage::new(hash))?)
                     } else {
                         Err(anyhow!("Fork"))
