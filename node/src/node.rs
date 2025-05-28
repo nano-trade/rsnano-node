@@ -40,8 +40,8 @@ use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
         BacklogScan, BlockProcessor, BlockProcessorConfig, BlockProcessorQueue, BoundedBacklog,
-        BoundedBacklogPlugin, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
-        LocalBlockBroadcasterPlugin, UncheckedMap,
+        BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
+        LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -1166,7 +1166,7 @@ impl Node {
         ledger_event_processor_plugins
             .push(Box::new(ForkProcessorPlugin::new(fork_processor.clone())));
 
-        let aec_event_processor = AecEventProcessor {
+        let mut aec_event_processor = AecEventProcessor {
             vote_cache_processor: vote_cache_processor.clone(),
             node_observer: node_observer.clone(),
             election_schedulers: election_schedulers.clone(),
@@ -1186,7 +1186,13 @@ impl Node {
             local_votes_remover,
             fork_processor,
             stats: stats.clone(),
+            plugins: Vec::new(),
         };
+
+        aec_event_processor.add(ElectionWinnerReprocessor::new(
+            ledger.clone(),
+            block_processor_queue.clone(),
+        ));
 
         spawn_backpressure_processor("AEC ev proc", aec_receiver, aec_event_processor);
 

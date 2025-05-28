@@ -8,7 +8,7 @@ use std::{
 use tracing::{debug, error};
 
 use rsnano_core::{Block, BlockHash, BlockType, Epoch, Networks, SavedBlock, UncheckedInfo};
-use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerSet};
+use rsnano_ledger::{BlockError, BlockSource, Ledger};
 use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 use rsnano_work::WorkThresholds;
@@ -129,23 +129,6 @@ impl BlockProcessor {
 
     pub fn force(&self, block: Block) {
         self.processor_loop.force(block);
-    }
-
-    pub fn reprocess_election_winner(&self, winner: &Block) {
-        // In some edge cases block might get rolled back while the election
-        // is confirming, reprocess it to ensure it's present in the ledger
-        if !self
-            .processor_loop
-            .ledger
-            .any()
-            .block_exists(&winner.hash())
-        {
-            self.add(
-                winner.clone().into(),
-                BlockSource::Election,
-                ChannelId::LOOPBACK,
-            );
-        }
     }
 }
 

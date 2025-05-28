@@ -21,6 +21,10 @@ use crate::{
 use rsnano_stats::{Sample, Stats};
 use tracing::debug;
 
+pub(crate) trait AecEventHandler {
+    fn handle(&mut self, event: &AecEvent);
+}
+
 /// Processes events from the active election container (AEC)
 pub(crate) struct AecEventProcessor {
     pub(crate) vote_cache_processor: Arc<VoteCacheProcessor>,
@@ -42,6 +46,7 @@ pub(crate) struct AecEventProcessor {
     pub(crate) local_votes_remover: LocalVotesRemover,
     pub(crate) stats: Arc<Stats>,
     pub(crate) fork_processor: Arc<ForkProcessor>,
+    pub(crate) plugins: Vec<Box<dyn AecEventHandler + Send>>,
 }
 
 impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
@@ -62,6 +67,10 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
     }
 
     fn process(&mut self, event: AecEvent) {
+        for plugin in &mut self.plugins {
+            plugin.handle(&event)
+        }
+
         match event {
             AecEvent::ElectionStarted(hash, root) => {
                 self.fork_processor.try_add_cached_forks(&root);
@@ -73,8 +82,6 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 }
             }
             AecEvent::ElectionConfirmed(election) => {
-                self.block_processor
-                    .reprocess_election_winner(&election.winner);
                 self.confirming_set.add(election.clone());
             }
             AecEvent::ElectionEnded(election, priority) => {
@@ -154,6 +161,10 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
 }
 
 impl AecEventProcessor {
+    pub fn add(&mut self, handler: impl AecEventHandler + Send + 'static) {
+        self.plugins.push(Box::new(handler));
+    }
+
     fn clear_network_filter(&mut self, block: &Block) {
         let mut buf = MemoryStream::new();
         block.serialize_without_block_type(&mut buf);
