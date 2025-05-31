@@ -39,12 +39,6 @@ pub(crate) struct RunDaemonArgs {
     /// Increase bootstrap processor limits to allow more blocks before hitting full state and verify/write more per database call. Also disable deletion of processed unchecked blocks.
     #[arg(long)]
     fast_bootstrap: bool,
-    /// Increase block processor transaction batch write size, default 0 (limited by config block_processor_batch_max_time), 256k for fast_bootstrap
-    #[arg(long)]
-    block_processor_batch_size: Option<usize>,
-    /// Increase block processor allowed blocks queue size before dropping live network packets and holding bootstrap download, default 65536, 1 million for fast_bootstrap
-    #[arg(long)]
-    block_processor_full_size: Option<usize>,
     /// Increase batch signature verification size in block processor, default 0 (limited by config signature_checker_threads), unlimited for fast_bootstrap
     #[arg(long)]
     block_processor_verification_size: Option<usize>,
@@ -78,12 +72,6 @@ impl RunDaemonArgs {
         flags.enable_pruning = self.enable_pruning;
         flags.enable_voting = self.enable_voting;
         flags.fast_bootstrap = self.fast_bootstrap;
-        if let Some(block_processor_batch_size) = self.block_processor_batch_size {
-            flags.block_processor_batch_size = block_processor_batch_size;
-        }
-        if let Some(block_processor_full_size) = self.block_processor_full_size {
-            flags.block_processor_full_size = block_processor_full_size;
-        }
         if let Some(block_processor_verification_size) = self.block_processor_verification_size {
             flags.block_processor_verification_size = block_processor_verification_size;
         }

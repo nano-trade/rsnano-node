@@ -13,7 +13,6 @@ pub struct NodeToml {
     pub backup_before_upgrade: Option<bool>,
     pub bandwidth_limit: Option<usize>,
     pub bandwidth_limit_burst_ratio: Option<f64>,
-    pub block_processor_batch_max_time: Option<i64>,
     pub bootstrap_bandwidth_burst_ratio: Option<f64>,
     pub bootstrap_bandwidth_limit: Option<usize>,
     pub bootstrap_fraction_numerator: Option<u32>,
@@ -87,9 +86,6 @@ impl NodeConfig {
         }
         if let Some(bandwidth_limit_burst_ratio) = toml.bandwidth_limit_burst_ratio {
             self.bandwidth_limit_burst_ratio = bandwidth_limit_burst_ratio;
-        }
-        if let Some(block_processor_batch_max_time_ms) = toml.block_processor_batch_max_time {
-            self.block_processor_batch_max_time_ms = block_processor_batch_max_time_ms;
         }
         if let Some(bootstrap_bandwidth_burst_ratio) = toml.bootstrap_bandwidth_burst_ratio {
             self.bootstrap_bandwidth_burst_ratio = bootstrap_bandwidth_burst_ratio;
@@ -429,7 +425,6 @@ impl From<&NodeConfig> for NodeToml {
             backup_before_upgrade: Some(config.backup_before_upgrade),
             bandwidth_limit: Some(config.bandwidth_limit),
             bandwidth_limit_burst_ratio: Some(config.bandwidth_limit_burst_ratio),
-            block_processor_batch_max_time: Some(config.block_processor_batch_max_time_ms),
             bootstrap_bandwidth_burst_ratio: Some(config.bootstrap_bandwidth_burst_ratio),
             bootstrap_bandwidth_limit: Some(config.bootstrap_bandwidth_limit),
             bootstrap_fraction_numerator: Some(config.bootstrap_fraction_numerator),

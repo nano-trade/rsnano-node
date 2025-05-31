@@ -12,32 +12,8 @@ use rsnano_ledger::{BlockError, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{
-    process_queue::ProcessQueueConfig, BlockContext, BlockProcessorAction, BlockProcessorQueue,
-    RollbackRequest, UncheckedMap,
+    BlockContext, BlockProcessorAction, BlockProcessorQueue, RollbackRequest, UncheckedMap,
 };
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct BlockProcessorConfig {
-    pub queue: ProcessQueueConfig,
-
-    pub batch_max_time: Duration,
-    pub full_size: usize,
-}
-
-impl BlockProcessorConfig {
-    pub const DEFAULT_BATCH_SIZE: usize = 0;
-    pub const DEFAULT_FULL_SIZE: usize = 65536;
-}
-
-impl Default for BlockProcessorConfig {
-    fn default() -> Self {
-        Self {
-            queue: Default::default(),
-            batch_max_time: Duration::from_millis(500),
-            full_size: Self::DEFAULT_FULL_SIZE,
-        }
-    }
-}
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,

@@ -39,9 +39,9 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorConfig, BlockProcessorQueue, BoundedBacklog,
-        BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
-        LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorQueue, BoundedBacklog, BoundedBacklogPlugin,
+        ElectionWinnerReprocessor, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
+        LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -305,7 +305,6 @@ impl Node {
             if config.diagnostics_config.txn_tracking.enable {
                 Arc::new(LongRunningTransactionLogger::new(
                     config.diagnostics_config.txn_tracking.clone(),
-                    Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
                 ))
             } else {
                 Arc::new(NullTransactionTracker::new())
@@ -479,10 +478,8 @@ impl Node {
             config.fork_cache_max_forks_per_root,
         )));
 
-        let block_processor_config = BlockProcessorConfig::from(global_config);
-        let block_processor_queue = Arc::new(BlockProcessorQueue::new(
-            block_processor_config.queue.clone(),
-        ));
+        let block_processor_config = ProcessQueueConfig::from(global_config);
+        let block_processor_queue = Arc::new(BlockProcessorQueue::new(block_processor_config));
 
         let block_processor = Arc::new(BlockProcessor::new(
             block_processor_queue.clone(),
@@ -1100,7 +1097,6 @@ impl Node {
 
         let ledger_pruning = Arc::new(LedgerPruning::new(
             config.clone(),
-            flags.clone(),
             ledger.clone(),
             stats.clone(),
         ));

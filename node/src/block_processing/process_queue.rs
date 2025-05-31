@@ -27,6 +27,8 @@ pub struct ProcessQueueConfig {
     pub batch_size: usize,
 }
 
+impl ProcessQueueConfig {}
+
 impl Default for ProcessQueueConfig {
     fn default() -> Self {
         Self {

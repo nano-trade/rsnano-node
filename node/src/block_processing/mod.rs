@@ -18,4 +18,5 @@ pub use bounded_backlog::*;
 pub(crate) use bounded_backlog_plugin::*;
 pub(crate) use election_winner_reprocessor::*;
 pub(crate) use local_block_broadcaster::*;
+pub use process_queue::ProcessQueueConfig;
 pub use unchecked_map::*;

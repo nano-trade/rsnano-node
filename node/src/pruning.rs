@@ -15,13 +15,12 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use rsnano_store_lmdb::Transaction;
 
 use crate::{
-    config::{NodeConfig, NodeFlags},
+    config::NodeConfig,
     utils::{ThreadPool, ThreadPoolImpl},
 };
 
 pub struct LedgerPruning {
     config: NodeConfig,
-    flags: NodeFlags,
     ledger: Arc<Ledger>,
     stopped: AtomicBool,
     workers: Arc<dyn ThreadPool>,
@@ -29,15 +28,9 @@ pub struct LedgerPruning {
 }
 
 impl LedgerPruning {
-    pub fn new(
-        config: NodeConfig,
-        flags: NodeFlags,
-        ledger: Arc<Ledger>,
-        stats: Arc<Stats>,
-    ) -> Self {
+    pub fn new(config: NodeConfig, ledger: Arc<Ledger>, stats: Arc<Stats>) -> Self {
         Self {
             config,
-            flags,
             ledger,
             workers: Arc::new(ThreadPoolImpl::create(1, "Pruning")),
             stats,
@@ -174,14 +167,7 @@ impl LedgerPruningExt for Arc<LedgerPruning> {
     fn ongoing_ledger_pruning(&self) {
         let bootstrap_weight_reached =
             self.ledger.block_count() >= self.ledger.bootstrap_weight_max_blocks();
-        self.ledger_pruning(
-            if self.flags.block_processor_batch_size != 0 {
-                self.flags.block_processor_batch_size as u64
-            } else {
-                2 * 1024
-            },
-            bootstrap_weight_reached,
-        );
+        self.ledger_pruning(2 * 1024, bootstrap_weight_reached);
         let ledger_pruning_interval = if bootstrap_weight_reached {
             Duration::from_secs(self.config.max_pruning_age_s as u64)
         } else {

@@ -1,18 +1,10 @@
 use super::GlobalConfig;
-use crate::block_processing::{BacklogScanConfig, BlockProcessorConfig};
+use crate::block_processing::{BacklogScanConfig, ProcessQueueConfig};
 use rsnano_network::bandwidth_limiter::BandwidthLimiterConfig;
-use std::time::Duration;
 
-impl From<&GlobalConfig> for BlockProcessorConfig {
+impl From<&GlobalConfig> for ProcessQueueConfig {
     fn from(value: &GlobalConfig) -> Self {
-        let config = &value.node_config.block_processor;
-        Self {
-            queue: config.queue.clone(),
-            batch_max_time: Duration::from_millis(
-                value.node_config.block_processor_batch_max_time_ms as u64,
-            ),
-            full_size: value.flags.block_processor_full_size,
-        }
+        value.node_config.block_processor.clone()
     }
 }
 

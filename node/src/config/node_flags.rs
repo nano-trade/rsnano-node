@@ -1,4 +1,3 @@
-use crate::block_processing::BlockProcessorConfig;
 use rsnano_ledger::GenerateCacheFlags;
 
 #[derive(Clone)]
@@ -21,8 +20,6 @@ pub struct NodeFlags {
     pub disable_connection_cleanup: bool,
     pub generate_cache: GenerateCacheFlags,
     pub inactive_node: bool,
-    pub block_processor_batch_size: usize,
-    pub block_processor_full_size: usize,
     pub block_processor_verification_size: usize,
     pub vote_processor_capacity: usize,
     pub bootstrap_interval: usize, // For testing only
@@ -49,8 +46,6 @@ impl NodeFlags {
             disable_connection_cleanup: false,
             generate_cache: GenerateCacheFlags::new(),
             inactive_node: false,
-            block_processor_batch_size: BlockProcessorConfig::DEFAULT_BATCH_SIZE,
-            block_processor_full_size: BlockProcessorConfig::DEFAULT_FULL_SIZE,
             block_processor_verification_size: 0,
             vote_processor_capacity: 144 * 1024,
             bootstrap_interval: 0,

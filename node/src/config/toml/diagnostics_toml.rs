@@ -34,7 +34,6 @@ impl From<&DiagnosticsToml> for DiagnosticsConfig {
 #[derive(Deserialize, Serialize)]
 pub struct TxnTrackingConfigToml {
     pub enable: Option<bool>,
-    pub ignore_writes_below_block_processor_max_time: Option<bool>,
     pub min_read_txn_time: Option<i64>,
     pub min_write_txn_time: Option<i64>,
 }
@@ -53,12 +52,6 @@ impl From<&TxnTrackingConfigToml> for TxnTrackingConfig {
         if let Some(enable) = toml.enable {
             config.enable = enable;
         }
-        if let Some(ignore_writes_below_block_processor_max_time) =
-            toml.ignore_writes_below_block_processor_max_time
-        {
-            config.ignore_writes_below_block_processor_max_time =
-                ignore_writes_below_block_processor_max_time;
-        }
         if let Some(min_read_txn_time_ms) = toml.min_read_txn_time {
             config.min_read_txn_time_ms = min_read_txn_time_ms;
         }
@@ -76,9 +69,6 @@ impl From<&TxnTrackingConfig> for TxnTrackingConfigToml {
             enable: Some(config.enable),
             min_read_txn_time: Some(config.min_read_txn_time_ms),
             min_write_txn_time: Some(config.min_write_txn_time_ms),
-            ignore_writes_below_block_processor_max_time: Some(
-                config.ignore_writes_below_block_processor_max_time,
-            ),
         }
     }
 }

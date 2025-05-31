@@ -146,7 +146,6 @@ mod tests {
 
         [node.diagnostics.txn_tracking]
         enable = true
-        ignore_writes_below_block_processor_max_time = false
         min_read_txn_time = 999
         min_write_txn_time = 999
 
@@ -320,10 +319,6 @@ mod tests {
             default_cfg.node.bootstrap_bandwidth_burst_ratio
         );
         assert_ne!(
-            deserialized.node.block_processor_batch_max_time_ms,
-            default_cfg.node.block_processor_batch_max_time_ms
-        );
-        assert_ne!(
             deserialized.node.bootstrap_initiator_threads,
             default_cfg.node.bootstrap_initiator_threads
         );
@@ -444,24 +439,24 @@ mod tests {
 
         // Block Processor section
         assert_ne!(
-            deserialized.node.block_processor.queue.max_peer_queue,
-            default_cfg.node.block_processor.queue.max_peer_queue
+            deserialized.node.block_processor.max_peer_queue,
+            default_cfg.node.block_processor.max_peer_queue
         );
         assert_ne!(
-            deserialized.node.block_processor.queue.max_system_queue,
-            default_cfg.node.block_processor.queue.max_system_queue
+            deserialized.node.block_processor.max_system_queue,
+            default_cfg.node.block_processor.max_system_queue
         );
         assert_ne!(
-            deserialized.node.block_processor.queue.priority_live,
-            default_cfg.node.block_processor.queue.priority_live
+            deserialized.node.block_processor.priority_live,
+            default_cfg.node.block_processor.priority_live
         );
         assert_ne!(
-            deserialized.node.block_processor.queue.priority_bootstrap,
-            default_cfg.node.block_processor.queue.priority_bootstrap
+            deserialized.node.block_processor.priority_bootstrap,
+            default_cfg.node.block_processor.priority_bootstrap
         );
         assert_ne!(
-            deserialized.node.block_processor.queue.priority_local,
-            default_cfg.node.block_processor.queue.priority_local
+            deserialized.node.block_processor.priority_local,
+            default_cfg.node.block_processor.priority_local
         );
 
         // Active Elections section
@@ -496,18 +491,6 @@ mod tests {
         assert_ne!(
             deserialized.node.diagnostics_config.txn_tracking.enable,
             default_cfg.node.diagnostics_config.txn_tracking.enable
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .diagnostics_config
-                .txn_tracking
-                .ignore_writes_below_block_processor_max_time,
-            default_cfg
-                .node
-                .diagnostics_config
-                .txn_tracking
-                .ignore_writes_below_block_processor_max_time
         );
         assert_ne!(
             deserialized

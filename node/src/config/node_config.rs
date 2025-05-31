@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     block_processing::{
-        BacklogScanConfig, BlockProcessorConfig, BoundedBacklogConfig, LocalBlockBroadcasterConfig,
+        BacklogScanConfig, BoundedBacklogConfig, LocalBlockBroadcasterConfig, ProcessQueueConfig,
     },
     bootstrap::{BootstrapConfig, BootstrapServerConfig},
     cementation::ConfirmingSetConfig,
@@ -63,7 +63,6 @@ pub struct NodeConfig {
     pub signature_checker_threads: u32,
     pub bootstrap_initiator_threads: u32,
     pub bootstrap_serving_threads: u32,
-    pub block_processor_batch_max_time_ms: i64,
     pub allow_local_peers: bool,
     pub vote_minimum: Amount,
     pub vote_generator_delay: Duration,
@@ -99,7 +98,7 @@ pub struct NodeConfig {
     pub lmdb_config: LmdbConfig,
     pub vote_cache: VoteCacheConfig,
     pub rep_crawler_query_timeout: Duration,
-    pub block_processor: BlockProcessorConfig,
+    pub block_processor: ProcessQueueConfig,
     pub active_elections: ActiveElectionsConfig,
     pub vote_processor: VoteProcessorConfig,
     pub tcp: TcpConfig,
@@ -238,7 +237,7 @@ impl NodeConfig {
             Networks::Invalid => panic!("invalid network"),
         }
 
-        let block_processor_cfg = BlockProcessorConfig::default();
+        let block_processor_cfg = ProcessQueueConfig::default();
 
         Self {
             enable_opencl: false,
@@ -266,8 +265,6 @@ impl NodeConfig {
             signature_checker_threads: (parallelism / 2) as u32,
             bootstrap_initiator_threads: 1,
             bootstrap_serving_threads: 1,
-            block_processor_batch_max_time_ms: block_processor_cfg.batch_max_time.as_millis()
-                as i64,
             allow_local_peers: !(network_params.network.is_live_network()
                 || network_params.network.is_test_network()), // disable by default for live network
             vote_minimum: Amount::nano(1000),

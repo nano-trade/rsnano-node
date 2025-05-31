@@ -13,7 +13,6 @@ pub struct TxnTrackingConfig {
     pub enable: bool,
     pub min_read_txn_time_ms: i64,
     pub min_write_txn_time_ms: i64,
-    pub ignore_writes_below_block_processor_max_time: bool,
 }
 
 impl TxnTrackingConfig {
@@ -28,7 +27,6 @@ impl Default for TxnTrackingConfig {
             enable: false,
             min_read_txn_time_ms: 5000,
             min_write_txn_time_ms: 500,
-            ignore_writes_below_block_processor_max_time: true,
         }
     }
 }
@@ -36,14 +34,12 @@ impl Default for TxnTrackingConfig {
 pub struct LongRunningTransactionLogger {
     stats: Mutex<HashMap<u64, TxnStats>>,
     config: TxnTrackingConfig,
-    block_processor_batch_max_time: Duration,
 }
 
 impl LongRunningTransactionLogger {
-    pub fn new(config: TxnTrackingConfig, block_processor_batch_max_time: Duration) -> Self {
+    pub fn new(config: TxnTrackingConfig) -> Self {
         Self {
             config,
-            block_processor_batch_max_time,
             stats: Mutex::new(HashMap::new()),
         }
     }
@@ -75,17 +71,6 @@ impl LongRunningTransactionLogger {
     fn log_if_held_long_enough(&self, txn: &mut TxnStats) {
         // Only log these transactions if they were held for longer than the min_read_txn_time/min_write_txn_time config values
         let time_open = txn.start.elapsed();
-        // Reduce noise in log files by removing any entries from the block processor (if enabled) which are less than the max batch time (+ a few second buffer) because these are expected writes during bootstrapping.
-        let is_below_max_time =
-            time_open <= (self.block_processor_batch_max_time + Duration::from_secs(3));
-        let is_blk_processing_thread = txn.thread_name.as_deref() == Some("Blck processing");
-        if self.config.ignore_writes_below_block_processor_max_time
-            && is_blk_processing_thread
-            && txn.is_write
-            && is_below_max_time
-        {
-            return;
-        }
 
         if (txn.is_write
             && time_open >= Duration::from_millis(self.config.min_write_txn_time_ms as u64))
