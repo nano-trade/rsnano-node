@@ -42,9 +42,6 @@ pub(crate) struct RunDaemonArgs {
     /// Increase batch signature verification size in block processor, default 0 (limited by config signature_checker_threads), unlimited for fast_bootstrap
     #[arg(long)]
     block_processor_verification_size: Option<usize>,
-    /// Vote processor queue size before dropping votes, default 144k
-    #[arg(long)]
-    vote_processor_capacity: Option<usize>,
 }
 
 impl RunDaemonArgs {
@@ -72,13 +69,6 @@ impl RunDaemonArgs {
         flags.enable_pruning = self.enable_pruning;
         flags.enable_voting = self.enable_voting;
         flags.fast_bootstrap = self.fast_bootstrap;
-        if let Some(block_processor_verification_size) = self.block_processor_verification_size {
-            flags.block_processor_verification_size = block_processor_verification_size;
-        }
-        if let Some(vote_processor_capacity) = self.vote_processor_capacity {
-            flags.vote_processor_capacity = vote_processor_capacity;
-        }
-
         flags
     }
 }

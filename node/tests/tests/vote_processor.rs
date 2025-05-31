@@ -3,7 +3,6 @@ use rsnano_core::{
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{
-    config::NodeFlags,
     consensus::{FilteredVote, ReceivedVote, RepTier},
     wallets::WalletsExt,
 };
@@ -118,11 +117,7 @@ fn invalid_signature() {
 #[test]
 fn overflow() {
     let mut system = System::new();
-    let flags = NodeFlags {
-        vote_processor_capacity: 1,
-        ..Default::default()
-    };
-    let node = system.build_node().flags(flags).finish();
+    let node = system.make_node();
     let key = PrivateKey::new();
     let vote = Arc::new(Vote::new(
         &key,

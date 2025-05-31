@@ -20,8 +20,6 @@ pub struct NodeFlags {
     pub disable_connection_cleanup: bool,
     pub generate_cache: GenerateCacheFlags,
     pub inactive_node: bool,
-    pub block_processor_verification_size: usize,
-    pub vote_processor_capacity: usize,
     pub bootstrap_interval: usize, // For testing only
 }
 
@@ -46,8 +44,6 @@ impl NodeFlags {
             disable_connection_cleanup: false,
             generate_cache: GenerateCacheFlags::new(),
             inactive_node: false,
-            block_processor_verification_size: 0,
-            vote_processor_capacity: 144 * 1024,
             bootstrap_interval: 0,
         }
     }
