@@ -7,10 +7,9 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{BlockHash, BlockType, Epoch, Networks, UncheckedInfo};
+use rsnano_core::{BlockHash, BlockType, Epoch, UncheckedInfo};
 use rsnano_ledger::{BlockError, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
-use rsnano_work::WorkThresholds;
 
 use super::{
     process_queue::ProcessQueueConfig, BlockContext, BlockProcessorAction, BlockProcessorQueue,
@@ -23,24 +22,20 @@ pub struct BlockProcessorConfig {
 
     pub batch_max_time: Duration,
     pub full_size: usize,
-    pub work_thresholds: WorkThresholds,
 }
 
 impl BlockProcessorConfig {
     pub const DEFAULT_BATCH_SIZE: usize = 0;
     pub const DEFAULT_FULL_SIZE: usize = 65536;
+}
 
-    pub fn new(work_thresholds: WorkThresholds) -> Self {
+impl Default for BlockProcessorConfig {
+    fn default() -> Self {
         Self {
-            work_thresholds,
             queue: Default::default(),
             batch_max_time: Duration::from_millis(500),
             full_size: Self::DEFAULT_FULL_SIZE,
         }
-    }
-
-    pub fn new_for(network: Networks) -> Self {
-        Self::new(WorkThresholds::default_for(network))
     }
 }
 

@@ -5,7 +5,7 @@ use rsnano_messages::NetworkFilter;
 use rsnano_nullable_clock::SteadyClock;
 
 use crate::{
-    block_processing::{BlockProcessor, BlockProcessorQueue},
+    block_processing::BlockProcessorQueue,
     cementation::ConfirmingSet,
     consensus::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
@@ -39,7 +39,6 @@ pub(crate) struct AecEventProcessor {
     pub(crate) block_voter: Arc<BlockVoter>,
     pub(crate) recently_cemented_inserter: RecentlyCementedInserter,
     pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
-    pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) block_processor_queue: Arc<BlockProcessorQueue>,
     pub(crate) confirming_set: Arc<ConfirmingSet>,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,

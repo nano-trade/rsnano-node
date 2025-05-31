@@ -238,7 +238,7 @@ impl NodeConfig {
             Networks::Invalid => panic!("invalid network"),
         }
 
-        let block_processor_cfg = BlockProcessorConfig::new(network_params.work.clone());
+        let block_processor_cfg = BlockProcessorConfig::default();
 
         Self {
             enable_opencl: false,

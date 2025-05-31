@@ -1176,7 +1176,6 @@ impl Node {
             vote_cache: vote_cache.clone(),
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
             vote_processor: vote_processor.clone(),
-            block_processor: block_processor.clone(),
             block_processor_queue: block_processor_queue.clone(),
             confirming_set: confirming_set.clone(),
             online_reps: online_reps.clone(),

@@ -12,7 +12,6 @@ impl From<&GlobalConfig> for BlockProcessorConfig {
                 value.node_config.block_processor_batch_max_time_ms as u64,
             ),
             full_size: value.flags.block_processor_full_size,
-            work_thresholds: value.network_params.work.clone(),
         }
     }
 }

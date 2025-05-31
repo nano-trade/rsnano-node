@@ -12,7 +12,7 @@ use rsnano_network::{Channel, Network};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::{BlockProcessor, BlockProcessorQueue},
+    block_processing::BlockProcessorQueue,
     bootstrap::{BootstrapServer, Bootstrapper},
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,
