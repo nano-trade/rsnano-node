@@ -49,16 +49,18 @@ impl BlockProcessor {
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
         let queue = self.queue.clone();
-        let mut processor_loop = BlockProcessorLoop {
-            rollback: BlockBatchRollback {
-                ledger: self.ledger.clone(),
-                can_roll_back: self
-                    .can_roll_back
-                    .lock()
-                    .unwrap()
-                    .take()
-                    .unwrap_or_else(|| Box::new(|_| true)),
-            },
+
+        let mut rollback = BlockBatchRollback {
+            ledger: self.ledger.clone(),
+            can_roll_back: self
+                .can_roll_back
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Box::new(|_| true)),
+        };
+
+        let process = BlockBatchProcessor {
             ledger: self.ledger.clone(),
             unchecked: self.unchecked.clone(),
             stats: self.stats.clone(),
@@ -71,10 +73,10 @@ impl BlockProcessor {
                     while let Some(action) = queue.pop_blocking() {
                         match action {
                             BlockProcessorAction::RollBack(request) => {
-                                processor_loop.process_rollback(request);
+                                rollback.roll_back(request);
                             }
                             BlockProcessorAction::Process(blocks) => {
-                                processor_loop.process_blocks(blocks);
+                                process.process_blocks(blocks);
                             }
                         }
                     }
@@ -134,18 +136,13 @@ impl BlockBatchRollback {
     }
 }
 
-struct BlockProcessorLoop {
-    rollback: BlockBatchRollback,
+struct BlockBatchProcessor {
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
     stats: Arc<Stats>,
 }
 
-impl BlockProcessorLoop {
-    fn process_rollback(&mut self, request: RollbackRequest) {
-        self.rollback.roll_back(request);
-    }
-
+impl BlockBatchProcessor {
     fn process_blocks(&self, mut batch: VecDeque<Arc<BlockContext>>) {
         let timer = Instant::now();
 
