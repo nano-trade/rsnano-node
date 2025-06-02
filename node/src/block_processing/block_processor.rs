@@ -17,7 +17,11 @@ use super::{
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
-    pub(crate) processor_loop: Arc<BlockProcessorLoop>,
+    queue: Arc<BlockProcessorQueue>,
+    ledger: Arc<Ledger>,
+    unchecked: Arc<UncheckedMap>,
+    stats: Arc<Stats>,
+    can_roll_back: Arc<RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
 }
 
 impl BlockProcessor {
@@ -28,50 +32,53 @@ impl BlockProcessor {
         stats: Arc<Stats>,
     ) -> Self {
         Self {
-            processor_loop: Arc::new(BlockProcessorLoop {
-                queue,
-                ledger,
-                unchecked: unchecked_map,
-                stats,
-                can_roll_back: RwLock::new(Box::new(|_| true)),
-            }),
+            queue,
+            ledger,
+            unchecked: unchecked_map,
+            stats,
+            can_roll_back: Arc::new(RwLock::new(Box::new(|_| true))),
             thread: Mutex::new(None),
         }
     }
 
-    pub fn new_test_instance(ledger: Arc<Ledger>) -> Self {
-        BlockProcessor::new(
-            Arc::new(BlockProcessorQueue::default()),
-            ledger,
-            Arc::new(UncheckedMap::default()),
-            Arc::new(Stats::default()),
-        )
-    }
-
-    pub fn new_null() -> Self {
-        Self::new_test_instance(Arc::new(Ledger::new_null()))
-    }
-
     // Give other components a chance to veto a rollback
     pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
-        *self.processor_loop.can_roll_back.write().unwrap() = Box::new(f);
+        *self.can_roll_back.write().unwrap() = Box::new(f);
     }
 
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
-        let processor_loop = Arc::clone(&self.processor_loop);
+        let queue = self.queue.clone();
+        let mut processor_loop = BlockProcessorLoop {
+            rollback: BlockBatchRollback {
+                ledger: self.ledger.clone(),
+                can_roll_back: self.can_roll_back.clone(),
+            },
+            ledger: self.ledger.clone(),
+            unchecked: self.unchecked.clone(),
+            stats: self.stats.clone(),
+        };
         *self.thread.lock().unwrap() = Some(
             std::thread::Builder::new()
                 .name("Blck processing".to_string())
                 .spawn(move || {
-                    processor_loop.run();
+                    while let Some(action) = queue.pop_blocking() {
+                        match action {
+                            BlockProcessorAction::RollBack(request) => {
+                                processor_loop.process_rollback(request);
+                            }
+                            BlockProcessorAction::Process(blocks) => {
+                                processor_loop.process_blocks(blocks);
+                            }
+                        }
+                    }
                 })
                 .unwrap(),
         );
     }
 
     pub fn stop(&self) {
-        self.processor_loop.queue.stop();
+        self.queue.stop();
         let join_handle = self.thread.lock().unwrap().take();
         if let Some(join_handle) = join_handle {
             join_handle.join().unwrap();
@@ -92,33 +99,13 @@ impl StatsSource for BlockProcessor {
     }
 }
 
-pub(crate) struct BlockProcessorLoop {
-    queue: Arc<BlockProcessorQueue>,
+struct BlockBatchRollback {
     ledger: Arc<Ledger>,
-    unchecked: Arc<UncheckedMap>,
-    stats: Arc<Stats>,
-    can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
+    can_roll_back: Arc<RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
 }
 
-impl BlockProcessorLoop {
-    fn run(&self) {
-        while let Some(action) = self.queue.pop_blocking() {
-            self.process(action);
-        }
-    }
-
-    fn process(&self, action: BlockProcessorAction) {
-        match action {
-            BlockProcessorAction::RollBack(request) => {
-                self.process_rollback(request);
-            }
-            BlockProcessorAction::Process(batch) => {
-                self.process_batch(batch);
-            }
-        }
-    }
-
-    fn process_rollback(&self, request: RollbackRequest) {
+impl BlockBatchRollback {
+    fn roll_back(&mut self, request: RollbackRequest) {
         let can_roll_back = self.can_roll_back.read().unwrap();
         let mut results =
             self.ledger
@@ -138,8 +125,21 @@ impl BlockProcessorLoop {
         *request.result.rolled_back.lock().unwrap() = Some(processed_hashes);
         request.result.done.notify_all();
     }
+}
 
-    fn process_batch(&self, mut batch: VecDeque<Arc<BlockContext>>) {
+struct BlockProcessorLoop {
+    rollback: BlockBatchRollback,
+    ledger: Arc<Ledger>,
+    unchecked: Arc<UncheckedMap>,
+    stats: Arc<Stats>,
+}
+
+impl BlockProcessorLoop {
+    fn process_rollback(&mut self, request: RollbackRequest) {
+        self.rollback.roll_back(request);
+    }
+
+    fn process_blocks(&self, mut batch: VecDeque<Arc<BlockContext>>) {
         let timer = Instant::now();
 
         let mut result = self
