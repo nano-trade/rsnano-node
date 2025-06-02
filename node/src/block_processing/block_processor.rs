@@ -5,9 +5,12 @@ use std::{
 
 use rsnano_core::BlockHash;
 use rsnano_ledger::Ledger;
-use rsnano_stats::{Stats, StatsCollection, StatsSource};
+use rsnano_stats::{StatsCollection, StatsSource};
 
-use super::{BlockProcessorAction, BlockProcessorQueue, UncheckedMap};
+use super::{
+    block_batch_processor::BlockBatchProcessorStats, BlockProcessorAction, BlockProcessorQueue,
+    UncheckedMap,
+};
 use crate::block_processing::{
     block_batch_processor::BlockBatchProcessor, block_batch_rollback::BlockBatchRollback,
 };
@@ -17,7 +20,7 @@ pub struct BlockProcessor {
     queue: Arc<BlockProcessorQueue>,
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
-    stats: Arc<Stats>,
+    process_stats: Arc<BlockBatchProcessorStats>,
     can_roll_back: Mutex<Option<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
 }
 
@@ -26,13 +29,12 @@ impl BlockProcessor {
         queue: Arc<BlockProcessorQueue>,
         ledger: Arc<Ledger>,
         unchecked_map: Arc<UncheckedMap>,
-        stats: Arc<Stats>,
     ) -> Self {
         Self {
             queue,
             ledger,
             unchecked: unchecked_map,
-            stats,
+            process_stats: Arc::new(BlockBatchProcessorStats::default()),
             can_roll_back: Mutex::new(None),
             thread: Mutex::new(None),
         }
@@ -72,7 +74,7 @@ impl BlockProcessor {
         BlockBatchProcessor {
             ledger: self.ledger.clone(),
             unchecked: self.unchecked.clone(),
-            stats: self.stats.clone(),
+            stats: self.process_stats.clone(),
         }
     }
 
@@ -105,7 +107,7 @@ impl Drop for BlockProcessor {
 }
 
 impl StatsSource for BlockProcessor {
-    fn collect_stats(&self, _result: &mut StatsCollection) {
-        // TODO
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.process_stats.collect_stats(result);
     }
 }

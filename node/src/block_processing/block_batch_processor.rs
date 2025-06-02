@@ -1,21 +1,25 @@
 use std::{
     collections::VecDeque,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering::Relaxed},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
 use tracing::debug;
 
 use rsnano_core::{BlockType, Epoch, UncheckedInfo};
-use rsnano_ledger::{BlockError, Ledger};
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_ledger::{BlockError, BlockSource, Ledger};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{BlockContext, UncheckedMap};
+use strum::{EnumCount, IntoEnumIterator};
 
 pub(crate) struct BlockBatchProcessor {
     pub ledger: Arc<Ledger>,
     pub unchecked: Arc<UncheckedMap>,
-    pub stats: Arc<Stats>,
+    pub stats: Arc<BlockBatchProcessorStats>,
 }
 
 impl BlockBatchProcessor {
@@ -51,16 +55,14 @@ impl BlockBatchProcessor {
         for (status, block_ctx) in &result {
             match status {
                 Ok(()) => {
-                    self.stats
-                        .inc(StatType::BlockProcessorResult, DetailType::Progress);
+                    self.stats.progress.fetch_add(1, Relaxed);
                 }
                 Err(e) => {
-                    self.stats.inc(StatType::BlockProcessorResult, (*e).into());
+                    self.stats.errors[*e as usize].fetch_add(1, Relaxed);
                 }
             }
 
-            self.stats
-                .inc(StatType::BlockProcessorSource, block_ctx.source.into());
+            self.stats.sources[block_ctx.source as usize].fetch_add(1, Relaxed);
 
             let hash = &block_ctx.block.hash();
             let block = &block_ctx.block;
@@ -87,7 +89,6 @@ impl BlockBatchProcessor {
                 Err(BlockError::GapPrevious) => {
                     self.unchecked
                         .put(block.previous().into(), UncheckedInfo::new(block.clone()));
-                    self.stats.inc(StatType::Ledger, DetailType::GapPrevious);
                 }
                 Err(BlockError::GapSource) => {
                     self.unchecked.put(
@@ -97,7 +98,6 @@ impl BlockBatchProcessor {
                             .into(),
                         UncheckedInfo::new(block.clone()),
                     );
-                    self.stats.inc(StatType::Ledger, DetailType::GapSource);
                 }
                 Err(BlockError::GapEpochOpenPending) => {
                     // Specific unchecked key starting with epoch open block account public key
@@ -105,10 +105,9 @@ impl BlockBatchProcessor {
                         block.account_field().unwrap().into(),
                         UncheckedInfo::new(block.clone()),
                     );
-                    self.stats.inc(StatType::Ledger, DetailType::GapSource);
                 }
                 Err(BlockError::Old) => {
-                    self.stats.inc(StatType::Ledger, DetailType::Old);
+                    debug!("Block is old: {}", hash)
                 }
                 // These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
                 Err(BlockError::BadSignature) => {
@@ -121,7 +120,6 @@ impl BlockBatchProcessor {
                     debug!("Block is unreceivable: {}", hash)
                 }
                 Err(BlockError::Fork) => {
-                    self.stats.inc(StatType::Ledger, DetailType::Fork);
                     debug!("Block is a fork: {}", hash)
                 }
                 Err(BlockError::OpenedBurnAccount) => {
@@ -148,6 +146,39 @@ impl BlockBatchProcessor {
                 cb(*res);
             }
             context.set_result(*res);
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct BlockBatchProcessorStats {
+    progress: AtomicU64,
+    errors: [AtomicU64; BlockError::COUNT],
+    sources: [AtomicU64; BlockSource::COUNT],
+}
+
+impl StatsSource for BlockBatchProcessorStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert(
+            "block_processor_result",
+            "progress",
+            self.progress.load(Relaxed),
+        );
+
+        for e in BlockError::iter() {
+            result.insert(
+                "block_processor_result",
+                e.into(),
+                self.errors[e as usize].load(Relaxed),
+            );
+        }
+
+        for s in BlockSource::iter() {
+            result.insert(
+                "block_processor_source",
+                s.into(),
+                self.sources[s as usize].load(Relaxed),
+            );
         }
     }
 }

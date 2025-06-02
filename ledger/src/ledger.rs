@@ -31,7 +31,8 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, EnumCount, EnumIter, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
 pub enum BlockError {
     /// Signature was bad, forged or transmission error
     BadSignature,
@@ -1005,4 +1006,15 @@ pub struct ProcessedResult {
     pub source: BlockSource,
     pub status: Result<(), BlockError>,
     pub saved_block: Option<SavedBlock>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_variant_to_static_str() {
+        let s: &'static str = BlockError::GapSource.into();
+        assert_eq!(s, "gap_source");
+    }
 }

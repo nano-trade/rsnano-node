@@ -80,6 +80,7 @@ pub enum ChannelDirection {
 #[derive(
     Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EnumCount, EnumIter, IntoStaticStr,
 )]
+#[strum(serialize_all = "snake_case")]
 pub enum TrafficType {
     Generic,
     /// Ascending bootstrap (asc_pull_ack, asc_pull_req) traffic

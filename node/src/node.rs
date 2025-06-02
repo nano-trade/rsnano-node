@@ -850,7 +850,6 @@ impl Node {
             block_processor_queue.clone(),
             ledger.clone(),
             unchecked.clone(),
-            stats.clone(),
         );
 
         let vote_cache_w = Arc::downgrade(&vote_cache);

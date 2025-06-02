@@ -43,6 +43,7 @@ pub use rsnano_store_lmdb::{WriteGuard, WriteQueue, Writer};
 #[derive(
     Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, EnumCount, Hash, IntoStaticStr,
 )]
+#[strum(serialize_all = "snake_case")]
 pub enum BlockSource {
     Unknown = 0,
     Live,
