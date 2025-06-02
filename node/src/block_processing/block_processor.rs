@@ -46,22 +46,8 @@ impl BlockProcessor {
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
         let queue = self.queue.clone();
-
-        let mut rollback = BlockBatchRollback {
-            ledger: self.ledger.clone(),
-            can_roll_back: self
-                .can_roll_back
-                .lock()
-                .unwrap()
-                .take()
-                .unwrap_or_else(|| Box::new(|_| true)),
-        };
-
-        let process = BlockBatchProcessor {
-            ledger: self.ledger.clone(),
-            unchecked: self.unchecked.clone(),
-            stats: self.stats.clone(),
-        };
+        let mut rollback = self.create_rollback_processor();
+        let process = self.create_block_batch_processor();
 
         *self.thread.lock().unwrap() = Some(
             std::thread::Builder::new()
@@ -80,6 +66,26 @@ impl BlockProcessor {
                 })
                 .unwrap(),
         );
+    }
+
+    fn create_block_batch_processor(&self) -> BlockBatchProcessor {
+        BlockBatchProcessor {
+            ledger: self.ledger.clone(),
+            unchecked: self.unchecked.clone(),
+            stats: self.stats.clone(),
+        }
+    }
+
+    fn create_rollback_processor(&self) -> BlockBatchRollback {
+        BlockBatchRollback {
+            ledger: self.ledger.clone(),
+            can_roll_back: self
+                .can_roll_back
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Box::new(|_| true)),
+        }
     }
 
     pub fn stop(&self) {
