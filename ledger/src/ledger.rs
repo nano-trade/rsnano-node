@@ -25,7 +25,7 @@ use std::{
     ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, RwLock,
+        Arc, Mutex, RwLock,
     },
     time::SystemTime,
 };
@@ -117,6 +117,7 @@ pub struct Ledger {
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
     observer: RwLock<Option<BackpressureSender<LedgerEvent>>>,
+    can_roll_back: Mutex<Box<dyn Fn(&BlockHash) -> bool + Send>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -242,6 +243,7 @@ impl Ledger {
             pruning: AtomicBool::new(false),
             stats,
             observer: RwLock::new(None),
+            can_roll_back: Mutex::new(Box::new(|_| true)),
         };
 
         ledger.initialize(thread_count, &GenerateCacheFlags::new())?;
@@ -251,6 +253,10 @@ impl Ledger {
 
     pub fn set_observer(&mut self, sink: BackpressureSender<LedgerEvent>) {
         *self.observer.write().unwrap() = Some(sink);
+    }
+
+    pub fn set_rollback_check(&self, can_roll_back: impl Fn(&BlockHash) -> bool + Send + 'static) {
+        *self.can_roll_back.lock().unwrap() = Box::new(can_roll_back);
     }
 
     fn initialize(
@@ -497,26 +503,22 @@ impl Ledger {
 
         pruned_count
     }
-    ///
+
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
     pub fn roll_back(&self, block: &BlockHash) -> Result<usize, RollbackError> {
-        let result = self.roll_back_batch(&[*block], usize::MAX, |_| true);
+        let result = self.roll_back_batch(&[*block], usize::MAX);
         let rolled_back = result[0].rolled_back.len();
         result[0].error.map_or(Ok(rolled_back), |e| Err(e))
     }
 
-    pub fn roll_back_batch(
-        &self,
-        targets: &[BlockHash],
-        max_rollbacks: usize,
-        can_roll_back: impl Fn(&BlockHash) -> bool,
-    ) -> RollbackResults {
+    pub fn roll_back_batch(&self, targets: &[BlockHash], max_rollbacks: usize) -> RollbackResults {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
         let mut rolled_back_count = 0;
         let mut results = RollbackResults::new();
         {
+            let can_roll_back = self.can_roll_back.lock().unwrap();
             let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
 
             for hash in targets {

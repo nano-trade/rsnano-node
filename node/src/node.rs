@@ -846,11 +846,11 @@ impl Node {
             true
         });
 
-        let mut block_processor = BlockProcessor::new(
+        let block_processor = Arc::new(BlockProcessor::new(
             block_processor_queue.clone(),
             ledger.clone(),
             unchecked.clone(),
-        );
+        ));
 
         let vote_cache_w = Arc::downgrade(&vote_cache);
         let active_w = Arc::downgrade(&active_elections);
@@ -858,7 +858,7 @@ impl Node {
         let confirming_set_w = Arc::downgrade(&confirming_set);
         let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
 
-        block_processor.can_roll_back(move |hash| {
+        ledger.set_rollback_check(move |hash| {
             if let Some(i) = vote_cache_w.upgrade() {
                 if i.lock().unwrap().contains(hash) {
                     return false;
@@ -890,8 +890,6 @@ impl Node {
             }
             true
         });
-
-        let block_processor = Arc::new(block_processor);
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
             steady_clock.clone(),

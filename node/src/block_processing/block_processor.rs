@@ -3,7 +3,6 @@ use std::{
     thread::JoinHandle,
 };
 
-use rsnano_core::BlockHash;
 use rsnano_ledger::Ledger;
 use rsnano_stats::{StatsCollection, StatsSource};
 
@@ -21,7 +20,6 @@ pub struct BlockProcessor {
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
     process_stats: Arc<BlockBatchProcessorStats>,
-    can_roll_back: Mutex<Option<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
 }
 
 impl BlockProcessor {
@@ -35,14 +33,8 @@ impl BlockProcessor {
             ledger,
             unchecked: unchecked_map,
             process_stats: Arc::new(BlockBatchProcessorStats::default()),
-            can_roll_back: Mutex::new(None),
             thread: Mutex::new(None),
         }
-    }
-
-    // Give other components a chance to veto a rollback
-    pub fn can_roll_back(&mut self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
-        *self.can_roll_back.lock().unwrap() = Some(Box::new(f));
     }
 
     pub fn start(&self) {
@@ -78,12 +70,6 @@ impl BlockProcessor {
     fn create_rollback_processor(&self) -> BlockBatchRollback {
         BlockBatchRollback {
             ledger: self.ledger.clone(),
-            can_roll_back: self
-                .can_roll_back
-                .lock()
-                .unwrap()
-                .take()
-                .unwrap_or_else(|| Box::new(|_| true)),
         }
     }
 

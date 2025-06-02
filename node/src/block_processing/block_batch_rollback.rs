@@ -1,22 +1,18 @@
 use std::sync::Arc;
 
-use rsnano_core::BlockHash;
 use rsnano_ledger::Ledger;
 
 use super::RollbackRequest;
 
 pub(crate) struct BlockBatchRollback {
     pub ledger: Arc<Ledger>,
-    pub can_roll_back: Box<dyn Fn(&BlockHash) -> bool + Send + Sync>,
 }
 
 impl BlockBatchRollback {
-    pub(crate) fn roll_back(&mut self, request: RollbackRequest) {
-        let mut results = self.ledger.roll_back_batch(
-            &request.targets,
-            request.max_rollbacks,
-            &self.can_roll_back,
-        );
+    pub(crate) fn roll_back(&self, request: RollbackRequest) {
+        let mut results = self
+            .ledger
+            .roll_back_batch(&request.targets, request.max_rollbacks);
 
         let mut processed_hashes = Vec::new();
         for result in results.drain(..) {
