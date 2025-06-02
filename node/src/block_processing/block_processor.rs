@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -21,7 +21,7 @@ pub struct BlockProcessor {
     ledger: Arc<Ledger>,
     unchecked: Arc<UncheckedMap>,
     stats: Arc<Stats>,
-    can_roll_back: Arc<RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
+    can_roll_back: Mutex<Option<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
 }
 
 impl BlockProcessor {
@@ -36,14 +36,14 @@ impl BlockProcessor {
             ledger,
             unchecked: unchecked_map,
             stats,
-            can_roll_back: Arc::new(RwLock::new(Box::new(|_| true))),
+            can_roll_back: Mutex::new(None),
             thread: Mutex::new(None),
         }
     }
 
     // Give other components a chance to veto a rollback
-    pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
-        *self.can_roll_back.write().unwrap() = Box::new(f);
+    pub fn can_rolling_back(&mut self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
+        *self.can_roll_back.lock().unwrap() = Some(Box::new(f));
     }
 
     pub fn start(&self) {
@@ -52,12 +52,18 @@ impl BlockProcessor {
         let mut processor_loop = BlockProcessorLoop {
             rollback: BlockBatchRollback {
                 ledger: self.ledger.clone(),
-                can_roll_back: self.can_roll_back.clone(),
+                can_roll_back: self
+                    .can_roll_back
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .unwrap_or_else(|| Box::new(|_| true)),
             },
             ledger: self.ledger.clone(),
             unchecked: self.unchecked.clone(),
             stats: self.stats.clone(),
         };
+
         *self.thread.lock().unwrap() = Some(
             std::thread::Builder::new()
                 .name("Blck processing".to_string())
@@ -101,15 +107,16 @@ impl StatsSource for BlockProcessor {
 
 struct BlockBatchRollback {
     ledger: Arc<Ledger>,
-    can_roll_back: Arc<RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>>,
+    can_roll_back: Box<dyn Fn(&BlockHash) -> bool + Send + Sync>,
 }
 
 impl BlockBatchRollback {
     fn roll_back(&mut self, request: RollbackRequest) {
-        let can_roll_back = self.can_roll_back.read().unwrap();
-        let mut results =
-            self.ledger
-                .roll_back_batch(&request.targets, request.max_rollbacks, &*can_roll_back);
+        let mut results = self.ledger.roll_back_batch(
+            &request.targets,
+            request.max_rollbacks,
+            &self.can_roll_back,
+        );
 
         let mut processed_hashes = Vec::new();
         for result in results.drain(..) {
