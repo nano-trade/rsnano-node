@@ -47,27 +47,24 @@ impl BlockProcessor {
 
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
-        let queue = self.queue.clone();
-        let mut rollback = self.create_rollback_processor();
-        let process = self.create_block_batch_processor();
+        let mut processor_loop = self.create_loop();
 
         *self.thread.lock().unwrap() = Some(
             std::thread::Builder::new()
                 .name("Blck processing".to_string())
                 .spawn(move || {
-                    while let Some(action) = queue.pop_blocking() {
-                        match action {
-                            BlockProcessorAction::RollBack(request) => {
-                                rollback.roll_back(request);
-                            }
-                            BlockProcessorAction::Process(blocks) => {
-                                process.process_blocks(blocks);
-                            }
-                        }
-                    }
+                    processor_loop.run();
                 })
                 .unwrap(),
         );
+    }
+
+    fn create_loop(&self) -> BlockProcessorLoop {
+        BlockProcessorLoop {
+            queue: self.queue.clone(),
+            rollback: self.create_rollback_processor(),
+            process: self.create_block_batch_processor(),
+        }
     }
 
     fn create_block_batch_processor(&self) -> BlockBatchProcessor {
@@ -101,13 +98,33 @@ impl BlockProcessor {
 
 impl Drop for BlockProcessor {
     fn drop(&mut self) {
-        // Thread must be stopped before destruction
-        debug_assert!(self.thread.lock().unwrap().is_none());
+        self.stop();
     }
 }
 
 impl StatsSource for BlockProcessor {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.process_stats.collect_stats(result);
+    }
+}
+
+struct BlockProcessorLoop {
+    queue: Arc<BlockProcessorQueue>,
+    rollback: BlockBatchRollback,
+    process: BlockBatchProcessor,
+}
+
+impl BlockProcessorLoop {
+    fn run(&mut self) {
+        while let Some(action) = self.queue.pop_blocking() {
+            match action {
+                BlockProcessorAction::RollBack(request) => {
+                    self.rollback.roll_back(request);
+                }
+                BlockProcessorAction::Process(blocks) => {
+                    self.process.process_blocks(blocks);
+                }
+            }
+        }
     }
 }
