@@ -41,7 +41,7 @@ impl BlockProcessor {
     }
 
     // Give other components a chance to veto a rollback
-    pub fn can_rolling_back(&mut self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
+    pub fn can_roll_back(&mut self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
         *self.can_roll_back.lock().unwrap() = Some(Box::new(f));
     }
 

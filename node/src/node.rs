@@ -858,7 +858,7 @@ impl Node {
         let confirming_set_w = Arc::downgrade(&confirming_set);
         let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
 
-        block_processor.can_rolling_back(move |hash| {
+        block_processor.can_roll_back(move |hash| {
             if let Some(i) = vote_cache_w.upgrade() {
                 if i.lock().unwrap().contains(hash) {
                     return false;

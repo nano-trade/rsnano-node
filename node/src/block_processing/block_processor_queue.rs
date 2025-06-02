@@ -179,7 +179,7 @@ impl BlockProcessorQueue {
         guard.take().unwrap()
     }
 
-    pub fn roll_back(&self, request: RollbackRequest) -> bool {
+    fn roll_back(&self, request: RollbackRequest) -> bool {
         {
             let mut guard = self.queue.lock().unwrap();
             if guard.stopped {
