@@ -7,7 +7,7 @@ use strum::{EnumCount, IntoEnumIterator};
 
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
-    Block, BlockHash, SavedBlock,
+    Block, SavedBlock,
 };
 use rsnano_ledger::{BlockError, BlockSource};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
@@ -19,28 +19,7 @@ use super::{
 use rsnano_stats::{StatsCollection, StatsSource};
 
 pub(crate) enum BlockProcessorAction {
-    RollBack(RollbackRequest),
     Process(VecDeque<Arc<BlockContext>>),
-}
-
-pub struct RollbackRequest {
-    pub targets: Vec<BlockHash>,
-    pub max_rollbacks: usize,
-    pub result: Arc<RollbackResult>,
-}
-
-pub struct RollbackResult {
-    pub rolled_back: Mutex<Option<Vec<BlockHash>>>,
-    pub done: Condvar,
-}
-
-impl RollbackResult {
-    pub fn new() -> Self {
-        Self {
-            rolled_back: Mutex::new(None),
-            done: Condvar::new(),
-        }
-    }
 }
 
 pub struct BlockProcessorQueue {
@@ -60,11 +39,6 @@ impl BlockProcessorQueue {
         {
             let mut queue = self.queue.lock().unwrap();
             queue.stopped = true;
-
-            for req in queue.rollback_queue.drain(..) {
-                *req.result.rolled_back.lock().unwrap() = Some(Vec::new());
-                req.result.done.notify_all();
-            }
         }
         self.condition.notify_all();
     }
@@ -87,10 +61,6 @@ impl BlockProcessorQueue {
             }
 
             if !queue.cool_down {
-                if let Some(request) = queue.rollback_queue.pop_front() {
-                    return Some(BlockProcessorAction::RollBack(request));
-                }
-
                 let batch = queue.process_queue.next_batch();
                 if !batch.is_empty() {
                     return Some(BlockProcessorAction::Process(batch));
@@ -158,40 +128,6 @@ impl BlockProcessorQueue {
         added
     }
 
-    pub fn roll_back_blocking(
-        &self,
-        targets: Vec<BlockHash>,
-        max_rollbacks: usize,
-    ) -> Vec<BlockHash> {
-        let result = Arc::new(RollbackResult::new());
-        let request = RollbackRequest {
-            targets,
-            max_rollbacks,
-            result: result.clone(),
-        };
-        let added = self.roll_back(request);
-        if !added {
-            return Vec::new();
-        }
-
-        let mut guard = result.rolled_back.lock().unwrap();
-        guard = result.done.wait_while(guard, |i| i.is_none()).unwrap();
-        guard.take().unwrap()
-    }
-
-    fn roll_back(&self, request: RollbackRequest) -> bool {
-        {
-            let mut guard = self.queue.lock().unwrap();
-            if guard.stopped {
-                return false;
-            }
-
-            guard.rollback_queue.push_back(request);
-        }
-        self.condition.notify_all();
-        true
-    }
-
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
         self.queue.lock().unwrap().process_queue.info()
     }
@@ -229,7 +165,6 @@ impl ContainerInfoProvider for BlockProcessorQueue {
 
 struct BlockProcessorQueueImpl {
     process_queue: ProcessQueue,
-    rollback_queue: VecDeque<RollbackRequest>,
     stopped: bool,
     cool_down: bool,
     processed: u64,
@@ -242,7 +177,6 @@ impl BlockProcessorQueueImpl {
     pub fn new(config: ProcessQueueConfig) -> Self {
         Self {
             process_queue: ProcessQueue::new(config),
-            rollback_queue: VecDeque::new(),
             stopped: false,
             cool_down: false,
             processed: 0,
@@ -261,7 +195,7 @@ impl BlockProcessorQueueImpl {
             return true;
         }
 
-        self.process_queue.is_empty() && self.rollback_queue.is_empty()
+        self.process_queue.is_empty()
     }
 
     pub fn push(&mut self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {

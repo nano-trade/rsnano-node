@@ -1,7 +1,6 @@
 mod backlog_index;
 mod backlog_scan;
 mod block_batch_processor;
-mod block_batch_rollback;
 mod block_context;
 mod block_processor;
 mod block_processor_queue;

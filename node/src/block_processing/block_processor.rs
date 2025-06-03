@@ -10,9 +10,7 @@ use super::{
     block_batch_processor::BlockBatchProcessorStats, BlockProcessorAction, BlockProcessorQueue,
     UncheckedMap,
 };
-use crate::block_processing::{
-    block_batch_processor::BlockBatchProcessor, block_batch_rollback::BlockBatchRollback,
-};
+use crate::block_processing::block_batch_processor::BlockBatchProcessor;
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
@@ -54,7 +52,6 @@ impl BlockProcessor {
     fn create_loop(&self) -> BlockProcessorLoop {
         BlockProcessorLoop {
             queue: self.queue.clone(),
-            rollback: self.create_rollback_processor(),
             process: self.create_block_batch_processor(),
         }
     }
@@ -64,12 +61,6 @@ impl BlockProcessor {
             ledger: self.ledger.clone(),
             unchecked: self.unchecked.clone(),
             stats: self.process_stats.clone(),
-        }
-    }
-
-    fn create_rollback_processor(&self) -> BlockBatchRollback {
-        BlockBatchRollback {
-            ledger: self.ledger.clone(),
         }
     }
 
@@ -96,7 +87,6 @@ impl StatsSource for BlockProcessor {
 
 struct BlockProcessorLoop {
     queue: Arc<BlockProcessorQueue>,
-    rollback: BlockBatchRollback,
     process: BlockBatchProcessor,
 }
 
@@ -104,9 +94,6 @@ impl BlockProcessorLoop {
     fn run(&mut self) {
         while let Some(action) = self.queue.pop_blocking() {
             match action {
-                BlockProcessorAction::RollBack(request) => {
-                    self.rollback.roll_back(request);
-                }
                 BlockProcessorAction::Process(blocks) => {
                     self.process.process_blocks(blocks);
                 }

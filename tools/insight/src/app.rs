@@ -133,8 +133,7 @@ impl InsightApp {
     pub(crate) fn roll_back(&self) {
         if let Ok(hash) = BlockHash::decode_hex(&self.rollback_hash) {
             if let Some(node) = self.node_runner.node() {
-                node.block_processor_queue
-                    .roll_back_blocking(vec![hash], usize::MAX);
+                let _ = node.ledger.roll_back(&hash);
             }
         }
     }

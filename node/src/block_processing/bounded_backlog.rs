@@ -16,7 +16,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
-    BlockProcessorQueue, RollbackRequest, RollbackResult,
+    BlockProcessorQueue,
 };
 use crate::consensus::election_schedulers::priority::Bucketing;
 
@@ -301,12 +301,7 @@ impl BoundedBacklogImpl {
                     targets.len() as u64,
                 );
 
-                let request = RollbackRequest {
-                    targets,
-                    max_rollbacks: target_count,
-                    result: Arc::new(RollbackResult::new()),
-                };
-                let processed = self.roll_back(request);
+                let processed = self.roll_back(&targets, target_count);
                 guard = self.mutex.lock().unwrap();
 
                 // Erase rolled back blocks from the index
@@ -326,10 +321,8 @@ impl BoundedBacklogImpl {
         }
     }
 
-    fn roll_back(&self, request: RollbackRequest) -> Vec<BlockHash> {
-        let mut results = self
-            .ledger
-            .roll_back_batch(&request.targets, request.max_rollbacks);
+    fn roll_back(&self, targets: &[BlockHash], max_rollbacks: usize) -> Vec<BlockHash> {
+        let mut results = self.ledger.roll_back_batch(targets, max_rollbacks);
 
         let mut processed_hashes = Vec::new();
         for result in results.drain(..) {
@@ -342,8 +335,6 @@ impl BoundedBacklogImpl {
             }
         }
 
-        *request.result.rolled_back.lock().unwrap() = Some(processed_hashes.clone());
-        request.result.done.notify_all();
         processed_hashes
     }
 
