@@ -119,10 +119,6 @@ struct BlockProcessorLoop {
 }
 
 impl BlockProcessorLoop {
-    const BACKLOG_THRESHOLD: f64 = 1.5;
-    const BACKLOG_THROTTLE_MS: u64 = 100;
-    const BACKLOG_THROTTLE_MAX_MS: u64 = 1000;
-
     fn run(&mut self) {
         while let Some(blocks) = self.queue.pop_blocking() {
             self.wait_for_bounded_backlog();
@@ -136,49 +132,61 @@ impl BlockProcessorLoop {
     }
 
     fn wait_for_bounded_backlog(&mut self) {
-        let backlog_factor = self.backlog_factor();
-
-        if backlog_factor < 1.0 {
+        let throttle_wait = throttle_wait(self.ledger.backlog_count(), self.max_backlog);
+        if throttle_wait.is_zero() {
             return;
         }
 
-        // This uses a power of approximately 3.32, which gives ~1x at 1.0 and ~10x at 2.0
-        let scaling = backlog_factor.powf(3.32);
-        let throttle_wait_ms = min(
-            (Self::BACKLOG_THROTTLE_MS as f64 * scaling) as u64,
-            Self::BACKLOG_THROTTLE_MAX_MS,
-        );
-
-        let throttle_wait = Duration::from_millis(throttle_wait_ms);
-
-        if self.should_log() {
+        let now = self.clock.now();
+        if self.should_log(now) {
             warn!(
                 throttle_ms = throttle_wait.as_millis(),
                 backlog_size = self.ledger.backlog_count(),
                 "Backlog exceeded. Throttling!"
             );
-            self.last_log = Some(self.clock.now());
+            self.last_log = Some(now);
         }
 
         self.cooldown_count.fetch_add(1, Relaxed);
         self.queue.wait(throttle_wait);
     }
 
-    fn should_log(&self) -> bool {
+    fn should_log(&self, now: Timestamp) -> bool {
         match self.last_log {
-            Some(i) => i.elapsed(self.clock.now()) >= Duration::from_secs(15),
+            Some(i) => i.elapsed(now) >= Duration::from_secs(15),
             None => true,
         }
     }
+}
 
-    fn backlog_factor(&self) -> f64 {
-        let backlog_count = self.ledger.backlog_count();
-        if self.max_backlog == 0 || backlog_count <= self.max_backlog {
-            return 0.0;
-        }
+fn throttle_wait(backlog_count: u64, max_backlog: u64) -> Duration {
+    const BACKLOG_THROTTLE_MS: u64 = 100;
+    const BACKLOG_THROTTLE_MAX_MS: u64 = 1000;
 
-        let max_with_threshold = self.max_backlog as f64 * Self::BACKLOG_THRESHOLD;
-        let factor = backlog_count as f64 / max_with_threshold;
-        factor
+    let backlog_factor = backlog_factor(backlog_count, max_backlog);
+
+    if backlog_factor < 1.0 {
+        return Duration::ZERO;
     }
+
+    // This uses a power of approximately 3.32, which gives ~1x at 1.0 and ~10x at 2.0
+    let scaling = backlog_factor.powf(3.32);
+    let throttle_wait_ms = min(
+        (BACKLOG_THROTTLE_MS as f64 * scaling) as u64,
+        BACKLOG_THROTTLE_MAX_MS,
+    );
+
+    Duration::from_millis(throttle_wait_ms)
+}
+
+fn backlog_factor(backlog_count: u64, max_backlog: u64) -> f64 {
+    const BACKLOG_THRESHOLD: f64 = 1.5;
+
+    if max_backlog == 0 || backlog_count <= max_backlog {
+        return 0.0;
+    }
+
+    let max_with_threshold = max_backlog as f64 * BACKLOG_THRESHOLD;
+    let factor = backlog_count as f64 / max_with_threshold;
+    factor
 }
