@@ -132,7 +132,8 @@ impl BlockProcessorLoop {
     }
 
     fn wait_for_bounded_backlog(&mut self) {
-        let throttle_wait = throttle_wait(self.ledger.backlog_count(), self.max_backlog);
+        let backlog_count = self.ledger.backlog_count();
+        let throttle_wait = throttle_wait(backlog_count, self.max_backlog);
         if throttle_wait.is_zero() {
             return;
         }
@@ -141,7 +142,7 @@ impl BlockProcessorLoop {
         if self.should_log(now) {
             warn!(
                 throttle_ms = throttle_wait.as_millis(),
-                backlog_size = self.ledger.backlog_count(),
+                backlog_size = backlog_count,
                 "Backlog exceeded. Throttling!"
             );
             self.last_log = Some(now);
@@ -189,4 +190,46 @@ fn backlog_factor(backlog_count: u64, max_backlog: u64) -> f64 {
     let max_with_threshold = max_backlog as f64 * BACKLOG_THRESHOLD;
     let factor = backlog_count as f64 / max_with_threshold;
     factor
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_backlog_factor() {
+        fn assert_factor(backlog_count: u64, max_backlog: u64, expected: f64) {
+            let factor = backlog_factor(backlog_count, max_backlog);
+            let delta = (expected - factor).abs();
+            assert!(delta < 0.01, "expected: {}, actual: {}", expected, factor);
+        }
+
+        assert_factor(0, 0, 0.0);
+        assert_factor(1000, 0, 0.0);
+        assert_factor(0, 1000, 0.0);
+        assert_factor(999, 1000, 0.0);
+        assert_factor(1000, 1000, 0.0);
+        assert_factor(1001, 1000, 0.667);
+        assert_factor(1250, 1000, 0.833);
+        assert_factor(1500, 1000, 1.0);
+        assert_factor(2000, 1000, 1.333);
+        assert_factor(3000, 1000, 2.0);
+    }
+
+    #[test]
+    fn test_throttle_wait() {
+        fn assert_throttle(backlog_count: u64, max_backlog: u64, expected_ms: u64) {
+            let throttle = throttle_wait(backlog_count, max_backlog);
+            assert_eq!(throttle, Duration::from_millis(expected_ms));
+        }
+
+        assert_throttle(0, 0, 0);
+        assert_throttle(1000, 1000, 0);
+        assert_throttle(1499, 1000, 0);
+        assert_throttle(1500, 1000, 100);
+        assert_throttle(2000, 1000, 259);
+        assert_throttle(2500, 1000, 545);
+        assert_throttle(3000, 1000, 998);
+        assert_throttle(10000, 1000, 1000);
+    }
 }
