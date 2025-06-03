@@ -98,6 +98,8 @@ struct BlockProcessorLoop {
 
 impl BlockProcessorLoop {
     const BACKLOG_THRESHOLD: f64 = 1.5;
+    const BACKLOG_THROTTLE_MS: u64 = 100;
+    const BACKLOG_THROTTLE_MAX_MS: u64 = 1000;
 
     fn run(&mut self) {
         while let Some(blocks) = self.queue.pop_blocking() {
@@ -118,9 +120,17 @@ impl BlockProcessorLoop {
             return;
         }
 
-        let throttle_wait = Duration::from_secs(1); // TODO use formula from nano_node
+        // This uses a power of approximately 3.32, which gives ~1x at 1.0 and ~10x at 2.0
+        let scaling = backlog_factor.powf(3.32);
+        let throttle_wait_ms = min(
+            (Self::BACKLOG_THROTTLE_MS as f64 * scaling) as u64,
+            Self::BACKLOG_THROTTLE_MAX_MS,
+        );
 
-        // TODO logging
+        let throttle_wait = Duration::from_millis(throttle_wait_ms);
+
+        // TODO log every 15s
+        // TODO stats
 
         self.queue.wait(throttle_wait);
     }
