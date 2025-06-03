@@ -18,10 +18,6 @@ use super::{
 };
 use rsnano_stats::{StatsCollection, StatsSource};
 
-pub(crate) enum BlockProcessorAction {
-    Process(VecDeque<Arc<BlockContext>>),
-}
-
 pub struct BlockProcessorQueue {
     queue: Mutex<BlockProcessorQueueImpl>,
     condition: Condvar,
@@ -52,7 +48,7 @@ impl BlockProcessorQueue {
         self.queue.lock().unwrap().cool_down
     }
 
-    pub(crate) fn pop_blocking(&self) -> Option<BlockProcessorAction> {
+    pub(crate) fn pop_blocking(&self) -> Option<VecDeque<Arc<BlockContext>>> {
         let mut queue = self.queue.lock().unwrap();
 
         loop {
@@ -63,7 +59,7 @@ impl BlockProcessorQueue {
             if !queue.cool_down {
                 let batch = queue.process_queue.next_batch();
                 if !batch.is_empty() {
-                    return Some(BlockProcessorAction::Process(batch));
+                    return Some(batch);
                 }
             }
 

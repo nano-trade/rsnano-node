@@ -6,10 +6,7 @@ use std::{
 use rsnano_ledger::Ledger;
 use rsnano_stats::{StatsCollection, StatsSource};
 
-use super::{
-    block_batch_processor::BlockBatchProcessorStats, BlockProcessorAction, BlockProcessorQueue,
-    UncheckedMap,
-};
+use super::{block_batch_processor::BlockBatchProcessorStats, BlockProcessorQueue, UncheckedMap};
 use crate::block_processing::block_batch_processor::BlockBatchProcessor;
 
 pub struct BlockProcessor {
@@ -92,12 +89,8 @@ struct BlockProcessorLoop {
 
 impl BlockProcessorLoop {
     fn run(&mut self) {
-        while let Some(action) = self.queue.pop_blocking() {
-            match action {
-                BlockProcessorAction::Process(blocks) => {
-                    self.process.process_blocks(blocks);
-                }
-            }
+        while let Some(blocks) = self.queue.pop_blocking() {
+            self.process.process_blocks(blocks);
         }
     }
 }
