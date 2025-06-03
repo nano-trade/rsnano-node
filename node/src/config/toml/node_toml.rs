@@ -25,7 +25,7 @@ pub struct NodeToml {
     pub io_threads: Option<usize>,
     pub max_queued_requests: Option<u32>,
     pub max_unchecked_blocks: Option<u32>,
-    pub max_backlog: Option<usize>,
+    pub max_backlog: Option<u64>,
     pub max_work_generate_multiplier: Option<f64>,
     pub network_threads: Option<u32>,
     pub online_weight_minimum: Option<String>,

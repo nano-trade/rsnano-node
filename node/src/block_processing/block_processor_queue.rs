@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
+    time::Duration,
 };
 
 use strum::{EnumCount, IntoEnumIterator};
@@ -39,6 +40,10 @@ impl BlockProcessorQueue {
         self.condition.notify_all();
     }
 
+    pub fn stopped(&self) -> bool {
+        self.queue.lock().unwrap().stopped
+    }
+
     pub fn set_cooldown(&self, cool_down: bool) {
         self.queue.lock().unwrap().cool_down = cool_down;
         self.condition.notify_all();
@@ -46,6 +51,13 @@ impl BlockProcessorQueue {
 
     pub fn is_cooling_down(&self) -> bool {
         self.queue.lock().unwrap().cool_down
+    }
+
+    pub fn wait(&self, duration: Duration) {
+        let guard = self.queue.lock().unwrap();
+        let _ = self
+            .condition
+            .wait_timeout_while(guard, duration, |i| !i.stopped);
     }
 
     pub(crate) fn pop_blocking(&self) -> Option<VecDeque<Arc<BlockContext>>> {

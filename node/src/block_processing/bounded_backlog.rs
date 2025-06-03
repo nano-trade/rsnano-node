@@ -21,7 +21,7 @@ use crate::consensus::election_schedulers::priority::Bucketing;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {
-    pub max_backlog: usize,
+    pub max_backlog: u64,
     pub batch_size: usize,
     pub scan_rate: usize,
 }
@@ -272,7 +272,7 @@ impl BoundedBacklogImpl {
             self.stats.inc(StatType::BoundedBacklog, DetailType::Loop);
 
             // Calculate the number of targets to rollback
-            let backlog = self.ledger.backlog_count() as usize;
+            let backlog = self.ledger.backlog_count();
 
             let target_count = if backlog > self.config.max_backlog {
                 backlog - self.config.max_backlog
@@ -281,8 +281,10 @@ impl BoundedBacklogImpl {
             };
 
             let can_roll_back = self.can_roll_back.read().unwrap();
-            let targets =
-                guard.gather_targets(min(target_count, self.config.batch_size), &*can_roll_back);
+            let targets = guard.gather_targets(
+                min(target_count as usize, self.config.batch_size),
+                &*can_roll_back,
+            );
 
             if !targets.is_empty() {
                 drop(guard);
@@ -292,7 +294,7 @@ impl BoundedBacklogImpl {
                     targets.len() as u64,
                 );
 
-                let processed = self.roll_back(&targets, target_count, &*can_roll_back);
+                let processed = self.roll_back(&targets, target_count as usize, &*can_roll_back);
                 guard = self.mutex.lock().unwrap();
 
                 // Erase rolled back blocks from the index
@@ -402,8 +404,8 @@ impl BacklogData {
         }
 
         // Both ledger and tracked backlog must be over the threshold
-        self.ledger.backlog_count() as usize > self.config.max_backlog
-            && self.index.len() > self.config.max_backlog
+        self.ledger.backlog_count() > self.config.max_backlog
+            && self.index.len() > self.config.max_backlog as usize
     }
 
     fn gather_targets(
@@ -429,6 +431,6 @@ impl BacklogData {
     }
 
     fn bucket_threshold(&self) -> usize {
-        self.config.max_backlog / self.bucket_count
+        self.config.max_backlog as usize / self.bucket_count
     }
 }

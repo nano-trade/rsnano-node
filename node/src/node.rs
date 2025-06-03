@@ -726,6 +726,9 @@ impl Node {
         if config.bounded_backlog.max_backlog == 0 {
             config.enable_bounded_backlog = false;
         }
+        if !config.enable_bounded_backlog {
+            config.bounded_backlog.max_backlog = 0;
+        }
 
         let bounded_backlog = Arc::new(BoundedBacklog::new(
             election_schedulers.priority.bucketing().clone(),
@@ -849,6 +852,7 @@ impl Node {
             block_processor_queue.clone(),
             ledger.clone(),
             unchecked.clone(),
+            config.bounded_backlog.max_backlog,
         ));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
