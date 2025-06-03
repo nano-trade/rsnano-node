@@ -1,6 +1,9 @@
 use std::{
     cmp::min,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering::Relaxed},
+        Arc, Mutex,
+    },
     thread::JoinHandle,
     time::Duration,
 };
@@ -10,6 +13,8 @@ use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{block_batch_processor::BlockBatchProcessorStats, BlockProcessorQueue, UncheckedMap};
 use crate::block_processing::block_batch_processor::BlockBatchProcessor;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use tracing::warn;
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
@@ -18,6 +23,8 @@ pub struct BlockProcessor {
     unchecked: Arc<UncheckedMap>,
     process_stats: Arc<BlockBatchProcessorStats>,
     max_backlog: u64,
+    cooldown_count: Arc<AtomicU64>,
+    clock: Arc<SteadyClock>,
 }
 
 impl BlockProcessor {
@@ -25,6 +32,7 @@ impl BlockProcessor {
         queue: Arc<BlockProcessorQueue>,
         ledger: Arc<Ledger>,
         unchecked_map: Arc<UncheckedMap>,
+        clock: Arc<SteadyClock>,
         max_backlog: u64,
     ) -> Self {
         Self {
@@ -34,6 +42,8 @@ impl BlockProcessor {
             process_stats: Arc::new(BlockBatchProcessorStats::default()),
             thread: Mutex::new(None),
             max_backlog,
+            cooldown_count: Arc::new(AtomicU64::new(0)),
+            clock,
         }
     }
 
@@ -57,6 +67,9 @@ impl BlockProcessor {
             process: self.create_block_batch_processor(),
             ledger: self.ledger.clone(),
             max_backlog: self.max_backlog,
+            cooldown_count: self.cooldown_count.clone(),
+            last_log: None,
+            clock: self.clock.clone(),
         }
     }
 
@@ -86,6 +99,12 @@ impl Drop for BlockProcessor {
 impl StatsSource for BlockProcessor {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.process_stats.collect_stats(result);
+
+        result.insert(
+            "block_processor",
+            "cooldown_backlog",
+            self.cooldown_count.load(Relaxed),
+        );
     }
 }
 
@@ -94,6 +113,9 @@ struct BlockProcessorLoop {
     process: BlockBatchProcessor,
     max_backlog: u64,
     ledger: Arc<Ledger>,
+    cooldown_count: Arc<AtomicU64>,
+    last_log: Option<Timestamp>,
+    clock: Arc<SteadyClock>,
 }
 
 impl BlockProcessorLoop {
@@ -113,7 +135,7 @@ impl BlockProcessorLoop {
         }
     }
 
-    fn wait_for_bounded_backlog(&self) {
+    fn wait_for_bounded_backlog(&mut self) {
         let backlog_factor = self.backlog_factor();
 
         if backlog_factor < 1.0 {
@@ -129,10 +151,24 @@ impl BlockProcessorLoop {
 
         let throttle_wait = Duration::from_millis(throttle_wait_ms);
 
-        // TODO log every 15s
-        // TODO stats
+        if self.should_log() {
+            warn!(
+                throttle_ms = throttle_wait.as_millis(),
+                backlog_size = self.ledger.backlog_count(),
+                "Backlog exceeded. Throttling!"
+            );
+            self.last_log = Some(self.clock.now());
+        }
 
+        self.cooldown_count.fetch_add(1, Relaxed);
         self.queue.wait(throttle_wait);
+    }
+
+    fn should_log(&self) -> bool {
+        match self.last_log {
+            Some(i) => i.elapsed(self.clock.now()) >= Duration::from_secs(15),
+            None => true,
+        }
     }
 
     fn backlog_factor(&self) -> f64 {

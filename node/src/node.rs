@@ -852,6 +852,7 @@ impl Node {
             block_processor_queue.clone(),
             ledger.clone(),
             unchecked.clone(),
+            steady_clock.clone(),
             config.bounded_backlog.max_backlog,
         ));
 
