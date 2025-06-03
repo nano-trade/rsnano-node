@@ -121,7 +121,7 @@ impl BoundedBacklog {
     }
 
     // Give other components a chance to veto a rollback
-    pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
+    pub fn can_roll_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
         *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
     }
 

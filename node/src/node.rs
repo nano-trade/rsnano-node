@@ -812,7 +812,7 @@ impl Node {
         let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
 
         // TODO: remove the duplication of the on_rolling_back event
-        bounded_backlog.on_rolling_back(move |hash| {
+        bounded_backlog.can_roll_back(move |hash| {
             if let Some(i) = vote_cache_w.upgrade() {
                 if i.lock().unwrap().contains(hash) {
                     return false;
