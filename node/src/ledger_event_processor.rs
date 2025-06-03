@@ -5,7 +5,7 @@ use rsnano_ledger::LedgerEvent;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::{
-    block_processing::BlockProcessorQueue,
+    block_processing::{BlockProcessorQueue, BoundedBacklog},
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     consensus::{
@@ -26,6 +26,7 @@ pub(crate) struct LedgerEventProcessor {
     pub(crate) active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     pub(crate) block_processor_queue: Arc<BlockProcessorQueue>,
     pub(crate) fork_cache_updater: ForkCacheUpdater,
+    pub(crate) bounded_backlog: Arc<BoundedBacklog>,
     pub(crate) plugins: Vec<Box<dyn LedgerEventProcessorPlugin>>,
 }
 
@@ -41,6 +42,7 @@ impl LedgerEventProcessor {
             vote_history: Arc::new(LocalVoteHistory::new(Networks::NanoLiveNetwork)),
             active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
             block_processor_queue: Arc::new(BlockProcessorQueue::default()),
+            bounded_backlog: Arc::new(BoundedBacklog::new_null()),
             fork_cache_updater: ForkCacheUpdater::new(Arc::new(RwLock::new(ForkCache::default()))),
             plugins: Vec::new(),
         }
@@ -51,6 +53,7 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
     fn cool_down(&mut self) {
         self.confirming_set.set_cooldown(true);
         self.block_processor_queue.set_cooldown(true);
+        self.bounded_backlog.set_cooldown(true);
         self.stats
             .inc(StatType::ConfirmingSet, DetailType::Cooldown);
     }
@@ -58,6 +61,7 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
     fn recovered(&mut self) {
         self.confirming_set.set_cooldown(false);
         self.block_processor_queue.set_cooldown(false);
+        self.bounded_backlog.set_cooldown(false);
         self.stats
             .inc(StatType::ConfirmingSet, DetailType::Recovered);
     }

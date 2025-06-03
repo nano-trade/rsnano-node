@@ -90,6 +90,7 @@ struct BlockProcessorLoop {
 impl BlockProcessorLoop {
     fn run(&mut self) {
         while let Some(blocks) = self.queue.pop_blocking() {
+            // TODO wait for bounded backlog
             self.process.process_blocks(blocks);
         }
     }

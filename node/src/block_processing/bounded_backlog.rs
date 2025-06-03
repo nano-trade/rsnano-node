@@ -16,7 +16,6 @@ use rsnano_stats::{DetailType, StatType, Stats};
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
-    BlockProcessorQueue,
 };
 use crate::consensus::election_schedulers::priority::Bucketing;
 
@@ -49,13 +48,13 @@ impl BoundedBacklog {
         bucketing: Bucketing,
         config: BoundedBacklogConfig,
         ledger: Arc<Ledger>,
-        block_processor_queue: Arc<BlockProcessorQueue>,
         stats: Arc<Stats>,
     ) -> Self {
         let backlog_impl = Arc::new(BoundedBacklogImpl {
             condition: Condvar::new(),
             mutex: Mutex::new(BacklogData {
                 stopped: false,
+                cool_down: false,
                 index: BacklogIndex::new(bucketing.bucket_count()),
                 ledger: ledger.clone(),
                 config: config.clone(),
@@ -65,7 +64,6 @@ impl BoundedBacklog {
             config,
             stats,
             ledger,
-            block_processor_queue,
             can_roll_back: RwLock::new(Box::new(|_| true)),
         });
 
@@ -81,10 +79,9 @@ impl BoundedBacklog {
         let bucketing = Bucketing::default();
         let config = BoundedBacklogConfig::default();
         let ledger = Arc::new(Ledger::new_null());
-        let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let stats = Arc::new(Stats::default());
 
-        Self::new(bucketing, config, ledger, block_processor_queue, stats)
+        Self::new(bucketing, config, ledger, stats)
     }
 
     pub fn start(&self) {
@@ -123,6 +120,11 @@ impl BoundedBacklog {
     // Give other components a chance to veto a rollback
     pub fn can_roll_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
         *self.backlog_impl.can_roll_back.write().unwrap() = Box::new(f);
+    }
+
+    pub fn set_cooldown(&self, cool_down: bool) {
+        self.backlog_impl.mutex.lock().unwrap().cool_down = cool_down;
+        self.backlog_impl.condition.notify_all();
     }
 
     pub fn activate_batch(&self, batch: &[UnconfirmedInfo]) {
@@ -248,7 +250,6 @@ struct BoundedBacklogImpl {
     config: BoundedBacklogConfig,
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
-    block_processor_queue: Arc<BlockProcessorQueue>,
     can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
@@ -263,15 +264,6 @@ impl BoundedBacklogImpl {
                 })
                 .unwrap()
                 .0;
-
-            // Wait until all notification about the previous rollbacks are processed
-            while self.block_processor_queue.is_cooling_down() && !guard.stopped {
-                drop(guard);
-                self.stats
-                    .inc(StatType::BoundedBacklog, DetailType::Cooldown);
-                std::thread::sleep(Duration::from_millis(50));
-                guard = self.mutex.lock().unwrap();
-            }
 
             if guard.stopped {
                 return;
@@ -395,6 +387,7 @@ impl BoundedBacklogImpl {
 
 struct BacklogData {
     stopped: bool,
+    cool_down: bool,
     index: BacklogIndex,
     ledger: Arc<Ledger>,
     config: BoundedBacklogConfig,
@@ -404,6 +397,10 @@ struct BacklogData {
 
 impl BacklogData {
     fn predicate(&self) -> bool {
+        if self.cool_down {
+            return false;
+        }
+
         // Both ledger and tracked backlog must be over the threshold
         self.ledger.backlog_count() as usize > self.config.max_backlog
             && self.index.len() > self.config.max_backlog

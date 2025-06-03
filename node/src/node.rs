@@ -731,7 +731,6 @@ impl Node {
             election_schedulers.priority.bucketing().clone(),
             config.bounded_backlog.clone(),
             ledger.clone(),
-            block_processor_queue.clone(),
             stats.clone(),
         ));
 
@@ -1169,6 +1168,7 @@ impl Node {
             vote_history: vote_history.clone(),
             active_elections: active_elections.clone(),
             block_processor_queue: block_processor_queue.clone(),
+            bounded_backlog: bounded_backlog.clone(),
             fork_cache_updater,
             plugins: ledger_event_processor_plugins,
         };
