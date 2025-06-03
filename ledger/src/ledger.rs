@@ -25,7 +25,7 @@ use std::{
     ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+        Arc, RwLock,
     },
     time::SystemTime,
 };
@@ -117,7 +117,6 @@ pub struct Ledger {
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
     observer: RwLock<Option<BackpressureSender<LedgerEvent>>>,
-    can_roll_back: Mutex<Box<dyn Fn(&BlockHash) -> bool + Send>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -243,7 +242,6 @@ impl Ledger {
             pruning: AtomicBool::new(false),
             stats,
             observer: RwLock::new(None),
-            can_roll_back: Mutex::new(Box::new(|_| true)),
         };
 
         ledger.initialize(thread_count, &GenerateCacheFlags::new())?;
@@ -253,10 +251,6 @@ impl Ledger {
 
     pub fn set_observer(&mut self, sink: BackpressureSender<LedgerEvent>) {
         *self.observer.write().unwrap() = Some(sink);
-    }
-
-    pub fn set_rollback_check(&self, can_roll_back: impl Fn(&BlockHash) -> bool + Send + 'static) {
-        *self.can_roll_back.lock().unwrap() = Box::new(can_roll_back);
     }
 
     fn initialize(
@@ -506,19 +500,23 @@ impl Ledger {
 
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
     pub fn roll_back(&self, block: &BlockHash) -> Result<usize, RollbackError> {
-        let result = self.roll_back_batch(&[*block], usize::MAX);
+        let result = self.roll_back_batch(&[*block], usize::MAX, |_| true);
         let rolled_back = result[0].rolled_back.len();
         result[0].error.map_or(Ok(rolled_back), |e| Err(e))
     }
 
-    pub fn roll_back_batch(&self, targets: &[BlockHash], max_rollbacks: usize) -> RollbackResults {
+    pub fn roll_back_batch(
+        &self,
+        targets: &[BlockHash],
+        max_rollbacks: usize,
+        can_roll_back: impl Fn(&BlockHash) -> bool,
+    ) -> RollbackResults {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
         let mut rolled_back_count = 0;
         let mut results = RollbackResults::new();
         {
-            let can_roll_back = self.can_roll_back.lock().unwrap();
             let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
 
             for hash in targets {
@@ -543,7 +541,7 @@ impl Ledger {
                         block.account().encode_account()
                     );
 
-                    let (rollback_list, error) = self.rollback_with_tx(&mut tx, &block.hash());
+                    let (rollback_list, error) = self.roll_back_with_tx(&mut tx, &block.hash());
                     if error.is_none() {
                         self.stats
                             .inc(StatType::BoundedBacklog, DetailType::Rollback);
@@ -583,7 +581,7 @@ impl Ledger {
         results
     }
 
-    fn rollback_with_tx(
+    fn roll_back_with_tx(
         &self,
         tx: &mut LmdbWriteTransaction,
         block: &BlockHash,
@@ -697,7 +695,7 @@ impl Ledger {
             if successor != hash {
                 // Replace our block with the winner and roll back any dependent blocks
                 debug!("Rolling back: {} and replacing with: {}", successor, hash);
-                let (list, error) = self.rollback_with_tx(tx, &successor);
+                let (list, error) = self.roll_back_with_tx(tx, &successor);
                 rollback_list = list;
                 match error {
                     None => {

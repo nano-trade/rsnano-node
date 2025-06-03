@@ -66,7 +66,7 @@ impl BoundedBacklog {
             stats,
             ledger,
             block_processor_queue,
-            can_rollback: RwLock::new(Box::new(|_| true)),
+            can_roll_back: RwLock::new(Box::new(|_| true)),
         });
 
         Self {
@@ -122,7 +122,7 @@ impl BoundedBacklog {
 
     // Give other components a chance to veto a rollback
     pub fn can_roll_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
-        *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
+        *self.backlog_impl.can_roll_back.write().unwrap() = Box::new(f);
     }
 
     pub fn activate_batch(&self, batch: &[UnconfirmedInfo]) {
@@ -249,7 +249,7 @@ struct BoundedBacklogImpl {
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
     block_processor_queue: Arc<BlockProcessorQueue>,
-    can_rollback: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
+    can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
 impl BoundedBacklogImpl {
@@ -288,10 +288,9 @@ impl BoundedBacklogImpl {
                 0
             };
 
-            let targets = guard.gather_targets(
-                min(target_count, self.config.batch_size),
-                &*self.can_rollback.read().unwrap(),
-            );
+            let can_roll_back = self.can_roll_back.read().unwrap();
+            let targets =
+                guard.gather_targets(min(target_count, self.config.batch_size), &*can_roll_back);
 
             if !targets.is_empty() {
                 drop(guard);
@@ -301,7 +300,7 @@ impl BoundedBacklogImpl {
                     targets.len() as u64,
                 );
 
-                let processed = self.roll_back(&targets, target_count);
+                let processed = self.roll_back(&targets, target_count, &*can_roll_back);
                 guard = self.mutex.lock().unwrap();
 
                 // Erase rolled back blocks from the index
@@ -321,8 +320,15 @@ impl BoundedBacklogImpl {
         }
     }
 
-    fn roll_back(&self, targets: &[BlockHash], max_rollbacks: usize) -> Vec<BlockHash> {
-        let mut results = self.ledger.roll_back_batch(targets, max_rollbacks);
+    fn roll_back(
+        &self,
+        targets: &[BlockHash],
+        max_rollbacks: usize,
+        can_roll_back: impl Fn(&BlockHash) -> bool,
+    ) -> Vec<BlockHash> {
+        let mut results = self
+            .ledger
+            .roll_back_batch(targets, max_rollbacks, can_roll_back);
 
         let mut processed_hashes = Vec::new();
         for result in results.drain(..) {

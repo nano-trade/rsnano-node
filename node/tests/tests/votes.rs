@@ -261,7 +261,6 @@ fn vote_spacing_vote_generator() {
             ..Default::default()
         })
         .finish();
-    node.ledger.set_rollback_check(|_| true);
 
     node.insert_into_wallet(&DEV_GENESIS_KEY);
 
@@ -353,7 +352,6 @@ fn vote_spacing_rapid() {
         })
         .finish();
 
-    node.ledger.set_rollback_check(|_| true);
     node.insert_into_wallet(&DEV_GENESIS_KEY);
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();

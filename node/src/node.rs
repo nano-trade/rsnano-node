@@ -852,45 +852,6 @@ impl Node {
             unchecked.clone(),
         ));
 
-        let vote_cache_w = Arc::downgrade(&vote_cache);
-        let active_w = Arc::downgrade(&active_elections);
-        let scheduler_w = Arc::downgrade(&election_schedulers);
-        let confirming_set_w = Arc::downgrade(&confirming_set);
-        let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
-
-        ledger.set_rollback_check(move |hash| {
-            if let Some(i) = vote_cache_w.upgrade() {
-                if i.lock().unwrap().contains(hash) {
-                    return false;
-                }
-            }
-
-            if let Some(i) = active_w.upgrade() {
-                let guard = i.read().unwrap();
-                if guard.is_active_hash(hash) || guard.was_recently_confirmed(hash) {
-                    return false;
-                }
-            }
-            if let Some(i) = scheduler_w.upgrade() {
-                if i.contains(hash) {
-                    return false;
-                }
-            }
-
-            if let Some(i) = confirming_set_w.upgrade() {
-                if i.contains(hash) {
-                    return false;
-                }
-            }
-
-            if let Some(i) = local_block_broadcaster_w.upgrade() {
-                if i.contains(hash) {
-                    return false;
-                }
-            }
-            true
-        });
-
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
             steady_clock.clone(),
             network.clone(),
