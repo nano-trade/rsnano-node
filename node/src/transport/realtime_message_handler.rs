@@ -12,7 +12,7 @@ use rsnano_network::{Channel, Network};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::BlockProcessorQueue,
+    block_processing::{BlockContext, BlockProcessorQueue},
     bootstrap::{BootstrapServer, Bootstrapper},
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,
@@ -106,9 +106,11 @@ impl RealtimeMessageHandler {
                         BlockSource::Live
                     };
 
-                    ok =
-                        self.block_processor_queue
-                            .add(publish.block, source, channel.channel_id());
+                    ok = self.block_processor_queue.push(BlockContext::new(
+                        publish.block,
+                        source,
+                        channel.channel_id(),
+                    ));
                 }
 
                 if !ok {

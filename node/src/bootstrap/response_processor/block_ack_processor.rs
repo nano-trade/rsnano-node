@@ -6,7 +6,7 @@ use rsnano_network::ChannelId;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
-    block_processing::BlockProcessorQueue,
+    block_processing::{BlockContext, BlockProcessorQueue},
     bootstrap::state::{BootstrapState, PriorityDownResult, RunningQuery, VerifyResult},
 };
 
@@ -75,21 +75,25 @@ impl BlockAckProcessor {
                 let stats = self.stats.clone();
                 let state = self.state.clone();
                 let account = query.account;
-                self.block_processor_queue.add_with_callback(
+                self.block_processor_queue
+                    .push(BlockContext::new_with_callback(
+                        block,
+                        BlockSource::Bootstrap,
+                        ChannelId::LOOPBACK,
+                        Box::new(move |_| {
+                            stats.inc(StatType::Bootstrap, DetailType::TimestampReset);
+                            {
+                                let mut guard = state.lock().unwrap();
+                                guard.candidate_accounts.reset_last_request(&account);
+                            }
+                        }),
+                    ));
+            } else {
+                self.block_processor_queue.push(BlockContext::new(
                     block,
                     BlockSource::Bootstrap,
                     ChannelId::LOOPBACK,
-                    Box::new(move |_| {
-                        stats.inc(StatType::Bootstrap, DetailType::TimestampReset);
-                        {
-                            let mut guard = state.lock().unwrap();
-                            guard.candidate_accounts.reset_last_request(&account);
-                        }
-                    }),
-                );
-            } else {
-                self.block_processor_queue
-                    .add(block, BlockSource::Bootstrap, ChannelId::LOOPBACK);
+                ));
             }
         }
     }

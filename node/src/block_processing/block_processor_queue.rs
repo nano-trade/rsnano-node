@@ -91,29 +91,18 @@ impl BlockProcessorQueue {
         self.queue.lock().unwrap().process_queue.source_len(source)
     }
 
-    pub fn add_ctx(&self, ctx: BlockContext) -> bool {
-        self.push(Arc::new(ctx))
+    pub fn push(&self, context: impl Into<Arc<BlockContext>>) -> bool {
+        let context = context.into();
+        let added = self.queue.lock().unwrap().push(context);
+
+        if added {
+            self.condition.notify_all();
+        }
+
+        added
     }
 
-    pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
-        let context = Arc::new(BlockContext::new(block, source, channel_id));
-        self.push(context)
-    }
-
-    pub fn add_with_callback(
-        &self,
-        block: Block,
-        source: BlockSource,
-        channel_id: ChannelId,
-        callback: BlockProcessorCallback,
-    ) -> bool {
-        let context = Arc::new(BlockContext::new_with_callback(
-            block, source, channel_id, callback,
-        ));
-        self.push(context)
-    }
-
-    pub fn add_blocking(
+    pub fn push_blocking(
         &self,
         block: Arc<Block>,
         source: BlockSource,
@@ -136,16 +125,6 @@ impl BlockProcessorQueue {
                 Err(anyhow!("Block dropped when processing"))
             }
         }
-    }
-
-    pub fn push(&self, context: Arc<BlockContext>) -> bool {
-        let added = self.queue.lock().unwrap().push(context);
-
-        if added {
-            self.condition.notify_all();
-        }
-
-        added
     }
 
     pub fn info(&self) -> FairQueueInfo<BlockSource> {
@@ -260,8 +239,9 @@ mod tests {
     fn enqueue() {
         let queue = BlockProcessorQueue::default();
         let block = Block::new_test_instance();
+        let ctx = BlockContext::new(block, BlockSource::Live, ChannelId::LOOPBACK);
 
-        queue.add(block, BlockSource::Live, ChannelId::LOOPBACK);
+        queue.push(ctx);
 
         assert_eq!(queue.total_queue_len(), 1);
     }
@@ -270,7 +250,8 @@ mod tests {
     fn dequeue() {
         let queue = BlockProcessorQueue::default();
         let block = Block::new_test_instance();
-        queue.add(block, BlockSource::Live, ChannelId::LOOPBACK);
+        let ctx = BlockContext::new(block, BlockSource::Live, ChannelId::LOOPBACK);
+        queue.push(ctx);
 
         let batch = queue.pop_blocking().unwrap();
 

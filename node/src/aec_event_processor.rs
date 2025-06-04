@@ -5,7 +5,7 @@ use rsnano_messages::NetworkFilter;
 use rsnano_nullable_clock::SteadyClock;
 
 use crate::{
-    block_processing::BlockProcessorQueue,
+    block_processing::{BlockContext, BlockProcessorQueue},
     cementation::ConfirmingSet,
     consensus::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
@@ -124,11 +124,11 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     .remove_local_votes(&previous_winner, &new_winner.qualified_root());
 
                 // Roll back the previous winner and add the new winner to the ledger
-                self.block_processor_queue.add(
+                self.block_processor_queue.push(BlockContext::new(
                     new_winner.clone(),
                     BlockSource::Forced,
                     ChannelId::LOOPBACK,
-                );
+                ));
             }
             AecEvent::VoteProcessed(vote, voter_weight, results) => {
                 // Cache the votes that didn't match any election

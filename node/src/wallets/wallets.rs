@@ -1375,7 +1375,7 @@ impl WalletsExt for Arc<Wallets> {
         let arc_block = Arc::new(block.clone());
         let saved_block = self
             .block_processor_queue
-            .add_blocking(arc_block.clone(), BlockSource::Local)?
+            .push_blocking(arc_block.clone(), BlockSource::Local)?
             .map_err(|s| anyhow!("block processor failed: {:?}", s))?;
 
         if generate_work {

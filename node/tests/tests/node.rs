@@ -12,7 +12,7 @@ use rsnano_ledger::{
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
-    block_processing::{BacklogScanConfig, BoundedBacklogConfig},
+    block_processing::{BacklogScanConfig, BlockContext, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
     consensus::{AecEvent, AggregatorRequest, FilteredVote, ReceivedVote},
     wallets::WalletsExt,
@@ -149,8 +149,11 @@ fn rollback_gap_source() {
     node.process_local(fork1a.clone()).unwrap();
 
     assert!(!node.block_exists(&send2.hash()));
-    node.block_processor_queue
-        .add(fork1b.clone(), BlockSource::Forced, ChannelId::LOOPBACK);
+    node.block_processor_queue.push(BlockContext::new(
+        fork1b.clone(),
+        BlockSource::Forced,
+        ChannelId::LOOPBACK,
+    ));
 
     assert_timely2(|| node.block(&fork1a.hash()).is_none());
 
@@ -168,8 +171,11 @@ fn rollback_gap_source() {
     assert_timely2(|| node.block_exists(&fork1a.hash()));
 
     node.process_local(send2.clone()).unwrap();
-    node.block_processor_queue
-        .add(fork1b.clone(), BlockSource::Forced, ChannelId::LOOPBACK);
+    node.block_processor_queue.push(BlockContext::new(
+        fork1b.clone(),
+        BlockSource::Forced,
+        ChannelId::LOOPBACK,
+    ));
 
     assert_timely_eq2(
         || {
@@ -2495,19 +2501,19 @@ fn block_confirm() {
     let hash1 = send1.hash();
 
     assert_eq!(
-        node1.block_processor_queue.add(
+        node1.block_processor_queue.push(BlockContext::new(
             send1.clone().into(),
             BlockSource::Live,
             ChannelId::LOOPBACK
-        ),
+        )),
         true
     );
     assert_eq!(
-        node2.block_processor_queue.add(
+        node2.block_processor_queue.push(BlockContext::new(
             send1.clone().into(),
             BlockSource::Live,
             ChannelId::LOOPBACK,
-        ),
+        )),
         true
     );
 

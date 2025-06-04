@@ -1,4 +1,4 @@
-use super::BlockProcessorQueue;
+use super::{BlockContext, BlockProcessorQueue};
 use crate::{aec_event_processor::AecEventHandler, consensus::AecEvent};
 use rsnano_ledger::{BlockSource, Ledger, LedgerSet};
 use rsnano_network::ChannelId;
@@ -27,11 +27,11 @@ impl AecEventHandler for ElectionWinnerReprocessor {
     fn handle(&mut self, event: &AecEvent) {
         if let AecEvent::ElectionConfirmed(election) = event {
             if !self.ledger.any().block_exists(&election.winner.hash()) {
-                self.block_processor_queue.add(
+                self.block_processor_queue.push(BlockContext::new(
                     election.winner.clone().into(),
                     BlockSource::Election,
                     ChannelId::LOOPBACK,
-                );
+                ));
             }
         }
     }

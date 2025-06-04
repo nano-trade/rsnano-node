@@ -39,9 +39,9 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorQueue, BoundedBacklog, BoundedBacklogPlugin,
-        ElectionWinnerReprocessor, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
-        LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
+        BacklogScan, BlockContext, BlockProcessor, BlockProcessorQueue, BoundedBacklog,
+        BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
+        LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
     },
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
@@ -940,11 +940,11 @@ impl Node {
         let queue_w = Arc::downgrade(&block_processor_queue);
         unchecked.set_satisfied_observer(Box::new(move |info| {
             if let Some(queue) = queue_w.upgrade() {
-                queue.add(
+                queue.push(BlockContext::new(
                     info.block.clone().into(),
                     BlockSource::Unchecked,
                     ChannelId::LOOPBACK,
-                );
+                ));
             }
         }));
 
@@ -1315,7 +1315,7 @@ impl Node {
 
     pub fn process_local(&self, block: Block) -> Result<(), BlockError> {
         self.block_processor_queue
-            .add_blocking(Arc::new(block), BlockSource::Local)
+            .push_blocking(Arc::new(block), BlockSource::Local)
             .map_err(|_| BlockError::BadSignature)?
             .map(|_| {})
     }
@@ -1359,8 +1359,11 @@ impl Node {
     }
 
     pub fn process_active(&self, block: Block) {
-        self.block_processor_queue
-            .add(block, BlockSource::Live, ChannelId::LOOPBACK);
+        self.block_processor_queue.push(BlockContext::new(
+            block,
+            BlockSource::Live,
+            ChannelId::LOOPBACK,
+        ));
     }
 
     pub fn process_local_multi(&self, blocks: &[Block]) {

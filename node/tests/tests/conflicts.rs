@@ -4,6 +4,7 @@ use rsnano_core::{Amount, BlockSideband, PrivateKey, SavedBlock};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, BlockSource};
 use rsnano_network::ChannelId;
 
+use rsnano_node::block_processing::BlockContext;
 use test_helpers::{assert_timely, assert_timely2, start_election, start_elections, System};
 
 #[test]
@@ -46,9 +47,11 @@ fn add_existing() {
 
     // the block processor will notice that the block is a fork and it will try to publish it
     // which will update the election object
-    node1
-        .block_processor_queue
-        .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
+    node1.block_processor_queue.push(BlockContext::new(
+        send2.clone().into(),
+        BlockSource::Live,
+        ChannelId::LOOPBACK,
+    ));
 
     assert!(node1.is_active_root(&send1.qualified_root()));
     assert_timely(Duration::from_secs(5), || {
