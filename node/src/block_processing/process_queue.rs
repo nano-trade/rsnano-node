@@ -74,12 +74,9 @@ impl ProcessQueue {
         }
     }
 
-    pub fn push(
-        &mut self,
-        source: BlockSource,
-        channel_id: ChannelId,
-        context: Arc<BlockContext>,
-    ) -> bool {
+    pub fn push(&mut self, context: Arc<BlockContext>) -> bool {
+        let source = context.source;
+        let channel_id = context.channel_id;
         self.queue.push((source, channel_id), context)
     }
 

@@ -1,9 +1,7 @@
 use rsnano_core::{Block, SavedBlock};
 use rsnano_ledger::{BlockError, BlockSource};
-use std::{
-    sync::{Arc, Condvar, Mutex},
-    time::Instant,
-};
+use rsnano_network::ChannelId;
+use std::sync::{Arc, Condvar, Mutex};
 
 pub type BlockProcessorCallback = Box<dyn Fn(Result<(), BlockError>) + Send + Sync>;
 
@@ -12,23 +10,35 @@ pub struct BlockContext {
     pub saved_block: Mutex<Option<SavedBlock>>,
     pub source: BlockSource,
     pub callback: Option<BlockProcessorCallback>,
-    pub arrival: Instant,
     pub waiter: Arc<BlockProcessorWaiter>,
+    pub channel_id: ChannelId,
 }
 
 impl BlockContext {
-    pub fn new(
+    pub fn new(block: Block, source: BlockSource, channel_id: ChannelId) -> Self {
+        Self {
+            block,
+            saved_block: Mutex::new(None),
+            source,
+            callback: None,
+            waiter: Arc::new(BlockProcessorWaiter::new()),
+            channel_id,
+        }
+    }
+
+    pub fn new_with_callback(
         block: Block,
         source: BlockSource,
-        callback: Option<BlockProcessorCallback>,
+        channel_id: ChannelId,
+        callback: BlockProcessorCallback,
     ) -> Self {
         Self {
             block,
             saved_block: Mutex::new(None),
             source,
-            arrival: Instant::now(),
-            callback,
+            callback: Some(callback),
             waiter: Arc::new(BlockProcessorWaiter::new()),
+            channel_id,
         }
     }
 

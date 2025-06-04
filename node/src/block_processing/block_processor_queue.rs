@@ -91,9 +91,13 @@ impl BlockProcessorQueue {
         self.queue.lock().unwrap().process_queue.source_len(source)
     }
 
+    pub fn add_ctx(&self, ctx: BlockContext) -> bool {
+        self.push(Arc::new(ctx))
+    }
+
     pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
-        let context = Arc::new(BlockContext::new(block, source, None));
-        self.push(context, channel_id)
+        let context = Arc::new(BlockContext::new(block, source, channel_id));
+        self.push(context)
     }
 
     pub fn add_with_callback(
@@ -103,8 +107,10 @@ impl BlockProcessorQueue {
         channel_id: ChannelId,
         callback: BlockProcessorCallback,
     ) -> bool {
-        let context = Arc::new(BlockContext::new(block, source, Some(callback)));
-        self.push(context, channel_id)
+        let context = Arc::new(BlockContext::new_with_callback(
+            block, source, channel_id, callback,
+        ));
+        self.push(context)
     }
 
     pub fn add_blocking(
@@ -112,9 +118,15 @@ impl BlockProcessorQueue {
         block: Arc<Block>,
         source: BlockSource,
     ) -> anyhow::Result<Result<SavedBlock, BlockError>> {
-        let ctx = Arc::new(BlockContext::new(block.as_ref().clone(), source, None));
+        let channel_id = ChannelId::LOOPBACK;
+
+        let ctx = Arc::new(BlockContext::new(
+            block.as_ref().clone(),
+            source,
+            channel_id,
+        ));
         let waiter = ctx.get_waiter();
-        self.push(ctx.clone(), ChannelId::LOOPBACK);
+        self.push(ctx.clone());
 
         match waiter.wait_result() {
             Some(Ok(())) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
@@ -126,8 +138,8 @@ impl BlockProcessorQueue {
         }
     }
 
-    pub fn push(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
-        let added = self.queue.lock().unwrap().push(context, channel_id);
+    pub fn push(&self, context: Arc<BlockContext>) -> bool {
+        let added = self.queue.lock().unwrap().push(context);
 
         if added {
             self.condition.notify_all();
@@ -206,13 +218,13 @@ impl BlockProcessorQueueImpl {
         self.process_queue.is_empty()
     }
 
-    pub fn push(&mut self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
+    pub fn push(&mut self, context: Arc<BlockContext>) -> bool {
         if self.stopped {
             return false;
         }
 
         let source = context.source;
-        let added = self.process_queue.push(context.source, channel_id, context);
+        let added = self.process_queue.push(context);
 
         if added {
             self.processed += 1;
@@ -246,11 +258,29 @@ mod tests {
 
     #[test]
     fn enqueue() {
-        let queue = Arc::new(BlockProcessorQueue::default());
+        let queue = BlockProcessorQueue::default();
         let block = Block::new_test_instance();
 
         queue.add(block, BlockSource::Live, ChannelId::LOOPBACK);
 
         assert_eq!(queue.total_queue_len(), 1);
+    }
+
+    #[test]
+    fn dequeue() {
+        let queue = BlockProcessorQueue::default();
+        let block = Block::new_test_instance();
+        queue.add(block, BlockSource::Live, ChannelId::LOOPBACK);
+
+        let batch = queue.pop_blocking().unwrap();
+
+        assert_eq!(batch.len(), 1);
+    }
+
+    #[test]
+    fn pop_none_when_stopped() {
+        let queue = BlockProcessorQueue::default();
+        queue.stop();
+        assert!(queue.pop_blocking().is_none());
     }
 }

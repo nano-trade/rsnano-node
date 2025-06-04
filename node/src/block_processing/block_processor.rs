@@ -8,13 +8,14 @@ use std::{
     time::Duration,
 };
 
+use tracing::warn;
+
 use rsnano_ledger::Ledger;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{block_batch_processor::BlockBatchProcessorStats, BlockProcessorQueue, UncheckedMap};
 use crate::block_processing::block_batch_processor::BlockBatchProcessor;
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use tracing::warn;
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
