@@ -15,13 +15,16 @@ use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 
 use super::{
     process_queue::{ProcessQueue, ProcessQueueConfig},
-    BlockContext, BlockProcessorCallback,
+    BlockContext,
 };
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 pub struct BlockProcessorQueue {
     queue: Mutex<BlockProcessorQueueImpl>,
     condition: Condvar,
+    is_nulled: bool,
+    wait_listener: OutputListenerMt<Duration>,
 }
 
 impl BlockProcessorQueue {
@@ -29,7 +32,33 @@ impl BlockProcessorQueue {
         Self {
             queue: Mutex::new(BlockProcessorQueueImpl::new(config)),
             condition: Condvar::new(),
+            is_nulled: false,
+            wait_listener: OutputListenerMt::new(),
         }
+    }
+
+    pub fn new_null() -> Self {
+        Self::new_null_with(Vec::new())
+    }
+
+    pub fn new_null_with(blocks: Vec<Arc<BlockContext>>) -> Self {
+        let mut queue_impl = BlockProcessorQueueImpl::new(Default::default());
+        for ctx in blocks {
+            queue_impl.push(ctx);
+        }
+        if queue_impl.process_queue.is_empty() {
+            queue_impl.stopped = true;
+        }
+        Self {
+            queue: Mutex::new(queue_impl),
+            condition: Condvar::new(),
+            is_nulled: true,
+            wait_listener: OutputListenerMt::new(),
+        }
+    }
+
+    pub fn track_waits(&self) -> Arc<OutputTrackerMt<Duration>> {
+        self.wait_listener.track()
     }
 
     pub fn stop(&self) {
@@ -54,6 +83,12 @@ impl BlockProcessorQueue {
     }
 
     pub fn wait(&self, duration: Duration) {
+        self.wait_listener.emit(duration);
+
+        if self.is_nulled {
+            return;
+        }
+
         let guard = self.queue.lock().unwrap();
         let _ = self
             .condition
@@ -72,6 +107,10 @@ impl BlockProcessorQueue {
                 let batch = queue.process_queue.next_batch();
                 if !batch.is_empty() {
                     return Some(batch);
+                }
+                if self.is_nulled {
+                    queue.stopped = true;
+                    return None;
                 }
             }
 
@@ -234,12 +273,12 @@ impl StatsSource for BlockProcessorQueueImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ntest::timeout;
 
     #[test]
     fn enqueue() {
         let queue = BlockProcessorQueue::default();
-        let block = Block::new_test_instance();
-        let ctx = BlockContext::new(block, BlockSource::Live, ChannelId::LOOPBACK);
+        let ctx = test_block_context();
 
         queue.push(ctx);
 
@@ -249,8 +288,7 @@ mod tests {
     #[test]
     fn dequeue() {
         let queue = BlockProcessorQueue::default();
-        let block = Block::new_test_instance();
-        let ctx = BlockContext::new(block, BlockSource::Live, ChannelId::LOOPBACK);
+        let ctx = test_block_context();
         queue.push(ctx);
 
         let batch = queue.pop_blocking().unwrap();
@@ -259,9 +297,47 @@ mod tests {
     }
 
     #[test]
+    #[timeout(5000)]
     fn pop_none_when_stopped() {
         let queue = BlockProcessorQueue::default();
         queue.stop();
         assert!(queue.pop_blocking().is_none());
+    }
+
+    #[test]
+    #[timeout(5000)]
+    fn can_be_nulled() {
+        let queue = BlockProcessorQueue::new_null();
+        queue.wait(Duration::MAX);
+        assert!(queue.pop_blocking().is_none());
+    }
+
+    #[test]
+    #[timeout(5000)]
+    fn nulled_queue_returns_configured_response() {
+        let ctx = test_block_context();
+        let queue = BlockProcessorQueue::new_null_with(vec![ctx]);
+
+        queue.pop_blocking().expect("should pop block");
+        assert!(queue.pop_blocking().is_none());
+        assert!(queue.pop_blocking().is_none());
+        queue.wait(Duration::MAX);
+    }
+
+    #[test]
+    #[timeout(5000)]
+    fn can_track_waits() {
+        let queue = BlockProcessorQueue::new_null();
+        let waits = queue.track_waits();
+        let duration = Duration::from_secs(42);
+
+        queue.wait(duration);
+
+        assert_eq!(waits.output(), vec![duration]);
+    }
+
+    fn test_block_context() -> Arc<BlockContext> {
+        let block = Block::new_test_instance();
+        BlockContext::new(block, BlockSource::Live, ChannelId::LOOPBACK).into()
     }
 }

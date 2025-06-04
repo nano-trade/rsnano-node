@@ -73,6 +73,7 @@ tokio-scoped = "0.2.0"
 mock_instant = "0"
 tracing-test = "0"
 test_helpers = { path = "../tools/test_helpers" }
+ntest = "0.9.3"
 
 [build-dependencies]
 build-info-build = "0.0.40"
