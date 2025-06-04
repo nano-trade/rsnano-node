@@ -1,5 +1,6 @@
 mod backlog_index;
 mod backlog_scan;
+mod backlog_waiter;
 mod block_batch_processor;
 mod block_context;
 mod block_processor;
@@ -12,6 +13,7 @@ mod process_queue;
 mod unchecked_map;
 
 pub use backlog_scan::{BacklogScan, BacklogScanConfig};
+pub(crate) use backlog_waiter::BacklogWaiter;
 pub use block_context::*;
 pub use block_processor::*;
 pub(crate) use block_processor_queue::*;

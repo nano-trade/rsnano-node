@@ -39,8 +39,8 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BlockContext, BlockProcessor, BlockProcessorQueue, BoundedBacklog,
-        BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
+        BacklogScan, BacklogWaiter, BlockContext, BlockProcessor, BlockProcessorQueue,
+        BoundedBacklog, BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
         LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
     },
     bootstrap::{
@@ -848,12 +848,18 @@ impl Node {
             true
         });
 
+        let backlog_waiter = Arc::new(BacklogWaiter::new(
+            block_processor_queue.clone(),
+            ledger.clone(),
+            steady_clock.clone(),
+            config.bounded_backlog.max_backlog,
+        ));
+
         let block_processor = Arc::new(BlockProcessor::new(
             block_processor_queue.clone(),
             ledger.clone(),
             unchecked.clone(),
-            steady_clock.clone(),
-            config.bounded_backlog.max_backlog,
+            backlog_waiter.clone(),
         ));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
@@ -1202,6 +1208,7 @@ impl Node {
         stats_collector.add_source(bootstrap_stale_stats);
         stats_collector.add_source(block_processor.clone());
         stats_collector.add_source(block_processor_queue.clone());
+        stats_collector.add_source(backlog_waiter.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
