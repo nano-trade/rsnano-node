@@ -42,6 +42,14 @@ impl BlockContext {
         }
     }
 
+    pub fn new_test_instance() -> Self {
+        Self::new(
+            Block::new_test_instance(),
+            BlockSource::Live,
+            ChannelId::LOOPBACK,
+        )
+    }
+
     pub fn set_result(&self, result: Result<(), BlockError>) {
         self.waiter.set_result(result);
     }

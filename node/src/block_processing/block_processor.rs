@@ -108,3 +108,28 @@ impl BlockProcessorLoop {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::block_processing::BlockContext;
+
+    #[test]
+    fn wait_for_backlog() {
+        let queue = Arc::new(BlockProcessorQueue::new_null_with(vec![
+            BlockContext::new_test_instance().into(),
+        ]));
+        let process = BlockBatchProcessor::new_null();
+        let backlog_waiter = Arc::new(BacklogWaiter::new_null());
+
+        let mut processor_loop = BlockProcessorLoop {
+            queue,
+            process,
+            backlog_waiter: backlog_waiter.clone(),
+        };
+
+        processor_loop.run();
+
+        assert_eq!(backlog_waiter.call_count(), 1);
+    }
+}

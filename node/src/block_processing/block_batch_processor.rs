@@ -23,6 +23,15 @@ pub(crate) struct BlockBatchProcessor {
 }
 
 impl BlockBatchProcessor {
+    #[allow(dead_code)]
+    pub fn new_null() -> Self {
+        Self {
+            ledger: Arc::new(Ledger::new_null()),
+            unchecked: Arc::new(UncheckedMap::default()),
+            stats: Arc::new(BlockBatchProcessorStats::default()),
+        }
+    }
+
     pub(crate) fn process_blocks(&self, mut batch: VecDeque<Arc<BlockContext>>) {
         let timer = Instant::now();
 

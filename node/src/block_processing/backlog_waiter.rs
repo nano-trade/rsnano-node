@@ -1,7 +1,7 @@
 use std::{
     cmp::min,
     sync::{
-        atomic::{AtomicU64, Ordering::Relaxed},
+        atomic::{AtomicUsize, Ordering::Relaxed},
         Arc, Mutex,
     },
     time::Duration,
@@ -20,7 +20,8 @@ pub(crate) struct BacklogWaiter {
     queue: Arc<BlockProcessorQueue>,
     ledger: Arc<Ledger>,
     max_backlog: u64,
-    cooldown_count: AtomicU64,
+    call_count: AtomicUsize,
+    cooldown_count: AtomicUsize,
     last_log: Mutex<Option<Timestamp>>,
     clock: Arc<SteadyClock>,
 }
@@ -36,13 +37,23 @@ impl BacklogWaiter {
             queue,
             ledger,
             max_backlog,
-            cooldown_count: AtomicU64::new(0),
+            call_count: AtomicUsize::new(0),
+            cooldown_count: AtomicUsize::new(0),
             last_log: Mutex::new(None),
             clock,
         }
     }
 
+    #[allow(dead_code)]
+    pub fn new_null() -> Self {
+        let queue = Arc::new(BlockProcessorQueue::new_null());
+        let ledger = Arc::new(Ledger::new_null());
+        let clock = Arc::new(SteadyClock::new_null());
+        Self::new(queue, ledger, clock, 1000)
+    }
+
     pub fn wait_for_backlog(&self) {
+        self.call_count.fetch_add(1, Relaxed);
         let backlog_count = self.ledger.backlog_count();
         let throttle_wait = throttle_wait(backlog_count, self.max_backlog);
         if throttle_wait.is_zero() {
@@ -74,6 +85,11 @@ impl BacklogWaiter {
         }
 
         should_log
+    }
+
+    #[allow(dead_code)]
+    pub fn call_count(&self) -> usize {
+        self.call_count.load(Relaxed)
     }
 }
 
@@ -123,7 +139,6 @@ fn backlog_factor(backlog_count: u64, max_backlog: u64) -> f64 {
 mod tests {
     use super::*;
     use rsnano_output_tracker::OutputTrackerMt;
-    use std::sync::atomic::Ordering;
     use tracing_test::traced_test;
 
     #[test]
@@ -253,6 +268,17 @@ mod tests {
         });
     }
 
+    #[test]
+    fn can_track_waits() {
+        let TestFixture { waiter, .. } = create_fixture(Default::default());
+
+        waiter.wait_for_backlog();
+        assert_eq!(waiter.call_count(), 1);
+
+        waiter.wait_for_backlog();
+        assert_eq!(waiter.call_count(), 2);
+    }
+
     fn create_fixture(args: FixtureArgs) -> TestFixture {
         let queue = Arc::new(BlockProcessorQueue::new_null());
         let ledger = Arc::new(Ledger::new_null());
@@ -261,13 +287,13 @@ mod tests {
             .store
             .cache
             .confirmed_count
-            .store(args.confirmed, Ordering::SeqCst);
+            .store(args.confirmed, Relaxed);
 
         ledger
             .store
             .cache
             .block_count
-            .store(args.confirmed + args.unconfirmed, Ordering::SeqCst);
+            .store(args.confirmed + args.unconfirmed, Relaxed);
 
         let wait_tracker = queue.track_waits();
         let waiter = BacklogWaiter::new(queue, ledger, args.clock.into(), MAX_BACKLOG);
