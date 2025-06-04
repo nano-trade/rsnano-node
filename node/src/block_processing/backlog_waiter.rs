@@ -41,6 +41,7 @@ impl BacklogWaiter {
             clock,
         }
     }
+
     pub fn wait_for_backlog(&self) {
         let backlog_count = self.ledger.backlog_count();
         let throttle_wait = throttle_wait(backlog_count, self.max_backlog);
@@ -121,6 +122,9 @@ fn backlog_factor(backlog_count: u64, max_backlog: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rsnano_output_tracker::OutputTrackerMt;
+    use std::sync::atomic::Ordering;
+    use tracing_test::traced_test;
 
     #[test]
     fn test_backlog_factor() {
@@ -158,4 +162,142 @@ mod tests {
         assert_throttle(3000, 1000, 998);
         assert_throttle(10000, 1000, 1000);
     }
+
+    #[test]
+    fn dont_wait_when_no_backlog() {
+        let TestFixture {
+            waiter,
+            wait_tracker,
+        } = create_fixture(FixtureArgs {
+            confirmed: 5000,
+            unconfirmed: 0,
+            ..Default::default()
+        });
+
+        waiter.wait_for_backlog();
+
+        assert_eq!(wait_tracker.output(), vec![]);
+    }
+
+    #[test]
+    fn wait_when_backlog_over_limit() {
+        let TestFixture {
+            waiter,
+            wait_tracker,
+        } = create_fixture(FixtureArgs {
+            confirmed: 5000,
+            unconfirmed: 3000,
+            ..Default::default()
+        });
+
+        waiter.wait_for_backlog();
+
+        assert_eq!(
+            wait_tracker.output(),
+            vec![throttle_wait(3000, MAX_BACKLOG)]
+        );
+    }
+
+    #[test]
+    fn stats_source() {
+        let TestFixture { waiter, .. } = create_fixture(Default::default());
+
+        waiter.wait_for_backlog();
+
+        let mut stats = StatsCollection::new();
+        waiter.collect_stats(&mut stats);
+
+        assert_eq!(stats.get("block_processor", "cooldown_backlog"), 1);
+    }
+
+    #[test]
+    #[traced_test]
+    fn log_initial() {
+        let TestFixture { waiter, .. } = create_fixture(Default::default());
+
+        waiter.wait_for_backlog();
+
+        logs_assert(|logs| {
+            if logs.len() != 1 {
+                return Err(format!("len was {}, expected 1", logs.len()));
+            }
+            if !logs[0].contains("Backlog exceeded. Throttling! throttle_ms=998 backlog_size=3000")
+            {
+                return Err(logs[0].to_owned());
+            }
+            Ok(())
+        });
+    }
+
+    #[test]
+    #[traced_test]
+    fn suppress_logs_for_15_secs() {
+        let clock =
+            SteadyClock::new_null_with_offsets([Duration::from_secs(14), Duration::from_secs(1)]);
+
+        let TestFixture { waiter, .. } = create_fixture(FixtureArgs {
+            clock,
+            ..Default::default()
+        });
+
+        waiter.wait_for_backlog();
+        waiter.wait_for_backlog();
+        waiter.wait_for_backlog();
+
+        logs_assert(|logs| {
+            if logs.len() != 2 {
+                Err(format!("Expected 2 log entries, but found: {}", logs.len()))
+            } else {
+                Ok(())
+            }
+        });
+    }
+
+    fn create_fixture(args: FixtureArgs) -> TestFixture {
+        let queue = Arc::new(BlockProcessorQueue::new_null());
+        let ledger = Arc::new(Ledger::new_null());
+
+        ledger
+            .store
+            .cache
+            .confirmed_count
+            .store(args.confirmed, Ordering::SeqCst);
+
+        ledger
+            .store
+            .cache
+            .block_count
+            .store(args.confirmed + args.unconfirmed, Ordering::SeqCst);
+
+        let wait_tracker = queue.track_waits();
+        let waiter = BacklogWaiter::new(queue, ledger, args.clock.into(), MAX_BACKLOG);
+
+        TestFixture {
+            waiter,
+            wait_tracker,
+        }
+    }
+
+    struct FixtureArgs {
+        confirmed: u64,
+        unconfirmed: u64,
+        clock: SteadyClock,
+    }
+
+    impl Default for FixtureArgs {
+        fn default() -> Self {
+            Self {
+                confirmed: 5000,
+                unconfirmed: 3000,
+                clock: SteadyClock::new_null(),
+            }
+        }
+    }
+
+    struct TestFixture {
+        waiter: BacklogWaiter,
+        wait_tracker: Arc<OutputTrackerMt<Duration>>,
+    }
+
+    const MAX_BACKLOG: u64 = 1000;
 }
