@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use tracing::debug;
+use tracing::info;
 
 use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
 use rsnano_ledger::Ledger;
@@ -88,7 +88,7 @@ impl LedgerPruning {
             pruned_count += transaction_write_count;
         }
 
-        debug!("Total recently pruned block count: {}", pruned_count);
+        info!("Recently pruned blocks: {}", pruned_count);
     }
 
     pub fn collect_ledger_pruning_targets(

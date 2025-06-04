@@ -1037,12 +1037,14 @@ impl Node {
                 let msg = "Incompatibility detected between config node.enable_voting and existing pruned blocks";
                 error!(msg);
                 panic!("{}", msg);
-            } else if !flags.enable_pruning && !flags.inactive_node {
+            }
+            if !flags.enable_pruning && !flags.inactive_node {
                 let msg =
                     "To start node with existing pruned blocks use launch flag --enable_pruning";
                 error!(msg);
                 panic!("{}", msg);
             }
+            warn!("Ledger pruning is enabled. This feature is experimental and may result in node instability! Please see release notes for more information.");
         }
 
         let time_factory = SystemTimeFactory::default();
