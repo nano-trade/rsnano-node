@@ -215,6 +215,15 @@ impl Node {
 
         let network_params = args.network_params;
         let current_network = network_params.network.current_network;
+        let network_label = network_params.network.get_current_network_as_string();
+        let application_path = args.data_path;
+
+        info!("Node started");
+        info!("Version: {}", rsnano_version_string());
+        info!("{}", rsnano_build_info());
+        info!("Network: {}", network_label);
+        info!("Data path: {:?}", application_path);
+
         let mut config = args.config;
         let flags = args.flags;
         if flags.enable_voting {
@@ -232,32 +241,6 @@ impl Node {
                 .work_peers(config.work_peers.clone())
                 .finish(),
         );
-
-        let node_observer = args.event_sender;
-        // Time relative to the start of the node. This makes time exlpicit and enables us to
-        // write time relevant unit tests with ease.
-        let steady_clock = if is_nulled {
-            Arc::new(SteadyClock::new_null())
-        } else {
-            Arc::new(SteadyClock::default())
-        };
-
-        let network_label = network_params.network.get_current_network_as_string();
-        let global_config = &GlobalConfig {
-            node_config: config.clone(),
-            flags: flags.clone(),
-            network_params: network_params.clone(),
-        };
-        let application_path = args.data_path;
-        let node_id_key = node_id_key_file.initialize(&application_path).unwrap();
-        let node_id = NodeId::from(&node_id_key);
-
-        let stats = Arc::new(Stats::new(Default::default()));
-
-        info!("Version: {}", rsnano_version_string());
-        info!("{}", rsnano_build_info());
-        info!("Network: {}", network_label);
-        info!("Data path: {:?}", application_path);
         info!(
             "Work pool threads: {} ({})",
             work_factory.local_work_pool.thread_count(),
@@ -268,7 +251,26 @@ impl Node {
             }
         );
         info!("Work peers: {}", config.work_peers.len());
+
+        let node_observer = args.event_sender;
+        // Time relative to the start of the node. This makes time exlpicit and enables us to
+        // write time relevant unit tests with ease.
+        let steady_clock = if is_nulled {
+            Arc::new(SteadyClock::new_null())
+        } else {
+            Arc::new(SteadyClock::default())
+        };
+
+        let global_config = &GlobalConfig {
+            node_config: config.clone(),
+            flags: flags.clone(),
+            network_params: network_params.clone(),
+        };
+        let node_id_key = node_id_key_file.initialize(&application_path).unwrap();
+        let node_id = NodeId::from(&node_id_key);
         info!("Node ID: {}", node_id);
+
+        let stats = Arc::new(Stats::new(Default::default()));
 
         let bootstrap_weights = if (network_params.network.is_live_network()
             || network_params.network.is_beta_network())
