@@ -23,15 +23,8 @@ impl<'a> BlockRollbackPerformer<'a> {
         }
     }
 
+    /// Rolls back the given block and all of its successor blocks and dependencies
     pub(crate) fn roll_back(&mut self, block_hash: &BlockHash) -> Result<(), RollbackError> {
-        self.roll_back_block_and_successors(block_hash)?;
-        Ok(())
-    }
-
-    fn roll_back_block_and_successors(
-        &mut self,
-        block_hash: &BlockHash,
-    ) -> Result<(), RollbackError> {
         let block = self.load_block(block_hash)?;
         while self.any().block_exists(block_hash) {
             let head_block = self.load_account_head(&block)?;
@@ -74,7 +67,7 @@ impl<'a> BlockRollbackPerformer<'a> {
                 Ok(())
             }
             RollbackStep::RequestDependencyRollback(dependency_hash) => {
-                self.roll_back_block_and_successors(&dependency_hash)
+                self.roll_back(&dependency_hash)
             }
         }
     }
