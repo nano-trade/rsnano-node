@@ -2,9 +2,9 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
-    AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, ConfirmedSet, GenerateCacheFlags,
-    LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet, OwningUnconfirmedSet,
-    RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
+    AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, BorrowingConfirmedSet,
+    ConfirmedSet, GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
+    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
@@ -805,7 +805,9 @@ impl Ledger {
                         for block in added {
                             confirmed.push((block, *confirmation_root));
                         }
-                    } else {
+                    } else if BorrowingConfirmedSet::new(&self.store, &tx)
+                        .block_exists(&confirmation_root)
+                    {
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
                         cementing_observer.already_confirmed(confirmation_root);
