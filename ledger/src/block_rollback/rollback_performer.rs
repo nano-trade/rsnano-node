@@ -25,10 +25,44 @@ impl<'a> BlockRollbackPerformer<'a> {
 
     /// Rolls back the given block and all of its successor blocks and dependencies
     pub(crate) fn roll_back(&mut self, block_hash: &BlockHash) -> Result<(), RollbackError> {
-        let block = self.load_block(block_hash)?;
-        while self.any().block_exists(block_hash) {
-            let head_block = self.load_account_head(&block)?;
-            self.roll_back_head_block(head_block)?;
+        // target block + current account head
+        let mut targets: Vec<(SavedBlock, SavedBlock)> = Vec::new();
+
+        let target_block = self.load_block(block_hash)?;
+        let head_block = self.load_account_head(&target_block)?;
+        targets.push((target_block, head_block));
+
+        self.roll_back_impl(&mut targets)
+    }
+
+    fn roll_back_impl(
+        &mut self,
+        targets: &mut Vec<(SavedBlock, SavedBlock)>,
+    ) -> Result<(), RollbackError> {
+        while let Some((target_block, head_block)) = targets.last_mut() {
+            if self.any().block_exists(&target_block.hash()) {
+                let step = self.roll_back_head_block(&head_block)?;
+                match step {
+                    RollbackStep::RollBackBlock(instructions) => {
+                        RollbackInstructionsExecutor::new(self.ledger, self.txn, &instructions)
+                            .execute();
+                        self.rolled_back.push(head_block.clone());
+                        if head_block.hash() != target_block.hash() {
+                            // The rolled back block wasn't the target, so there are more blocks to
+                            // roll back for this account. That's why we have to load the new
+                            // head block, which will be rolled back next.
+                            *head_block = self.load_account_head(target_block)?;
+                        }
+                    }
+                    RollbackStep::RequestDependencyRollback(dependency_hash) => {
+                        let dep_block = self.load_block(&dependency_hash)?;
+                        let dep_head = self.load_account_head(&target_block)?;
+                        targets.push((dep_block, dep_head));
+                    }
+                }
+            } else {
+                targets.pop();
+            }
         }
         Ok(())
     }
@@ -50,26 +84,14 @@ impl<'a> BlockRollbackPerformer<'a> {
             .ok_or(RollbackError::BlockNotFound)
     }
 
-    fn roll_back_head_block(&mut self, head_block: SavedBlock) -> Result<(), RollbackError> {
+    fn roll_back_head_block(
+        &mut self,
+        head_block: &SavedBlock,
+    ) -> Result<RollbackStep, RollbackError> {
         let any = self.any();
         let planner =
-            RollbackPlannerFactory::new(self.ledger, &any, &head_block).create_planner()?;
-        let step = planner.roll_back_head_block()?;
-        self.execute(step, head_block)?;
-        Ok(())
-    }
-
-    fn execute(&mut self, step: RollbackStep, head_block: SavedBlock) -> Result<(), RollbackError> {
-        match step {
-            RollbackStep::RollBackBlock(instructions) => {
-                RollbackInstructionsExecutor::new(self.ledger, self.txn, &instructions).execute();
-                self.rolled_back.push(head_block);
-                Ok(())
-            }
-            RollbackStep::RequestDependencyRollback(dependency_hash) => {
-                self.roll_back(&dependency_hash)
-            }
-        }
+            RollbackPlannerFactory::new(self.ledger, &any, head_block).create_planner()?;
+        planner.roll_back_head_block()
     }
 
     fn any(&self) -> BorrowingAnySet {
