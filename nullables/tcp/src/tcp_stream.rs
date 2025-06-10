@@ -48,7 +48,7 @@ impl TcpStream {
     pub async fn readable(&self) -> tokio::io::Result<()> {
         match &self.stream {
             StreamType::Tokio(stream) => stream.readable().await,
-            StreamType::Stub(stream) => stream.readable().await,
+            StreamType::Stub(stream) => stream.readable(),
         }
     }
 
@@ -117,7 +117,7 @@ impl TcpStreamStub {
         &self.incoming[pos..]
     }
 
-    async fn readable(&self) -> tokio::io::Result<()> {
+    fn readable(&self) -> tokio::io::Result<()> {
         if self.next_bytes().is_empty() {
             Err(Self::no_data_error())
         } else {
@@ -160,31 +160,47 @@ impl TcpStreamStub {
 
 impl AsyncRead for TcpStream {
     fn poll_read(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
-        todo!()
+        match &mut self.stream {
+            StreamType::Tokio(_) => {
+                let stream = unsafe {
+                    self.map_unchecked_mut(|i| {
+                        let StreamType::Tokio(s) = &mut i.stream else {
+                            unreachable!()
+                        };
+
+                        s
+                    })
+                };
+                stream.poll_read(cx, buf)
+            }
+            StreamType::Stub(stream) => {
+                stream.readable()?;
+                stream.try_read(buf.initialize_unfilled())?;
+                std::task::Poll::Ready(Ok(()))
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TcpStreamFactory;
-    use std::{
-        io::ErrorKind,
-        net::{IpAddr, Ipv4Addr, SocketAddr},
-    };
+    use crate::{get_available_port, TcpStreamFactory};
+    use std::{io::ErrorKind, net::SocketAddr};
     use tokio::{io::AsyncReadExt, net::TcpListener, spawn};
 
     #[tokio::test]
     async fn connects_to_real_server() {
-        let endpoint = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8088);
+        let port = get_available_port();
+        let endpoint = SocketAddr::from(([127, 0, 0, 1], port));
         start_test_tcp_server(endpoint).await;
 
         let stream_factory = TcpStreamFactory::new();
-        let stream = stream_factory.connect("127.0.0.1:8088").await.unwrap();
+        let stream = stream_factory.connect(endpoint).await.unwrap();
 
         let mut buf = [0; 3];
         loop {
@@ -203,6 +219,20 @@ mod tests {
             }
         }
         assert_eq!(buf, [1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn async_read_from_real_connection() {
+        let port = get_available_port();
+        let endpoint = SocketAddr::from(([127, 0, 0, 1], port));
+        start_test_tcp_server(endpoint).await;
+        let stream_factory = TcpStreamFactory::new();
+        let mut stream = stream_factory.connect(endpoint).await.unwrap();
+        let mut buffer = [0; 3];
+
+        stream.read(&mut buffer).await.unwrap();
+
+        assert_eq!(buffer, [1, 2, 3]);
     }
 
     #[tokio::test]
@@ -278,7 +308,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO"]
     async fn implements_async_read() {
         let mut stream = TcpStream::new_null_with(vec![1, 2, 3]);
         let mut buffer = vec![0; 3];
