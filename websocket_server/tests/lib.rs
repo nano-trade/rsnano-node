@@ -18,12 +18,13 @@ use rsnano_node::{
     config::{NetworkConstants, NodeConfig, WebsocketConfig},
     CompositeNodeEventHandler, Node,
 };
+use rsnano_nullable_tcp::get_available_port;
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 use rsnano_websocket_server::{
     create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
     WebsocketListener, WebsocketListenerExt,
 };
-use test_helpers::{assert_timely2, get_available_port, make_fake_channel, System};
+use test_helpers::{assert_timely2, make_fake_channel, System};
 use tokio::{net::TcpStream, task::spawn_blocking, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 

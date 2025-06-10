@@ -18,11 +18,12 @@ use rsnano_node::{
     wallets::WalletsExt,
     work::WorkRequest,
 };
+use rsnano_nullable_tcp::get_available_port;
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
-    assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, get_available_port,
-    make_fake_channel, setup_chains, start_election, System,
+    assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, make_fake_channel,
+    setup_chains, start_election, System,
 };
 
 #[test]

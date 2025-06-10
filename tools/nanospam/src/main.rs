@@ -31,7 +31,6 @@ async fn main() -> anyhow::Result<()> {
     let mut deserializer = MessageDeserializer::new(protocol);
 
     let (mut read, mut write) = tokio::io::split(tcp_stream);
-
     tokio_scoped::scope(|scope| {
         scope.spawn(async {
             let mut recv_buffer = vec![0; 1024 * 4];

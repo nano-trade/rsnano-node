@@ -66,6 +66,10 @@ impl TcpStream {
     pub fn try_write(&self, buf: &[u8]) -> tokio::io::Result<usize> {
         self.stream.try_write(buf)
     }
+
+    pub fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream {
+        self.stream.as_tokio_stream()
+    }
 }
 
 #[async_trait]
@@ -77,6 +81,7 @@ trait InternalTcpStream: Send + Sync {
     async fn writable(&self) -> tokio::io::Result<()>;
     fn try_write(&self, buf: &[u8]) -> tokio::io::Result<usize>;
     async fn shutdown(&mut self) -> tokio::io::Result<()>;
+    fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream;
 }
 
 struct TokioTcpStreamWrapper(tokio::net::TcpStream);
@@ -109,6 +114,10 @@ impl InternalTcpStream for TokioTcpStreamWrapper {
 
     async fn shutdown(&mut self) -> tokio::io::Result<()> {
         self.0.shutdown().await
+    }
+
+    fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream {
+        &mut self.0
     }
 }
 
@@ -177,6 +186,10 @@ impl InternalTcpStream for TcpStreamStub {
 
     async fn shutdown(&mut self) -> tokio::io::Result<()> {
         Ok(())
+    }
+
+    fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream {
+        panic!("Tried to get real TcpStream from nulled instance");
     }
 }
 

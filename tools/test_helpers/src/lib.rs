@@ -1,10 +1,6 @@
 use std::{
-    net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
-    sync::{
-        atomic::{AtomicU16, Ordering},
-        mpsc::SyncSender,
-        Arc, OnceLock,
-    },
+    net::{IpAddr, Ipv6Addr, SocketAddr},
+    sync::{mpsc::SyncSender, Arc, OnceLock},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -251,19 +247,6 @@ impl TestNodeBuilder<'_> {
         self.system
             .make_node_with(config, flags, self.disconnected, self.event_sink)
     }
-}
-
-static START_PORT: AtomicU16 = AtomicU16::new(1025);
-
-pub fn get_available_port() -> u16 {
-    let start = START_PORT.fetch_add(1, Ordering::SeqCst);
-    (start..65535)
-        .find(|port| is_port_available(*port))
-        .expect("Could not find an available port")
-}
-
-fn is_port_available(port: u16) -> bool {
-    TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
 pub fn assert_never(duration: Duration, mut check: impl FnMut() -> bool) {
@@ -572,6 +555,7 @@ pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) 
     blocks
 }
 
+use rsnano_nullable_tcp::get_available_port;
 use tokio::net::TcpListener as TokioTcpListener;
 
 pub struct RpcServerGuard {

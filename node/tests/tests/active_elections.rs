@@ -14,11 +14,12 @@ use rsnano_node::{
     consensus::{FilteredVote, ReceivedVote},
     wallets::WalletsExt,
 };
+use rsnano_nullable_tcp::get_available_port;
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_always_eq, assert_never, assert_timely2, assert_timely_eq, assert_timely_eq2,
-    get_available_port, process_open_block, process_send_block, setup_independent_blocks,
-    start_election, start_elections, System,
+    process_open_block, process_send_block, setup_independent_blocks, start_election,
+    start_elections, System,
 };
 
 /// What this test is doing:

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use rsnano_core::{Amount, PrivateKey, DEV_GENESIS_KEY};
 use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockSource, ConfirmedSet, LedgerSet,
@@ -8,7 +6,7 @@ use rsnano_ledger::{
 use rsnano_network::ChannelId;
 use rsnano_node::block_processing::BlockContext;
 use rsnano_stats::{DetailType, Direction, StatType};
-use test_helpers::{assert_timely_eq, assert_timely_eq2, System};
+use test_helpers::{assert_timely_eq2, System};
 
 #[test]
 fn single() {

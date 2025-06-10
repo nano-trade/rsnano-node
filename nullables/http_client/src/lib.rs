@@ -254,12 +254,11 @@ impl From<JsonResponse> for Response {
 mod tests {
     use super::*;
     use reqwest::StatusCode;
-    use std::sync::atomic::{AtomicU16, Ordering};
-    use tokio::net::TcpListener;
+    use rsnano_nullable_tcp::get_available_port;
 
     #[tokio::test]
     async fn make_real_request() {
-        let port = get_available_port().await;
+        let port = get_available_port();
         let _server = test_http_server::start(("0.0.0.0", port)).await;
 
         let client = HttpClient::new();
@@ -290,7 +289,7 @@ mod tests {
 
     #[tokio::test]
     async fn error_for_status() {
-        let port = get_available_port().await;
+        let port = get_available_port();
         let _server = test_http_server::start(("0.0.0.0", port)).await;
 
         let client = HttpClient::new();
@@ -425,26 +424,6 @@ mod tests {
         async fn root(Json(mut payload): Json<Vec<String>>) -> Json<Vec<String>> {
             payload.push("world".to_string());
             Json(payload)
-        }
-    }
-
-    static START_PORT: AtomicU16 = AtomicU16::new(1025);
-
-    async fn get_available_port() -> u16 {
-        let start = START_PORT.fetch_add(1, Ordering::SeqCst);
-        for port in start..65535 {
-            if is_port_available(port).await {
-                return port;
-            }
-        }
-
-        panic!("Could not find an available port");
-    }
-
-    async fn is_port_available(port: u16) -> bool {
-        match TcpListener::bind(("127.0.0.1", port)).await {
-            Ok(_) => true,
-            Err(_) => false,
         }
     }
 }
