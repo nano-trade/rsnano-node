@@ -184,9 +184,7 @@ impl AsyncWrite for TcpStream {
     ) -> std::task::Poll<Result<usize, std::io::Error>> {
         match &mut self.stream {
             StreamType::Tokio(_) => unsafe { downcast_stream(self) }.poll_write(cx, buf),
-            StreamType::Stub(_) => {
-                todo!()
-            }
+            StreamType::Stub(_) => Ok(buf.len()).into(),
         }
     }
 
