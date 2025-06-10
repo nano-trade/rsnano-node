@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 rsnano_output_tracker = { path = "../output_tracker" }
-async-trait = "0"
 tokio = { version = "1", features = [
     "rt",
     "rt-multi-thread",

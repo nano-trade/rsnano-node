@@ -4368,7 +4368,6 @@ dependencies = [
 name = "rsnano_nullable_tcp"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "rsnano_output_tracker",
  "tokio",
 ]

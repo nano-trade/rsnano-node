@@ -1,28 +1,36 @@
 use super::tcp_stream::TcpStream;
-use async_trait::async_trait;
-use std::net::{SocketAddr, ToSocketAddrs};
 
 pub struct TcpStreamFactory {
-    inner: Box<dyn InternalTcpStreamFactory>,
+    factory: FactoryType,
 }
 
 impl TcpStreamFactory {
     pub fn new() -> Self {
         Self {
-            inner: Box::new(TcpStreamFactoryWrapper {}),
+            factory: FactoryType::Tokio,
         }
     }
 
     pub fn new_null() -> Self {
         Self {
-            inner: Box::new(NullTcpStreamFactory {}),
+            factory: FactoryType::Null,
         }
     }
 
-    pub async fn connect<A: ToSocketAddrs>(&self, addr: A) -> tokio::io::Result<TcpStream> {
-        self.inner
-            .connect(addr.to_socket_addrs().unwrap().next().unwrap())
-            .await
+    pub async fn connect<A: tokio::net::ToSocketAddrs>(
+        &self,
+        addr: A,
+    ) -> tokio::io::Result<TcpStream> {
+        match &self.factory {
+            FactoryType::Tokio => {
+                let tokio_stream = tokio::net::TcpStream::connect(addr).await?;
+                Ok(TcpStream::new(tokio_stream))
+            }
+            FactoryType::Null => Err(tokio::io::Error::new(
+                std::io::ErrorKind::Other,
+                "nulled TcpStreamFactory has no configured connections",
+            )),
+        }
     }
 }
 
@@ -32,31 +40,9 @@ impl Default for TcpStreamFactory {
     }
 }
 
-#[async_trait]
-trait InternalTcpStreamFactory: Send + Sync {
-    async fn connect(&self, addr: SocketAddr) -> tokio::io::Result<TcpStream>;
-}
-
-struct NullTcpStreamFactory {}
-
-#[async_trait]
-impl InternalTcpStreamFactory for NullTcpStreamFactory {
-    async fn connect(&self, _addr: SocketAddr) -> tokio::io::Result<TcpStream> {
-        Err(tokio::io::Error::new(
-            std::io::ErrorKind::Other,
-            "nulled TcpStreamFactory has no configured connections",
-        ))
-    }
-}
-
-struct TcpStreamFactoryWrapper {}
-
-#[async_trait]
-impl InternalTcpStreamFactory for TcpStreamFactoryWrapper {
-    async fn connect(&self, addr: SocketAddr) -> tokio::io::Result<TcpStream> {
-        let tokio_stream = tokio::net::TcpStream::connect(addr).await?;
-        Ok(TcpStream::new(tokio_stream))
-    }
+enum FactoryType {
+    Tokio,
+    Null,
 }
 
 #[cfg(test)]
