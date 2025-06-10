@@ -1,10 +1,11 @@
 use std::{
     cmp::min,
     net::{Ipv6Addr, SocketAddr, SocketAddrV6},
+    pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use tokio::io::{AsyncRead, AsyncWriteExt, ErrorKind};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ErrorKind};
 
 pub const TEST_ENDPOINT_1: SocketAddrV6 =
     SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 0x10, 0, 0, 1), 1111, 0, 0);
@@ -160,23 +161,12 @@ impl TcpStreamStub {
 
 impl AsyncRead for TcpStream {
     fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
         match &mut self.stream {
-            StreamType::Tokio(_) => {
-                let stream = unsafe {
-                    self.map_unchecked_mut(|i| {
-                        let StreamType::Tokio(s) = &mut i.stream else {
-                            unreachable!()
-                        };
-
-                        s
-                    })
-                };
-                stream.poll_read(cx, buf)
-            }
+            StreamType::Tokio(_) => unsafe { downcast_stream(self) }.poll_read(cx, buf),
             StreamType::Stub(stream) => {
                 stream.readable()?;
                 stream.try_read(buf.initialize_unfilled())?;
@@ -184,6 +174,51 @@ impl AsyncRead for TcpStream {
             }
         }
     }
+}
+
+impl AsyncWrite for TcpStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<Result<usize, std::io::Error>> {
+        match &mut self.stream {
+            StreamType::Tokio(_) => unsafe { downcast_stream(self) }.poll_write(cx, buf),
+            StreamType::Stub(_) => {
+                todo!()
+            }
+        }
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), std::io::Error>> {
+        match &mut self.stream {
+            StreamType::Tokio(_) => unsafe { downcast_stream(self) }.poll_flush(cx),
+            StreamType::Stub(_) => Ok(()).into(),
+        }
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), std::io::Error>> {
+        match &mut self.stream {
+            StreamType::Tokio(_) => unsafe { downcast_stream(self) }.poll_shutdown(cx),
+            StreamType::Stub(_) => Ok(()).into(),
+        }
+    }
+}
+
+unsafe fn downcast_stream(stream: Pin<&mut TcpStream>) -> Pin<&mut tokio::net::TcpStream> {
+    stream.map_unchecked_mut(|i| {
+        let StreamType::Tokio(s) = &mut i.stream else {
+            unreachable!()
+        };
+
+        s
+    })
 }
 
 #[cfg(test)]
