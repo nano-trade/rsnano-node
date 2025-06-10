@@ -4,121 +4,93 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use async_trait::async_trait;
-use tokio::io::{AsyncWriteExt, ErrorKind};
+use tokio::io::{AsyncRead, AsyncWriteExt, ErrorKind};
 
 pub const TEST_ENDPOINT_1: SocketAddrV6 =
     SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 0x10, 0, 0, 1), 1111, 0, 0);
 
 pub struct TcpStream {
-    stream: Box<dyn InternalTcpStream>,
+    stream: StreamType,
 }
 
 impl TcpStream {
     pub fn new(stream: tokio::net::TcpStream) -> Self {
         Self {
-            stream: Box::new(TokioTcpStreamWrapper(stream)),
+            stream: StreamType::Tokio(stream),
         }
     }
 
     pub fn new_null() -> Self {
         Self {
-            stream: Box::new(TcpStreamStub::new(TEST_ENDPOINT_1, Vec::new())),
+            stream: StreamType::Stub(TcpStreamStub::new(TEST_ENDPOINT_1, Vec::new())),
         }
     }
 
     pub fn new_null_with_peer_addr(peer_addr: SocketAddrV6) -> Self {
         Self {
-            stream: Box::new(TcpStreamStub::new(peer_addr, Vec::new())),
+            stream: StreamType::Stub(TcpStreamStub::new(peer_addr, Vec::new())),
         }
     }
 
     pub fn new_null_with(incoming: Vec<u8>) -> Self {
         Self {
-            stream: Box::new(TcpStreamStub::new(TEST_ENDPOINT_1, incoming)),
+            stream: StreamType::Stub(TcpStreamStub::new(TEST_ENDPOINT_1, incoming)),
         }
     }
 
     pub async fn shutdown(&mut self) -> tokio::io::Result<()> {
-        self.stream.shutdown().await
+        match &mut self.stream {
+            StreamType::Tokio(stream) => stream.shutdown().await,
+            StreamType::Stub(stream) => stream.shutdown().await,
+        }
     }
 
     pub async fn readable(&self) -> tokio::io::Result<()> {
-        self.stream.readable().await
+        match &self.stream {
+            StreamType::Tokio(stream) => stream.readable().await,
+            StreamType::Stub(stream) => stream.readable().await,
+        }
     }
 
     pub fn try_read(&self, buf: &mut [u8]) -> tokio::io::Result<usize> {
-        self.stream.try_read(buf)
+        match &self.stream {
+            StreamType::Tokio(stream) => stream.try_read(buf),
+            StreamType::Stub(stream) => stream.try_read(buf),
+        }
     }
 
     pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
-        self.stream.local_addr()
+        match &self.stream {
+            StreamType::Tokio(stream) => stream.local_addr(),
+            StreamType::Stub(stream) => stream.local_addr(),
+        }
     }
 
     pub fn peer_addr(&self) -> std::io::Result<SocketAddr> {
-        self.stream.peer_addr()
+        match &self.stream {
+            StreamType::Tokio(stream) => stream.peer_addr(),
+            StreamType::Stub(stream) => stream.peer_addr(),
+        }
     }
 
     pub async fn writable(&self) -> tokio::io::Result<()> {
-        self.stream.writable().await
+        match &self.stream {
+            StreamType::Tokio(stream) => stream.writable().await,
+            StreamType::Stub(stream) => stream.writable().await,
+        }
     }
 
     pub fn try_write(&self, buf: &[u8]) -> tokio::io::Result<usize> {
-        self.stream.try_write(buf)
-    }
-
-    pub fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream {
-        self.stream.as_tokio_stream()
+        match &self.stream {
+            StreamType::Tokio(stream) => stream.try_write(buf),
+            StreamType::Stub(stream) => stream.try_write(buf),
+        }
     }
 }
 
-#[async_trait]
-trait InternalTcpStream: Send + Sync {
-    async fn readable(&self) -> tokio::io::Result<()>;
-    fn try_read(&self, buf: &mut [u8]) -> tokio::io::Result<usize>;
-    fn local_addr(&self) -> std::io::Result<SocketAddr>;
-    fn peer_addr(&self) -> std::io::Result<SocketAddr>;
-    async fn writable(&self) -> tokio::io::Result<()>;
-    fn try_write(&self, buf: &[u8]) -> tokio::io::Result<usize>;
-    async fn shutdown(&mut self) -> tokio::io::Result<()>;
-    fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream;
-}
-
-struct TokioTcpStreamWrapper(tokio::net::TcpStream);
-
-#[async_trait]
-impl InternalTcpStream for TokioTcpStreamWrapper {
-    async fn readable(&self) -> tokio::io::Result<()> {
-        self.0.readable().await
-    }
-
-    fn try_read(&self, buf: &mut [u8]) -> tokio::io::Result<usize> {
-        self.0.try_read(buf)
-    }
-
-    fn local_addr(&self) -> std::io::Result<SocketAddr> {
-        self.0.local_addr()
-    }
-
-    fn peer_addr(&self) -> std::io::Result<SocketAddr> {
-        self.0.peer_addr()
-    }
-
-    async fn writable(&self) -> tokio::io::Result<()> {
-        self.0.writable().await
-    }
-
-    fn try_write(&self, buf: &[u8]) -> tokio::io::Result<usize> {
-        self.0.try_write(buf)
-    }
-
-    async fn shutdown(&mut self) -> tokio::io::Result<()> {
-        self.0.shutdown().await
-    }
-
-    fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream {
-        &mut self.0
-    }
+enum StreamType {
+    Tokio(tokio::net::TcpStream),
+    Stub(TcpStreamStub),
 }
 
 struct TcpStreamStub {
@@ -144,10 +116,7 @@ impl TcpStreamStub {
         let pos = self.position.load(Ordering::SeqCst);
         &self.incoming[pos..]
     }
-}
 
-#[async_trait]
-impl InternalTcpStream for TcpStreamStub {
     async fn readable(&self) -> tokio::io::Result<()> {
         if self.next_bytes().is_empty() {
             Err(Self::no_data_error())
@@ -187,9 +156,15 @@ impl InternalTcpStream for TcpStreamStub {
     async fn shutdown(&mut self) -> tokio::io::Result<()> {
         Ok(())
     }
+}
 
-    fn as_tokio_stream(&mut self) -> &mut tokio::net::TcpStream {
-        panic!("Tried to get real TcpStream from nulled instance");
+impl AsyncRead for TcpStream {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        todo!()
     }
 }
 
@@ -201,7 +176,7 @@ mod tests {
         io::ErrorKind,
         net::{IpAddr, Ipv4Addr, SocketAddr},
     };
-    use tokio::{net::TcpListener, spawn};
+    use tokio::{io::AsyncReadExt, net::TcpListener, spawn};
 
     #[tokio::test]
     async fn connects_to_real_server() {
@@ -300,6 +275,15 @@ mod tests {
         stream
             .try_read(&mut buf)
             .expect_err("try_read should fail on second call");
+    }
+
+    #[tokio::test]
+    #[ignore = "TODO"]
+    async fn implements_async_read() {
+        let mut stream = TcpStream::new_null_with(vec![1, 2, 3]);
+        let mut buffer = vec![0; 3];
+        stream.read(&mut buffer).await.unwrap();
+        assert_eq!(buffer, [1, 2, 3]);
     }
 
     async fn start_test_tcp_server(endpoint: SocketAddr) {
