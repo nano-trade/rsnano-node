@@ -124,7 +124,7 @@ impl WorkThresholds {
 }
 
 impl WorkThresholds {
-    pub fn new(epoch_1: u64, epoch_2: u64, epoch_2_receive: u64) -> Self {
+    fn new(epoch_1: u64, epoch_2: u64, epoch_2_receive: u64) -> Self {
         Self::with_difficulty(
             Box::<DifficultyV1>::default(),
             epoch_1,
@@ -138,7 +138,7 @@ impl WorkThresholds {
             Networks::NanoDevNetwork => Self::publish_dev().clone(),
             Networks::NanoBetaNetwork => Self::publish_beta().clone(),
             Networks::NanoLiveNetwork => Self::publish_full().clone(),
-            Networks::NanoTestNetwork => Self::publish_test().clone(),
+            Networks::NanoTestNetwork => Self::none().clone(),
             Networks::Invalid => {
                 panic!("no default network set")
             }
