@@ -2861,6 +2861,7 @@ dependencies = [
  "rsnano_network",
  "rsnano_network_protocol",
  "rsnano_nullable_clock",
+ "rsnano_nullable_env",
  "rsnano_nullable_tcp",
  "rsnano_nullable_tracing_subscriber",
  "rsnano_stats",

@@ -7,6 +7,7 @@ edition = "2024"
 rsnano_nullable_clock = { path = "../../nullables/clock" }
 rsnano_nullable_tcp = { path = "../../nullables/tcp" }
 rsnano_nullable_tracing_subscriber = { path = "../../nullables/tracing_subscriber" }
+rsnano_nullable_env = { path = "../../nullables/env" }
 rsnano_core = { path = "../../core" }
 rsnano_stats = { path = "../../stats" }
 rsnano_messages = { path = "../../messages" }
