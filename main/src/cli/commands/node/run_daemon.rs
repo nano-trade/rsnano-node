@@ -2,7 +2,7 @@ use crate::cli::GlobalArgs;
 use clap::Parser;
 use rsnano_daemon::DaemonBuilder;
 use rsnano_node::config::NodeFlags;
-use rsnano_nullable_tracing_subscriber::init_tracing;
+use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
 #[derive(Parser, PartialEq, Debug)]
 pub(crate) struct RunDaemonArgs {
@@ -46,7 +46,7 @@ pub(crate) struct RunDaemonArgs {
 
 impl RunDaemonArgs {
     pub(crate) fn run_daemon(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
-        init_tracing();
+        TracingInitializer::default().init();
         let network = global_args.network;
         let flags = self.get_flags();
         DaemonBuilder::new(network)

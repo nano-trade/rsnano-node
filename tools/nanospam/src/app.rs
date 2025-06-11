@@ -3,7 +3,7 @@ use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::{Keepalive, Message, MessageDeserializer, MessageSerializer};
 use rsnano_network_protocol::{HandshakeProcess, SynCookies};
 use rsnano_nullable_tcp::TcpStreamFactory;
-use rsnano_nullable_tracing_subscriber::init_tracing;
+use rsnano_nullable_tracing_subscriber::TracingInitializer;
 use std::{
     net::{SocketAddr, SocketAddrV6},
     sync::Arc,
@@ -17,12 +17,13 @@ use tracing::info;
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
+    pub tracing_init: TracingInitializer,
     pub tcp_stream_factory: TcpStreamFactory,
 }
 
 impl NanoSpamApp {
     pub async fn run(&self) -> anyhow::Result<()> {
-        init_tracing();
+        self.tracing_init.init();
 
         let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
         let node_id_key = PrivateKey::from(42);

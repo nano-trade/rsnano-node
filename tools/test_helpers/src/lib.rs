@@ -326,7 +326,7 @@ static TRACING_INITIALIZED: OnceLock<()> = OnceLock::new();
 
 pub fn init_tracing() {
     TRACING_INITIALIZED.get_or_init(|| {
-        init_tracing_with_default_log_level("off");
+        TracingInitializer::default().init_with_default_log_level("off");
     });
 }
 
@@ -544,7 +544,7 @@ pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) 
 }
 
 use rsnano_nullable_tcp::get_available_port;
-use rsnano_nullable_tracing_subscriber::init_tracing_with_default_log_level;
+use rsnano_nullable_tracing_subscriber::TracingInitializer;
 use tokio::net::TcpListener as TokioTcpListener;
 
 pub struct RpcServerGuard {

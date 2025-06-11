@@ -16,10 +16,10 @@ mod rate_calculator;
 
 use eframe::egui;
 use gui::MainView;
-use rsnano_nullable_tracing_subscriber::init_tracing;
+use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
 fn main() -> eframe::Result {
-    init_tracing();
+    TracingInitializer::default().init();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1024.0, 768.0]),

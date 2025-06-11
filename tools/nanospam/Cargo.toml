@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rsnano_nullable_clock = { path = "../../nullables/clock" }
+rsnano_nullable_tcp = { path = "../../nullables/tcp" }
+rsnano_nullable_tracing_subscriber = { path = "../../nullables/tracing_subscriber" }
 rsnano_core = { path = "../../core" }
 rsnano_stats = { path = "../../stats" }
 rsnano_messages = { path = "../../messages" }
 rsnano_network = { path = "../../network" }
 rsnano_network_protocol = { path = "../../network_protocol" }
-rsnano_nullable_clock = { path = "../../nullables/clock" }
-rsnano_nullable_tcp = { path = "../../nullables/tcp" }
-rsnano_nullable_tracing_subscriber = { path = "../../nullables/tracing_subscriber" }
 anyhow = "1.0.98"
 tokio = { version = "1.44.2", features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
 tokio-scoped = "0.2.0"
