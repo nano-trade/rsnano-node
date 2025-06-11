@@ -2,6 +2,7 @@ use anyhow::bail;
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::{Keepalive, Message, MessageDeserializer, MessageSerializer};
 use rsnano_network_protocol::{HandshakeProcess, SynCookies};
+use rsnano_nullable_tcp::TcpStreamFactory;
 use std::{
     net::{SocketAddr, SocketAddrV6},
     sync::Arc,
@@ -9,7 +10,6 @@ use std::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpSocket, TcpStream},
     time::sleep,
 };
 use tracing::info;
@@ -17,43 +17,54 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> anyhow::Result<()> {
-    setup_tracing();
+    NanoSpamApp::default().run().await
+}
 
-    let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
-    let node_id_key = PrivateKey::from(42);
-    let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
-    let genesis_hash = get_genesis_hash_from_env()?;
-    let mut tcp_stream = TcpSocket::new_v6()?.connect(peer_addr.into()).await?;
+#[derive(Default)]
+struct NanoSpamApp {
+    tcp_stream_factory: TcpStreamFactory,
+}
 
-    perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
+impl NanoSpamApp {
+    pub async fn run(&self) -> anyhow::Result<()> {
+        setup_tracing();
 
-    let mut serializer = MessageSerializer::new(protocol);
-    let mut deserializer = MessageDeserializer::new(protocol);
+        let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
+        let node_id_key = PrivateKey::from(42);
+        let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
+        let genesis_hash = get_genesis_hash_from_env()?;
+        let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
 
-    let (mut read, mut write) = tokio::io::split(tcp_stream);
-    tokio_scoped::scope(|scope| {
-        scope.spawn(async {
-            let mut recv_buffer = vec![0; 1024 * 4];
-            loop {
-                let n = read.read(&mut recv_buffer).await.unwrap();
-                deserializer.push(&recv_buffer[..n]);
-                while let Some(msg) = deserializer.try_deserialize() {
-                    let msg = msg.unwrap();
-                    info!(message = ?msg.message, "received message");
+        perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
+
+        let mut serializer = MessageSerializer::new(protocol);
+        let mut deserializer = MessageDeserializer::new(protocol);
+
+        let (mut read, mut write) = tokio::io::split(tcp_stream);
+        tokio_scoped::scope(|scope| {
+            scope.spawn(async {
+                let mut recv_buffer = vec![0; 1024 * 4];
+                loop {
+                    let n = read.read(&mut recv_buffer).await.unwrap();
+                    deserializer.push(&recv_buffer[..n]);
+                    while let Some(msg) = deserializer.try_deserialize() {
+                        let msg = msg.unwrap();
+                        info!(message = ?msg.message, "received message");
+                    }
                 }
-            }
-        });
+            });
 
-        scope.spawn(async {
-            loop {
-                println!("SENDING KEEPALIVE");
-                let buffer = serializer.serialize(&Message::Keepalive(Keepalive::default()));
-                write.write(&buffer).await.unwrap();
-                sleep(Duration::from_secs(1)).await;
-            }
+            scope.spawn(async {
+                loop {
+                    println!("SENDING KEEPALIVE");
+                    let buffer = serializer.serialize(&Message::Keepalive(Keepalive::default()));
+                    write.write(&buffer).await.unwrap();
+                    sleep(Duration::from_secs(1)).await;
+                }
+            });
         });
-    });
-    Ok(())
+        Ok(())
+    }
 }
 
 fn setup_tracing() {
@@ -76,7 +87,7 @@ async fn perform_handshake(
     protocol: ProtocolInfo,
     genesis_hash: BlockHash,
     node_id_key: PrivateKey,
-    tcp_stream: &mut TcpStream,
+    tcp_stream: &mut rsnano_nullable_tcp::TcpStream,
 ) -> anyhow::Result<()> {
     let peer_addr = match tcp_stream.peer_addr()? {
         SocketAddr::V4(v4) => SocketAddrV6::new(v4.ip().to_ipv6_mapped(), v4.port(), 0, 0),
