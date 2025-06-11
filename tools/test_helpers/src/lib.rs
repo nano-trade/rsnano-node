@@ -5,8 +5,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tracing_subscriber::EnvFilter;
-
 use rsnano_core::{
     utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
     Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
@@ -328,17 +326,7 @@ static TRACING_INITIALIZED: OnceLock<()> = OnceLock::new();
 
 pub fn init_tracing() {
     TRACING_INITIALIZED.get_or_init(|| {
-        let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("off"));
-        let filter = EnvFilter::builder().parse_lossy(dirs);
-
-        let value = std::env::var("NANO_LOG");
-        let log_style = value.as_ref().map(|i| i.as_str()).unwrap_or_default();
-        let ansi = log_style != "noansi";
-
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(filter)
-            .with_ansi(ansi)
-            .init();
+        init_tracing_with_default_log_level("off");
     });
 }
 
@@ -556,6 +544,7 @@ pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) 
 }
 
 use rsnano_nullable_tcp::get_available_port;
+use rsnano_nullable_tracing_subscriber::init_tracing_with_default_log_level;
 use tokio::net::TcpListener as TokioTcpListener;
 
 pub struct RpcServerGuard {

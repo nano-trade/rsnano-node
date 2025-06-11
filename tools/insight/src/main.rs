@@ -16,15 +16,10 @@ mod rate_calculator;
 
 use eframe::egui;
 use gui::MainView;
-use tracing_subscriber::EnvFilter;
+use rsnano_nullable_tracing_subscriber::init_tracing;
 
 fn main() -> eframe::Result {
-    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
-    let filter = EnvFilter::builder().parse_lossy(dirs);
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(filter)
-        .with_ansi(true)
-        .init();
+    init_tracing();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1024.0, 768.0]),

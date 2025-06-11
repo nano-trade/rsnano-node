@@ -4,18 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rsnano_nullable_tcp = { path = "../../nullables/tcp" }
+rsnano_nullable_tracing_subscriber = { path = "../../nullables/tracing_subscriber" }
 rsnano_core = { path = "../../core" }
 rsnano_work = { path = "../../work" }
 rsnano_ledger = { path = "../../ledger" }
 rsnano_store_lmdb = { path = "../../store_lmdb" }
 rsnano_network = { path = "../../network" }
 rsnano_node = { path = "../../node", features = ["output_tracking"] }
-rsnano_nullable_tcp = { path = "../../nullables/tcp" }
 rsnano_rpc_client = { path = "../../rpc_client" }
 rsnano_rpc_server = { path = "../../rpc_server" }
 rsnano_websocket_server = { path = "../../websocket_server" }
 mock_instant = "0"
-tracing-subscriber = { version = "0", features = ["env-filter"] }
 axum = "0"
 tracing-test = "0"
 tokio = { version = "1" }

@@ -1,0 +1,7 @@
+[package]
+name = "rsnano_nullable_tracing_subscriber"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }

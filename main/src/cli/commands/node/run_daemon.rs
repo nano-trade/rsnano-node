@@ -2,7 +2,7 @@ use crate::cli::GlobalArgs;
 use clap::Parser;
 use rsnano_daemon::DaemonBuilder;
 use rsnano_node::config::NodeFlags;
-use tracing_subscriber::EnvFilter;
+use rsnano_nullable_tracing_subscriber::init_tracing;
 
 #[derive(Parser, PartialEq, Debug)]
 pub(crate) struct RunDaemonArgs {
@@ -95,32 +95,4 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
-}
-
-fn init_tracing() {
-    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
-    let filter = EnvFilter::builder().parse_lossy(dirs);
-    let value = std::env::var("NANO_LOG");
-    let log_style = value.as_ref().map(|i| i.as_str()).unwrap_or_default();
-    match log_style {
-        "json" => {
-            tracing_subscriber::fmt::fmt()
-                .json()
-                .with_env_filter(filter)
-                .init();
-        }
-        "noansi" => {
-            tracing_subscriber::fmt::fmt()
-                .with_env_filter(filter)
-                .with_ansi(false)
-                .init();
-        }
-        _ => {
-            tracing_subscriber::fmt::fmt()
-                .with_env_filter(filter)
-                .with_ansi(true)
-                .init();
-        }
-    }
-    tracing::debug!(log_style, ?value, "init tracing");
 }

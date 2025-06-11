@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 eframe = "0.31.1"
 egui_extras = "0.31.1"
+rsnano_nullable_clock = { path = "../../nullables/clock" }
+rsnano_nullable_tracing_subscriber = { path = "../../nullables/tracing_subscriber" }
 rsnano_core = { path = "../../core" }
 rsnano_messages = { path = "../../messages" }
 rsnano_network = { path = "../../network" }
@@ -13,7 +15,6 @@ rsnano_store_lmdb = { path = "../../store_lmdb" }
 rsnano_node = { path = "../../node" }
 rsnano_daemon = { path = "../../daemon" }
 rsnano_ledger = { path = "../../ledger" }
-rsnano_nullable_clock = { path = "../../nullables/clock" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 num-format = "0.4.4"
 num = "0"
@@ -22,5 +23,4 @@ num-derive = "0"
 chrono = "0.4.40"
 strum = "0"
 tracing = "0"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 serde_json = "1"

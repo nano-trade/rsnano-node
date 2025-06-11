@@ -3,6 +3,7 @@ use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::{Keepalive, Message, MessageDeserializer, MessageSerializer};
 use rsnano_network_protocol::{HandshakeProcess, SynCookies};
 use rsnano_nullable_tcp::TcpStreamFactory;
+use rsnano_nullable_tracing_subscriber::init_tracing;
 use std::{
     net::{SocketAddr, SocketAddrV6},
     sync::Arc,
@@ -13,7 +14,6 @@ use tokio::{
     time::sleep,
 };
 use tracing::info;
-use tracing_subscriber::EnvFilter;
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
@@ -22,7 +22,7 @@ pub(crate) struct NanoSpamApp {
 
 impl NanoSpamApp {
     pub async fn run(&self) -> anyhow::Result<()> {
-        setup_tracing();
+        init_tracing();
 
         let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
         let node_id_key = PrivateKey::from(42);
@@ -60,15 +60,6 @@ impl NanoSpamApp {
         });
         Ok(())
     }
-}
-
-fn setup_tracing() {
-    let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("info"));
-    let filter = EnvFilter::builder().parse_lossy(dirs);
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(filter)
-        .with_ansi(true)
-        .init();
 }
 
 fn get_genesis_hash_from_env() -> anyhow::Result<BlockHash> {

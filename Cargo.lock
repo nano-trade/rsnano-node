@@ -2862,13 +2862,13 @@ dependencies = [
  "rsnano_network_protocol",
  "rsnano_nullable_clock",
  "rsnano_nullable_tcp",
+ "rsnano_nullable_tracing_subscriber",
  "rsnano_stats",
  "serde",
  "serde_json",
  "tokio",
  "tokio-scoped",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -4097,12 +4097,12 @@ dependencies = [
  "rsnano_network",
  "rsnano_node",
  "rsnano_nullable_clock",
+ "rsnano_nullable_tracing_subscriber",
  "rsnano_store_lmdb",
  "serde_json",
  "strum 0.27.1",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -4308,12 +4308,12 @@ dependencies = [
  "rsnano_messages",
  "rsnano_node",
  "rsnano_nullable_console",
+ "rsnano_nullable_tracing_subscriber",
  "rsnano_rpc_server",
  "rsnano_store_lmdb",
  "tokio",
  "toml",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -4370,6 +4370,13 @@ version = "0.1.0"
 dependencies = [
  "rsnano_output_tracker",
  "tokio",
+]
+
+[[package]]
+name = "rsnano_nullable_tracing_subscriber"
+version = "0.1.0"
+dependencies = [
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5068,13 +5075,13 @@ dependencies = [
  "rsnano_network",
  "rsnano_node",
  "rsnano_nullable_tcp",
+ "rsnano_nullable_tracing_subscriber",
  "rsnano_rpc_client",
  "rsnano_rpc_server",
  "rsnano_store_lmdb",
  "rsnano_websocket_server",
  "rsnano_work",
  "tokio",
- "tracing-subscriber",
  "tracing-test",
 ]
 
