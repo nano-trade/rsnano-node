@@ -1,4 +1,5 @@
 mod app;
+mod block_factory;
 mod handshake;
 
 use app::NanoSpamApp;

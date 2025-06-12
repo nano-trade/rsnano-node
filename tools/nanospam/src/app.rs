@@ -1,22 +1,23 @@
 use std::{net::SocketAddrV6, time::Duration};
 
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt, ReadHalf},
+    io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
     select,
-    sync::oneshot,
+    sync::{mpsc, oneshot},
     time::sleep,
 };
-use tracing::info;
+use tracing::{debug, info};
 
-use rsnano_core::{
-    Amount, Block, BlockHash, Networks, PrivateKey, ProtocolInfo, StateBlock, StateBlockArgs,
-};
+use rsnano_core::{Amount, Block, BlockHash, Networks, PrivateKey, ProtocolInfo, StateBlockArgs};
 use rsnano_messages::{Message, MessageDeserializer, MessageSerializer, Publish};
 use rsnano_nullable_env::Env;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
-use crate::handshake::perform_handshake;
+use crate::{
+    block_factory::{AccountMap, BlockFactory},
+    handshake::perform_handshake,
+};
 use anyhow::anyhow;
 
 #[derive(Default)]
@@ -27,6 +28,8 @@ pub(crate) struct NanoSpamApp {
 }
 
 impl NanoSpamApp {
+    const MAX_BUFFERED_BLOCKS: usize = 1024 * 16;
+
     pub async fn run(&self) -> anyhow::Result<()> {
         self.tracing_init.init();
 
@@ -35,6 +38,7 @@ impl NanoSpamApp {
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
         let genesis_hash = self.get_genesis_hash()?;
         let genesis_key = self.get_genesis_key()?;
+
         info!(?peer_addr, "Connecting to node...");
         let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
 
@@ -42,29 +46,14 @@ impl NanoSpamApp {
         perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
 
         info!("Starting spam...");
-
-        let (read, mut write) = tokio::io::split(tcp_stream);
+        let (read, write) = tokio::io::split(tcp_stream);
         let (tx_stop, rx_stop) = oneshot::channel::<()>();
+        let (tx_block, rx_block) = mpsc::channel::<Block>(Self::MAX_BUFFERED_BLOCKS);
         tokio_scoped::scope(|scope| {
             scope.spawn(receive_messages(read, rx_stop, protocol));
-
+            scope.spawn(create_blocks(genesis_key, genesis_hash, tx_block));
             scope.spawn(async {
-                let block: Block = StateBlockArgs {
-                    key: &genesis_key,
-                    previous: genesis_hash,
-                    representative: genesis_key.public_key(),
-                    balance: Amount::MAX / 2,
-                    link: 1234.into(),
-                    work: 0.into(),
-                }
-                .into();
-                let publish = Message::Publish(Publish::new_from_originator(block));
-                let mut serializer = MessageSerializer::new(protocol);
-                println!("Publishing block");
-                let buffer = serializer.serialize(&publish);
-                write.write(&buffer).await.unwrap();
-                println!("block sent");
-                sleep(Duration::from_millis(500)).await;
+                publish_blocks(rx_block, write, protocol).await;
                 tx_stop.send(()).unwrap();
             });
         });
@@ -92,6 +81,34 @@ impl NanoSpamApp {
     const GENESIS_PRV_KEY_ENV: &str = "NANO_TEST_GENESIS_PRV";
 }
 
+async fn create_blocks(
+    genesis_key: PrivateKey,
+    genesis_hash: BlockHash,
+    tx_block: mpsc::Sender<Block>,
+) {
+    let mut account_map = AccountMap::default();
+    account_map.fill(10_000);
+    let mut block_factory = BlockFactory::new(genesis_key, genesis_hash, account_map, 1);
+
+    while let Some(block) = block_factory.create_next() {
+        tx_block.send(block).await.unwrap();
+    }
+}
+
+async fn publish_blocks(
+    mut rx_block: mpsc::Receiver<Block>,
+    mut write: WriteHalf<TcpStream>,
+    protocol: ProtocolInfo,
+) {
+    while let Some(block) = rx_block.recv().await {
+        let publish = Message::Publish(Publish::new_from_originator(block));
+        let mut serializer = MessageSerializer::new(protocol);
+        let buffer = serializer.serialize(&publish);
+        write.write(&buffer).await.unwrap();
+        sleep(Duration::from_millis(500)).await;
+    }
+}
+
 async fn receive_messages(
     mut read: ReadHalf<TcpStream>,
     stop: oneshot::Receiver<()>,
@@ -108,7 +125,7 @@ async fn receive_messages(
                 deserializer.push(&recv_buffer[..n]);
                 while let Some(msg) = deserializer.try_deserialize() {
                     let msg = msg.unwrap();
-                    info!(message = ?msg.message, "Received message");
+                    debug!(message = ?msg.message, "Received message");
                 }
             }
         } => {}
