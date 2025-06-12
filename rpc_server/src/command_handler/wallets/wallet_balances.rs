@@ -5,13 +5,12 @@ use rsnano_rpc_messages::{AccountBalanceResponse, AccountsBalancesResponse, Wall
 use std::collections::HashMap;
 
 impl RpcCommandHandler {
-    pub(crate) fn wallet_balances(&self, args: WalletBalancesArgs) -> AccountsBalancesResponse {
+    pub(crate) fn wallet_balances(
+        &self,
+        args: WalletBalancesArgs,
+    ) -> anyhow::Result<AccountsBalancesResponse> {
         let threshold = args.threshold.unwrap_or(Amount::zero());
-        let accounts = self
-            .node
-            .wallets
-            .get_accounts_of_wallet(&args.wallet)
-            .unwrap();
+        let accounts = self.node.wallets.get_accounts_of_wallet(&args.wallet)?;
         let mut balances = HashMap::new();
         let any = self.node.ledger.any();
         for account in accounts {
@@ -28,6 +27,6 @@ impl RpcCommandHandler {
                 balances.insert(account, account_balance);
             }
         }
-        AccountsBalancesResponse { balances }
+        Ok(AccountsBalancesResponse { balances })
     }
 }

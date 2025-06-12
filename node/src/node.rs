@@ -223,6 +223,14 @@ impl Node {
         info!("{}", rsnano_build_info());
         info!("Network: {}", network_label);
         info!("Data path: {:?}", application_path);
+        info!(
+            "Genesis block: {}",
+            network_params.ledger.genesis_block.hash()
+        );
+        info!(
+            "Genesis account: {}",
+            network_params.ledger.genesis_account.encode_account()
+        );
 
         let mut config = args.config;
         let flags = args.flags;

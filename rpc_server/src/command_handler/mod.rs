@@ -98,7 +98,7 @@ impl RpcCommandHandler {
             RpcCommand::UncheckedGet(args) => to_value(self.unchecked_get(args)?),
             RpcCommand::WalletAdd(args) => to_value(self.wallet_add(args)?),
             RpcCommand::WalletAddWatch(args) => to_value(self.wallet_add_watch(args)?),
-            RpcCommand::WalletBalances(args) => to_value(self.wallet_balances(args)),
+            RpcCommand::WalletBalances(args) => to_value(self.wallet_balances(args)?),
             RpcCommand::PopulateBacklog => to_value(self.populate_backlog()),
             RpcCommand::ValidateAccountNumber(args) => to_value(validate_account_number(args)),
             RpcCommand::UncheckedKeys(args) => to_value(self.unchecked_keys(args)),

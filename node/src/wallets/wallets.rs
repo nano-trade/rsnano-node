@@ -193,6 +193,12 @@ impl Wallets {
         *self.start_election.lock().unwrap() = Some(callback);
     }
 
+    fn random_representative(&self) -> PublicKey {
+        self.node_config
+            .random_representative()
+            .unwrap_or(self.network_params.ledger.genesis_account.into())
+    }
+
     pub fn initialize(&mut self) -> anyhow::Result<()> {
         let mut txn = self.env.tx_begin_write();
         self.db = Some(unsafe { txn.rw_txn_mut().create_db(None, DatabaseFlags::empty())? });
@@ -205,7 +211,7 @@ impl Wallets {
             let wallet_ids = self.get_wallet_ids_with_tx(&txn);
             for id in wallet_ids {
                 assert!(!guard.contains_key(&id));
-                let representative = self.node_config.random_representative();
+                let representative = self.random_representative();
                 let text = PathBuf::from(id.encode_hex());
                 let wallet = Wallet::new(
                     self.ledger.clone(),
@@ -504,7 +510,7 @@ impl Wallets {
             // New wallet
             if !guard.contains_key(&id) {
                 let text = PathBuf::from(id.encode_hex());
-                let representative = self.node_config.random_representative();
+                let representative = self.random_representative();
                 if let Ok(wallet) = Wallet::new(
                     Arc::clone(&self.ledger),
                     self.work_thresholds.clone(),
@@ -2046,7 +2052,7 @@ impl WalletsExt for Arc<Wallets> {
                 &mut tx,
                 self.node_config.password_fanout as usize,
                 self.kdf.clone(),
-                self.node_config.random_representative(),
+                self.random_representative(),
                 &PathBuf::from(wallet_id.to_string()),
             ) else {
                 return;

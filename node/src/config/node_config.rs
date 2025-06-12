@@ -355,9 +355,13 @@ impl NodeConfig {
         Self::new(None, &DEV_NETWORK_PARAMS, 1)
     }
 
-    pub fn random_representative(&self) -> PublicKey {
+    pub fn random_representative(&self) -> Option<PublicKey> {
+        if self.preconfigured_representatives.is_empty() {
+            return None;
+        }
+
         let i = rand::rng().random_range(0..self.preconfigured_representatives.len());
-        return self.preconfigured_representatives[i];
+        return Some(self.preconfigured_representatives[i]);
     }
 
     pub fn rpc_callback_url(&self) -> Option<Url> {
