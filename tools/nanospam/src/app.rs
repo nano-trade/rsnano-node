@@ -17,6 +17,10 @@ use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
 use crate::{account_map::AccountMap, block_factory::BlockFactory, handshake::perform_handshake};
 
+const SPAM_ACCOUNTS: usize = 20_000;
+const MAX_BLOCKS: usize = 100_000;
+const MAX_BUFFERED_BLOCKS: usize = 1024 * 16;
+
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
     pub tracing_init: TracingInitializer,
@@ -25,8 +29,6 @@ pub(crate) struct NanoSpamApp {
 }
 
 impl NanoSpamApp {
-    const MAX_BUFFERED_BLOCKS: usize = 1024 * 16;
-
     pub async fn run(&self) -> anyhow::Result<()> {
         self.tracing_init.init();
 
@@ -45,7 +47,7 @@ impl NanoSpamApp {
         info!("Starting spam...");
         let (read, write) = tokio::io::split(tcp_stream);
         let (tx_stop, rx_stop) = oneshot::channel::<()>();
-        let (tx_block, rx_block) = mpsc::channel::<Block>(Self::MAX_BUFFERED_BLOCKS);
+        let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
         tokio_scoped::scope(|scope| {
             scope.spawn(receive_messages(read, rx_stop, protocol));
             scope.spawn(create_blocks(genesis_key, genesis_hash, tx_block));
@@ -78,9 +80,6 @@ impl NanoSpamApp {
     const GENESIS_PRV_KEY_ENV: &str = "NANO_TEST_GENESIS_PRV";
 }
 
-const SPAM_ACCOUNTS: usize = 50_000;
-const MAX_BLOCKS: usize = 1_000_000;
-
 async fn create_blocks(
     genesis_key: PrivateKey,
     genesis_hash: BlockHash,
@@ -97,7 +96,7 @@ async fn create_blocks(
         if published % 100 == 0 {
             println!("published {} blocks", published);
         }
-        sleep(Duration::from_millis(100)).await;
+        sleep(Duration::from_millis(1)).await;
     }
 }
 
