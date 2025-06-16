@@ -80,6 +80,7 @@ impl BlockFactory {
                     .into();
 
                     self.account_map.process_send(
+                        self.genesis_key.account(),
                         destination,
                         genesis_send.hash(),
                         Self::INITIAL_AMOUNT_SENT,

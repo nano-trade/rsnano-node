@@ -49,12 +49,24 @@ impl AccountMap {
         self.all_accounts.choose(&mut rand::rng()).cloned()
     }
 
-    pub fn process_send(&mut self, destination: Account, send_hash: BlockHash, amount: Amount) {
+    pub fn process_send(
+        &mut self,
+        source: Account,
+        destination: Account,
+        send_hash: BlockHash,
+        amount: Amount,
+    ) {
         self.receivable
             .entry(destination)
             .or_default()
             .push((send_hash, amount));
-        //TODO: if balance empty, remove from accounts_that_can_send
+
+        if let Some(state) = self.account_states.get_mut(&source) {
+            state.balance -= amount;
+            if state.balance.is_zero() {
+                self.accounts_that_can_send.remove(&source);
+            }
+        }
     }
 
     pub fn process_receive(&mut self, receiver: &Account, send_hash: &BlockHash) {
@@ -148,7 +160,7 @@ mod tests {
         let amount = Amount::nano(12_345);
         map.add_unopened(dest_key.clone());
 
-        map.process_send(dest_account, send_hash, amount);
+        map.process_send(TEST_GENESIS_ACCOUNT, dest_account, send_hash, amount);
 
         assert_eq!(map.get_receivable(&dest_account), Some((send_hash, amount)));
         assert_eq!(
@@ -160,6 +172,59 @@ mod tests {
     }
 
     #[test]
+    fn process_send_reduces_balance_of_sender() {
+        let mut map = AccountMap::default();
+        let key = PrivateKey::from(100);
+
+        map.add_unopened(key.clone());
+
+        let send_genesis_hash = BlockHash::from(42);
+        let send_hash = BlockHash::from(43);
+
+        let amount = Amount::nano(12_345);
+
+        map.process_send(
+            TEST_GENESIS_ACCOUNT,
+            key.account(),
+            send_genesis_hash,
+            amount,
+        );
+        map.process_receive(&key.account(), &send_genesis_hash);
+
+        map.process_send(key.account(), key.account(), send_hash, Amount::nano(1));
+
+        assert_eq!(
+            map.state(&key.account()).unwrap().balance,
+            Amount::nano(12_344)
+        );
+    }
+
+    #[test]
+    fn remove_from_sendable_accounts_when_complete_balance_sent() {
+        let mut map = AccountMap::default();
+        let key_a = PrivateKey::from(100);
+        let key_b = PrivateKey::from(200);
+
+        let account_a = key_a.account();
+        let account_b = key_a.account();
+
+        map.add_unopened(key_a.clone());
+        map.add_unopened(key_b.clone());
+
+        let send_hash_a = BlockHash::from(42);
+        let send_hash_b = BlockHash::from(43);
+
+        let amount = Amount::nano(12_345);
+
+        map.process_send(TEST_GENESIS_ACCOUNT, account_a, send_hash_a, amount);
+        map.process_receive(&account_a, &send_hash_a);
+
+        map.process_send(account_a, account_b, send_hash_b, amount);
+
+        assert_false!(map.accounts_that_can_send.contains(&account_a));
+    }
+
+    #[test]
     fn process_receive() {
         let mut map = AccountMap::default();
         let send_hash = BlockHash::from(42);
@@ -168,7 +233,7 @@ mod tests {
         let amount = Amount::nano(12_345);
         map.add_unopened(dest_key.clone());
 
-        map.process_send(dest_account, send_hash, amount);
+        map.process_send(TEST_GENESIS_ACCOUNT, dest_account, send_hash, amount);
         map.process_receive(&dest_account, &send_hash);
 
         assert!(map.next_receivable().is_none());
@@ -178,4 +243,6 @@ mod tests {
             dest_account
         );
     }
+
+    const TEST_GENESIS_ACCOUNT: Account = Account::from_bytes([1; 32]);
 }

@@ -161,6 +161,12 @@ impl std::ops::AddAssign for Amount {
     }
 }
 
+impl std::ops::SubAssign for Amount {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.raw -= rhs.raw
+    }
+}
+
 impl std::ops::Add for Amount {
     type Output = Self;
 
