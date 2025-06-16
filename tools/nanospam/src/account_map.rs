@@ -4,9 +4,10 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
 pub(crate) struct AccountMap {
-    accounts: HashMap<Account, AccountState>,
-    accounts_vec: Vec<Account>,
-    empty: HashSet<Account>,
+    account_states: HashMap<Account, AccountState>,
+    all_accounts: Vec<Account>,
+    empty_accounts: HashSet<Account>,
+    accounts_that_can_send: HashSet<Account>,
 
     /// Account => Send block hash + amount sent
     receivable: HashMap<Account, Vec<(BlockHash, Amount)>>,
@@ -28,9 +29,9 @@ impl AccountMap {
 
     pub fn add_unopened(&mut self, key: PrivateKey) {
         let account = key.account();
-        self.empty.insert(account);
-        self.accounts_vec.push(account);
-        self.accounts.insert(
+        self.empty_accounts.insert(account);
+        self.all_accounts.push(account);
+        self.account_states.insert(
             account,
             AccountState {
                 key,
@@ -41,11 +42,11 @@ impl AccountMap {
     }
 
     pub fn state(&self, account: &Account) -> Option<&AccountState> {
-        self.accounts.get(account)
+        self.account_states.get(account)
     }
 
     pub fn random_account(&self) -> Option<Account> {
-        self.accounts_vec.choose(&mut rand::rng()).cloned()
+        self.all_accounts.choose(&mut rand::rng()).cloned()
     }
 
     pub fn process_send(&mut self, destination: Account, send_hash: BlockHash, amount: Amount) {
@@ -53,10 +54,32 @@ impl AccountMap {
             .entry(destination)
             .or_default()
             .push((send_hash, amount));
+        //TODO: if balance empty, remove from accounts_that_can_send
+    }
+
+    pub fn process_receive(&mut self, receiver: &Account, send_hash: &BlockHash) {
+        let entries = self
+            .receivable
+            .get_mut(receiver)
+            .expect("no receivables found");
+
+        let pos = entries
+            .iter()
+            .position(|(hash, _)| hash == send_hash)
+            .expect("no receivable entry found for given send hash");
+
+        let (_, sent) = entries.remove(pos);
+
+        if entries.is_empty() {
+            self.receivable.remove(receiver);
+        }
+
+        self.account_states.get_mut(receiver).unwrap().balance += sent;
+        self.accounts_that_can_send.insert(*receiver);
     }
 
     pub fn contains(&self, account: &Account) -> bool {
-        self.accounts.contains_key(account)
+        self.account_states.contains_key(account)
     }
 
     pub fn get_receivable(&self, account: &Account) -> Option<(BlockHash, Amount)> {
@@ -75,6 +98,13 @@ impl AccountMap {
                     .map(|(hash, amount)| (*account, *hash, *amount))
             })
     }
+
+    pub fn random_account_that_can_send(&self) -> Option<&AccountState> {
+        self.accounts_that_can_send
+            .iter()
+            .next()
+            .and_then(|account| self.account_states.get(account))
+    }
 }
 
 #[cfg(test)]
@@ -90,6 +120,7 @@ mod tests {
         assert_false!(map.contains(&1.into()));
         assert_eq!(map.random_account(), None);
         assert!(map.state(&Account::from(1)).is_none());
+        assert!(map.random_account_that_can_send().is_none());
     }
 
     #[test]
@@ -105,6 +136,7 @@ mod tests {
             key.account()
         );
         assert_eq!(map.random_account(), Some(key.account()));
+        assert!(map.random_account_that_can_send().is_none());
     }
 
     #[test]
@@ -112,18 +144,38 @@ mod tests {
         let mut map = AccountMap::default();
         let send_hash = BlockHash::from(42);
         let dest_key = PrivateKey::from(100);
+        let dest_account = dest_key.account();
         let amount = Amount::nano(12_345);
         map.add_unopened(dest_key.clone());
 
-        map.process_send(dest_key.account(), send_hash, amount);
+        map.process_send(dest_account, send_hash, amount);
 
-        assert_eq!(
-            map.get_receivable(&dest_key.account()),
-            Some((send_hash, amount))
-        );
+        assert_eq!(map.get_receivable(&dest_account), Some((send_hash, amount)));
         assert_eq!(
             map.next_receivable(),
-            Some((dest_key.account(), send_hash, amount))
+            Some((dest_account, send_hash, amount))
+        );
+        assert!(map.random_account_that_can_send().is_none());
+        assert_eq!(map.state(&dest_account).unwrap().balance, Amount::zero());
+    }
+
+    #[test]
+    fn process_receive() {
+        let mut map = AccountMap::default();
+        let send_hash = BlockHash::from(42);
+        let dest_key = PrivateKey::from(100);
+        let dest_account = dest_key.account();
+        let amount = Amount::nano(12_345);
+        map.add_unopened(dest_key.clone());
+
+        map.process_send(dest_account, send_hash, amount);
+        map.process_receive(&dest_account, &send_hash);
+
+        assert!(map.next_receivable().is_none());
+        assert_eq!(map.state(&dest_account).unwrap().balance, amount);
+        assert_eq!(
+            map.random_account_that_can_send().unwrap().key.account(),
+            dest_account
         );
     }
 }
