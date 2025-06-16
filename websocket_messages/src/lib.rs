@@ -35,7 +35,7 @@ pub enum Topic {
 }
 
 #[derive(Deserialize)]
-pub struct IncomingMessage<'a> {
+pub struct Request<'a> {
     pub action: Option<&'a str>,
     pub topic: Option<&'a str>,
     #[serde(default)]
@@ -49,7 +49,7 @@ pub struct IncomingMessage<'a> {
 }
 
 #[derive(Serialize, Clone, Debug, Deserialize)]
-pub struct OutgoingMessageEnvelope {
+pub struct MessageEnvelope {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,7 +63,7 @@ pub struct OutgoingMessageEnvelope {
     pub message: Option<Value>,
 }
 
-impl OutgoingMessageEnvelope {
+impl MessageEnvelope {
     pub fn new(topic: Topic, message: impl Serialize) -> Self {
         Self {
             id: None,
@@ -124,7 +124,7 @@ pub fn work_generation_message(
     bad_peers: &[String],
     completed: bool,
     cancelled: bool,
-) -> OutgoingMessageEnvelope {
+) -> MessageEnvelope {
     let request_multiplier = DifficultyV1::to_multiplier(difficulty, publish_threshold);
     let request = WorkRequest {
         version: WorkVersion::Work1.as_str(),
@@ -149,7 +149,7 @@ pub fn work_generation_message(
     };
 
     let bad_peers = bad_peers.iter().cloned().collect();
-    OutgoingMessageEnvelope::new(
+    MessageEnvelope::new(
         Topic::Work,
         WorkGeneration {
             success: if completed { "true" } else { "false" },
@@ -183,9 +183,9 @@ pub fn to_topic(topic: impl AsRef<str>) -> Topic {
     }
 }
 
-pub fn new_block_arrived_message(block: &SavedBlock) -> OutgoingMessageEnvelope {
+pub fn new_block_arrived_message(block: &SavedBlock) -> MessageEnvelope {
     let json_block: serde_json::Value = block.clone().into();
-    let mut result = OutgoingMessageEnvelope::new(Topic::NewUnconfirmedBlock, json_block);
+    let mut result = MessageEnvelope::new(Topic::NewUnconfirmedBlock, json_block);
     result.hash = Some(block.hash());
     result
 }

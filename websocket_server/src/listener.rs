@@ -22,7 +22,7 @@ use rsnano_node::{
     consensus::election::{ConfirmedElection, VoteSummary},
     wallets::Wallets,
 };
-use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
+use rsnano_websocket_messages::{MessageEnvelope, Topic};
 
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
 use crate::{confirmation_message_factory::ConfirmationMessageFactory, WebsocketSession};
@@ -116,7 +116,7 @@ impl WebsocketListener {
     }
 
     /// Broadcast \p message to all session subscribing to the message topic.
-    pub fn broadcast(&self, message: &OutgoingMessageEnvelope) {
+    pub fn broadcast(&self, message: &MessageEnvelope) {
         let sessions = self.sessions.lock().unwrap();
         for session in sessions.iter() {
             if let Some(session) = session.upgrade() {
@@ -170,7 +170,7 @@ impl WebsocketListener {
                 Ok((stream, peer_addr)) => {
                     let wallets = Arc::clone(&self.wallets);
                     let sub_count = Arc::clone(&self.topic_subscriber_count);
-                    let (tx_send, rx_send) = mpsc::channel::<OutgoingMessageEnvelope>(1024);
+                    let (tx_send, rx_send) = mpsc::channel::<MessageEnvelope>(1024);
                     let sessions = Arc::clone(&self.sessions);
                     tokio::spawn(async move {
                         if let Err(e) = accept_connection(
@@ -217,8 +217,8 @@ async fn accept_connection(
     wallets: Arc<Wallets>,
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
     peer_addr: SocketAddr,
-    tx_send: mpsc::Sender<OutgoingMessageEnvelope>,
-    mut rx_send: mpsc::Receiver<OutgoingMessageEnvelope>,
+    tx_send: mpsc::Sender<MessageEnvelope>,
+    mut rx_send: mpsc::Receiver<MessageEnvelope>,
     sessions: Arc<Mutex<Vec<Weak<WebsocketSessionEntry>>>>,
 ) -> anyhow::Result<()> {
     // Create the session and initiate websocket handshake

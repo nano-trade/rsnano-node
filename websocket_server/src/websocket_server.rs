@@ -5,7 +5,7 @@ use rsnano_messages::TelemetryData;
 use rsnano_node::{
     config::WebsocketConfig, CompositeNodeEventHandler, Node, NodeEvent, NodeEventHandler,
 };
-use rsnano_websocket_messages::{new_block_arrived_message, OutgoingMessageEnvelope, Topic};
+use rsnano_websocket_messages::{new_block_arrived_message, MessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, SocketAddr, SocketAddrV6},
@@ -54,8 +54,8 @@ pub fn create_websocket_server(
     Some(server)
 }
 
-fn telemetry_received(data: &TelemetryData, endpoint: SocketAddrV6) -> OutgoingMessageEnvelope {
-    OutgoingMessageEnvelope::new(
+fn telemetry_received(data: &TelemetryData, endpoint: SocketAddrV6) -> MessageEnvelope {
+    MessageEnvelope::new(
         Topic::Telemetry,
         TelemetryReceived {
             block_count: data.block_count.to_string(),
@@ -111,8 +111,8 @@ pub struct TelemetryReceived {
     pub port: String,
 }
 
-fn started_election(hash: &BlockHash) -> OutgoingMessageEnvelope {
-    OutgoingMessageEnvelope::new(
+fn started_election(hash: &BlockHash) -> MessageEnvelope {
+    MessageEnvelope::new(
         Topic::StartedElection,
         StartedElection {
             hash: hash.to_string(),
@@ -125,8 +125,8 @@ struct StartedElection {
     hash: String,
 }
 
-fn stopped_election(hash: &BlockHash) -> OutgoingMessageEnvelope {
-    OutgoingMessageEnvelope::new(
+fn stopped_election(hash: &BlockHash) -> MessageEnvelope {
+    MessageEnvelope::new(
         Topic::StoppedElection,
         StoppedElection {
             hash: hash.to_string(),
@@ -139,8 +139,8 @@ struct StoppedElection {
     hash: String,
 }
 
-pub fn vote_received(vote: &Vote, result: Result<(), VoteError>) -> OutgoingMessageEnvelope {
-    OutgoingMessageEnvelope::new(
+pub fn vote_received(vote: &Vote, result: Result<(), VoteError>) -> MessageEnvelope {
+    MessageEnvelope::new(
         Topic::Vote,
         VoteReceived {
             account: Account::from(vote.voter).encode_account(),

@@ -1,7 +1,7 @@
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, VoteJsonOptions, VoteOptions};
 use futures_util::{SinkExt, StreamExt};
 use rsnano_node::wallets::Wallets;
-use rsnano_websocket_messages::{to_topic, IncomingMessage, OutgoingMessageEnvelope, Topic};
+use rsnano_websocket_messages::{to_topic, MessageEnvelope, Request, Topic};
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -16,14 +16,14 @@ use tracing::{info, trace, warn};
 pub struct WebsocketSessionEntry {
     /// Map of subscriptions -> options registered by this session.
     pub subscriptions: Mutex<HashMap<Topic, Options>>,
-    send_queue_tx: mpsc::Sender<OutgoingMessageEnvelope>,
+    send_queue_tx: mpsc::Sender<MessageEnvelope>,
     tx_close: Mutex<Option<oneshot::Sender<()>>>,
     wallets: Arc<Wallets>,
 }
 
 impl WebsocketSessionEntry {
     pub fn new(
-        send_queue_tx: mpsc::Sender<OutgoingMessageEnvelope>,
+        send_queue_tx: mpsc::Sender<MessageEnvelope>,
         tx_close: oneshot::Sender<()>,
         wallets: Arc<Wallets>,
     ) -> Self {
@@ -35,14 +35,14 @@ impl WebsocketSessionEntry {
         }
     }
 
-    pub fn blocking_write(&self, envelope: &OutgoingMessageEnvelope) -> anyhow::Result<()> {
+    pub fn blocking_write(&self, envelope: &MessageEnvelope) -> anyhow::Result<()> {
         if !self.should_filter(envelope) {
             self.send_queue_tx.blocking_send(envelope.clone())?;
         }
         Ok(())
     }
 
-    pub async fn write(&self, envelope: &OutgoingMessageEnvelope) -> anyhow::Result<()> {
+    pub async fn write(&self, envelope: &MessageEnvelope) -> anyhow::Result<()> {
         if !self.should_filter(envelope) {
             self.send_queue_tx.send(envelope.clone()).await?
         }
@@ -56,7 +56,7 @@ impl WebsocketSessionEntry {
         }
     }
 
-    fn should_filter(&self, envelope: &OutgoingMessageEnvelope) -> bool {
+    fn should_filter(&self, envelope: &MessageEnvelope) -> bool {
         if envelope.ack.is_some() {
             return false;
         }
@@ -112,7 +112,7 @@ impl WebsocketSession {
     pub async fn run(
         self,
         stream: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-        send_queue: &mut mpsc::Receiver<OutgoingMessageEnvelope>,
+        send_queue: &mut mpsc::Receiver<MessageEnvelope>,
     ) -> anyhow::Result<()> {
         loop {
             tokio::select! {
@@ -156,7 +156,7 @@ impl WebsocketSession {
                 "Received text websocket message"
             );
 
-            let incoming = match serde_json::from_str::<IncomingMessage>(&msg_text) {
+            let incoming = match serde_json::from_str::<Request>(&msg_text) {
                 Ok(i) => i,
                 Err(e) => {
                     warn!(
@@ -177,7 +177,7 @@ impl WebsocketSession {
         }
     }
 
-    async fn handle_message(&self, message: IncomingMessage<'_>) -> anyhow::Result<()> {
+    async fn handle_message(&self, message: Request<'_>) -> anyhow::Result<()> {
         let topic = to_topic(message.topic.unwrap_or(""));
         let mut action_succeeded = false;
         let mut ack = message.ack;
@@ -237,7 +237,7 @@ impl WebsocketSession {
         }
         if ack && action_succeeded {
             self.entry
-                .write(&OutgoingMessageEnvelope::new_ack(
+                .write(&MessageEnvelope::new_ack(
                     message.id.map(|s| s.to_string()),
                     reply_action.to_string(),
                 ))

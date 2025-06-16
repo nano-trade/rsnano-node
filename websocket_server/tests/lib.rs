@@ -20,7 +20,7 @@ use rsnano_node::{
 };
 use rsnano_nullable_tcp::get_available_port;
 use rsnano_websocket_client::{WebSocketClientFactory, WebSocketStream};
-use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
+use rsnano_websocket_messages::{MessageEnvelope, Topic};
 use rsnano_websocket_server::{
     create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
     WebsocketListener, WebsocketListenerExt,
@@ -62,7 +62,7 @@ fn started_election() {
             panic!("timeout");
         };
         let response = response.unwrap().unwrap();
-        let response_msg: OutgoingMessageEnvelope =
+        let response_msg: MessageEnvelope =
             serde_json::from_str(response.to_text().unwrap()).unwrap();
         assert_eq!(response_msg.topic, Some(Topic::StartedElection));
     });
@@ -104,7 +104,7 @@ fn stopped_election() {
             panic!("timeout");
         };
         let response = response.unwrap().unwrap();
-        let response_msg: OutgoingMessageEnvelope =
+        let response_msg: MessageEnvelope =
             serde_json::from_str(response.to_text().unwrap()).unwrap();
         assert_eq!(response_msg.topic, Some(Topic::StoppedElection));
     });
@@ -188,7 +188,7 @@ fn confirmation() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Confirmation));
 
         ws_stream
@@ -259,7 +259,7 @@ fn confirmation_options() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Confirmation));
         let message: BlockConfirmed  = serde_json::from_value(response_json.message.unwrap()).unwrap();
         let election_info = message.election_info.unwrap();
@@ -323,7 +323,7 @@ fn confirmation_options_votes() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Confirmation));
 
         let message: BlockConfirmed  = serde_json::from_value(response_json.message.unwrap()).unwrap();
@@ -366,7 +366,7 @@ fn confirmation_options_sideband() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Confirmation));
 
         let message: BlockConfirmed  = serde_json::from_value(response_json.message.unwrap()).unwrap();
@@ -462,7 +462,7 @@ fn vote() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Vote));
     });
 }
@@ -495,7 +495,7 @@ fn vote_options_type() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         let message: VoteReceived  = serde_json::from_value(response_json.message.unwrap()).unwrap();
         assert_eq!(message.vote_type, "replay");
     });
@@ -529,7 +529,7 @@ fn vote_options_representatives() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Vote));
 
 		// A list of invalid representatives is the same as no filter
@@ -549,7 +549,7 @@ fn vote_options_representatives() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Vote));
     });
 }
@@ -595,7 +595,7 @@ fn telemetry() {
         let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::Telemetry));
 
         // Check the bootstrap notification message
@@ -639,7 +639,7 @@ fn new_unconfirmed_block() {
             panic!("not a text message");
         };
 
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
+        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
         assert_eq!(response_json.topic, Some(Topic::NewUnconfirmedBlock));
         assert_eq!(response_json.hash, Some(send.hash()));
 

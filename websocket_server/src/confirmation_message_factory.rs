@@ -1,7 +1,7 @@
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
 use rsnano_node::consensus::election::ConfirmedElection;
-use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
+use rsnano_websocket_messages::{MessageEnvelope, Topic};
 
 use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
 
@@ -14,8 +14,8 @@ pub(super) struct ConfirmationMessageFactory<'a> {
 }
 
 impl ConfirmationMessageFactory<'_> {
-    pub fn create_message(&self) -> OutgoingMessageEnvelope {
-        OutgoingMessageEnvelope::new(
+    pub fn create_message(&self) -> MessageEnvelope {
+        MessageEnvelope::new(
             Topic::Confirmation,
             BlockConfirmed {
                 account: self.block.account().encode_account(),

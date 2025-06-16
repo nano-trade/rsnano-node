@@ -131,10 +131,12 @@ mod tests {
             Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT
         );
         assert!(block_factory.account_map.contains(&destination));
-        assert!(block_factory
-            .account_map
-            .get_receivable(&destination)
-            .is_some());
+        assert!(
+            block_factory
+                .account_map
+                .get_receivable(&destination)
+                .is_some()
+        );
     }
 
     #[test]
