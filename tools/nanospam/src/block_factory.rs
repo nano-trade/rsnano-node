@@ -33,27 +33,42 @@ impl BlockFactory {
             return None;
         }
 
-        let _source = self.account_map.random_account().unwrap();
-        let destination = self.account_map.random_account().unwrap();
+        let block =
+            if let Some((receiver, send_hash, amount_sent)) = self.account_map.next_receivable() {
+                let state = self.account_map.state(&receiver).unwrap();
+                let receive: Block = StateBlockArgs {
+                    key: &state.key,
+                    previous: state.frontier,
+                    representative: state.key.public_key(),
+                    balance: state.balance + amount_sent,
+                    link: send_hash.into(),
+                    work: 0.into(),
+                }
+                .into();
 
-        let block = if self.account_map.all_accounts_empty() {
-            let block: Block = StateBlockArgs {
-                key: &self.genesis_key,
-                previous: self.genesis_hash,
-                representative: self.genesis_key.public_key(),
-                balance: Amount::MAX - Self::INITIAL_AMOUNT_SENT,
-                link: destination.into(),
-                work: 0.into(),
-            }
-            .into();
+                receive
+            } else {
+                let destination = self.account_map.random_account().unwrap();
 
-            self.account_map
-                .process_send(destination, block.hash(), Self::INITIAL_AMOUNT_SENT);
+                // Initial send from genesis account
+                let genesis_send: Block = StateBlockArgs {
+                    key: &self.genesis_key,
+                    previous: self.genesis_hash,
+                    representative: self.genesis_key.public_key(),
+                    balance: Amount::MAX - Self::INITIAL_AMOUNT_SENT,
+                    link: destination.into(),
+                    work: 0.into(),
+                }
+                .into();
 
-            block
-        } else {
-            todo!();
-        };
+                self.account_map.process_send(
+                    destination,
+                    genesis_send.hash(),
+                    Self::INITIAL_AMOUNT_SENT,
+                );
+
+                genesis_send
+            };
 
         self.created += 1;
         Some(block)
@@ -70,7 +85,7 @@ mod tests {
     const MAX_BLOCKS: usize = 4;
 
     #[test]
-    fn initial_send_from_genesis() {
+    fn initial_send_from_genesis_to_random_account() {
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
             TEST_GENESIS_HASH,
@@ -91,6 +106,23 @@ mod tests {
             .account_map
             .get_receivable(&destination)
             .is_some());
+    }
+
+    #[test]
+    fn receive_from_genesis() {
+        let mut block_factory = BlockFactory::new(
+            TEST_GENESIS_KEY.clone(),
+            TEST_GENESIS_HASH,
+            test_account_map(),
+            MAX_BLOCKS,
+        );
+        // genesis send
+        let send_genesis = block_factory.create_next().unwrap();
+        let account = send_genesis.destination_or_link();
+
+        let receive = block_factory.create_next().unwrap();
+        assert_eq!(receive.account_field().unwrap(), account);
+        assert_eq!(receive.link_field().unwrap(), send_genesis.hash().into());
     }
 
     fn test_account_map() -> AccountMap {

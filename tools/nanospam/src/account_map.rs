@@ -7,16 +7,15 @@ pub(crate) struct AccountMap {
     accounts: HashMap<Account, AccountState>,
     accounts_vec: Vec<Account>,
     empty: HashSet<Account>,
-    non_empty: HashSet<Account>,
 
     /// Account => Send block hash + amount sent
     receivable: HashMap<Account, Vec<(BlockHash, Amount)>>,
 }
 
-struct AccountState {
-    key: PrivateKey,
-    frontier: BlockHash,
-    balance: Amount,
+pub(crate) struct AccountState {
+    pub key: PrivateKey,
+    pub frontier: BlockHash,
+    pub balance: Amount,
 }
 
 impl AccountMap {
@@ -41,12 +40,12 @@ impl AccountMap {
         );
     }
 
-    pub fn random_account(&self) -> Option<Account> {
-        self.accounts_vec.choose(&mut rand::rng()).cloned()
+    pub fn state(&self, account: &Account) -> Option<&AccountState> {
+        self.accounts.get(account)
     }
 
-    pub fn all_accounts_empty(&self) -> bool {
-        self.non_empty.is_empty()
+    pub fn random_account(&self) -> Option<Account> {
+        self.accounts_vec.choose(&mut rand::rng()).cloned()
     }
 
     pub fn process_send(&mut self, destination: Account, send_hash: BlockHash, amount: Amount) {
@@ -64,6 +63,18 @@ impl AccountMap {
         let entries = self.receivable.get(account)?;
         entries.first().cloned()
     }
+
+    pub fn next_receivable(&self) -> Option<(Account, BlockHash, Amount)> {
+        self.receivable
+            .iter()
+            .next()
+            .and_then(|(account, entries)| {
+                entries
+                    .iter()
+                    .next()
+                    .map(|(hash, amount)| (*account, *hash, *amount))
+            })
+    }
 }
 
 #[cfg(test)]
@@ -74,10 +85,11 @@ mod tests {
     #[test]
     fn empty() {
         let map = AccountMap::default();
-        assert!(map.all_accounts_empty());
         assert_eq!(map.get_receivable(&1.into()), None);
+        assert_eq!(map.next_receivable(), None);
         assert_false!(map.contains(&1.into()));
         assert_eq!(map.random_account(), None);
+        assert!(map.state(&Account::from(1)).is_none());
     }
 
     #[test]
@@ -88,6 +100,10 @@ mod tests {
         map.add_unopened(key.clone());
 
         assert!(map.contains(&key.account()));
+        assert_eq!(
+            map.state(&key.account()).unwrap().key.account(),
+            key.account()
+        );
         assert_eq!(map.random_account(), Some(key.account()));
     }
 
@@ -104,6 +120,10 @@ mod tests {
         assert_eq!(
             map.get_receivable(&dest_key.account()),
             Some((send_hash, amount))
+        );
+        assert_eq!(
+            map.next_receivable(),
+            Some((dest_key.account(), send_hash, amount))
         );
     }
 }
