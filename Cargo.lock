@@ -4480,6 +4480,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsnano_websocket_client"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "rsnano_websocket_messages"
 version = "0.1.0"
 dependencies = [
@@ -4504,6 +4513,7 @@ dependencies = [
  "rsnano_messages",
  "rsnano_node",
  "rsnano_nullable_tcp",
+ "rsnano_websocket_client",
  "rsnano_websocket_messages",
  "serde",
  "serde_json",

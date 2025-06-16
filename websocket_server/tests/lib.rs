@@ -19,14 +19,16 @@ use rsnano_node::{
     CompositeNodeEventHandler, Node,
 };
 use rsnano_nullable_tcp::get_available_port;
+use rsnano_websocket_client::{WebSocketClientFactory, WebSocketStream};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
 use rsnano_websocket_server::{
     create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
     WebsocketListener, WebsocketListenerExt,
 };
 use test_helpers::{assert_timely2, make_fake_channel, System};
-use tokio::{net::TcpStream, task::spawn_blocking, time::timeout};
-use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
+use tokio::{task::spawn_blocking, time::timeout};
+
+pub type WsMessage = rsnano_websocket_client::Message;
 
 /// Tests getting notification of a started election
 #[test]
@@ -37,7 +39,7 @@ fn started_election() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "started_election", "ack": true}"#.into(),
             ))
             .await
@@ -75,7 +77,7 @@ fn stopped_election() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "stopped_election", "ack": true}"#.into(),
             ))
             .await
@@ -118,7 +120,7 @@ fn subscription_edge() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
             ))
             .await
@@ -127,7 +129,7 @@ fn subscription_edge() {
         ws_stream.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 1);
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
             ))
             .await
@@ -136,7 +138,7 @@ fn subscription_edge() {
         ws_stream.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 1);
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "unsubscribe", "topic": "confirmation", "ack": true}"#.into(),
             ))
             .await
@@ -145,7 +147,7 @@ fn subscription_edge() {
         ws_stream.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "unsubscribe", "topic": "confirmation", "ack": true}"#.into(),
             ))
             .await
@@ -164,7 +166,7 @@ fn confirmation() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
             ))
             .await
@@ -182,7 +184,7 @@ fn confirmation() {
         let send = lattice.genesis().legacy_send(&key, send_amount);
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -190,7 +192,7 @@ fn confirmation() {
         assert_eq!(response_json.topic, Some(Topic::Confirmation));
 
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "unsubscribe", "topic": "confirmation", "ack": true}"#.into(),
             ))
             .await
@@ -216,7 +218,7 @@ fn confirmation_options() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "accounts": ["xrb_invalid"]}}"#.into(),
             ))
             .await
@@ -239,7 +241,7 @@ fn confirmation_options() {
             .unwrap_err();
 
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "all_local_accounts": true, "include_election_info": true}}"#.into(),
             ))
             .await
@@ -253,7 +255,7 @@ fn confirmation_options() {
         let previous = send.hash();
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -268,7 +270,7 @@ fn confirmation_options() {
         assert!(election_info.votes.is_none());
 
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "all_local_accounts": true} }"#.into(),
             ))
             .await
@@ -300,7 +302,7 @@ fn confirmation_options_votes() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "include_election_info_with_votes": true, "include_block": false} }"#.into(),
             ))
             .await
@@ -317,7 +319,7 @@ fn confirmation_options_votes() {
         let send_hash = send.hash();
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -343,7 +345,7 @@ fn confirmation_options_sideband() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "include_block": false, "include_sideband_info": true} }"#.into(),
             ))
             .await
@@ -360,7 +362,7 @@ fn confirmation_options_sideband() {
         let send = lattice.genesis().send(&key, send_amount);
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -383,7 +385,7 @@ fn confirmation_options_update() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{} }"#.into(),
             ))
             .await
@@ -393,7 +395,7 @@ fn confirmation_options_update() {
 
 		// Now update filter with an account and wait for a response
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 format!(r#"{{"action": "update", "topic": "confirmation", "ack": true, "options":{{"accounts_add": ["{}"]}} }}"#, DEV_GENESIS_ACCOUNT.encode_account()).into(),
             ))
             .await
@@ -415,7 +417,7 @@ fn confirmation_options_update() {
 
 		// Update the filter again, removing the account
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 format!(r#"{{"action": "update", "topic": "confirmation", "ack": true, "options":{{"accounts_del": ["{}"]}} }}"#, DEV_GENESIS_ACCOUNT.encode_account()).into(),
             ))
             .await
@@ -441,7 +443,7 @@ fn vote() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "vote", "ack": true }"#.into(),
             ))
             .await
@@ -456,7 +458,7 @@ fn vote() {
         let send = lattice.genesis().send(&key, Amount::nano(1000));
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -473,7 +475,7 @@ fn vote_options_type() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "vote", "ack": true, "options": {"include_replays": true, "include_indeterminate": false} }"#.into(),
             ))
             .await
@@ -489,7 +491,7 @@ fn vote_options_type() {
         }).await.unwrap();
 
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -507,7 +509,7 @@ fn vote_options_representatives() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 format!(r#"{{"action": "subscribe", "topic": "vote", "ack": true, "options": {{"representatives": ["{}"]}} }}"#, DEV_GENESIS_ACCOUNT.encode_account()).into(),
             ))
             .await
@@ -523,7 +525,7 @@ fn vote_options_representatives() {
         let send = lattice.genesis().send(&key, send_amount);
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -532,7 +534,7 @@ fn vote_options_representatives() {
 
 		// A list of invalid representatives is the same as no filter
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "vote", "ack": true, "options": {"representatives": ["xrb_invalid"]} }"#.into()
             ))
             .await
@@ -543,7 +545,7 @@ fn vote_options_representatives() {
         let send = lattice.genesis().send(&key, send_amount);
         node1.process_active(send);
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -564,7 +566,7 @@ fn ws_keepalive() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(r#"{"action": "ping"}"#.into()))
+            .send(WsMessage::Text(r#"{"action": "ping"}"#.into()))
             .await
             .unwrap();
         //await ack
@@ -581,7 +583,7 @@ fn telemetry() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "telemetry", "ack": true}"#.into(),
             ))
             .await
@@ -590,7 +592,7 @@ fn telemetry() {
         ws_stream.next().await.unwrap().unwrap();
 
         // Check the telemetry notification message
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
         let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
@@ -620,7 +622,7 @@ fn new_unconfirmed_block() {
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
-            .send(tungstenite::Message::Text(
+            .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "new_unconfirmed_block", "ack": true}"#.into(),
             ))
             .await
@@ -633,7 +635,7 @@ fn new_unconfirmed_block() {
         let send = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
         node1.process_local(send.clone()).unwrap();
 
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
+        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
             panic!("not a text message");
         };
 
@@ -681,9 +683,10 @@ fn create_node_with_websocket(system: &mut System) -> (Arc<Node>, Arc<WebsocketL
     (node, websocket_server)
 }
 
-async fn connect_websocket(node: &Node) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-    let (ws_stream, _) = connect_async(format!("ws://[::1]:{}", node.config.websocket_config.port))
+async fn connect_websocket(node: &Node) -> WebSocketStream {
+    let client_factory = WebSocketClientFactory::default();
+    client_factory
+        .connect(&format!("ws://[::1]:{}", node.config.websocket_config.port))
         .await
-        .expect("Failed to connect");
-    ws_stream
+        .expect("Failed to connect")
 }

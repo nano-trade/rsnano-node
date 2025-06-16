@@ -29,3 +29,4 @@ tracing = "0"
 [dev-dependencies]
 test_helpers = { path = "../tools/test_helpers" }
 rsnano_nullable_tcp = { path = "../nullables/tcp" }
+rsnano_websocket_client = { path = "../websocket_client" }
