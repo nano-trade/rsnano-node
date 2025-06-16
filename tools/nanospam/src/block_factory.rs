@@ -52,17 +52,25 @@ impl BlockFactory {
             } else {
                 if let Some(state) = self.account_map.random_account_that_can_send() {
                     let destination = self.account_map.random_account().unwrap();
+                    let new_balance = state.balance / 2;
+                    let amount_sent = state.balance - new_balance;
+
                     let send: Block = StateBlockArgs {
                         key: &state.key,
                         previous: state.frontier,
                         representative: state.key.public_key(),
-                        balance: state.balance / 2,
+                        balance: new_balance,
                         link: destination.into(),
                         work: 0.into(),
                     }
                     .into();
 
-                    // TODO process send
+                    self.account_map.process_send(
+                        state.key.account(),
+                        destination,
+                        send.hash(),
+                        amount_sent,
+                    );
 
                     send
                 } else {
@@ -98,7 +106,7 @@ impl BlockFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::LazyLock;
+    use std::{sync::LazyLock, time::Instant};
 
     static TEST_GENESIS_KEY: LazyLock<PrivateKey> = LazyLock::new(|| PrivateKey::from(42));
     const TEST_GENESIS_HASH: BlockHash = BlockHash::from_bytes([10; 32]);
@@ -164,6 +172,85 @@ mod tests {
             "incorrect send account"
         );
         assert!(block_factory.account_map.contains(&account_b));
+        assert_eq!(
+            block_factory
+                .account_map
+                .get_receivable(&account_b)
+                .unwrap()
+                .1,
+            Amount::nano(50_000_000)
+        );
+    }
+
+    #[test]
+    fn send_last_raw() {
+        let mut account_map = test_account_map();
+        let key = PrivateKey::from(100);
+        let send_hash = BlockHash::from(1);
+        account_map.add_unopened(key.clone());
+        account_map.process_send(
+            TEST_GENESIS_KEY.account(),
+            key.account(),
+            send_hash,
+            Amount::raw(1),
+        );
+        account_map.process_receive(&key.account(), &send_hash);
+
+        let mut block_factory = BlockFactory::new(
+            TEST_GENESIS_KEY.clone(),
+            TEST_GENESIS_HASH,
+            account_map,
+            MAX_BLOCKS,
+        );
+
+        let block = block_factory.create_next().unwrap();
+        assert_eq!(block.balance_field().unwrap(), Amount::zero());
+        assert_eq!(
+            block_factory
+                .account_map
+                .get_receivable(&block.destination_or_link())
+                .unwrap()
+                .1,
+            Amount::raw(1)
+        );
+    }
+
+    #[test]
+    #[ignore = "run manually only"]
+    fn benchmark() {
+        let mut account_map = AccountMap::default();
+        for _ in 0..30_000 {
+            account_map.add_unopened(PrivateKey::new());
+        }
+
+        let block_count = 10_000_000;
+
+        let mut block_factory = BlockFactory::new(
+            TEST_GENESIS_KEY.clone(),
+            TEST_GENESIS_HASH,
+            account_map,
+            block_count,
+        );
+
+        let mut start = Instant::now();
+        let mut created_batch = 0;
+        while let Some(_) = block_factory.create_next() {
+            created_batch += 1;
+            if created_batch == 50_000 {
+                println!(
+                    "Created {} blocks. {} bps",
+                    created_batch,
+                    (created_batch as f64 / start.elapsed().as_secs_f64()) as i32
+                );
+                start = Instant::now();
+                created_batch = 0;
+            }
+        }
+        println!(
+            "Created {} blocks. {} bps",
+            created_batch,
+            (created_batch as f64 / start.elapsed().as_secs_f64()) as i32
+        );
     }
 
     fn test_account_map() -> AccountMap {
