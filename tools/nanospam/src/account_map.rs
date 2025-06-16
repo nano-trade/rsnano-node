@@ -62,6 +62,7 @@ impl AccountMap {
             .push((send_hash, amount));
 
         if let Some(state) = self.account_states.get_mut(&source) {
+            state.frontier = send_hash;
             state.balance -= amount;
             if state.balance.is_zero() {
                 self.accounts_that_can_send.remove(&source);
@@ -69,25 +70,33 @@ impl AccountMap {
         }
     }
 
-    pub fn process_receive(&mut self, receiver: &Account, send_hash: &BlockHash) {
+    pub fn process_receive(
+        &mut self,
+        receiver: Account,
+        send_hash: BlockHash,
+        receive_hash: BlockHash,
+    ) {
         let entries = self
             .receivable
-            .get_mut(receiver)
+            .get_mut(&receiver)
             .expect("no receivables found");
 
         let pos = entries
             .iter()
-            .position(|(hash, _)| hash == send_hash)
+            .position(|(hash, _)| *hash == send_hash)
             .expect("no receivable entry found for given send hash");
 
         let (_, sent) = entries.remove(pos);
 
         if entries.is_empty() {
-            self.receivable.remove(receiver);
+            self.receivable.remove(&receiver);
         }
 
-        self.account_states.get_mut(receiver).unwrap().balance += sent;
-        self.accounts_that_can_send.insert(*receiver);
+        let state = self.account_states.get_mut(&receiver).unwrap();
+        state.balance += sent;
+        state.frontier = receive_hash;
+
+        self.accounts_that_can_send.insert(receiver);
     }
 
     pub fn contains(&self, account: &Account) -> bool {
@@ -180,6 +189,7 @@ mod tests {
 
         let send_genesis_hash = BlockHash::from(42);
         let send_hash = BlockHash::from(43);
+        let receive_hash = BlockHash::from(44);
 
         let amount = Amount::nano(12_345);
 
@@ -189,7 +199,7 @@ mod tests {
             send_genesis_hash,
             amount,
         );
-        map.process_receive(&key.account(), &send_genesis_hash);
+        map.process_receive(key.account(), send_genesis_hash, receive_hash);
 
         map.process_send(key.account(), key.account(), send_hash, Amount::nano(1));
 
@@ -197,6 +207,7 @@ mod tests {
             map.state(&key.account()).unwrap().balance,
             Amount::nano(12_344)
         );
+        assert_eq!(map.state(&key.account()).unwrap().frontier, send_hash);
     }
 
     #[test]
@@ -217,7 +228,7 @@ mod tests {
         let amount = Amount::nano(12_345);
 
         map.process_send(TEST_GENESIS_ACCOUNT, account_a, send_hash_a, amount);
-        map.process_receive(&account_a, &send_hash_a);
+        map.process_receive(account_a, send_hash_a, 44.into());
 
         map.process_send(account_a, account_b, send_hash_b, amount);
 
@@ -228,16 +239,18 @@ mod tests {
     fn process_receive() {
         let mut map = AccountMap::default();
         let send_hash = BlockHash::from(42);
+        let receive_hash = BlockHash::from(43);
         let dest_key = PrivateKey::from(100);
         let dest_account = dest_key.account();
         let amount = Amount::nano(12_345);
         map.add_unopened(dest_key.clone());
 
         map.process_send(TEST_GENESIS_ACCOUNT, dest_account, send_hash, amount);
-        map.process_receive(&dest_account, &send_hash);
+        map.process_receive(dest_account, send_hash, receive_hash);
 
         assert!(map.next_receivable().is_none());
         assert_eq!(map.state(&dest_account).unwrap().balance, amount);
+        assert_eq!(map.state(&dest_account).unwrap().frontier, receive_hash);
         assert_eq!(
             map.random_account_that_can_send().unwrap().key.account(),
             dest_account

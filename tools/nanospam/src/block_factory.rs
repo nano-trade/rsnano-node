@@ -46,7 +46,8 @@ impl BlockFactory {
                 }
                 .into();
 
-                self.account_map.process_receive(&receiver, &send_hash);
+                self.account_map
+                    .process_receive(receiver, send_hash, receive.hash());
 
                 receive
             } else {
@@ -187,6 +188,7 @@ mod tests {
         let mut account_map = test_account_map();
         let key = PrivateKey::from(100);
         let send_hash = BlockHash::from(1);
+        let receive_hash = BlockHash::from(2);
         account_map.add_unopened(key.clone());
         account_map.process_send(
             TEST_GENESIS_KEY.account(),
@@ -194,7 +196,7 @@ mod tests {
             send_hash,
             Amount::raw(1),
         );
-        account_map.process_receive(&key.account(), &send_hash);
+        account_map.process_receive(key.account(), send_hash, receive_hash);
 
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),

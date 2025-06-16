@@ -78,17 +78,26 @@ impl NanoSpamApp {
     const GENESIS_PRV_KEY_ENV: &str = "NANO_TEST_GENESIS_PRV";
 }
 
+const SPAM_ACCOUNTS: usize = 50_000;
+const MAX_BLOCKS: usize = 1_000_000;
+
 async fn create_blocks(
     genesis_key: PrivateKey,
     genesis_hash: BlockHash,
     tx_block: mpsc::Sender<Block>,
 ) {
     let mut account_map = AccountMap::default();
-    account_map.fill(10_000);
-    let mut block_factory = BlockFactory::new(genesis_key, genesis_hash, account_map, 1);
+    account_map.fill(SPAM_ACCOUNTS);
+    let mut block_factory = BlockFactory::new(genesis_key, genesis_hash, account_map, MAX_BLOCKS);
 
+    let mut published = 0;
     while let Some(block) = block_factory.create_next() {
         tx_block.send(block).await.unwrap();
+        published += 1;
+        if published % 100 == 0 {
+            println!("published {} blocks", published);
+        }
+        sleep(Duration::from_millis(100)).await;
     }
 }
 
@@ -102,7 +111,6 @@ async fn publish_blocks(
         let mut serializer = MessageSerializer::new(protocol);
         let buffer = serializer.serialize(&publish);
         write.write(&buffer).await.unwrap();
-        sleep(Duration::from_millis(500)).await;
     }
 }
 
