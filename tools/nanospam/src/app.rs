@@ -1,5 +1,6 @@
 use std::{net::SocketAddrV6, time::Duration};
 
+use anyhow::anyhow;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
     select,
@@ -8,17 +9,13 @@ use tokio::{
 };
 use tracing::{debug, info};
 
-use rsnano_core::{Amount, Block, BlockHash, Networks, PrivateKey, ProtocolInfo, StateBlockArgs};
+use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::{Message, MessageDeserializer, MessageSerializer, Publish};
 use rsnano_nullable_env::Env;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
-use crate::{
-    block_factory::{AccountMap, BlockFactory},
-    handshake::perform_handshake,
-};
-use anyhow::anyhow;
+use crate::{account_map::AccountMap, block_factory::BlockFactory, handshake::perform_handshake};
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {

@@ -1,3 +1,4 @@
+mod account_map;
 mod app;
 mod block_factory;
 mod handshake;
