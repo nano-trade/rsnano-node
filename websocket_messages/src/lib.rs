@@ -34,7 +34,7 @@ pub enum Topic {
     Length,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Request<'a> {
     pub action: Option<&'a str>,
     pub topic: Option<&'a str>,
