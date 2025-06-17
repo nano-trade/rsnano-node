@@ -63,6 +63,17 @@ impl NanoWebSocketClient {
         self.send_request(&request).await
     }
 
+    pub async fn unsubscribe(&mut self, args: UnsubscribeArgs<'_>) -> Result<(), Error> {
+        let request = Request {
+            action: Some("unsubscribe"),
+            topic: Some(args.topic.into()),
+            ack: args.ack,
+            id: args.id,
+            options: None,
+        };
+        self.send_request(&request).await
+    }
+
     pub async fn send_request(&mut self, request: &Request<'_>) -> Result<(), Error> {
         let req_str = serde_json::to_string(request)?;
         self.send_text(req_str).await?;
@@ -138,6 +149,22 @@ pub struct SubscribeArgs<'a> {
 }
 
 impl<'a> Default for SubscribeArgs<'a> {
+    fn default() -> Self {
+        Self {
+            topic: Topic::Confirmation,
+            ack: false,
+            id: None,
+        }
+    }
+}
+
+pub struct UnsubscribeArgs<'a> {
+    pub topic: Topic,
+    pub ack: bool,
+    pub id: Option<&'a str>,
+}
+
+impl<'a> Default for UnsubscribeArgs<'a> {
     fn default() -> Self {
         Self {
             topic: Topic::Confirmation,

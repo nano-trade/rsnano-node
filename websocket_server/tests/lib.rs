@@ -20,8 +20,8 @@ use rsnano_node::{
 };
 use rsnano_nullable_tcp::get_available_port;
 use rsnano_websocket_client::{
-    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, WebSocketStream,
-    WebSocketStreamFactory,
+    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, UnsubscribeArgs,
+    WebSocketStream, WebSocketStreamFactory,
 };
 use rsnano_websocket_messages::{MessageEnvelope, Topic};
 use rsnano_websocket_server::{
@@ -78,16 +78,18 @@ fn stopped_election() {
     let (node1, websocket) = create_node_with_websocket(&mut system);
     let channel1 = make_fake_channel(&node1);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket_stream(&node1).await;
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "stopped_election", "ack": true}"#.into(),
-            ))
+        let mut ws_client = connect_websocket(&node1).await;
+        ws_client
+            .subscribe(SubscribeArgs {
+                topic: Topic::StoppedElection,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
 
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         assert_eq!(1, websocket.subscriber_count(Topic::StoppedElection));
 
@@ -103,13 +105,11 @@ fn stopped_election() {
             .await
             .unwrap();
 
-        let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
+        let Ok(response) = timeout(Duration::from_secs(5), ws_client.next()).await else {
             panic!("timeout");
         };
         let response = response.unwrap().unwrap();
-        let response_msg: MessageEnvelope =
-            serde_json::from_str(response.to_text().unwrap()).unwrap();
-        assert_eq!(response_msg.topic, Some(Topic::StoppedElection));
+        assert_eq!(response.topic, Some(Topic::StoppedElection));
     });
 }
 
@@ -121,42 +121,50 @@ fn subscription_edge() {
     assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
 
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket_stream(&node1).await;
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
-            ))
+        let mut ws_client = connect_websocket(&node1).await;
+        ws_client
+            .subscribe(SubscribeArgs {
+                topic: Topic::Confirmation,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 1);
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
-            ))
+        ws_client
+            .subscribe(SubscribeArgs {
+                topic: Topic::Confirmation,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 1);
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "unsubscribe", "topic": "confirmation", "ack": true}"#.into(),
-            ))
+        ws_client
+            .unsubscribe(UnsubscribeArgs {
+                topic: Topic::Confirmation,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "unsubscribe", "topic": "confirmation", "ack": true}"#.into(),
-            ))
+        ws_client
+            .unsubscribe(UnsubscribeArgs {
+                topic: Topic::Confirmation,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
     });
 }
@@ -167,15 +175,17 @@ fn confirmation() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket_stream(&node1).await;
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
-            ))
+        let mut ws_client = connect_websocket(&node1).await;
+        ws_client
+            .subscribe(SubscribeArgs {
+                topic: Topic::Confirmation,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         node1.insert_into_wallet(&DEV_GENESIS_KEY);
 
@@ -187,27 +197,25 @@ fn confirmation() {
         let send = lattice.genesis().legacy_send(&key, send_amount);
         node1.process_active(send);
 
-        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
-            panic!("not a text message");
-        };
+        let response = ws_client.next().await.unwrap().unwrap();
+        assert_eq!(response.topic, Some(Topic::Confirmation));
 
-        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
-        assert_eq!(response_json.topic, Some(Topic::Confirmation));
-
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "unsubscribe", "topic": "confirmation", "ack": true}"#.into(),
-            ))
+        ws_client
+            .unsubscribe(UnsubscribeArgs {
+                topic: Topic::Confirmation,
+                ack: true,
+                ..Default::default()
+            })
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         // Quick confirm a state block
         let send = lattice.genesis().send(&key, send_amount);
         node1.process_active(send);
 
-        timeout(Duration::from_secs(1), ws_stream.next())
+        timeout(Duration::from_secs(1), ws_client.next())
             .await
             .unwrap_err();
     });
@@ -219,15 +227,15 @@ fn confirmation_options() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket_stream(&node1).await;
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "accounts": ["xrb_invalid"]}}"#.into(),
-            ))
+        let mut ws_client = connect_websocket(&node1).await;
+        ws_client
+            .send_text(
+                r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "accounts": ["xrb_invalid"]}}"#,
+            )
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         // Confirm a state block for an in-wallet account
         node1.insert_into_wallet(&DEV_GENESIS_KEY);
@@ -239,18 +247,18 @@ fn confirmation_options() {
         let send = lattice.genesis().send(&key, send_amount);
         node1.process_active(send);
 
-        timeout(Duration::from_secs(1), ws_stream.next())
+        timeout(Duration::from_secs(1), ws_client.next())
             .await
             .unwrap_err();
 
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "all_local_accounts": true, "include_election_info": true}}"#.into(),
-            ))
+        ws_client
+            .send_text(
+                r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "all_local_accounts": true, "include_election_info": true}}"#,
+            )
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         // Quick-confirm another block
         balance = balance - send_amount;
@@ -258,13 +266,9 @@ fn confirmation_options() {
         let previous = send.hash();
         node1.process_active(send);
 
-        let WsMessage::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
-            panic!("not a text message");
-        };
-
-        let response_json: MessageEnvelope = serde_json::from_str(&response).unwrap();
-        assert_eq!(response_json.topic, Some(Topic::Confirmation));
-        let message: BlockConfirmed  = serde_json::from_value(response_json.message.unwrap()).unwrap();
+        let response = ws_client.next().await.unwrap().unwrap();
+        assert_eq!(response.topic, Some(Topic::Confirmation));
+        let message: BlockConfirmed  = serde_json::from_value(response.message.unwrap()).unwrap();
         let election_info = message.election_info.unwrap();
         assert!(election_info.blocks.parse::<i32>().unwrap() >= 1);
 		// Make sure tally and time are non-zero.
@@ -272,14 +276,14 @@ fn confirmation_options() {
         assert_ne!(election_info.time, "0");
         assert!(election_info.votes.is_none());
 
-        ws_stream
-            .send(WsMessage::Text(
-                r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "all_local_accounts": true} }"#.into(),
-            ))
+        ws_client
+            .send_text(
+                r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "all_local_accounts": true} }"#,
+            )
             .await
             .unwrap();
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         // Confirm a legacy block
         // When filtering options are enabled, legacy blocks are always filtered
@@ -292,7 +296,7 @@ fn confirmation_options() {
             work: node1.work_generate_dev(previous)
         }.into();
         node1.process_active(send);
-        timeout(Duration::from_secs(1), ws_stream.next())
+        timeout(Duration::from_secs(1), ws_client.next())
             .await
             .unwrap_err();
     });
