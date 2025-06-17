@@ -2,7 +2,7 @@ use std::{net::SocketAddrV6, time::Duration};
 
 use anyhow::anyhow;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
+    io::{AsyncReadExt, ReadHalf, WriteHalf},
     select,
     sync::{mpsc, oneshot},
     time::sleep,
@@ -10,12 +10,15 @@ use tokio::{
 use tracing::{debug, info};
 
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
-use rsnano_messages::{Message, MessageDeserializer, MessageSerializer, Publish};
+use rsnano_messages::MessageDeserializer;
 use rsnano_nullable_env::Env;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
-use crate::{account_map::AccountMap, block_factory::BlockFactory, handshake::perform_handshake};
+use crate::{
+    account_map::AccountMap, block_factory::BlockFactory, block_publisher::BlockPublisher,
+    handshake::perform_handshake,
+};
 
 const SPAM_ACCOUNTS: usize = 20_000;
 const MAX_BLOCKS: usize = 100_000;
@@ -45,14 +48,16 @@ impl NanoSpamApp {
         perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
 
         info!("Starting spam...");
-        let (read, write) = tokio::io::split(tcp_stream);
+        let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
         let (tx_stop, rx_stop) = oneshot::channel::<()>();
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
+        let tx_block2 = tx_block.clone();
         tokio_scoped::scope(|scope| {
-            scope.spawn(receive_messages(read, rx_stop, protocol));
+            scope.spawn(receive_messages(tcp_read, rx_stop, protocol));
             scope.spawn(create_blocks(genesis_key, genesis_hash, tx_block));
+            scope.spawn(republish_delayed_blocks(tx_block2));
             scope.spawn(async {
-                publish_blocks(rx_block, write, protocol).await;
+                publish_blocks(rx_block, tcp_write, protocol).await;
                 tx_stop.send(()).unwrap();
             });
         });
@@ -102,16 +107,16 @@ async fn create_blocks(
 
 async fn publish_blocks(
     mut rx_block: mpsc::Receiver<Block>,
-    mut write: WriteHalf<TcpStream>,
+    tcp_write: WriteHalf<TcpStream>,
     protocol: ProtocolInfo,
 ) {
+    let mut publisher = BlockPublisher::new(protocol, tcp_write);
     while let Some(block) = rx_block.recv().await {
-        let publish = Message::Publish(Publish::new_from_originator(block));
-        let mut serializer = MessageSerializer::new(protocol);
-        let buffer = serializer.serialize(&publish);
-        write.write(&buffer).await.unwrap();
+        publisher.publish(block).await.unwrap();
     }
 }
+
+async fn republish_delayed_blocks(tx_block: mpsc::Sender<Block>) {}
 
 async fn receive_messages(
     mut read: ReadHalf<TcpStream>,
