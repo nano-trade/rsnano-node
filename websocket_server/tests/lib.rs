@@ -20,9 +20,10 @@ use rsnano_node::{
 };
 use rsnano_nullable_tcp::get_available_port;
 use rsnano_websocket_client::{
-    NanoWebSocketClient, NanoWebSocketClientFactory, WebSocketStream, WebSocketStreamFactory,
+    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, WebSocketStream,
+    WebSocketStreamFactory,
 };
-use rsnano_websocket_messages::{MessageEnvelope, Request, Topic};
+use rsnano_websocket_messages::{MessageEnvelope, Topic};
 use rsnano_websocket_server::{
     create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
     WebsocketListener, WebsocketListenerExt,
@@ -40,17 +41,14 @@ fn started_election() {
     let channel1 = make_fake_channel(&node1);
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
-        let subscribe_req = Request {
-            action: Some("subscribe"),
-            topic: Some("started_election"),
-            ack: true,
-            id: None,
-            options: None,
-            accounts_add: Vec::new(),
-            accounts_del: Vec::new(),
-        };
-        let req_str = serde_json::to_string(&subscribe_req).unwrap();
-        ws_client.send_raw(req_str).await.unwrap();
+        ws_client
+            .subscribe(SubscribeArgs {
+                topic: Topic::StartedElection,
+                ack: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
 
         //await ack
         ws_client.next().await.unwrap().unwrap();

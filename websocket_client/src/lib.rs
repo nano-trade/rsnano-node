@@ -1,5 +1,5 @@
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
-use rsnano_websocket_messages::MessageEnvelope;
+use rsnano_websocket_messages::{MessageEnvelope, Request, Topic};
 use std::{
     pin::Pin,
     task::{Context, Poll},
@@ -52,7 +52,24 @@ impl NanoWebSocketClient {
         Self { stream }
     }
 
-    pub async fn send_raw(&mut self, message: impl Into<Utf8Bytes>) -> Result<(), WsError> {
+    pub async fn subscribe(&mut self, args: SubscribeArgs<'_>) -> Result<(), Error> {
+        let request = Request {
+            action: Some("subscribe"),
+            topic: Some(args.topic.into()),
+            ack: args.ack,
+            id: args.id,
+            options: None,
+        };
+        self.send_request(&request).await
+    }
+
+    pub async fn send_request(&mut self, request: &Request<'_>) -> Result<(), Error> {
+        let req_str = serde_json::to_string(request)?;
+        self.send_text(req_str).await?;
+        Ok(())
+    }
+
+    pub async fn send_text(&mut self, message: impl Into<Utf8Bytes>) -> Result<(), WsError> {
         self.stream.send(Message::Text(message.into())).await
     }
 
@@ -111,5 +128,21 @@ impl Stream for WebSocketStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         unsafe { self.map_unchecked_mut(|i| &mut i.stream) }.poll_next(cx)
+    }
+}
+
+pub struct SubscribeArgs<'a> {
+    pub topic: Topic,
+    pub ack: bool,
+    pub id: Option<&'a str>,
+}
+
+impl<'a> Default for SubscribeArgs<'a> {
+    fn default() -> Self {
+        Self {
+            topic: Topic::Confirmation,
+            ack: false,
+            id: None,
+        }
     }
 }

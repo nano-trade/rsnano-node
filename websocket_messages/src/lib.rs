@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate num_derive;
 
+#[macro_use]
+extern crate strum_macros;
+
 use rsnano_core::{
     utils::milliseconds_since_epoch, BlockHash, DifficultyV1, SavedBlock, WorkNonce, WorkVersion,
 };
@@ -9,8 +12,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt::Debug, hash::Hash, time::Duration};
 
-#[derive(Clone, Copy, FromPrimitive, PartialEq, Eq, Hash, Serialize, Debug, Deserialize)]
+#[derive(
+    Clone, Copy, FromPrimitive, PartialEq, Eq, Hash, Serialize, Debug, Deserialize, IntoStaticStr,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum Topic {
     Invalid = 0,
     /// Acknowledgement of prior incoming message
@@ -42,10 +48,6 @@ pub struct Request<'a> {
     pub ack: bool,
     pub id: Option<&'a str>,
     pub options: Option<Value>,
-    #[serde(default)]
-    pub accounts_add: Vec<&'a str>,
-    #[serde(default)]
-    pub accounts_del: Vec<&'a str>,
 }
 
 #[derive(Serialize, Clone, Debug, Deserialize)]

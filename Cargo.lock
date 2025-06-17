@@ -4484,6 +4484,7 @@ name = "rsnano_websocket_client"
 version = "0.1.0"
 dependencies = [
  "futures-util",
+ "rsnano_core",
  "rsnano_websocket_messages",
  "serde",
  "serde_json",
@@ -4501,6 +4502,8 @@ dependencies = [
  "rsnano_work",
  "serde",
  "serde_json",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
 ]
 
 [[package]]
