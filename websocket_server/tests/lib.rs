@@ -19,7 +19,9 @@ use rsnano_node::{
     CompositeNodeEventHandler, Node,
 };
 use rsnano_nullable_tcp::get_available_port;
-use rsnano_websocket_client::{WebSocketClientFactory, WebSocketStream};
+use rsnano_websocket_client::{
+    NanoWebSocketClient, NanoWebSocketClientFactory, WebSocketStream, WebSocketStreamFactory,
+};
 use rsnano_websocket_messages::{MessageEnvelope, Request, Topic};
 use rsnano_websocket_server::{
     create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
@@ -37,7 +39,7 @@ fn started_election() {
     let (node1, websocket) = create_node_with_websocket(&mut system);
     let channel1 = make_fake_channel(&node1);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_client = connect_websocket(&node1).await;
         let subscribe_req = Request {
             action: Some("subscribe"),
             topic: Some("started_election"),
@@ -48,13 +50,10 @@ fn started_election() {
             accounts_del: Vec::new(),
         };
         let req_str = serde_json::to_string(&subscribe_req).unwrap();
-        ws_stream
-            .send(WsMessage::Text(req_str.into()))
-            .await
-            .unwrap();
+        ws_client.send_raw(req_str).await.unwrap();
 
         //await ack
-        ws_stream.next().await.unwrap().unwrap();
+        ws_client.next().await.unwrap().unwrap();
 
         assert_eq!(1, websocket.subscriber_count(Topic::StartedElection));
 
@@ -66,13 +65,11 @@ fn started_election() {
         node1.inbound_message_queue.put(publish1, channel1);
         assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 
-        let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
+        let Ok(response) = timeout(Duration::from_secs(5), ws_client.next()).await else {
             panic!("timeout");
         };
         let response = response.unwrap().unwrap();
-        let response_msg: MessageEnvelope =
-            serde_json::from_str(response.to_text().unwrap()).unwrap();
-        assert_eq!(response_msg.topic, Some(Topic::StartedElection));
+        assert_eq!(response.topic, Some(Topic::StartedElection));
     });
 }
 
@@ -83,7 +80,7 @@ fn stopped_election() {
     let (node1, websocket) = create_node_with_websocket(&mut system);
     let channel1 = make_fake_channel(&node1);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "stopped_election", "ack": true}"#.into(),
@@ -126,7 +123,7 @@ fn subscription_edge() {
     assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
 
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
@@ -172,7 +169,7 @@ fn confirmation() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true}"#.into(),
@@ -224,7 +221,7 @@ fn confirmation_options() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options": {"confirmation_type": "active_quorum", "accounts": ["xrb_invalid"]}}"#.into(),
@@ -308,7 +305,7 @@ fn confirmation_options_votes() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "include_election_info_with_votes": true, "include_block": false} }"#.into(),
@@ -351,7 +348,7 @@ fn confirmation_options_sideband() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{"confirmation_type": "active_quorum", "include_block": false, "include_sideband_info": true} }"#.into(),
@@ -391,7 +388,7 @@ fn confirmation_options_update() {
     let mut system = System::new();
     let (node1, websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "confirmation", "ack": true, "options":{} }"#.into(),
@@ -449,7 +446,7 @@ fn vote() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "vote", "ack": true }"#.into(),
@@ -481,7 +478,7 @@ fn vote_options_type() {
     let mut system = System::new();
     let (node1, websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "vote", "ack": true, "options": {"include_replays": true, "include_indeterminate": false} }"#.into(),
@@ -515,7 +512,7 @@ fn vote_options_representatives() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 format!(r#"{{"action": "subscribe", "topic": "vote", "ack": true, "options": {{"representatives": ["{}"]}} }}"#, DEV_GENESIS_ACCOUNT.encode_account()).into(),
@@ -572,7 +569,7 @@ fn ws_keepalive() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(r#"{"action": "ping"}"#.into()))
             .await
@@ -589,7 +586,7 @@ fn telemetry() {
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     let (node2, websocket2) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "telemetry", "ack": true}"#.into(),
@@ -628,7 +625,7 @@ fn new_unconfirmed_block() {
     let mut system = System::new();
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
+        let mut ws_stream = connect_websocket_stream(&node1).await;
         ws_stream
             .send(WsMessage::Text(
                 r#"{"action": "subscribe", "topic": "new_unconfirmed_block", "ack": true}"#.into(),
@@ -691,8 +688,16 @@ fn create_node_with_websocket(system: &mut System) -> (Arc<Node>, Arc<WebsocketL
     (node, websocket_server)
 }
 
-async fn connect_websocket(node: &Node) -> WebSocketStream {
-    let client_factory = WebSocketClientFactory::default();
+async fn connect_websocket(node: &Node) -> NanoWebSocketClient {
+    let client_factory = NanoWebSocketClientFactory::default();
+    client_factory
+        .connect(&format!("ws://[::1]:{}", node.config.websocket_config.port))
+        .await
+        .expect("Failed to connect")
+}
+
+async fn connect_websocket_stream(node: &Node) -> WebSocketStream {
+    let client_factory = WebSocketStreamFactory::default();
     client_factory
         .connect(&format!("ws://[::1]:{}", node.config.websocket_config.port))
         .await
