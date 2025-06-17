@@ -20,7 +20,7 @@ use rsnano_node::{
 };
 use rsnano_nullable_tcp::get_available_port;
 use rsnano_websocket_client::{
-    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, UnsubscribeArgs,
+    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub, UnsubscribeArgs,
     WebSocketStream, WebSocketStreamFactory,
 };
 use rsnano_websocket_messages::{MessageEnvelope, Topic};
@@ -43,7 +43,7 @@ fn started_election() {
         let mut ws_client = connect_websocket(&node1).await;
         ws_client
             .subscribe(SubscribeArgs {
-                topic: Topic::StartedElection,
+                topic: TopicSub::StartedElection,
                 ack: true,
                 ..Default::default()
             })
@@ -81,7 +81,7 @@ fn stopped_election() {
         let mut ws_client = connect_websocket(&node1).await;
         ws_client
             .subscribe(SubscribeArgs {
-                topic: Topic::StoppedElection,
+                topic: TopicSub::StoppedElection,
                 ack: true,
                 ..Default::default()
             })
@@ -124,7 +124,7 @@ fn subscription_edge() {
         let mut ws_client = connect_websocket(&node1).await;
         ws_client
             .subscribe(SubscribeArgs {
-                topic: Topic::Confirmation,
+                topic: TopicSub::Confirmation(Default::default()),
                 ack: true,
                 ..Default::default()
             })
@@ -135,7 +135,7 @@ fn subscription_edge() {
         assert_eq!(websocket.subscriber_count(Topic::Confirmation), 1);
         ws_client
             .subscribe(SubscribeArgs {
-                topic: Topic::Confirmation,
+                topic: TopicSub::Confirmation(Default::default()),
                 ack: true,
                 ..Default::default()
             })
@@ -178,7 +178,7 @@ fn confirmation() {
         let mut ws_client = connect_websocket(&node1).await;
         ws_client
             .subscribe(SubscribeArgs {
-                topic: Topic::Confirmation,
+                topic: TopicSub::Confirmation(Default::default()),
                 ack: true,
                 ..Default::default()
             })

@@ -36,8 +36,6 @@ pub enum Topic {
     Telemetry,
     /// New block arrival message
     NewUnconfirmedBlock,
-    /// Auxiliary length, not a valid topic, must be the last enum
-    Length,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -190,4 +188,16 @@ pub fn new_block_arrived_message(block: &SavedBlock) -> MessageEnvelope {
     let mut result = MessageEnvelope::new(Topic::NewUnconfirmedBlock, json_block);
     result.hash = Some(block.hash());
     result
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct ConfirmationJsonOptions {
+    pub include_block: Option<bool>,
+    pub include_election_info: Option<bool>,
+    pub include_election_info_with_votes: Option<bool>,
+    pub include_linked_account: Option<bool>,
+    pub include_sideband_info: Option<bool>,
+    pub confirmation_type: Option<String>,
+    pub all_local_accounts: Option<bool>,
+    pub accounts: Option<Vec<String>>,
 }

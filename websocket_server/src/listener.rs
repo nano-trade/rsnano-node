@@ -22,9 +22,9 @@ use rsnano_node::{
     consensus::election::{ConfirmedElection, VoteSummary},
     wallets::Wallets,
 };
-use rsnano_websocket_messages::{MessageEnvelope, Topic};
+use rsnano_websocket_messages::{ConfirmationJsonOptions, MessageEnvelope, Topic};
 
-use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
+use super::{ConfirmationOptions, Options, WebsocketSessionEntry};
 use crate::{confirmation_message_factory::ConfirmationMessageFactory, WebsocketSession};
 
 pub struct WebsocketListener {

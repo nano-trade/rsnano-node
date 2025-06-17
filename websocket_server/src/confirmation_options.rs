@@ -1,6 +1,6 @@
 use rsnano_core::Account;
 use rsnano_node::wallets::Wallets;
-use serde::Deserialize;
+use rsnano_websocket_messages::ConfirmationJsonOptions;
 use serde_json::Value;
 use std::collections::HashSet;
 use tracing::warn;
@@ -16,18 +16,6 @@ pub struct ConfirmationOptions {
     pub all_local_accounts: bool,
     pub confirmation_types: u8,
     pub accounts: HashSet<String>,
-}
-
-#[derive(Deserialize, Default)]
-pub struct ConfirmationJsonOptions {
-    pub include_block: Option<bool>,
-    pub include_election_info: Option<bool>,
-    pub include_election_info_with_votes: Option<bool>,
-    pub include_linked_account: Option<bool>,
-    pub include_sideband_info: Option<bool>,
-    pub confirmation_type: Option<String>,
-    pub all_local_accounts: Option<bool>,
-    pub accounts: Option<Vec<String>>,
 }
 
 impl ConfirmationOptions {

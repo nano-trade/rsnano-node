@@ -1,6 +1,11 @@
+#[macro_use]
+extern crate strum_macros;
+
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
-use rsnano_websocket_messages::{MessageEnvelope, Request, Topic};
+use rsnano_core::Account;
+use rsnano_websocket_messages::{ConfirmationJsonOptions, MessageEnvelope, Request, Topic};
 use std::{
+    collections::HashSet,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -55,10 +60,10 @@ impl NanoWebSocketClient {
     pub async fn subscribe(&mut self, args: SubscribeArgs<'_>) -> Result<(), Error> {
         let request = Request {
             action: Some("subscribe"),
-            topic: Some(args.topic.into()),
+            topic: Some(Topic::from(&args.topic).into()),
             ack: args.ack,
             id: args.id,
-            options: None,
+            options: get_subscription_options(args.topic),
         };
         self.send_request(&request).await
     }
@@ -91,6 +96,30 @@ impl NanoWebSocketClient {
             .map_err(Error::from)
             .and_then(parse_message)
             .into()
+    }
+}
+
+fn get_subscription_options(opts: TopicSub) -> Option<serde_json::Value> {
+    match opts {
+        TopicSub::Confirmation(args) => {
+            let conf_type_str: &str = args.confirmation_types.into();
+            let json_opts = ConfirmationJsonOptions {
+                include_block: Some(args.include_block),
+                include_election_info: Some(args.include_election_info),
+                include_election_info_with_votes: Some(args.include_election_info_with_votes),
+                include_linked_account: Some(args.include_linked_account),
+                include_sideband_info: Some(args.include_sideband_info),
+                confirmation_type: Some(conf_type_str.to_string()),
+                all_local_accounts: Some(args.all_local_accounts),
+                accounts: if args.accounts.is_empty() {
+                    None
+                } else {
+                    Some(args.accounts.iter().map(|a| a.encode_account()).collect())
+                },
+            };
+            serde_json::to_value(json_opts).ok()
+        }
+        _ => None,
     }
 }
 
@@ -143,7 +172,7 @@ impl Stream for WebSocketStream {
 }
 
 pub struct SubscribeArgs<'a> {
-    pub topic: Topic,
+    pub topic: TopicSub,
     pub ack: bool,
     pub id: Option<&'a str>,
 }
@@ -151,11 +180,81 @@ pub struct SubscribeArgs<'a> {
 impl<'a> Default for SubscribeArgs<'a> {
     fn default() -> Self {
         Self {
-            topic: Topic::Confirmation,
+            topic: TopicSub::Confirmation(Default::default()),
             ack: false,
             id: None,
         }
     }
+}
+
+pub enum TopicSub {
+    /// A confirmation message
+    Confirmation(ConfirmationSubArgs),
+    StartedElection,
+    /// Stopped election message (dropped elections due to bounding or block lost the elections)
+    StoppedElection,
+    /// A vote message
+    Vote,
+    /// Work generation message
+    Work,
+    /// A bootstrap message
+    Bootstrap,
+    /// A telemetry message
+    Telemetry,
+    /// New block arrival message
+    NewUnconfirmedBlock,
+}
+
+impl From<&TopicSub> for Topic {
+    fn from(value: &TopicSub) -> Self {
+        match value {
+            TopicSub::Confirmation(_) => Topic::Confirmation,
+            TopicSub::StartedElection => Topic::StartedElection,
+            TopicSub::StoppedElection => Topic::StoppedElection,
+            TopicSub::Vote => Topic::Vote,
+            TopicSub::Work => Topic::Work,
+            TopicSub::Bootstrap => Topic::Bootstrap,
+            TopicSub::Telemetry => Topic::Telemetry,
+            TopicSub::NewUnconfirmedBlock => Topic::NewUnconfirmedBlock,
+        }
+    }
+}
+
+pub struct ConfirmationSubArgs {
+    pub include_election_info: bool,
+    pub include_election_info_with_votes: bool,
+    pub include_linked_account: bool,
+    pub include_sideband_info: bool,
+    pub include_block: bool,
+    pub all_local_accounts: bool,
+    pub confirmation_types: ConfirmationTypeFilter,
+    pub accounts: HashSet<Account>,
+}
+
+impl Default for ConfirmationSubArgs {
+    fn default() -> Self {
+        Self {
+            include_election_info: false,
+            include_election_info_with_votes: false,
+            include_linked_account: false,
+            include_sideband_info: false,
+            include_block: true,
+            all_local_accounts: false,
+            confirmation_types: Default::default(),
+            accounts: Default::default(),
+        }
+    }
+}
+
+#[derive(Default, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum ConfirmationTypeFilter {
+    #[default]
+    All,
+    Active,
+    ActiveQuorum,
+    ActiveConfirmationHeight,
+    Inactive,
 }
 
 pub struct UnsubscribeArgs<'a> {

@@ -93,8 +93,7 @@ impl ConfirmationMessageFactory<'_> {
 #[cfg(test)]
 mod tests {
     use rsnano_node::consensus::election::ConfirmationType;
-
-    use crate::ConfirmationJsonOptions;
+    use rsnano_websocket_messages::ConfirmationJsonOptions;
 
     use super::*;
 

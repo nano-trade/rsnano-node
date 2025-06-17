@@ -4488,6 +4488,8 @@ dependencies = [
  "rsnano_websocket_messages",
  "serde",
  "serde_json",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
  "tokio",
  "tokio-tungstenite",
 ]
