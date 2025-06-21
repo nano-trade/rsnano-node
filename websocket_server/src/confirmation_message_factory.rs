@@ -1,9 +1,11 @@
 use rsnano_core::{Amount, BlockType, SavedBlock};
 use rsnano_ledger::{AnySet, Ledger};
 use rsnano_node::consensus::election::ConfirmedElection;
-use rsnano_websocket_messages::{MessageEnvelope, Topic};
+use rsnano_websocket_messages::{
+    BlockConfirmed, ElectionInfo, JsonSideband, MessageEnvelope, Topic,
+};
 
-use crate::{BlockConfirmed, ConfirmationOptions, ElectionInfo, JsonSideband};
+use crate::{into_election_info, into_json_sideband, into_json_vote_summary, ConfirmationOptions};
 
 pub(super) struct ConfirmationMessageFactory<'a> {
     pub ledger: &'a Ledger,
@@ -44,9 +46,15 @@ impl ConfirmationMessageFactory<'_> {
 
     fn election_info(&self) -> Option<ElectionInfo> {
         if self.options.include_election_info || self.options.include_election_info_with_votes {
-            let mut info = ElectionInfo::from(self.election);
+            let mut info = into_election_info(self.election);
             if self.options.include_election_info_with_votes {
-                info.votes = Some(self.election.votes.iter().map(|v| v.into()).collect());
+                info.votes = Some(
+                    self.election
+                        .votes
+                        .iter()
+                        .map(into_json_vote_summary)
+                        .collect(),
+                );
             }
             Some(info)
         } else {
@@ -83,7 +91,7 @@ impl ConfirmationMessageFactory<'_> {
 
     fn sideband(&self) -> Option<JsonSideband> {
         if self.options.include_sideband_info {
-            Some(self.block.sideband().into())
+            Some(into_json_sideband(self.block.sideband()))
         } else {
             None
         }

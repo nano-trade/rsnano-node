@@ -7,8 +7,10 @@ use std::{
 const DELAY_LIMIT: Duration = Duration::from_secs(5);
 
 pub(crate) struct DelayedBlocks {
-    blocks: HashMap<BlockHash, (Block, Instant)>,
+    /// block + publish timestamp
+    blocks: HashMap<BlockHash, (Block, Option<Instant>)>,
     by_time: BTreeMap<Instant, Vec<BlockHash>>,
+    finished: bool,
 }
 
 impl DelayedBlocks {
@@ -16,10 +18,11 @@ impl DelayedBlocks {
         Self {
             blocks: HashMap::new(),
             by_time: BTreeMap::new(),
+            finished: false,
         }
     }
 
-    pub fn pop(&mut self, now: Instant) -> Option<Block> {
+    pub fn next(&mut self, now: Instant) -> Option<Block> {
         let mut entry = self.by_time.first_entry()?;
         let sent = entry.key().clone();
         let block_hashes = entry.get_mut();
@@ -32,26 +35,53 @@ impl DelayedBlocks {
             entry.remove();
         }
 
-        let (block, _) = self.blocks.remove(&hash).unwrap();
-        Some(block)
+        let (block, sent) = self.blocks.get_mut(&hash).unwrap();
+        *sent = None;
+        Some(block.clone())
     }
 
-    pub fn insert(&mut self, block: Block, sent: Instant) {
+    pub fn insert(&mut self, block: Block) {
         let hash = block.hash();
-        if let Some((_, old_sent)) = self.blocks.insert(hash, (block, sent)) {
-            self.remove_from_time_index(&hash, old_sent);
+        if let Some((_, old_sent)) = self.blocks.insert(hash, (block, None)) {
+            if let Some(old_sent) = old_sent {
+                self.remove_from_time_index(&hash, old_sent);
+            }
         }
-        self.by_time.entry(sent).or_default().push(hash);
     }
 
-    pub fn confirmed(&mut self, hash: &BlockHash) {
+    pub fn published(&mut self, hash: &BlockHash, timestamp: Instant) {
+        if let Some((_, sent)) = self.blocks.get_mut(hash) {
+            let old_sent = *sent;
+            *sent = Some(timestamp);
+
+            if let Some(old_sent) = old_sent {
+                self.remove_from_time_index(hash, old_sent);
+            }
+            self.by_time.entry(timestamp).or_default().push(*hash);
+        }
+    }
+
+    pub fn confirmed(&mut self, hash: &BlockHash) -> bool {
         if let Some((_, sent)) = self.blocks.remove(hash) {
-            self.remove_from_time_index(hash, sent);
+            if let Some(sent) = sent {
+                self.remove_from_time_index(hash, sent);
+            }
+            true
+        } else {
+            false
         }
     }
 
     pub fn len(&self) -> usize {
         self.blocks.len()
+    }
+
+    pub fn finished(&mut self) {
+        self.finished = true;
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.finished
     }
 
     fn remove_from_time_index(&mut self, hash: &BlockHash, sent: Instant) {
@@ -72,7 +102,7 @@ mod tests {
     fn empty() {
         let mut delayed = DelayedBlocks::new();
         let now = Instant::now();
-        assert!(delayed.pop(now).is_none());
+        assert!(delayed.next(now).is_none());
         assert_eq!(delayed.len(), 0);
     }
 
@@ -81,23 +111,27 @@ mod tests {
         let mut delayed = DelayedBlocks::new();
         let now = Instant::now();
         let block = Block::new_test_instance();
-        delayed.insert(block, now);
-        assert!(delayed.pop(now + Duration::from_millis(500)).is_none());
+        let hash = block.hash();
+        delayed.insert(block);
+        delayed.published(&hash, now);
+        assert!(delayed.next(now + Duration::from_millis(500)).is_none());
         assert_eq!(delayed.len(), 1);
     }
 
     #[test]
-    fn pop_delayed_block() {
+    fn get_delayed_block() {
         let mut delayed = DelayedBlocks::new();
         let now = Instant::now();
         let block = Block::new_test_instance();
         let hash = block.hash();
-        delayed.insert(block, now);
+        delayed.insert(block);
+        delayed.published(&hash, now);
 
-        let popped = delayed.pop(now + DELAY_LIMIT).unwrap();
+        let delayed_block = delayed.next(now + DELAY_LIMIT).unwrap();
 
-        assert_eq!(popped.hash(), hash);
-        assert_eq!(delayed.len(), 0);
+        assert_eq!(delayed_block.hash(), hash);
+        assert_eq!(delayed.len(), 1);
+        assert!(delayed.next(now + DELAY_LIMIT).is_none());
     }
 
     #[test]
@@ -106,7 +140,8 @@ mod tests {
         let now = Instant::now();
         let block = Block::new_test_instance();
         let hash = block.hash();
-        delayed.insert(block, now);
+        delayed.insert(block);
+        delayed.published(&hash, now);
 
         delayed.confirmed(&hash);
 
@@ -120,8 +155,10 @@ mod tests {
         let time_b = Instant::now() + Duration::from_secs(1);
         let block = Block::new_test_instance();
 
-        delayed.insert(block.clone(), time_a);
-        delayed.insert(block, time_b);
+        delayed.insert(block.clone());
+        delayed.insert(block.clone());
+        delayed.published(&block.hash(), time_a);
+        delayed.published(&block.hash(), time_b);
 
         assert_eq!(delayed.len(), 1);
         assert_eq!(delayed.by_time.len(), 1);
@@ -134,14 +171,16 @@ mod tests {
         let now = Instant::now();
         let block_a = Block::new_test_instance_with_key(1);
         let block_b = Block::new_test_instance_with_key(2);
-        delayed.insert(block_a.clone(), now);
-        delayed.insert(block_b.clone(), now);
+        delayed.insert(block_a.clone());
+        delayed.insert(block_b.clone());
+        delayed.published(&block_a.hash(), now);
+        delayed.published(&block_b.hash(), now);
         assert_eq!(delayed.len(), 2);
         assert_eq!(delayed.by_time.len(), 1);
 
-        let popped_a = delayed.pop(now + DELAY_LIMIT).unwrap();
-        let popped_b = delayed.pop(now + DELAY_LIMIT).unwrap();
-        assert!(delayed.pop(now + DELAY_LIMIT).is_none());
+        let popped_a = delayed.next(now + DELAY_LIMIT).unwrap();
+        let popped_b = delayed.next(now + DELAY_LIMIT).unwrap();
+        assert!(delayed.next(now + DELAY_LIMIT).is_none());
 
         assert_eq!(popped_a.hash(), block_b.hash());
         assert_eq!(popped_b.hash(), block_a.hash());
@@ -153,13 +192,15 @@ mod tests {
         let now = Instant::now();
         let block_a = Block::new_test_instance_with_key(1);
         let block_b = Block::new_test_instance_with_key(2);
-        delayed.insert(block_a.clone(), now);
-        delayed.insert(block_b.clone(), now);
+        delayed.insert(block_a.clone());
+        delayed.insert(block_b.clone());
+        delayed.published(&block_a.hash(), now);
+        delayed.published(&block_b.hash(), now);
 
         delayed.confirmed(&block_a.hash());
 
         assert_eq!(
-            delayed.pop(now + DELAY_LIMIT).unwrap().hash(),
+            delayed.next(now + DELAY_LIMIT).unwrap().hash(),
             block_b.hash()
         );
     }

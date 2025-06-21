@@ -7,8 +7,6 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, oneshot},
@@ -22,7 +20,9 @@ use rsnano_node::{
     consensus::election::{ConfirmedElection, VoteSummary},
     wallets::Wallets,
 };
-use rsnano_websocket_messages::{ConfirmationJsonOptions, MessageEnvelope, Topic};
+use rsnano_websocket_messages::{
+    ConfirmationJsonOptions, ElectionInfo, JsonSideband, JsonVoteSummary, MessageEnvelope, Topic,
+};
 
 use super::{ConfirmationOptions, Options, WebsocketSessionEntry};
 use crate::{confirmation_message_factory::ConfirmationMessageFactory, WebsocketSession};
@@ -252,86 +252,36 @@ async fn accept_connection(
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct JsonSideband {
-    pub height: String,
-    pub local_timestamp: String,
-}
-
-impl From<&BlockSideband> for JsonSideband {
-    fn from(value: &BlockSideband) -> Self {
-        Self {
-            height: value.height.to_string(),
-            local_timestamp: value.timestamp.to_string(),
-        }
+pub fn into_json_vote_summary(v: &VoteSummary) -> JsonVoteSummary {
+    JsonVoteSummary {
+        representative: Account::from(v.voter).encode_account(),
+        timestamp: v.vote_created.to_string(),
+        hash: v.hash.to_string(),
+        weight: v.weight.to_string_dec(),
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct BlockConfirmed {
-    pub account: String,
-    pub amount: String,
-    pub hash: String,
-    pub confirmation_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub election_info: Option<ElectionInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub block: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sideband: Option<JsonSideband>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub linked_account: Option<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ElectionInfo {
-    pub duration: String,
-    pub time: String,
-    pub tally: String,
-    #[serde(rename = "final")]
-    pub final_tally: String,
-    pub blocks: String,
-    pub voters: String,
-    pub request_count: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub votes: Option<Vec<JsonVoteSummary>>,
-}
-
-impl From<&ConfirmedElection> for ElectionInfo {
-    fn from(value: &ConfirmedElection) -> Self {
-        Self {
-            duration: value.election_duration.as_millis().to_string(),
-            time: value
-                .election_end
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis()
-                .to_string(),
-            tally: value.tally.to_string_dec(),
-            final_tally: value.final_tally.to_string_dec(),
-            blocks: value.block_count.to_string(),
-            voters: value.voter_count.to_string(),
-            request_count: 0.to_string(), // currently not supported in RsNano
-            votes: None,
-        }
+pub fn into_election_info(value: &ConfirmedElection) -> ElectionInfo {
+    ElectionInfo {
+        duration: value.election_duration.as_millis().to_string(),
+        time: value
+            .election_end
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .to_string(),
+        tally: value.tally.to_string_dec(),
+        final_tally: value.final_tally.to_string_dec(),
+        blocks: value.block_count.to_string(),
+        voters: value.voter_count.to_string(),
+        request_count: 0.to_string(), // currently not supported in RsNano
+        votes: None,
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct JsonVoteSummary {
-    pub representative: String,
-    pub timestamp: String,
-    pub hash: String,
-    pub weight: String,
-}
-
-impl From<&VoteSummary> for JsonVoteSummary {
-    fn from(v: &VoteSummary) -> Self {
-        Self {
-            representative: Account::from(v.voter).encode_account(),
-            timestamp: v.vote_created.to_string(),
-            hash: v.hash.to_string(),
-            weight: v.weight.to_string_dec(),
-        }
+pub fn into_json_sideband(value: &BlockSideband) -> JsonSideband {
+    JsonSideband {
+        height: value.height.to_string(),
+        local_timestamp: value.timestamp.to_string(),
     }
 }

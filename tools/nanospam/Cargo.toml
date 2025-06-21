@@ -13,6 +13,8 @@ rsnano_stats = { path = "../../stats" }
 rsnano_messages = { path = "../../messages" }
 rsnano_network = { path = "../../network" }
 rsnano_network_protocol = { path = "../../network_protocol" }
+rsnano_websocket_messages = { path = "../../websocket_messages" }
+rsnano_websocket_client = { path = "../../websocket_client" }
 anyhow = "1.0.98"
 tokio = { version = "1.44.2", features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
 tokio-scoped = "0.2.0"
@@ -20,6 +22,7 @@ tracing = "0.1.41"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand = "0.9.1"
+tokio-util = "0.7.15"
 
 [dev-dependencies]
 ntest = "0.9.3"

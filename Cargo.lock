@@ -2867,10 +2867,13 @@ dependencies = [
  "rsnano_nullable_tcp",
  "rsnano_nullable_tracing_subscriber",
  "rsnano_stats",
+ "rsnano_websocket_client",
+ "rsnano_websocket_messages",
  "serde",
  "serde_json",
  "tokio",
  "tokio-scoped",
+ "tokio-util",
  "tracing",
 ]
 

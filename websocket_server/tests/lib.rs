@@ -22,9 +22,9 @@ use rsnano_websocket_client::{
     ConfirmationSubArgs, ConfirmationTypeFilter, NanoWebSocketClient, NanoWebSocketClientFactory,
     SubscribeArgs, TopicSub, UnsubscribeArgs, 
 };
-use rsnano_websocket_messages::Topic;
+use rsnano_websocket_messages::{BlockConfirmed, Topic};
 use rsnano_websocket_server::{
-    create_websocket_server, vote_received, BlockConfirmed, TelemetryReceived, VoteReceived,
+    create_websocket_server, vote_received, TelemetryReceived, VoteReceived,
     WebsocketListener, WebsocketListenerExt,
 };
 use test_helpers::{assert_timely2, make_fake_channel, System};

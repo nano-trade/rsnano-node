@@ -201,3 +201,47 @@ pub struct ConfirmationJsonOptions {
     pub all_local_accounts: Option<bool>,
     pub accounts: Option<Vec<String>>,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct JsonSideband {
+    pub height: String,
+    pub local_timestamp: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BlockConfirmed {
+    pub account: String,
+    pub amount: String,
+    pub hash: String,
+    pub confirmation_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub election_info: Option<ElectionInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sideband: Option<JsonSideband>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_account: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ElectionInfo {
+    pub duration: String,
+    pub time: String,
+    pub tally: String,
+    #[serde(rename = "final")]
+    pub final_tally: String,
+    pub blocks: String,
+    pub voters: String,
+    pub request_count: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub votes: Option<Vec<JsonVoteSummary>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct JsonVoteSummary {
+    pub representative: String,
+    pub timestamp: String,
+    pub hash: String,
+    pub weight: String,
+}
