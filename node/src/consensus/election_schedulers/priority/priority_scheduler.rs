@@ -208,42 +208,49 @@ impl PriorityScheduler {
 
         let now = self.clock.now();
         let mut buckets = self.buckets.lock().unwrap();
-        for bucket in buckets.iter_mut() {
-            let aec_vacancy = self.active_elections.read().unwrap().vacancy();
-            if bucket.available(aec_vacancy) {
-                if let Some(insert_req) = bucket.activate() {
-                    let root = insert_req.block.qualified_root();
+        let mut aec = self.active_elections.write().unwrap();
+        let mut inserted = true;
 
-                    let result = self
-                        .active_elections
-                        .write()
-                        .unwrap()
-                        .insert(insert_req, now);
+        while inserted {
+            inserted = false;
+            for bucket in buckets.iter_mut().rev() {
+                let aec_vacancy = aec.vacancy();
+                if bucket.available(aec_vacancy) {
+                    if let Some(insert_req) = bucket.activate() {
+                        let root = insert_req.block.qualified_root();
 
-                    if result.is_err() {
-                        bucket.remove_election(&root);
-                    }
+                        let result = aec.insert(insert_req, now);
 
-                    match result {
-                        Ok(()) => {
-                            self.bucket_stats
-                                .activate_success
-                                .fetch_add(1, Ordering::Relaxed);
+                        let inserted = result.is_ok();
+                        if !inserted {
+                            bucket.remove_election(&root);
                         }
-                        Err(AecInsertError::Duplicate) => {
-                            self.bucket_stats
-                                .activate_failed_duplicate
-                                .fetch_add(1, Ordering::Relaxed);
-                        }
-                        Err(AecInsertError::RecentlyConfirmed) => {
-                            self.bucket_stats
-                                .activate_failed_confirmed
-                                .fetch_add(1, Ordering::Relaxed);
-                        }
-                        Err(AecInsertError::Stopped) => {}
+
+                        self.update_stats(result);
                     }
                 }
             }
+        }
+    }
+
+    fn update_stats(&self, result: Result<(), AecInsertError>) {
+        match result {
+            Ok(()) => {
+                self.bucket_stats
+                    .activate_success
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::Duplicate) => {
+                self.bucket_stats
+                    .activate_failed_duplicate
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::RecentlyConfirmed) => {
+                self.bucket_stats
+                    .activate_failed_confirmed
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::Stopped) => {}
         }
     }
 

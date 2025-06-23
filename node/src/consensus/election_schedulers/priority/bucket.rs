@@ -55,16 +55,16 @@ impl Bucket {
         };
 
         let candidate_prio = highest.priority.time;
-        let started_elections = self.elections.len();
+        let active_elections = self.elections.len();
         let highest_election = self.elections.highest_priority();
 
-        if self.election_slots_available(started_elections) {
+        if self.election_slots_available(active_elections) {
             aec_vacancy > 0
-        } else if started_elections > 0 {
+        } else if active_elections > 0 {
             // Compare to equal to drain duplicates
             if candidate_prio >= highest_election {
                 // Bound number of reprioritizations
-                started_elections < self.config.max_elections * 2
+                active_elections < self.config.max_elections * 2
             } else {
                 false
             }
