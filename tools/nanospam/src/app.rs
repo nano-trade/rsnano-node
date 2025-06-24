@@ -32,8 +32,8 @@ use rsnano_websocket_client::{
 use rsnano_websocket_messages::{BlockConfirmed, Topic};
 use tokio_util::sync::CancellationToken;
 
-const SPAM_ACCOUNTS: usize = 40_000;
-const MAX_BLOCKS: usize = 200_000_000;
+const SPAM_ACCOUNTS: usize = 30_000;
+const MAX_BLOCKS: usize = 100_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 const MAX_BACKLOG: usize = 10000;
 
@@ -235,7 +235,7 @@ async fn track_confirmations(
                 total += 1;
             }
             block_factory.lock().unwrap().confirm(block_hash);
-            if confirmed > 0 && confirmed % 250 == 0 {
+            if confirmed > 0 && confirmed % 1000 == 0 {
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
                 info!("confirmed {confirmed} blocks ({total} total) with {cps} cps");
                 confirmed = 0;

@@ -81,7 +81,7 @@ impl DelayedBlocks {
     }
 
     pub fn is_finished(&self) -> bool {
-        self.finished
+        self.finished && self.len() == 0
     }
 
     fn remove_from_time_index(&mut self, hash: &BlockHash, sent: Instant) {
