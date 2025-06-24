@@ -9,6 +9,20 @@ pub(crate) struct BlockFactory {
     account_map: AccountMap,
 }
 
+pub(crate) enum BlockResult {
+    Block(Block),
+    Waiting,
+}
+
+impl BlockResult {
+    pub fn unwrap(self) -> Block {
+        match self {
+            BlockResult::Block(block) => block,
+            BlockResult::Waiting => panic!("Expected block, but was in waiting state"),
+        }
+    }
+}
+
 impl BlockFactory {
     // Send from genesis
     const INITIAL_AMOUNT_SENT: Amount = Amount::nano(100_000_000);
@@ -28,79 +42,86 @@ impl BlockFactory {
         }
     }
 
-    pub fn create_next(&mut self) -> Option<Block> {
+    pub fn create_next(&mut self) -> Option<BlockResult> {
         if self.created >= self.max_blocks {
             return None;
         }
 
-        let block =
-            if let Some((receiver, send_hash, amount_sent)) = self.account_map.next_receivable() {
-                let state = self.account_map.state(&receiver).unwrap();
-                let receive: Block = StateBlockArgs {
+        if let Some((receiver, send_hash, amount_sent)) = self.account_map.next_receivable() {
+            let state = self.account_map.state(&receiver).unwrap();
+            assert!(state.confirmed());
+            let receive: Block = StateBlockArgs {
+                key: &state.key,
+                previous: state.confirmed_frontier,
+                representative: state.key.public_key(),
+                balance: state.balance + amount_sent,
+                link: send_hash.into(),
+                work: 0.into(),
+            }
+            .into();
+
+            self.account_map
+                .process_receive(receiver, send_hash, receive.hash());
+
+            self.created += 1;
+            Some(BlockResult::Block(receive))
+        } else {
+            if let Some(state) = self.account_map.random_account_that_can_send() {
+                assert!(state.confirmed());
+                let destination = self.account_map.random_account().unwrap();
+                let new_balance = state.balance / 2;
+                let amount_sent = state.balance - new_balance;
+
+                let send: Block = StateBlockArgs {
                     key: &state.key,
-                    previous: state.frontier,
+                    previous: state.confirmed_frontier,
                     representative: state.key.public_key(),
-                    balance: state.balance + amount_sent,
-                    link: send_hash.into(),
+                    balance: new_balance,
+                    link: destination.into(),
                     work: 0.into(),
                 }
                 .into();
 
-                self.account_map
-                    .process_receive(receiver, send_hash, receive.hash());
+                self.account_map.process_send(
+                    state.key.account(),
+                    destination,
+                    send.hash(),
+                    amount_sent,
+                );
+                self.created += 1;
 
-                receive
-            } else {
-                if let Some(state) = self.account_map.random_account_that_can_send() {
-                    let destination = self.account_map.random_account().unwrap();
-                    let new_balance = state.balance / 2;
-                    let amount_sent = state.balance - new_balance;
+                Some(BlockResult::Block(send))
+            } else if self.account_map.should_send_genesis() {
+                let destination = self.account_map.random_account().unwrap();
 
-                    let send: Block = StateBlockArgs {
-                        key: &state.key,
-                        previous: state.frontier,
-                        representative: state.key.public_key(),
-                        balance: new_balance,
-                        link: destination.into(),
-                        work: 0.into(),
-                    }
-                    .into();
-
-                    self.account_map.process_send(
-                        state.key.account(),
-                        destination,
-                        send.hash(),
-                        amount_sent,
-                    );
-
-                    send
-                } else {
-                    let destination = self.account_map.random_account().unwrap();
-
-                    // Initial send from genesis account
-                    let genesis_send: Block = StateBlockArgs {
-                        key: &self.genesis_key,
-                        previous: self.genesis_hash,
-                        representative: self.genesis_key.public_key(),
-                        balance: Amount::MAX - Self::INITIAL_AMOUNT_SENT,
-                        link: destination.into(),
-                        work: 0.into(),
-                    }
-                    .into();
-
-                    self.account_map.process_send(
-                        self.genesis_key.account(),
-                        destination,
-                        genesis_send.hash(),
-                        Self::INITIAL_AMOUNT_SENT,
-                    );
-
-                    genesis_send
+                // Initial send from genesis account
+                let genesis_send: Block = StateBlockArgs {
+                    key: &self.genesis_key,
+                    previous: self.genesis_hash,
+                    representative: self.genesis_key.public_key(),
+                    balance: Amount::MAX - Self::INITIAL_AMOUNT_SENT,
+                    link: destination.into(),
+                    work: 0.into(),
                 }
-            };
+                .into();
 
-        self.created += 1;
-        Some(block)
+                self.account_map.process_send(
+                    self.genesis_key.account(),
+                    destination,
+                    genesis_send.hash(),
+                    Self::INITIAL_AMOUNT_SENT,
+                );
+
+                self.created += 1;
+                Some(BlockResult::Block(genesis_send))
+            } else {
+                Some(BlockResult::Waiting)
+            }
+        }
+    }
+
+    pub fn confirm(&mut self, hash: BlockHash) {
+        self.account_map.confirm(hash);
     }
 }
 
@@ -121,7 +142,7 @@ mod tests {
             test_account_map(),
             MAX_BLOCKS,
         );
-        let block = block_factory.create_next().unwrap();
+        let block = block_factory.create_next().unwrap().unwrap();
         let account = block.account_field().unwrap();
         let destination = block.destination_or_link();
 
@@ -131,12 +152,10 @@ mod tests {
             Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT
         );
         assert!(block_factory.account_map.contains(&destination));
-        assert!(
-            block_factory
-                .account_map
-                .get_receivable(&destination)
-                .is_some()
-        );
+        assert!(block_factory
+            .account_map
+            .get_receivable(&destination)
+            .is_some());
     }
 
     #[test]
@@ -148,10 +167,11 @@ mod tests {
             MAX_BLOCKS,
         );
         // genesis send
-        let send_genesis = block_factory.create_next().unwrap();
+        let send_genesis = block_factory.create_next().unwrap().unwrap();
+        block_factory.confirm(send_genesis.hash());
         let account = send_genesis.destination_or_link();
 
-        let receive = block_factory.create_next().unwrap();
+        let receive = block_factory.create_next().unwrap().unwrap();
         assert_eq!(receive.account_field().unwrap(), account);
         assert_eq!(receive.link_field().unwrap(), send_genesis.hash().into());
     }
@@ -164,10 +184,13 @@ mod tests {
             test_account_map(),
             MAX_BLOCKS,
         );
-        let send_genesis = block_factory.create_next().unwrap();
+        let send_genesis = block_factory.create_next().unwrap().unwrap();
         let account_a = send_genesis.destination_or_link();
-        let _receive_genesis = block_factory.create_next().unwrap();
-        let send = block_factory.create_next().unwrap();
+        block_factory.confirm(send_genesis.hash());
+        let receive_genesis = block_factory.create_next().unwrap().unwrap();
+        block_factory.confirm(receive_genesis.hash());
+        let send = block_factory.create_next().unwrap().unwrap();
+        block_factory.confirm(send.hash());
         let account_b = send.destination_or_link();
         assert_eq!(
             send.account_field().unwrap(),
@@ -198,7 +221,9 @@ mod tests {
             send_hash,
             Amount::raw(1),
         );
+        account_map.confirm(send_hash);
         account_map.process_receive(key.account(), send_hash, receive_hash);
+        account_map.confirm(receive_hash);
 
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
@@ -207,7 +232,7 @@ mod tests {
             MAX_BLOCKS,
         );
 
-        let block = block_factory.create_next().unwrap();
+        let block = block_factory.create_next().unwrap().unwrap();
         assert_eq!(block.balance_field().unwrap(), Amount::zero());
         assert_eq!(
             block_factory
@@ -238,7 +263,8 @@ mod tests {
 
         let mut start = Instant::now();
         let mut created_batch = 0;
-        while let Some(_) = block_factory.create_next() {
+        while let Some(BlockResult::Block(b)) = block_factory.create_next() {
+            block_factory.confirm(b.hash());
             created_batch += 1;
             if created_batch == 50_000 {
                 println!(

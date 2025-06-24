@@ -11,7 +11,7 @@ use tokio::{
     sync::mpsc,
     time::sleep,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::MessageDeserializer;
@@ -20,8 +20,11 @@ use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 
 use crate::{
-    account_map::AccountMap, block_factory::BlockFactory, block_publisher::BlockPublisher,
-    delayed_blocks::DelayedBlocks, handshake::perform_handshake,
+    account_map::AccountMap,
+    block_factory::{BlockFactory, BlockResult},
+    block_publisher::BlockPublisher,
+    delayed_blocks::DelayedBlocks,
+    handshake::perform_handshake,
 };
 use rsnano_websocket_client::{
     NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
@@ -29,9 +32,10 @@ use rsnano_websocket_client::{
 use rsnano_websocket_messages::{BlockConfirmed, Topic};
 use tokio_util::sync::CancellationToken;
 
-const SPAM_ACCOUNTS: usize = 20_000;
-const MAX_BLOCKS: usize = 100_000;
-const MAX_BUFFERED_BLOCKS: usize = 512;
+const SPAM_ACCOUNTS: usize = 40_000;
+const MAX_BLOCKS: usize = 200_000_000;
+const MAX_BUFFERED_BLOCKS: usize = 1024;
+const MAX_BACKLOG: usize = 10000;
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
@@ -80,17 +84,25 @@ impl NanoSpamApp {
         // wait for ack
         ws_client.next().await.unwrap().unwrap();
 
+        let mut account_map = AccountMap::default();
+        account_map.fill(SPAM_ACCOUNTS);
+        let block_factory = Mutex::new(BlockFactory::new(
+            genesis_key,
+            genesis_hash,
+            account_map,
+            MAX_BLOCKS,
+        ));
+
         info!("Starting spam...");
         let started = Instant::now();
         tokio_scoped::scope(|scope| {
-            scope.spawn(track_confirmations(ws_client, &delayed_blocks));
-            scope.spawn(receive_messages(tcp_read, protocol, cancel_token.clone()));
-            scope.spawn(create_blocks(
-                genesis_key,
-                genesis_hash,
-                tx_block,
+            scope.spawn(track_confirmations(
+                ws_client,
                 &delayed_blocks,
+                &block_factory,
             ));
+            scope.spawn(receive_messages(tcp_read, protocol, cancel_token.clone()));
+            scope.spawn(create_blocks(&block_factory, tx_block, &delayed_blocks));
             scope.spawn(republish_delayed_blocks(tx_block_clone, &delayed_blocks));
             scope.spawn(publish_blocks(
                 rx_block,
@@ -129,27 +141,30 @@ impl NanoSpamApp {
 }
 
 async fn create_blocks(
-    genesis_key: PrivateKey,
-    genesis_hash: BlockHash,
+    block_factory: &Mutex<BlockFactory>,
     tx_block: mpsc::Sender<Block>,
     delayed_blocks: &Mutex<DelayedBlocks>,
 ) {
-    let mut account_map = AccountMap::default();
-    account_map.fill(SPAM_ACCOUNTS);
-    let mut block_factory = BlockFactory::new(genesis_key, genesis_hash, account_map, MAX_BLOCKS);
+    while let Some(result) = {
+        let mut guard = block_factory.lock().unwrap();
+        guard.create_next()
+    } {
+        let BlockResult::Block(block) = result else {
+            sleep(Duration::from_millis(10)).await;
+            continue;
+        };
 
-    while let Some(block) = block_factory.create_next() {
         let mut cool_down = false;
         {
             let mut delayed = delayed_blocks.lock().unwrap();
             delayed.insert(block.clone());
-            if delayed.len() > 1000 {
+            if delayed.len() > MAX_BACKLOG {
                 cool_down = true;
             }
         }
 
         if cool_down {
-            while delayed_blocks.lock().unwrap().len() > 1000 {
+            while delayed_blocks.lock().unwrap().len() > MAX_BACKLOG {
                 sleep(Duration::from_millis(10)).await;
             }
         }
@@ -201,6 +216,7 @@ async fn republish_delayed_blocks(
 async fn track_confirmations(
     mut ws_client: NanoWebSocketClient,
     delayed_blocks: &Mutex<DelayedBlocks>,
+    block_factory: &Mutex<BlockFactory>,
 ) {
     let mut total = 0;
     let mut confirmed = 0;
@@ -212,14 +228,13 @@ async fn track_confirmations(
         let msg = ws_client.next().await.unwrap().unwrap();
         if msg.topic == Some(Topic::Confirmation) {
             let data: BlockConfirmed = serde_json::from_value(msg.message.unwrap()).unwrap();
-            let known_block = delayed_blocks
-                .lock()
-                .unwrap()
-                .confirmed(&BlockHash::decode_hex(data.hash).unwrap());
+            let block_hash = BlockHash::decode_hex(data.hash).unwrap();
+            let known_block = delayed_blocks.lock().unwrap().confirmed(&block_hash);
             if known_block {
                 confirmed += 1;
                 total += 1;
             }
+            block_factory.lock().unwrap().confirm(block_hash);
             if confirmed > 0 && confirmed % 250 == 0 {
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
                 info!("confirmed {confirmed} blocks ({total} total) with {cps} cps");

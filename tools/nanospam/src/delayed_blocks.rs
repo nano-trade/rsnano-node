@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const DELAY_LIMIT: Duration = Duration::from_secs(5);
+const DELAY_LIMIT: Duration = Duration::from_secs(10);
 
 pub(crate) struct DelayedBlocks {
     /// block + publish timestamp
