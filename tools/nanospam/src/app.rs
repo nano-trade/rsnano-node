@@ -32,8 +32,8 @@ use rsnano_websocket_client::{
 use rsnano_websocket_messages::{BlockConfirmed, Topic};
 use tokio_util::sync::CancellationToken;
 
-const SPAM_ACCOUNTS: usize = 30_000;
-const MAX_BLOCKS: usize = 100_000;
+const SPAM_ACCOUNTS: usize = 50_000;
+const MAX_BLOCKS: usize = 1_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 const MAX_BACKLOG: usize = 10000;
 
@@ -226,6 +226,7 @@ async fn track_confirmations(
         guard.len() > 0 || !guard.is_finished()
     } {
         let msg = ws_client.next().await.unwrap().unwrap();
+        debug!("got websocket message");
         if msg.topic == Some(Topic::Confirmation) {
             let data: BlockConfirmed = serde_json::from_value(msg.message.unwrap()).unwrap();
             let block_hash = BlockHash::decode_hex(data.hash).unwrap();

@@ -192,13 +192,21 @@ pub fn new_block_arrived_message(block: &SavedBlock) -> MessageEnvelope {
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct ConfirmationJsonOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_block: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_election_info: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_election_info_with_votes: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_linked_account: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sideband_info: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmation_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub all_local_accounts: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub accounts: Option<Vec<String>>,
 }
 

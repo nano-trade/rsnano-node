@@ -110,7 +110,11 @@ fn get_subscription_options(opts: TopicSub) -> Option<serde_json::Value> {
                 include_linked_account: Some(args.include_linked_account),
                 include_sideband_info: Some(args.include_sideband_info),
                 confirmation_type: Some(conf_type_str.to_string()),
-                all_local_accounts: Some(args.all_local_accounts),
+                all_local_accounts: if args.all_local_accounts {
+                    Some(true)
+                } else {
+                    None
+                },
                 accounts: if args.accounts.is_empty() {
                     None
                 } else {
