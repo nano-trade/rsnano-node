@@ -8,7 +8,7 @@ const DELAY_LIMIT: Duration = Duration::from_secs(10);
 
 pub(crate) struct DelayedBlocks {
     /// block + publish timestamp
-    blocks: HashMap<BlockHash, (Block, Option<Instant>)>,
+    blocks: HashMap<BlockHash, PublishInfo>,
     by_time: BTreeMap<Instant, Vec<BlockHash>>,
     finished: bool,
 }
@@ -35,24 +35,27 @@ impl DelayedBlocks {
             entry.remove();
         }
 
-        let (block, sent) = self.blocks.get_mut(&hash).unwrap();
-        *sent = None;
-        Some(block.clone())
+        let info = self.blocks.get_mut(&hash).unwrap();
+        info.last_publish = None;
+        Some(info.block.clone())
     }
 
     pub fn insert(&mut self, block: Block) {
         let hash = block.hash();
-        if let Some((_, old_sent)) = self.blocks.insert(hash, (block, None)) {
-            if let Some(old_sent) = old_sent {
+        if let Some(info) = self.blocks.insert(hash, PublishInfo::new(block)) {
+            if let Some(old_sent) = info.last_publish {
                 self.remove_from_time_index(&hash, old_sent);
             }
         }
     }
 
     pub fn published(&mut self, hash: &BlockHash, timestamp: Instant) {
-        if let Some((_, sent)) = self.blocks.get_mut(hash) {
-            let old_sent = *sent;
-            *sent = Some(timestamp);
+        if let Some(info) = self.blocks.get_mut(hash) {
+            if info.first_publish.is_none() {
+                info.first_publish = Some(timestamp);
+            }
+            let old_sent = info.last_publish;
+            info.last_publish = Some(timestamp);
 
             if let Some(old_sent) = old_sent {
                 self.remove_from_time_index(hash, old_sent);
@@ -61,14 +64,14 @@ impl DelayedBlocks {
         }
     }
 
-    pub fn confirmed(&mut self, hash: &BlockHash) -> bool {
-        if let Some((_, sent)) = self.blocks.remove(hash) {
-            if let Some(sent) = sent {
+    pub fn confirmed(&mut self, hash: &BlockHash) -> Option<Duration> {
+        if let Some(info) = self.blocks.remove(hash) {
+            if let Some(sent) = info.last_publish {
                 self.remove_from_time_index(hash, sent);
             }
-            true
+            info.first_publish.map(|i| i.elapsed())
         } else {
-            false
+            None
         }
     }
 
@@ -89,6 +92,22 @@ impl DelayedBlocks {
         hashes.retain(|h| h != hash);
         if !hashes.is_empty() {
             self.by_time.insert(sent, hashes);
+        }
+    }
+}
+
+struct PublishInfo {
+    block: Block,
+    first_publish: Option<Instant>,
+    last_publish: Option<Instant>,
+}
+
+impl PublishInfo {
+    fn new(block: Block) -> Self {
+        Self {
+            block,
+            first_publish: None,
+            last_publish: None,
         }
     }
 }

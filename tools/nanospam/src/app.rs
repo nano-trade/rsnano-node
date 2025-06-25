@@ -221,6 +221,7 @@ async fn track_confirmations(
     let mut total = 0;
     let mut confirmed = 0;
     let mut start = Instant::now();
+    let mut sum_conf_time = Duration::ZERO;
     while {
         let guard = delayed_blocks.lock().unwrap();
         guard.len() > 0 || !guard.is_finished()
@@ -230,17 +231,20 @@ async fn track_confirmations(
         if msg.topic == Some(Topic::Confirmation) {
             let data: BlockConfirmed = serde_json::from_value(msg.message.unwrap()).unwrap();
             let block_hash = BlockHash::decode_hex(data.hash).unwrap();
-            let known_block = delayed_blocks.lock().unwrap().confirmed(&block_hash);
-            if known_block {
+            let conf_time = delayed_blocks.lock().unwrap().confirmed(&block_hash);
+            if let Some(conf_time) = conf_time {
                 confirmed += 1;
                 total += 1;
+                sum_conf_time += conf_time;
             }
             block_factory.lock().unwrap().confirm(block_hash);
-            if confirmed > 0 && confirmed % 1000 == 0 {
+            if confirmed > 0 && confirmed % 5000 == 0 {
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
-                info!("confirmed {confirmed} blocks ({total} total) with {cps} cps");
+                let avg_conf_time = sum_conf_time.as_millis() / confirmed;
+                info!("confirmed {confirmed} blocks ({total} total) with {cps} cps, avg conf time: {} ms", avg_conf_time);
                 confirmed = 0;
                 start = Instant::now();
+                sum_conf_time = Duration::ZERO;
             }
         }
     }
