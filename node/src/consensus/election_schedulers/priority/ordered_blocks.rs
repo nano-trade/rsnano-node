@@ -22,7 +22,8 @@ impl BlockEntry {
 
 impl Ord for BlockEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        let prio_order = self.priority.cmp(&other.priority);
+        // only compare time priority, because the balance is handled by the buckets
+        let prio_order = self.priority.time.cmp(&other.priority.time);
         match prio_order {
             Ordering::Equal => self.block.hash().cmp(&other.block.hash()),
             _ => prio_order,

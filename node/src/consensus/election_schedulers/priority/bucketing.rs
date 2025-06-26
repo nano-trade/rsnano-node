@@ -2,6 +2,7 @@ use rsnano_core::Amount;
 
 #[derive(Clone)]
 pub struct Bucketing {
+    /// Mininum balance for each bucket in ascending order
     minimums: Vec<Amount>,
 }
 
@@ -93,5 +94,23 @@ mod tests {
     #[test]
     fn max_index() {
         assert_eq!(Bucketing::new().bucket_index(Amount::MAX), 62);
+        assert_eq!(
+            Bucketing::new().bucket_index(Amount::MAX - Amount::nano(1000)),
+            62
+        );
+    }
+
+    #[test]
+    fn bucket_2_and_3() {
+        let bucketing = Bucketing::new();
+        assert_eq!(bucketing.bucket_index(Amount::from(1u128 << 88)), 2);
+        assert_eq!(bucketing.bucket_index(Amount::from(1u128 << 89)), 2);
+        assert_eq!(bucketing.bucket_index(Amount::from(1u128 << 90)), 2);
+        assert_eq!(bucketing.bucket_index(Amount::from(1u128 << 91)), 2);
+        assert_eq!(bucketing.bucket_index(Amount::from((1u128 << 92) - 1)), 3);
+        assert_eq!(
+            bucketing.bucket_index(Amount::from((1u128 << 92) - 1000)),
+            3
+        );
     }
 }
