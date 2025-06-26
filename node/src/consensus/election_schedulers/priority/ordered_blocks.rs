@@ -23,10 +23,16 @@ impl BlockEntry {
 impl Ord for BlockEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         // only compare time priority, because the balance is handled by the buckets
-        let prio_order = self.priority.time.cmp(&other.priority.time);
-        match prio_order {
-            Ordering::Equal => self.block.hash().cmp(&other.block.hash()),
-            _ => prio_order,
+        let prio_time = self.priority.time.cmp(&other.priority.time);
+        if matches!(prio_time, Ordering::Equal) {
+            let prio_balance = self.priority.balance.cmp(&other.priority.balance);
+            if matches!(prio_balance, Ordering::Equal) {
+                self.block.hash().cmp(&other.block.hash())
+            } else {
+                prio_balance
+            }
+        } else {
+            prio_time
         }
     }
 }
@@ -60,11 +66,11 @@ impl OrderedBlocks {
     }
 
     pub fn insert(&mut self, entry: BlockEntry) -> bool {
-        if self.hashes.contains(&entry.hash()) {
+        let inserted = self.hashes.insert(entry.hash());
+        if !inserted {
             return false;
         }
 
-        self.hashes.insert(entry.hash());
         self.by_priority.insert(entry);
         true
     }
