@@ -1,4 +1,5 @@
 use crate::account_map::AccountMap;
+use rand::Rng;
 use rsnano_core::{Amount, Block, BlockHash, PrivateKey, StateBlockArgs};
 
 pub(crate) struct BlockFactory {
@@ -69,7 +70,7 @@ impl BlockFactory {
             if let Some(state) = self.account_map.random_account_that_can_send() {
                 assert!(state.confirmed());
                 let destination = self.account_map.random_account().unwrap();
-                let new_balance = state.balance / 2;
+                let new_balance: Amount = rand::rng().random_range(..state.balance.number()).into();
                 let amount_sent = state.balance - new_balance;
 
                 let send: Block = StateBlockArgs {
@@ -198,14 +199,10 @@ mod tests {
             "incorrect send account"
         );
         assert!(block_factory.account_map.contains(&account_b));
-        assert_eq!(
-            block_factory
-                .account_map
-                .get_receivable(&account_b)
-                .unwrap()
-                .1,
-            Amount::nano(50_000_000)
-        );
+        assert!(block_factory
+            .account_map
+            .get_receivable(&account_b)
+            .is_some());
     }
 
     #[test]
