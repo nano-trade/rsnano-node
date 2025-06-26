@@ -90,7 +90,7 @@ impl Bucket {
 
     pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {
         if self.election_overfill(aec_vacancy) {
-            self.cancel_election_with_lowest_prio()
+            self.root_of_lowest_prio_election()
         } else {
             None
         }
@@ -143,12 +143,10 @@ impl Bucket {
         Some(AecInsertRequest::new_priority(block, priority))
     }
 
-    fn cancel_election_with_lowest_prio(&self) -> Option<QualifiedRoot> {
-        if let Some(entry) = self.elections.entry_with_highest_priority() {
-            Some(entry.root.clone())
-        } else {
-            None
-        }
+    fn root_of_lowest_prio_election(&self) -> Option<QualifiedRoot> {
+        self.elections
+            .entry_with_lowest_priority()
+            .map(|i| i.root.clone())
     }
 }
 #[cfg(test)]

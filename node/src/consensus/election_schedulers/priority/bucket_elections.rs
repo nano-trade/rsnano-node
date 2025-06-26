@@ -28,9 +28,9 @@ impl BucketElections {
         self.by_priority.entry(priority).or_default().push(root);
     }
 
-    pub fn entry_with_highest_priority(&self) -> Option<&BucketElection> {
+    pub fn entry_with_lowest_priority(&self) -> Option<&BucketElection> {
         self.by_priority
-            .last_key_value()
+            .first_key_value()
             .and_then(|(_, roots)| self.by_root.get(&roots[0]))
     }
 
@@ -70,7 +70,7 @@ mod tests {
     fn emtpy() {
         let elections = BucketElections::default();
         assert_eq!(elections.len(), 0);
-        assert_eq!(elections.entry_with_highest_priority(), None);
+        assert_eq!(elections.entry_with_lowest_priority(), None);
         assert_eq!(elections.highest_priority(), TimePriority::MIN);
     }
 
@@ -87,7 +87,7 @@ mod tests {
         assert_eq!(elections.len(), 1);
         assert_eq!(elections.highest_priority(), entry.priority);
         assert_eq!(
-            elections.entry_with_highest_priority().unwrap().root,
+            elections.entry_with_lowest_priority().unwrap().root,
             entry.root
         );
     }
@@ -116,8 +116,8 @@ mod tests {
 
         assert_eq!(elections.len(), 3);
         assert_eq!(
-            elections.entry_with_highest_priority().unwrap().root,
-            entry1.root
+            elections.entry_with_lowest_priority().unwrap().root,
+            entry3.root
         );
     }
 
