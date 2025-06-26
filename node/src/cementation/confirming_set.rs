@@ -365,10 +365,10 @@ impl ConfirmingSetImpl {
         let mut results = VecDeque::new();
         // TODO: use extract_if once it is stablized
         while let Some(entry) = self.set.pop_front() {
+            results.push_back(entry);
             if results.len() >= max_count {
                 break;
             }
-            results.push_back(entry);
         }
         results
     }

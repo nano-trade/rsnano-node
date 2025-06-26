@@ -6,6 +6,7 @@ pub struct BucketStats {
     pub cancelled: AtomicUsize,
     pub activate_success: AtomicUsize,
     pub activate_failed_duplicate: AtomicUsize,
+    /// Activation of a block failed, because it was recently confirmed
     pub activate_failed_confirmed: AtomicUsize,
 }
 
