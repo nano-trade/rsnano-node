@@ -80,15 +80,15 @@ impl OrderedBlocks {
     }
 
     pub fn pop_highest_prio(&mut self) -> Option<BlockEntry> {
-        let first = self.by_priority.pop_last()?;
-        self.hashes.remove(&first.hash());
-        Some(first)
+        let entry = self.by_priority.pop_last()?;
+        self.hashes.remove(&entry.hash());
+        Some(entry)
     }
 
     pub fn pop_lowest_prio(&mut self) -> Option<BlockEntry> {
-        let last = self.by_priority.pop_first()?;
-        self.hashes.remove(&last.hash());
-        Some(last)
+        let entry = self.by_priority.pop_first()?;
+        self.hashes.remove(&entry.hash());
+        Some(entry)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &BlockEntry> {
