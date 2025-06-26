@@ -75,7 +75,7 @@ impl BacklogScan {
                 flags: flags.clone(),
                 condition: condition.clone(),
             }),
-            stats: Arc::new(Default::default()),
+            stats,
             flags,
             condition,
             thread: None,

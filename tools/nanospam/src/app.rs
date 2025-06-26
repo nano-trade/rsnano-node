@@ -35,7 +35,7 @@ use tokio_util::sync::CancellationToken;
 const SPAM_ACCOUNTS: usize = 50_000;
 const MAX_BLOCKS: usize = 1_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
-const MAX_BACKLOG: usize = 10000;
+const MAX_BACKLOG: usize = 50000;
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {

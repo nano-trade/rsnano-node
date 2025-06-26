@@ -138,3 +138,15 @@ impl DerefMut for ProcessQueue {
         &mut self.queue
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config() {
+        let config = ProcessQueueConfig::default();
+        assert_eq!(config.max_system_queue, 1024 * 16, "max system queue");
+        assert_eq!(config.max_peer_queue, 1024, "max peer queue");
+    }
+}
