@@ -1,10 +1,13 @@
-use rand::seq::IndexedRandom;
+use rand::{
+    rng,
+    seq::{IndexedRandom, IteratorRandom},
+};
 use rsnano_core::{Account, Amount, BlockHash, PrivateKey};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
 pub(crate) struct AccountMap {
-    account_states: HashMap<Account, AccountState>,
+    pub account_states: HashMap<Account, AccountState>,
     all_accounts: Vec<Account>,
     empty_accounts: HashSet<Account>,
     accounts_that_can_send: HashSet<Account>,
@@ -143,7 +146,7 @@ impl AccountMap {
     pub fn random_account_that_can_send(&self) -> Option<&AccountState> {
         self.accounts_that_can_send
             .iter()
-            .next()
+            .choose(&mut rng())
             .and_then(|account| self.account_states.get(account))
     }
 
