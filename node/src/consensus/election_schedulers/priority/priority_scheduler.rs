@@ -1,5 +1,8 @@
 use std::{
-    sync::{atomic::Ordering, Arc, Condvar, Mutex, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Condvar, LazyLock, Mutex, RwLock,
+    },
     thread::JoinHandle,
     time::Duration,
 };
@@ -30,6 +33,7 @@ pub struct PriorityScheduler {
     clock: Arc<SteadyClock>,
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     activate_successors_listener: OutputListenerMt<SavedBlock>,
+    activations_per_bucket: Vec<AtomicU64>,
 }
 
 impl PriorityScheduler {
@@ -41,8 +45,10 @@ impl PriorityScheduler {
     ) -> Self {
         let bucketing = Bucketing::default();
         let mut buckets = Vec::with_capacity(bucketing.bucket_count());
+        let mut activations_per_bucket = Vec::with_capacity(bucketing.bucket_count());
         for _ in 0..bucketing.bucket_count() {
-            buckets.push(Bucket::new(config.clone()))
+            buckets.push(Bucket::new(config.clone()));
+            activations_per_bucket.push(AtomicU64::new(0));
         }
 
         Self {
@@ -57,6 +63,7 @@ impl PriorityScheduler {
             clock,
             active_elections,
             activate_successors_listener: Default::default(),
+            activations_per_bucket,
         }
     }
 
@@ -137,8 +144,9 @@ impl PriorityScheduler {
 
         let added = {
             let mut buckets = self.buckets.lock().unwrap();
-            self.find_bucket(&mut buckets, priority.balance)
-                .push(priority, block.into())
+            let (bucket, bucket_index) = self.find_bucket(&mut buckets, priority.balance);
+            self.activations_per_bucket[bucket_index].fetch_add(1, Ordering::Relaxed);
+            bucket.push(priority, block.into())
         };
 
         if added {
@@ -164,9 +172,9 @@ impl PriorityScheduler {
         &'a self,
         buckets: &'b mut [Bucket],
         priority: Amount,
-    ) -> &'b mut Bucket {
+    ) -> (&'b mut Bucket, usize) {
         let index = self.bucketing.bucket_index(priority);
-        &mut buckets[index]
+        (&mut buckets[index], index)
     }
 
     pub fn len(&self) -> usize {
@@ -301,8 +309,8 @@ impl PriorityScheduler {
 
     pub fn remove_election(&self, priority: BlockPriority, root: &QualifiedRoot) {
         let mut buckets = self.buckets.lock().unwrap();
-        self.find_bucket(&mut buckets, priority.balance)
-            .remove_election(root)
+        let (bucket, _) = self.find_bucket(&mut buckets, priority.balance);
+        bucket.remove_election(root)
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -363,8 +371,24 @@ impl PrioritySchedulerExt for Arc<PriorityScheduler> {
 impl StatsSource for PriorityScheduler {
     fn collect_stats(&self, result: &mut StatsCollection) {
         self.bucket_stats.collect_stats(result);
+        for (i, activations) in self.activations_per_bucket.iter().enumerate() {
+            result.insert(
+                "election_bucket_activation",
+                &BUCKET_NAMES[i],
+                activations.load(Ordering::Relaxed),
+            );
+        }
     }
 }
+
+static BUCKET_NAMES: LazyLock<Vec<String>> = LazyLock::new(|| {
+    let bucket_count = Bucketing::new().bucket_count();
+    let mut names = Vec::with_capacity(bucket_count);
+    for i in 0..bucket_count {
+        names.push(i.to_string())
+    }
+    names
+});
 
 #[cfg(test)]
 mod tests {
