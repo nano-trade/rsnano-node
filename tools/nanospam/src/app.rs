@@ -36,7 +36,7 @@ use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 use tokio_util::sync::CancellationToken;
 
 const SPAM_ACCOUNTS: usize = 50_000;
-const MAX_BLOCKS: usize = 1_000_000;
+const MAX_BLOCKS: usize = 2_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 
 #[derive(Default)]
@@ -98,12 +98,19 @@ impl NanoSpamApp {
 
         let ws_queue_len = AtomicUsize::new(0);
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
+        let mut sum_conf_time = Duration::ZERO;
 
         info!("Starting spam...");
         let started = Instant::now();
         std::thread::scope(|s| {
             s.spawn(|| {
-                track_confirmations(rx_ws_msg, &delayed_blocks, &block_factory, &ws_queue_len)
+                track_confirmations(
+                    rx_ws_msg,
+                    &delayed_blocks,
+                    &block_factory,
+                    &ws_queue_len,
+                    &mut sum_conf_time,
+                )
             });
             s.spawn(|| create_blocks(&block_factory, tx_block, &delayed_blocks));
 
@@ -137,6 +144,8 @@ impl NanoSpamApp {
         let cps = (MAX_BLOCKS as f64 / duration_secs) as i32;
         info!("Confirming all blocks took {duration_secs:.2}s");
         info!("Confirmation rate: {cps} cps");
+        let conf_time = sum_conf_time.as_millis() / MAX_BLOCKS as u128;
+        info!("Average conf time: {conf_time} ms");
         Ok(())
     }
 
@@ -234,6 +243,7 @@ fn track_confirmations(
     delayed_blocks: &Mutex<DelayedBlocks>,
     block_factory: &Mutex<BlockFactory>,
     ws_queue_len: &AtomicUsize,
+    sum_conf_time_total: &mut Duration,
 ) {
     let mut total = 0;
     let mut confirmed = 0;
@@ -252,6 +262,7 @@ fn track_confirmations(
                 confirmed += 1;
                 total += 1;
                 sum_conf_time += conf_time;
+                *sum_conf_time_total += conf_time;
             }
             block_factory.lock().unwrap().confirm(block_hash);
             if confirmed > 0 && confirmed % 5000 == 0 {

@@ -14,7 +14,8 @@ pub(crate) struct AccountMap {
 
     /// Account => Send block hash + amount sent
     receivable: HashMap<Account, Vec<(BlockHash, Amount)>>,
-    unconfirmed: HashMap<BlockHash, Account>,
+    confirmed_receivable: HashSet<Account>,
+    unconfirmed: HashMap<BlockHash, (Account, Option<Account>)>,
 }
 
 pub(crate) struct AccountState {
@@ -77,8 +78,9 @@ impl AccountMap {
             state.unconfirmed_frontier = send_hash;
             state.balance -= amount;
             self.accounts_that_can_send.remove(&source);
-            self.unconfirmed.insert(send_hash, source);
         }
+        self.unconfirmed
+            .insert(send_hash, (source, Some(destination)));
     }
 
     pub fn process_receive(
@@ -102,22 +104,37 @@ impl AccountMap {
         if entries.is_empty() {
             self.receivable.remove(&receiver);
         }
+        self.confirmed_receivable.remove(&receiver);
 
         let state = self.account_states.get_mut(&receiver).unwrap();
         state.balance += sent;
         state.unconfirmed_frontier = receive_hash;
-        self.unconfirmed.insert(receive_hash, receiver);
+        self.unconfirmed.insert(receive_hash, (receiver, None));
         self.accounts_that_can_send.remove(&receiver);
     }
 
     pub fn confirm(&mut self, hash: BlockHash) {
-        let Some(account) = self.unconfirmed.remove(&hash) else {
+        let Some((account, destination)) = self.unconfirmed.remove(&hash) else {
             return;
         };
-        let state = self.account_states.get_mut(&account).unwrap();
+
+        if let Some(dest) = destination {
+            if self.account_states.get(&dest).unwrap().confirmed() {
+                self.confirmed_receivable.insert(dest);
+            }
+        }
+
+        let Some(state) = self.account_states.get_mut(&account) else {
+            return;
+        };
         state.confirmed_frontier = hash;
-        if state.confirmed_frontier == state.unconfirmed_frontier && !state.balance.is_zero() {
-            self.accounts_that_can_send.insert(account);
+        if state.confirmed() {
+            if !state.balance.is_zero() {
+                self.accounts_that_can_send.insert(account);
+            }
+            if self.receivable.contains_key(&account) {
+                self.confirmed_receivable.insert(account);
+            }
         }
     }
 
@@ -131,16 +148,14 @@ impl AccountMap {
     }
 
     pub fn next_receivable(&self) -> Option<(Account, BlockHash, Amount)> {
-        self.receivable
-            .iter()
-            .filter(|(account, _)| self.account_states.get(account).unwrap().confirmed())
-            .next()
-            .and_then(|(account, entries)| {
-                entries
-                    .iter()
-                    .next()
-                    .map(|(hash, amount)| (*account, *hash, *amount))
-            })
+        self.confirmed_receivable.iter().next().and_then(|account| {
+            self.receivable
+                .get(account)
+                .unwrap()
+                .iter()
+                .next()
+                .map(|(hash, amount)| (*account, *hash, *amount))
+        })
     }
 
     pub fn random_account_that_can_send(&self) -> Option<&AccountState> {
