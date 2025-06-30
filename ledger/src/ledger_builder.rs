@@ -43,6 +43,11 @@ impl<'a> LedgerBuilder<'a> {
         self
     }
 
+    pub fn config(mut self, config: LmdbConfig) -> Self {
+        self.config = Some(config);
+        self
+    }
+
     pub fn bootstrap_weights(mut self, weights: BootstrapWeights) -> Self {
         self.bootstrap_weights = Some(weights);
         self
