@@ -35,7 +35,7 @@ use rsnano_websocket_client::{
 use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 use tokio_util::sync::CancellationToken;
 
-const SPAM_ACCOUNTS: usize = 50_000;
+const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 2_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 
