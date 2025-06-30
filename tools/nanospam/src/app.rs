@@ -1,6 +1,11 @@
 use std::{
     net::SocketAddrV6,
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{Receiver, Sender},
+        Mutex,
+    },
+    thread::sleep,
     time::{Duration, Instant},
 };
 
@@ -9,12 +14,10 @@ use tokio::{
     io::{AsyncReadExt, ReadHalf, WriteHalf},
     select,
     sync::mpsc,
-    time::sleep,
 };
 use tracing::{debug, info};
 
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
-use rsnano_messages::MessageDeserializer;
 use rsnano_nullable_env::Env;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
@@ -29,7 +32,7 @@ use crate::{
 use rsnano_websocket_client::{
     NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
 };
-use rsnano_websocket_messages::{BlockConfirmed, Topic};
+use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 use tokio_util::sync::CancellationToken;
 
 const SPAM_ACCOUNTS: usize = 50_000;
@@ -63,7 +66,8 @@ impl NanoSpamApp {
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
         let tx_block_clone = tx_block.clone();
         let delayed_blocks = Mutex::new(DelayedBlocks::new());
-        let cancel_token = CancellationToken::new();
+        let cancel_tcp_recv = CancellationToken::new();
+        let cancel_ws_recv = CancellationToken::new();
 
         info!("Connecting to websocket...");
         let mut ws_client = NanoWebSocketClientFactory::default()
@@ -92,24 +96,42 @@ impl NanoSpamApp {
             MAX_BLOCKS,
         ));
 
+        let ws_queue_len = AtomicUsize::new(0);
+        let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
+
         info!("Starting spam...");
         let started = Instant::now();
-        tokio_scoped::scope(|scope| {
-            scope.spawn(track_confirmations(
-                ws_client,
-                &delayed_blocks,
-                &block_factory,
-            ));
-            scope.spawn(receive_messages(tcp_read, protocol, cancel_token.clone()));
-            scope.spawn(create_blocks(&block_factory, tx_block, &delayed_blocks));
-            scope.spawn(republish_delayed_blocks(tx_block_clone, &delayed_blocks));
-            scope.spawn(publish_blocks(
-                rx_block,
-                tcp_write,
-                protocol,
-                &delayed_blocks,
-                cancel_token,
-            ));
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                track_confirmations(rx_ws_msg, &delayed_blocks, &block_factory, &ws_queue_len)
+            });
+            s.spawn(|| create_blocks(&block_factory, tx_block, &delayed_blocks));
+
+            tokio_scoped::scope(|scope| {
+                scope.spawn(receive_websocket(
+                    ws_client,
+                    tx_ws_msg,
+                    cancel_ws_recv.clone(),
+                    &ws_queue_len,
+                ));
+                scope.spawn(receive_messages(
+                    tcp_read,
+                    protocol,
+                    cancel_tcp_recv.clone(),
+                ));
+                scope.spawn(republish_delayed_blocks(
+                    tx_block_clone,
+                    &delayed_blocks,
+                    cancel_ws_recv,
+                ));
+                scope.spawn(publish_blocks(
+                    rx_block,
+                    tcp_write,
+                    protocol,
+                    &delayed_blocks,
+                    cancel_tcp_recv,
+                ));
+            });
         });
         let duration_secs = started.elapsed().as_secs_f64();
         let cps = (MAX_BLOCKS as f64 / duration_secs) as i32;
@@ -139,7 +161,7 @@ impl NanoSpamApp {
     const GENESIS_PRV_KEY_ENV: &str = "NANO_TEST_GENESIS_PRV";
 }
 
-async fn create_blocks(
+fn create_blocks(
     block_factory: &Mutex<BlockFactory>,
     tx_block: mpsc::Sender<Block>,
     delayed_blocks: &Mutex<DelayedBlocks>,
@@ -149,7 +171,7 @@ async fn create_blocks(
         guard.create_next()
     } {
         let BlockResult::Block(block) = result else {
-            sleep(Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(1));
             continue;
         };
 
@@ -158,9 +180,10 @@ async fn create_blocks(
             delayed.insert(block.clone());
         }
 
-        tx_block.send(block).await.unwrap();
+        tx_block.blocking_send(block).unwrap();
     }
     delayed_blocks.lock().unwrap().finished();
+    info!("create blocks finished");
 }
 
 async fn publish_blocks(
@@ -180,11 +203,13 @@ async fn publish_blocks(
             .published(&hash, Instant::now());
     }
     cancel_token.cancel();
+    info!("publish blocks finished");
 }
 
 async fn republish_delayed_blocks(
     tx_block: mpsc::Sender<Block>,
     delayed_blocks: &Mutex<DelayedBlocks>,
+    cancel_token: CancellationToken,
 ) {
     loop {
         while let Some(block) = {
@@ -198,29 +223,31 @@ async fn republish_delayed_blocks(
             break;
         }
 
-        sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
+    cancel_token.cancel();
+    info!("republish delayed finished");
 }
 
-async fn track_confirmations(
-    mut ws_client: NanoWebSocketClient,
+fn track_confirmations(
+    rx_ws_msg: Receiver<(MessageEnvelope, Instant)>,
     delayed_blocks: &Mutex<DelayedBlocks>,
     block_factory: &Mutex<BlockFactory>,
+    ws_queue_len: &AtomicUsize,
 ) {
     let mut total = 0;
     let mut confirmed = 0;
     let mut start = Instant::now();
     let mut sum_conf_time = Duration::ZERO;
-    while {
-        let guard = delayed_blocks.lock().unwrap();
-        guard.len() > 0 || !guard.is_finished()
-    } {
-        let msg = ws_client.next().await.unwrap().unwrap();
-        debug!("got websocket message");
+    while let Ok((msg, timestamp)) = rx_ws_msg.recv() {
+        let len = ws_queue_len.fetch_sub(1, Ordering::Relaxed);
         if msg.topic == Some(Topic::Confirmation) {
             let data: BlockConfirmed = serde_json::from_value(msg.message.unwrap()).unwrap();
             let block_hash = BlockHash::decode_hex(data.hash).unwrap();
-            let conf_time = delayed_blocks.lock().unwrap().confirmed(&block_hash);
+            let conf_time = delayed_blocks
+                .lock()
+                .unwrap()
+                .confirmed(&block_hash, timestamp);
             if let Some(conf_time) = conf_time {
                 confirmed += 1;
                 total += 1;
@@ -230,36 +257,58 @@ async fn track_confirmations(
             if confirmed > 0 && confirmed % 5000 == 0 {
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
                 let avg_conf_time = sum_conf_time.as_millis() / confirmed;
-                info!("confirmed {confirmed} blocks ({total} total) with {cps} cps, avg conf time: {} ms", avg_conf_time);
+                info!("confirmed {confirmed} blocks ({total} total) with {cps} cps, avg conf time: {avg_conf_time} ms, queue len: {len}");
                 confirmed = 0;
                 start = Instant::now();
                 sum_conf_time = Duration::ZERO;
             }
         }
     }
+    info!("track confirmations finished");
+}
+
+async fn receive_websocket(
+    mut ws_client: NanoWebSocketClient,
+    tx_ws_msg: Sender<(MessageEnvelope, Instant)>,
+    cancel_token: CancellationToken,
+    ws_queue_len: &AtomicUsize,
+) {
+    loop {
+        let res = select! {
+            res = ws_client.next() =>  res,
+            _ = cancel_token.cancelled() =>{ break;}
+        };
+
+        let msg = res.unwrap().unwrap();
+        debug!("got websocket message");
+        tx_ws_msg.send((msg, Instant::now())).unwrap();
+        ws_queue_len.fetch_add(1, Ordering::Relaxed);
+    }
+    info!("receive websocket finished");
 }
 
 async fn receive_messages(
     mut read: ReadHalf<TcpStream>,
-    protocol: ProtocolInfo,
+    _protocol: ProtocolInfo,
     cancel_token: CancellationToken,
 ) {
     let mut recv_buffer = vec![0; 1024 * 4];
-    let mut deserializer = MessageDeserializer::new(protocol);
+    //let mut deserializer = MessageDeserializer::new(protocol);
 
     select! {
         _ = cancel_token.cancelled() => {},
         _ = async {
             loop{
-                let n = read.read(&mut recv_buffer).await.unwrap();
-                deserializer.push(&recv_buffer[..n]);
-                while let Some(msg) = deserializer.try_deserialize() {
-                    let msg = msg.unwrap();
-                    debug!(message = ?msg.message, "Received message");
-                }
+                let _n = read.read(&mut recv_buffer).await.unwrap();
+                //deserializer.push(&recv_buffer[..n]);
+                //while let Some(msg) = deserializer.try_deserialize() {
+                //    let msg = msg.unwrap();
+                //    debug!(message = ?msg.message, "Received message");
+                //}
             }
         } => {}
     }
+    info!("receive TCP messages finished");
 }
 
 #[cfg(test)]

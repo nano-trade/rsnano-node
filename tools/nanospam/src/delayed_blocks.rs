@@ -64,12 +64,12 @@ impl DelayedBlocks {
         }
     }
 
-    pub fn confirmed(&mut self, hash: &BlockHash) -> Option<Duration> {
+    pub fn confirmed(&mut self, hash: &BlockHash, timestamp: Instant) -> Option<Duration> {
         if let Some(info) = self.blocks.remove(hash) {
             if let Some(sent) = info.last_publish {
                 self.remove_from_time_index(hash, sent);
             }
-            info.first_publish.map(|i| i.elapsed())
+            info.first_publish.map(|i| timestamp.duration_since(i))
         } else {
             None
         }
@@ -162,7 +162,7 @@ mod tests {
         delayed.insert(block);
         delayed.published(&hash, now);
 
-        delayed.confirmed(&hash);
+        delayed.confirmed(&hash, now);
 
         assert_eq!(delayed.len(), 0);
     }
@@ -216,7 +216,7 @@ mod tests {
         delayed.published(&block_a.hash(), now);
         delayed.published(&block_b.hash(), now);
 
-        delayed.confirmed(&block_a.hash());
+        delayed.confirmed(&block_a.hash(), now);
 
         assert_eq!(
             delayed.next(now + DELAY_LIMIT).unwrap().hash(),
