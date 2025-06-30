@@ -77,7 +77,7 @@ impl DaemonBuilder {
         let mut node;
 
         if websocket_enabled || http_callback_enabled {
-            let (ev_sender, ev_receiver) = sync_channel(1024 * 2);
+            let (ev_sender, ev_receiver) = sync_channel(1024 * 16);
             node = self.node_builder.event_sink(ev_sender).finish()?;
             let mut event_processor = CompositeNodeEventHandler::new(ev_receiver);
 
