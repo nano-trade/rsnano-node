@@ -55,21 +55,21 @@ impl Default for BandwidthLimiterConfig {
 }
 
 pub struct BandwidthLimiter {
-    limiter_generic: RateLimiter,
-    limiter_bootstrap: RateLimiter,
+    limiter_generic: Mutex<RateLimiter>,
+    limiter_bootstrap: Mutex<RateLimiter>,
 }
 
 impl BandwidthLimiter {
     pub fn new(config: BandwidthLimiterConfig) -> Self {
         Self {
-            limiter_generic: RateLimiter::with_burst_ratio(
+            limiter_generic: Mutex::new(RateLimiter::with_burst_ratio(
                 config.generic_limit,
                 config.generic_burst_ratio,
-            ),
-            limiter_bootstrap: RateLimiter::with_burst_ratio(
+            )),
+            limiter_bootstrap: Mutex::new(RateLimiter::with_burst_ratio(
                 config.bootstrap_limit,
                 config.bootstrap_burst_ratio,
-            ),
+            )),
         }
     }
 
@@ -78,10 +78,13 @@ impl BandwidthLimiter {
      * @return true if OK, false if needs to be dropped
      */
     pub fn should_pass(&self, buffer_size: usize, limit_type: TrafficType) -> bool {
-        self.select_limiter(limit_type).should_pass(buffer_size)
+        self.select_limiter(limit_type)
+            .lock()
+            .unwrap()
+            .should_pass(buffer_size)
     }
 
-    fn select_limiter(&self, limit_type: TrafficType) -> &RateLimiter {
+    fn select_limiter(&self, limit_type: TrafficType) -> &Mutex<RateLimiter> {
         match limit_type {
             TrafficType::BootstrapServer => &self.limiter_bootstrap,
             _ => &self.limiter_generic,
@@ -89,9 +92,11 @@ impl BandwidthLimiter {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
+        let generic_size = self.limiter_generic.lock().unwrap().size();
+        let bootstrap_size = self.limiter_bootstrap.lock().unwrap().size();
         [
-            ("generic", self.limiter_generic.size(), 0),
-            ("bootstrap", self.limiter_bootstrap.size(), 0),
+            ("generic", generic_size, 0),
+            ("bootstrap", bootstrap_size, 0),
         ]
         .into()
     }

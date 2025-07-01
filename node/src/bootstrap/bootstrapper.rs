@@ -106,7 +106,7 @@ impl Bootstrapper {
         config: BootstrapConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        let limiter = Arc::new(RateLimiter::new(config.rate_limit));
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(config.rate_limit)));
         let state = Arc::new(Mutex::new(BootstrapState::new(config.clone())));
         let state_changed = Arc::new(Condvar::new());
 

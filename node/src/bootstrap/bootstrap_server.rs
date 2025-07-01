@@ -73,7 +73,7 @@ impl BootstrapServer {
             stopped: AtomicBool::new(false),
             queue: Mutex::new(FairQueue::new(move |_| max_queue, |_| 1)),
             message_sender: Mutex::new(message_sender),
-            limiter: RateLimiter::with_burst_ratio(config.limiter, 3.0),
+            limiter: Mutex::new(RateLimiter::with_burst_ratio(config.limiter, 3.0)),
         });
 
         Self {
@@ -186,7 +186,7 @@ pub(crate) struct BootstrapResponderImpl {
     queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
     message_sender: Mutex<MessageSender>,
-    limiter: RateLimiter,
+    limiter: Mutex<RateLimiter>,
 }
 
 impl BootstrapResponderImpl {
@@ -201,7 +201,8 @@ impl BootstrapResponderImpl {
                 .unwrap();
 
             // Rate limit the processing
-            while !self.stopped.load(Ordering::SeqCst) && !self.limiter.should_pass(self.batch_size)
+            while !self.stopped.load(Ordering::SeqCst)
+                && !self.limiter.lock().unwrap().should_pass(self.batch_size)
             {
                 self.stats
                     .inc(StatType::BootstrapServer, DetailType::Cooldown);

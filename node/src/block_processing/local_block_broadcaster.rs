@@ -74,7 +74,7 @@ pub struct LocalBlockBroadcaster {
     enabled: bool,
     mutex: Mutex<LocalBlockBroadcasterData>,
     condition: Condvar,
-    limiter: RateLimiter,
+    limiter: Mutex<RateLimiter>,
     message_flooder: Mutex<MessageFlooder>,
 }
 
@@ -88,10 +88,10 @@ impl LocalBlockBroadcaster {
         enabled: bool,
     ) -> Self {
         Self {
-            limiter: RateLimiter::with_burst_ratio(
+            limiter: Mutex::new(RateLimiter::with_burst_ratio(
                 config.broadcast_rate_limit,
                 config.broadcast_rate_burst_ratio,
-            ),
+            )),
             config,
             stats,
             ledger,
@@ -189,7 +189,7 @@ impl LocalBlockBroadcaster {
         drop(guard);
 
         for entry in to_broadcast {
-            while !self.limiter.should_pass(1) {
+            while !self.limiter.lock().unwrap().should_pass(1) {
                 guard = self.mutex.lock().unwrap();
                 guard = self
                     .condition

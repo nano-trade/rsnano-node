@@ -70,7 +70,7 @@ impl BacklogScan {
                 stats: stats.clone(),
                 unconfirmed_observers: Vec::new(),
                 up_to_date_observers: Vec::new(),
-                limiter: RateLimiter::new(config.rate_limit),
+                limiter: Mutex::new(RateLimiter::new(config.rate_limit)),
                 config,
                 flags: flags.clone(),
                 condition: condition.clone(),
@@ -167,7 +167,7 @@ struct BacklogScanLoop {
     config: BacklogScanConfig,
     flags: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
-    limiter: RateLimiter,
+    limiter: Mutex<RateLimiter>,
 }
 
 impl BacklogScanLoop {
@@ -212,7 +212,12 @@ impl BacklogScanLoop {
 
     fn wait_for_rate_limiter<'a>(&'a self, mut lock: MutexGuard<'a, BacklogScanFlags>) {
         // Wait for the rate limiter
-        while !self.limiter.should_pass(self.config.batch_size) {
+        while !self
+            .limiter
+            .lock()
+            .unwrap()
+            .should_pass(self.config.batch_size)
+        {
             lock = self
                 .condition
                 .wait_timeout_while(lock, self.config.wait_time(), |i| !i.stopped)

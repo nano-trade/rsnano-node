@@ -105,7 +105,7 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::{Arc, Mutex, RwLock};
 
     use rsnano_core::Account;
     use rsnano_ledger::Ledger;
@@ -181,7 +181,7 @@ mod tests {
         let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let stats = Arc::new(Stats::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
-        let rate_limiter = Arc::new(RateLimiter::new(1024));
+        let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(1024)));
         let channel_waiter = ChannelWaiter::new(network.clone(), rate_limiter, 1024);
         let clock = Arc::new(SteadyClock::new_null());
         let ledger = Arc::new(Ledger::new_null());

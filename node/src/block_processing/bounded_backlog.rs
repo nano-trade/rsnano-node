@@ -59,7 +59,7 @@ impl BoundedBacklog {
                 ledger: ledger.clone(),
                 config: config.clone(),
                 bucket_count: bucketing.bucket_count(),
-                scan_limiter: RateLimiter::new(config.scan_rate),
+                scan_limiter: Mutex::new(RateLimiter::new(config.scan_rate)),
             }),
             config,
             stats,
@@ -344,7 +344,12 @@ impl BoundedBacklogImpl {
             let mut last = BlockHash::zero();
             while !guard.stopped {
                 //	wait
-                while !guard.scan_limiter.should_pass(self.config.batch_size) {
+                while !guard
+                    .scan_limiter
+                    .lock()
+                    .unwrap()
+                    .should_pass(self.config.batch_size)
+                {
                     guard = self
                         .condition
                         .wait_timeout(guard, Duration::from_millis(100))
@@ -394,7 +399,7 @@ struct BacklogData {
     ledger: Arc<Ledger>,
     config: BoundedBacklogConfig,
     bucket_count: usize,
-    scan_limiter: RateLimiter,
+    scan_limiter: Mutex<RateLimiter>,
 }
 
 impl BacklogData {

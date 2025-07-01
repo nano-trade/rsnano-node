@@ -1,13 +1,13 @@
 use crate::bootstrap::{state::BootstrapState, BootstrapPromise, PollResult};
 use rsnano_network::{bandwidth_limiter::RateLimiter, Channel, ChannelId, Network, TrafficType};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Waits until a channel becomes available
 #[derive(Clone)]
 pub(super) struct ChannelWaiter {
     network: Arc<RwLock<Network>>,
     state: ChannelWaitState,
-    limiter: Arc<RateLimiter>,
+    limiter: Arc<Mutex<RateLimiter>>,
     max_requests: usize,
 }
 
@@ -22,7 +22,7 @@ enum ChannelWaitState {
 impl ChannelWaiter {
     pub fn new(
         network: Arc<RwLock<Network>>,
-        limiter: Arc<RateLimiter>,
+        limiter: Arc<Mutex<RateLimiter>>,
         max_requests: usize,
     ) -> Self {
         Self {
@@ -57,7 +57,7 @@ impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
             }
             ChannelWaitState::WaitLimiter => {
                 // Wait until more requests can be sent
-                if self.limiter.should_pass(1) {
+                if self.limiter.lock().unwrap().should_pass(1) {
                     self.state = ChannelWaitState::WaitChannel;
                     return PollResult::Progress;
                 }
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn initial_state() {
         let network = test_network();
-        let limiter = Arc::new(RateLimiter::new(TEST_RATE_LIMIT));
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
         let waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         assert!(matches!(waiter.state, ChannelWaitState::Initial));
     }
@@ -97,7 +97,7 @@ mod tests {
     fn happy_path_no_waiting() {
         let network = test_network();
         let channel = network.write().unwrap().add_test_channel();
-        let limiter = Arc::new(RateLimiter::new(TEST_RATE_LIMIT));
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn wait_for_running_queries() {
         let network = test_network();
-        let limiter = Arc::new(RateLimiter::new(TEST_RATE_LIMIT));
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, 1);
         let mut state = BootstrapState::default();
 
@@ -139,8 +139,8 @@ mod tests {
     #[test]
     fn wait_for_limiter() {
         let network = test_network();
-        let limiter = Arc::new(RateLimiter::new(TEST_RATE_LIMIT));
-        limiter.should_pass(TEST_RATE_LIMIT);
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
+        limiter.lock().unwrap().should_pass(TEST_RATE_LIMIT);
         let mut waiter = ChannelWaiter::new(network, limiter.clone(), MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 
@@ -154,7 +154,7 @@ mod tests {
         let result = waiter.poll(&mut state);
         assert!(matches!(result, PollResult::Wait));
 
-        limiter.reset();
+        limiter.lock().unwrap().reset();
         let result = waiter.poll(&mut state);
         assert!(matches!(result, PollResult::Progress));
         assert!(matches!(waiter.state, ChannelWaitState::WaitChannel));
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn wait_scoring() {
         let network = test_network();
-        let limiter = Arc::new(RateLimiter::new(TEST_RATE_LIMIT));
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 

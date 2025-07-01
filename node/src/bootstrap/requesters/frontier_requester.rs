@@ -125,7 +125,7 @@ mod tests {
         BootstrapConfig,
     };
     use rsnano_network::Network;
-    use std::sync::RwLock;
+    use std::sync::{Mutex, RwLock};
 
     #[test]
     fn happy_path() {
@@ -246,7 +246,7 @@ mod tests {
     fn create_test_requester() -> (FrontierRequester, Arc<RwLock<Network>>) {
         let stats = Arc::new(Stats::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
-        let limiter = Arc::new(RateLimiter::new(1024));
+        let limiter = Arc::new(Mutex::new(RateLimiter::new(1024)));
         let waiter = ChannelWaiter::new(network.clone(), limiter, 1024);
         let clock = Arc::new(SteadyClock::new_null());
         let requester = FrontierRequester::new(stats.clone(), clock, TEST_RATE_LIMIT, waiter);

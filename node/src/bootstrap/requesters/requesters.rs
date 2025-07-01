@@ -23,7 +23,7 @@ use crate::{
 
 /// Manages the threads that send out AscPullReqs
 pub(crate) struct Requesters {
-    limiter: Arc<RateLimiter>,
+    limiter: Arc<Mutex<RateLimiter>>,
     config: BootstrapConfig,
     stats: Arc<Stats>,
     message_sender: MessageSender,
@@ -38,7 +38,7 @@ pub(crate) struct Requesters {
 
 impl Requesters {
     pub(crate) fn new(
-        limiter: Arc<RateLimiter>,
+        limiter: Arc<Mutex<RateLimiter>>,
         config: BootstrapConfig,
         stats: Arc<Stats>,
         message_sender: MessageSender,
