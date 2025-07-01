@@ -39,9 +39,9 @@ use crate::{
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
-const INITIAL_BPS: usize = 4000;
-const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(120);
-const BPS_INCREASE: usize = 500;
+const INITIAL_BPS: usize = 50;
+const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(3);
+const BPS_INCREASE: usize = 50;
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
