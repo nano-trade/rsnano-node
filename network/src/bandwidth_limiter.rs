@@ -22,6 +22,10 @@ impl RateLimiter {
         self.bucket.try_consume(message_size)
     }
 
+    pub fn set_limit(&mut self, new_limit: usize) {
+        self.bucket.set_limit(new_limit)
+    }
+
     pub fn reset(&mut self) {
         self.bucket.reset()
     }

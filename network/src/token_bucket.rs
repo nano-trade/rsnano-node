@@ -68,6 +68,11 @@ impl TokenBucket {
         possible || self.refill_rate == UNLIMITED
     }
 
+    pub fn set_limit(&mut self, new_limit: usize) {
+        self.max_token_count = new_limit;
+        self.refill_rate = new_limit;
+    }
+
     pub fn reset(&mut self) {
         self.reset_with(self.max_token_count, self.refill_rate);
     }

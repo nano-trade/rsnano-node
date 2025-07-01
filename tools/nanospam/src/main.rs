@@ -7,7 +7,7 @@ mod handshake;
 
 use app::NanoSpamApp;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 3)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> anyhow::Result<()> {
     NanoSpamApp::default().run().await
 }

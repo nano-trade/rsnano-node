@@ -5,7 +5,7 @@ use std::{
         mpsc::{Receiver, Sender},
         Mutex,
     },
-    thread::sleep,
+    thread::yield_now,
     time::{Duration, Instant},
 };
 
@@ -15,12 +15,18 @@ use tokio::{
     select,
     sync::mpsc,
 };
-use tracing::{debug, info};
+use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
+use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_nullable_env::Env;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
+use rsnano_websocket_client::{
+    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
+};
+use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 
 use crate::{
     account_map::AccountMap,
@@ -29,15 +35,13 @@ use crate::{
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
 };
-use rsnano_websocket_client::{
-    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
-};
-use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
-use tokio_util::sync::CancellationToken;
 
 const SPAM_ACCOUNTS: usize = 500_000;
-const MAX_BLOCKS: usize = 4_000_000;
+const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
+const INITIAL_BPS: usize = 3000;
+const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(120);
+const BPS_INCREASE: usize = 1000;
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
@@ -87,6 +91,7 @@ impl NanoSpamApp {
         // wait for ack
         ws_client.next().await.unwrap().unwrap();
 
+        info!("Creating account keys...");
         let mut account_map = AccountMap::default();
         account_map.fill(SPAM_ACCOUNTS);
         let block_factory = Mutex::new(BlockFactory::new(
@@ -175,14 +180,23 @@ fn create_blocks(
     tx_block: mpsc::Sender<Block>,
     delayed_blocks: &Mutex<DelayedBlocks>,
 ) {
+    let mut bps_start = Instant::now();
+    let mut current_bps = INITIAL_BPS;
+    let mut limiter = RateLimiter::new(current_bps);
+    info!("Starting with {current_bps} BPS");
+
     while let Some(result) = {
         let mut guard = block_factory.lock().unwrap();
         guard.create_next()
     } {
         let BlockResult::Block(block) = result else {
-            sleep(Duration::from_millis(1));
+            yield_now();
             continue;
         };
+
+        while !limiter.should_pass(1) {
+            yield_now();
+        }
 
         {
             let mut delayed = delayed_blocks.lock().unwrap();
@@ -190,9 +204,14 @@ fn create_blocks(
         }
 
         tx_block.blocking_send(block).unwrap();
+        if bps_start.elapsed() >= BPS_INCREASE_INTERVAL {
+            current_bps += BPS_INCREASE;
+            info!("Increasing BPS to {current_bps}");
+            limiter.set_limit(current_bps);
+            bps_start = Instant::now();
+        }
     }
     delayed_blocks.lock().unwrap().finished();
-    info!("create blocks finished");
 }
 
 async fn publish_blocks(
@@ -212,7 +231,6 @@ async fn publish_blocks(
             .published(&hash, Instant::now());
     }
     cancel_token.cancel();
-    info!("publish blocks finished");
 }
 
 async fn republish_delayed_blocks(
@@ -235,7 +253,6 @@ async fn republish_delayed_blocks(
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     cancel_token.cancel();
-    info!("republish delayed finished");
 }
 
 fn track_confirmations(
@@ -268,14 +285,13 @@ fn track_confirmations(
             if confirmed > 0 && confirmed % 5000 == 0 {
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
                 let avg_conf_time = sum_conf_time.as_millis() / confirmed;
-                info!("confirmed {confirmed} blocks ({total} total) with {cps} cps, avg conf time: {avg_conf_time} ms, queue len: {len}");
+                info!("Confirmed {confirmed} blocks ({total} total) with {cps} cps, avg conf time: {avg_conf_time} ms, queue len: {len}");
                 confirmed = 0;
                 start = Instant::now();
                 sum_conf_time = Duration::ZERO;
             }
         }
     }
-    info!("track confirmations finished");
 }
 
 async fn receive_websocket(
@@ -291,7 +307,6 @@ async fn receive_websocket(
         };
 
         let msg = res.unwrap().unwrap();
-        debug!("got websocket message");
         tx_ws_msg.send((msg, Instant::now())).unwrap();
         ws_queue_len.fetch_add(1, Ordering::Relaxed);
     }
