@@ -4,7 +4,7 @@ use crate::{token_bucket::TokenBucket, TrafficType};
 use std::sync::Mutex;
 
 pub struct RateLimiter {
-    bucket: Mutex<TokenBucket>,
+    bucket: TokenBucket,
 }
 
 impl RateLimiter {
@@ -14,23 +14,20 @@ impl RateLimiter {
 
     pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
         Self {
-            bucket: Mutex::new(TokenBucket::new(
-                (limit as f64 * limit_burst_ratio) as usize,
-                limit,
-            )),
+            bucket: TokenBucket::new((limit as f64 * limit_burst_ratio) as usize, limit),
         }
     }
 
-    pub fn should_pass(&self, message_size: usize) -> bool {
-        self.bucket.lock().unwrap().try_consume(message_size)
+    pub fn should_pass(&mut self, message_size: usize) -> bool {
+        self.bucket.try_consume(message_size)
     }
 
-    pub fn reset(&self) {
-        self.bucket.lock().unwrap().reset()
+    pub fn reset(&mut self) {
+        self.bucket.reset()
     }
 
     pub fn size(&self) -> usize {
-        self.bucket.lock().unwrap().size()
+        self.bucket.size()
     }
 }
 
@@ -116,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_limit() {
-        let limiter = RateLimiter::with_burst_ratio(10, 1.5);
+        let mut limiter = RateLimiter::with_burst_ratio(10, 1.5);
         assert_eq!(limiter.should_pass(15), true);
         assert_eq!(limiter.should_pass(1), false);
         MockClock::advance(Duration::from_millis(100));
