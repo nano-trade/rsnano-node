@@ -82,6 +82,7 @@ impl NanoSpamApp {
         let delayed_blocks = Mutex::new(DelayedBlocks::new());
         let cancel_tcp_recv = CancellationToken::new();
         let cancel_ws_recv = CancellationToken::new();
+        let current_bps = AtomicUsize::new(INITIAL_BPS);
 
         info!("Connecting to websocket...");
         let mut ws_client = NanoWebSocketClientFactory::default()
@@ -105,7 +106,7 @@ impl NanoSpamApp {
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
         let mut sum_conf_time = Duration::ZERO;
 
-        info!("Starting spam...");
+        info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
             s.spawn(|| {
@@ -115,9 +116,10 @@ impl NanoSpamApp {
                     &block_factory,
                     &ws_queue_len,
                     &mut sum_conf_time,
+                    &current_bps,
                 )
             });
-            s.spawn(|| create_blocks(&block_factory, tx_block, &delayed_blocks));
+            s.spawn(|| create_blocks(&block_factory, tx_block, &delayed_blocks, &current_bps));
 
             tokio_scoped::scope(|scope| {
                 scope.spawn(receive_websocket(
@@ -179,11 +181,10 @@ fn create_blocks(
     block_factory: &Mutex<BlockFactory>,
     tx_block: mpsc::Sender<Block>,
     delayed_blocks: &Mutex<DelayedBlocks>,
+    current_bps: &AtomicUsize,
 ) {
     let mut bps_start = Instant::now();
-    let mut current_bps = INITIAL_BPS;
-    let mut limiter = RateLimiter::new(current_bps);
-    info!("Starting with {current_bps} BPS");
+    let mut limiter = RateLimiter::new(current_bps.load(Ordering::Relaxed));
 
     while let Some(result) = {
         let mut guard = block_factory.lock().unwrap();
@@ -205,9 +206,8 @@ fn create_blocks(
 
         tx_block.blocking_send(block).unwrap();
         if bps_start.elapsed() >= BPS_INCREASE_INTERVAL {
-            current_bps += BPS_INCREASE;
-            info!("Increasing BPS to {current_bps}");
-            limiter.set_limit(current_bps);
+            let new_bps = current_bps.fetch_add(BPS_INCREASE, Ordering::Relaxed) + BPS_INCREASE;
+            limiter.set_limit(new_bps);
             bps_start = Instant::now();
         }
     }
@@ -261,6 +261,7 @@ fn track_confirmations(
     block_factory: &Mutex<BlockFactory>,
     ws_queue_len: &AtomicUsize,
     sum_conf_time_total: &mut Duration,
+    current_bps: &AtomicUsize,
 ) {
     let mut total = 0;
     let mut confirmed = 0;
@@ -285,7 +286,8 @@ fn track_confirmations(
             if confirmed > 0 && confirmed % 5000 == 0 {
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
                 let avg_conf_time = sum_conf_time.as_millis() / confirmed;
-                info!("Confirmed {confirmed} blocks ({total} total) with {cps} cps, avg conf time: {avg_conf_time} ms, queue len: {len}");
+                let bps = current_bps.load(Ordering::Relaxed);
+                info!("Confirmed {confirmed} blocks ({total} total) | {bps} bps | {cps} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}");
                 confirmed = 0;
                 start = Instant::now();
                 sum_conf_time = Duration::ZERO;

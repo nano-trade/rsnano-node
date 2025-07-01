@@ -222,6 +222,7 @@ impl ActiveElectionsContainer {
         self.recently_confirmed.clear();
     }
 
+    /// Returns the current active elections after transitioning
     pub fn transition_time(&mut self, now: Timestamp) -> Vec<Election> {
         self.stats.ticked += 1;
         let mut copies = Vec::with_capacity(self.roots.len());

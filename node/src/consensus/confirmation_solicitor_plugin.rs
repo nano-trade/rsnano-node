@@ -77,13 +77,12 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
                     self.confirm_req_sender
                         .send_confirm_req(&mut solicitor, &election);
                 }
+                ElectionState::Confirmed => {
+                    // Ensure election winner is broadcasted
+                    self.winner_block_broadcaster
+                        .try_broadcast_winner(&mut solicitor, &election);
+                }
                 _ => {}
-            }
-
-            if election.state() == ElectionState::Confirmed {
-                // Ensure election winner is broadcasted
-                self.winner_block_broadcaster
-                    .try_broadcast_winner(&mut solicitor, &election);
             }
         }
 
