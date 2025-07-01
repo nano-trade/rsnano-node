@@ -60,6 +60,16 @@ impl NanoSpamApp {
         let genesis_hash = self.get_genesis_hash()?;
         let genesis_key = self.get_genesis_key()?;
 
+        info!("Creating account keys...");
+        let mut account_map = AccountMap::default();
+        account_map.fill(SPAM_ACCOUNTS);
+        let block_factory = Mutex::new(BlockFactory::new(
+            genesis_key,
+            genesis_hash,
+            account_map,
+            MAX_BLOCKS,
+        ));
+
         info!(?peer_addr, "Connecting to node...");
         let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
 
@@ -90,16 +100,6 @@ impl NanoSpamApp {
 
         // wait for ack
         ws_client.next().await.unwrap().unwrap();
-
-        info!("Creating account keys...");
-        let mut account_map = AccountMap::default();
-        account_map.fill(SPAM_ACCOUNTS);
-        let block_factory = Mutex::new(BlockFactory::new(
-            genesis_key,
-            genesis_hash,
-            account_map,
-            MAX_BLOCKS,
-        ));
 
         let ws_queue_len = AtomicUsize::new(0);
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
