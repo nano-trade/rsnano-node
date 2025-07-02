@@ -799,9 +799,7 @@ impl Node {
 
         aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
             message_flooder: message_flooder.clone(),
-            network_params: network_params.clone(),
             online_reps: online_reps.clone(),
-            network: network.clone(),
             block_voter: block_voter.clone(),
             winner_block_broadcaster,
             confirm_req_sender,

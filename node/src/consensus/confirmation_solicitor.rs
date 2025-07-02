@@ -1,52 +1,31 @@
-use std::{
-    cmp::max,
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message};
-use rsnano_network::{Channel, ChannelId, Network, TrafficType};
+use rsnano_network::{Channel, ChannelId, TrafficType};
 
 use super::election::Election;
-use crate::{config::NetworkParams, representatives::PeeredRepInfo, transport::MessageFlooder};
+use crate::{representatives::PeeredRepInfo, transport::MessageFlooder};
 
 /// This struct accepts elections that need further votes before they can be confirmed and bundles them in to confirm_req packets
 pub struct ConfirmationSolicitor {
-    /// Global maximum amount of block broadcasts
-    max_block_broadcasts: usize,
     /// Maximum amount of requests to be sent per election, bypassed if an existing vote is for a different hash
     max_election_requests: usize,
-    /// Maximum amount of directed broadcasts to be sent per election
-    pub max_election_broadcasts: usize,
     representative_requests: Vec<PeeredRepInfo>,
     representative_broadcasts: Vec<PeeredRepInfo>,
     requests: HashMap<ChannelId, (Arc<Channel>, Vec<(BlockHash, Root)>)>,
     prepared: bool,
-    rebroadcasted: usize,
     message_flooder: MessageFlooder,
 }
 
 impl ConfirmationSolicitor {
-    pub fn new(
-        network_params: &NetworkParams,
-        network: &RwLock<Network>,
-        message_flooder: MessageFlooder,
-    ) -> Self {
-        let max_election_broadcasts = max(network.read().unwrap().fanout(1.0) / 2, 1);
+    pub fn new(message_flooder: MessageFlooder) -> Self {
         Self {
-            max_block_broadcasts: if network_params.network.is_dev_network() {
-                4
-            } else {
-                30
-            },
             max_election_requests: 50,
-            max_election_broadcasts,
             prepared: false,
             representative_requests: Vec::new(),
             representative_broadcasts: Vec::new(),
             requests: HashMap::new(),
-            rebroadcasted: 0,
             message_flooder,
         }
     }
@@ -55,19 +34,9 @@ impl ConfirmationSolicitor {
     pub fn prepare(&mut self, representatives: &[PeeredRepInfo]) {
         debug_assert!(!self.prepared);
         self.requests.clear();
-        self.rebroadcasted = 0;
         self.representative_requests = representatives.to_vec();
         self.representative_broadcasts = representatives.to_vec();
         self.prepared = true;
-    }
-
-    pub fn ensure_within_rebroadcast_limit(&mut self) -> Result<(), ()> {
-        debug_assert!(self.prepared);
-        if self.rebroadcasted >= self.max_block_broadcasts {
-            return Err(());
-        }
-        self.rebroadcasted += 1;
-        Ok(())
     }
 
     /// Add an election that needs to be confirmed. Returns true if successfully added

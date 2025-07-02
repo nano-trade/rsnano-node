@@ -5,7 +5,7 @@ use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_PUB_KE
 use rsnano_messages::ConfirmReq;
 use rsnano_network::Channel;
 use rsnano_node::{
-    config::{NodeFlags, DEV_NETWORK_PARAMS},
+    config::NodeFlags,
     consensus::{
         election::{Election, ElectionBehavior},
         ConfirmationSolicitor,
@@ -41,8 +41,8 @@ fn batches() {
     let representatives = vec![representative];
 
     let mut solicitor = ConfirmationSolicitor::new(
-        &DEV_NETWORK_PARAMS,
-        &node2.network,
+        //&DEV_NETWORK_PARAMS,
+        //&node2.network,
         node2.message_flooder.lock().unwrap().clone(),
     );
     solicitor.prepare(&representatives);
@@ -62,7 +62,7 @@ fn batches() {
             assert_eq!(solicitor.add(&election), true);
         }
         // Reached the maximum amount of requests for the channel
-        let election = Election::new(
+        let _election = Election::new(
             send.clone(),
             ElectionBehavior::Priority,
             Duration::from_secs(1),
@@ -118,8 +118,8 @@ fn different_hashes() {
     let representatives = vec![representative];
 
     let mut solicitor = ConfirmationSolicitor::new(
-        &DEV_NETWORK_PARAMS,
-        &node2.network,
+        //&DEV_NETWORK_PARAMS,
+        //&node2.network,
         node2.message_flooder.lock().unwrap().clone(),
     );
     solicitor.prepare(&representatives);
@@ -174,8 +174,8 @@ fn bypass_max_requests_cap() {
     let node2 = system.build_node().flags(flags).finish();
 
     let mut solicitor = ConfirmationSolicitor::new(
-        &DEV_NETWORK_PARAMS,
-        &node2.network,
+        //&DEV_NETWORK_PARAMS,
+        //&node2.network,
         node2.message_flooder.lock().unwrap().clone(),
     );
 

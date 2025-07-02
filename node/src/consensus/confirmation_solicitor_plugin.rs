@@ -1,9 +1,7 @@
 use std::{
     any::Any,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
-
-use rsnano_network::Network;
 
 use super::{
     confirm_req_sender::ConfirmReqSender,
@@ -11,13 +9,11 @@ use super::{
     winner_block_broadcaster::WinnerBlockBroadcaster,
     AecTickerPlugin, BlockVoter, ConfirmationSolicitor,
 };
-use crate::{config::NetworkParams, representatives::OnlineReps, transport::MessageFlooder};
+use crate::{representatives::OnlineReps, transport::MessageFlooder};
 
 pub(crate) struct ConfirmationSolicitorPlugin {
     pub(crate) message_flooder: MessageFlooder,
-    pub(crate) network_params: NetworkParams,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
-    pub(crate) network: Arc<RwLock<Network>>,
     pub(crate) block_voter: Arc<BlockVoter>,
     pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
     pub(crate) confirm_req_sender: ConfirmReqSender,
@@ -26,12 +22,9 @@ pub(crate) struct ConfirmationSolicitorPlugin {
 impl ConfirmationSolicitorPlugin {
     #[cfg(test)]
     pub fn new_null() -> Self {
-        use rsnano_core::Networks;
         Self {
             message_flooder: MessageFlooder::new_null(),
-            network_params: NetworkParams::new(Networks::NanoLiveNetwork),
             online_reps: Arc::new(Mutex::new(OnlineReps::new_test_instance())),
-            network: Arc::new(RwLock::new(Network::new_test_instance())),
             block_voter: Arc::new(BlockVoter::new_null()),
             winner_block_broadcaster: WinnerBlockBroadcaster::new_null(),
             confirm_req_sender: ConfirmReqSender::new_null(),
@@ -45,8 +38,7 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
 
         // TODO don't clone flooder!'
         let flooder = self.message_flooder.clone();
-        let mut solicitor =
-            ConfirmationSolicitor::new(&self.network_params, &self.network, flooder);
+        let mut solicitor = ConfirmationSolicitor::new(flooder);
         solicitor.prepare(&peered_prs);
 
         /*
@@ -73,14 +65,14 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
                         election.vote_type(),
                     );
                     self.winner_block_broadcaster
-                        .try_broadcast_winner(&mut solicitor, &election);
+                        .try_broadcast_winner(&election);
                     self.confirm_req_sender
                         .send_confirm_req(&mut solicitor, &election);
                 }
                 ElectionState::Confirmed => {
                     // Ensure election winner is broadcasted
                     self.winner_block_broadcaster
-                        .try_broadcast_winner(&mut solicitor, &election);
+                        .try_broadcast_winner(&election);
                 }
                 _ => {}
             }

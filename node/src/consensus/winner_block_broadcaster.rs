@@ -4,10 +4,10 @@ use rsnano_core::{BlockHash, Networks};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{bounded_hash_map::BoundedHashMap, election::Election, ConfirmationSolicitor};
+use super::{bounded_hash_map::BoundedHashMap, election::Election};
 use crate::transport::MessageFlooder;
 use rsnano_messages::{Message, Publish};
-use rsnano_network::TrafficType;
+use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 
 /// Broadcasts the winner block of an election
 pub(crate) struct WinnerBlockBroadcaster {
@@ -16,6 +16,7 @@ pub(crate) struct WinnerBlockBroadcaster {
     last_broadcasts: BoundedHashMap<BlockHash, Timestamp>,
     broadcast_interval: Duration,
     message_flooder: MessageFlooder,
+    rebroadcast_limiter: RateLimiter,
 }
 
 impl WinnerBlockBroadcaster {
@@ -34,6 +35,8 @@ impl WinnerBlockBroadcaster {
                 _ => Duration::from_secs(150),
             },
             message_flooder,
+            // TODO: Make rate limit configurable
+            rebroadcast_limiter: RateLimiter::with_burst_ratio(100, 2.0),
         }
     }
 
@@ -45,11 +48,7 @@ impl WinnerBlockBroadcaster {
         Self::new(stats, clock, network, MessageFlooder::new_null())
     }
 
-    pub fn try_broadcast_winner(
-        &mut self,
-        solicitor: &mut ConfirmationSolicitor,
-        election: &Election,
-    ) {
+    pub fn try_broadcast_winner(&mut self, election: &Election) {
         let winner_hash = election.winner().hash();
         if self.should_broadcast(&winner_hash) {
             // Maximum amount of directed broadcasts to be sent per election
@@ -58,7 +57,7 @@ impl WinnerBlockBroadcaster {
                 1,
             );
 
-            if solicitor.ensure_within_rebroadcast_limit().is_ok() {
+            if self.rebroadcast_limiter.should_pass(1) {
                 let winner_block = election.winner().clone();
                 let hash = winner_block.hash();
                 let winner_msg = Message::Publish(Publish::new_forward(winner_block.into()));
