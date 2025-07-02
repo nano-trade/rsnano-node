@@ -91,7 +91,7 @@ impl NetworkConstants {
             default_rpc_port: 7076,
             default_ipc_port: 7077,
             default_websocket_port: 7078,
-            aec_loop_interval: Duration::from_millis(300),
+            aec_loop_interval: Duration::from_millis(50),
             cleanup_period,
             keepalive_period: Duration::from_secs(15),
             idle_timeout: cleanup_period * 2,
