@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{cmp::max, sync::Arc, time::Duration};
 
 use rsnano_core::{BlockHash, Networks};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
@@ -52,6 +52,12 @@ impl WinnerBlockBroadcaster {
     ) {
         let winner_hash = election.winner().hash();
         if self.should_broadcast(&winner_hash) {
+            // Maximum amount of directed broadcasts to be sent per election
+            let max_election_broadcasts = max(
+                self.message_flooder.network.read().unwrap().fanout(1.0) / 2,
+                1,
+            );
+
             if solicitor.ensure_within_rebroadcast_limit().is_ok() {
                 let winner_block = election.winner().clone();
                 let hash = winner_block.hash();
@@ -67,7 +73,7 @@ impl WinnerBlockBroadcaster {
                 let mut count = 0;
                 // Directed broadcasting to principal representatives
                 for i in &peered_prs {
-                    if count >= solicitor.max_election_broadcasts {
+                    if count >= max_election_broadcasts {
                         break;
                     }
                     let should_broadcast = if let Some(existing) = election.votes().get(&i.rep_key)

@@ -5,7 +5,7 @@ use std::{
 };
 
 use rsnano_core::{BlockHash, Root};
-use rsnano_messages::{ConfirmReq, Message, Publish};
+use rsnano_messages::{ConfirmReq, Message};
 use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 
 use super::election::Election;
