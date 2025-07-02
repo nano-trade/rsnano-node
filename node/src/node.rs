@@ -600,8 +600,12 @@ impl Node {
             config.confirmation_history_size,
         )));
 
-        let winner_block_broadcaster =
-            WinnerBlockBroadcaster::new(stats.clone(), steady_clock.clone(), current_network);
+        let winner_block_broadcaster = WinnerBlockBroadcaster::new(
+            stats.clone(),
+            steady_clock.clone(),
+            current_network,
+            message_flooder.clone(),
+        );
 
         let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
 

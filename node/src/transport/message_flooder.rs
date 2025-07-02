@@ -15,7 +15,8 @@ use rsnano_nullable_clock::Timestamp;
 
 /// Floods messages to PRs and non PRs
 pub struct MessageFlooder {
-    online_reps: Arc<Mutex<OnlineReps>>,
+    // TODO make private again
+    pub online_reps: Arc<Mutex<OnlineReps>>,
     network: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,

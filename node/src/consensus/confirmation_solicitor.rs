@@ -18,7 +18,7 @@ pub struct ConfirmationSolicitor {
     /// Maximum amount of requests to be sent per election, bypassed if an existing vote is for a different hash
     max_election_requests: usize,
     /// Maximum amount of directed broadcasts to be sent per election
-    max_election_broadcasts: usize,
+    pub max_election_broadcasts: usize,
     representative_requests: Vec<PeeredRepInfo>,
     representative_broadcasts: Vec<PeeredRepInfo>,
     requests: HashMap<ChannelId, (Arc<Channel>, Vec<(BlockHash, Root)>)>,
@@ -61,39 +61,7 @@ impl ConfirmationSolicitor {
         self.prepared = true;
     }
 
-    /// Broadcast the winner block of an election if the broadcast limit has not been reached.
-    pub fn broadcast_winner_block(&mut self, election: &Election) -> Result<(), ()> {
-        self.ensure_within_rebroadcast_limit()?;
-
-        let winner_block = election.winner().clone();
-        let hash = winner_block.hash();
-        let winner_msg = Message::Publish(Publish::new_forward(winner_block.into()));
-        let mut count = 0;
-        // Directed broadcasting to principal representatives
-        for i in &self.representative_broadcasts {
-            if count >= self.max_election_broadcasts {
-                break;
-            }
-            let should_broadcast = if let Some(existing) = election.votes().get(&i.rep_key) {
-                // Don't rebroadcast to a PR if this PR has voted for the block!
-                existing.hash != hash
-            } else {
-                true
-            };
-            if should_broadcast {
-                count += 1;
-                self.message_flooder
-                    .try_send(&i.channel, &winner_msg, TrafficType::BlockBroadcast);
-            }
-        }
-        // Random flood for block propagation
-        // TODO: Avoid broadcasting to the same peers that were already broadcasted to
-        self.message_flooder
-            .flood(&winner_msg, TrafficType::BlockBroadcast, 0.5);
-        Ok(())
-    }
-
-    fn ensure_within_rebroadcast_limit(&mut self) -> Result<(), ()> {
+    pub fn ensure_within_rebroadcast_limit(&mut self) -> Result<(), ()> {
         debug_assert!(self.prepared);
         if self.rebroadcasted >= self.max_block_broadcasts {
             return Err(());
