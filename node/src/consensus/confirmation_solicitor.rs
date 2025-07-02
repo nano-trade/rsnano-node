@@ -63,15 +63,11 @@ impl ConfirmationSolicitor {
 
     /// Broadcast the winner block of an election if the broadcast limit has not been reached.
     pub fn broadcast_winner_block(&mut self, election: &Election) -> Result<(), ()> {
-        debug_assert!(self.prepared);
-        self.rebroadcasted += 1;
-        if self.rebroadcasted >= self.max_block_broadcasts {
-            return Err(());
-        }
+        self.ensure_within_rebroadcast_limit()?;
 
         let winner_block = election.winner().clone();
         let hash = winner_block.hash();
-        let winner = Message::Publish(Publish::new_forward(winner_block.into()));
+        let winner_msg = Message::Publish(Publish::new_forward(winner_block.into()));
         let mut count = 0;
         // Directed broadcasting to principal representatives
         for i in &self.representative_broadcasts {
@@ -79,20 +75,30 @@ impl ConfirmationSolicitor {
                 break;
             }
             let should_broadcast = if let Some(existing) = election.votes().get(&i.rep_key) {
+                // Don't rebroadcast to a PR if this PR has voted for the block!
                 existing.hash != hash
             } else {
-                count += 1;
                 true
             };
             if should_broadcast {
+                count += 1;
                 self.message_flooder
-                    .try_send(&i.channel, &winner, TrafficType::BlockBroadcast);
+                    .try_send(&i.channel, &winner_msg, TrafficType::BlockBroadcast);
             }
         }
         // Random flood for block propagation
         // TODO: Avoid broadcasting to the same peers that were already broadcasted to
         self.message_flooder
-            .flood(&winner, TrafficType::BlockBroadcast, 0.5);
+            .flood(&winner_msg, TrafficType::BlockBroadcast, 0.5);
+        Ok(())
+    }
+
+    fn ensure_within_rebroadcast_limit(&mut self) -> Result<(), ()> {
+        debug_assert!(self.prepared);
+        if self.rebroadcasted >= self.max_block_broadcasts {
+            return Err(());
+        }
+        self.rebroadcasted += 1;
         Ok(())
     }
 
