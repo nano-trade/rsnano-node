@@ -1,10 +1,10 @@
-use std::{cmp::max, sync::Arc, time::Duration};
+use std::{cmp::max, collections::HashMap, sync::Arc, time::Duration};
 
-use rsnano_core::{BlockHash, Networks};
+use rsnano_core::{Block, BlockHash, Networks, PublicKey};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use super::{bounded_hash_map::BoundedHashMap, election::Election};
+use super::{bounded_hash_map::BoundedHashMap, election::VoteSummary};
 use crate::transport::MessageFlooder;
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
@@ -48,8 +48,12 @@ impl WinnerBlockBroadcaster {
         Self::new(stats, clock, network, MessageFlooder::new_null())
     }
 
-    pub fn try_broadcast_winner(&mut self, election: &Election) {
-        let winner_hash = election.winner().hash();
+    pub fn try_broadcast_winner(
+        &mut self,
+        winner_block: &Block,
+        votes: &HashMap<PublicKey, VoteSummary>,
+    ) {
+        let winner_hash = winner_block.hash();
         if self.should_broadcast(&winner_hash) {
             // Maximum amount of directed broadcasts to be sent per election
             let max_election_broadcasts = max(
@@ -58,9 +62,7 @@ impl WinnerBlockBroadcaster {
             );
 
             if self.rebroadcast_limiter.should_pass(1) {
-                let winner_block = election.winner().clone();
-                let hash = winner_block.hash();
-                let winner_msg = Message::Publish(Publish::new_forward(winner_block.into()));
+                let winner_msg = Message::Publish(Publish::new_forward(winner_block.clone()));
 
                 let peered_prs = self
                     .message_flooder
@@ -75,10 +77,9 @@ impl WinnerBlockBroadcaster {
                     if count >= max_election_broadcasts {
                         break;
                     }
-                    let should_broadcast = if let Some(existing) = election.votes().get(&i.rep_key)
-                    {
+                    let should_broadcast = if let Some(existing) = votes.get(&i.rep_key) {
                         // Don't rebroadcast to a PR if this PR has voted for the block!
-                        existing.hash != hash
+                        existing.hash != winner_hash
                     } else {
                         true
                     };
@@ -99,7 +100,7 @@ impl WinnerBlockBroadcaster {
 
                 let is_initial = self
                     .last_broadcasts
-                    .insert(election.winner().hash(), self.clock.now())
+                    .insert(winner_hash, self.clock.now())
                     .is_none();
 
                 self.stats.inc(

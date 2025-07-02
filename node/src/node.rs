@@ -600,12 +600,12 @@ impl Node {
             config.confirmation_history_size,
         )));
 
-        let winner_block_broadcaster = WinnerBlockBroadcaster::new(
+        let winner_block_broadcaster = Arc::new(Mutex::new(WinnerBlockBroadcaster::new(
             stats.clone(),
             steady_clock.clone(),
             current_network,
             message_flooder.clone(),
-        );
+        )));
 
         let confirm_req_sender = ConfirmReqSender::new(stats.clone(), steady_clock.clone());
 
@@ -801,7 +801,7 @@ impl Node {
             message_flooder: message_flooder.clone(),
             online_reps: online_reps.clone(),
             block_voter: block_voter.clone(),
-            winner_block_broadcaster,
+            winner_block_broadcaster: winner_block_broadcaster.clone(),
             confirm_req_sender,
         });
 
@@ -1171,6 +1171,7 @@ impl Node {
             local_votes_remover,
             fork_processor,
             stats: stats.clone(),
+            winner_block_broadcaster,
             plugins: Vec::new(),
         };
 

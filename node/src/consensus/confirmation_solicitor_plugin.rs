@@ -15,7 +15,7 @@ pub(crate) struct ConfirmationSolicitorPlugin {
     pub(crate) message_flooder: MessageFlooder,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
     pub(crate) block_voter: Arc<BlockVoter>,
-    pub(crate) winner_block_broadcaster: WinnerBlockBroadcaster,
+    pub(crate) winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
     pub(crate) confirm_req_sender: ConfirmReqSender,
 }
 
@@ -26,7 +26,7 @@ impl ConfirmationSolicitorPlugin {
             message_flooder: MessageFlooder::new_null(),
             online_reps: Arc::new(Mutex::new(OnlineReps::new_test_instance())),
             block_voter: Arc::new(BlockVoter::new_null()),
-            winner_block_broadcaster: WinnerBlockBroadcaster::new_null(),
+            winner_block_broadcaster: Arc::new(Mutex::new(WinnerBlockBroadcaster::new_null())),
             confirm_req_sender: ConfirmReqSender::new_null(),
         }
     }
@@ -65,14 +65,11 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
                         election.vote_type(),
                     );
                     self.winner_block_broadcaster
-                        .try_broadcast_winner(&election);
+                        .lock()
+                        .unwrap()
+                        .try_broadcast_winner(&election.winner().clone(), election.votes());
                     self.confirm_req_sender
                         .send_confirm_req(&mut solicitor, &election);
-                }
-                ElectionState::Confirmed => {
-                    // Ensure election winner is broadcasted
-                    self.winner_block_broadcaster
-                        .try_broadcast_winner(&election);
                 }
                 _ => {}
             }

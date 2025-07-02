@@ -11,7 +11,7 @@ use crate::{
         aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
         ActiveElectionsContainer, AecCooldownReason, AecEvent, BlockVoter,
         BootstrapElectionActivator, ForkProcessor, LocalVotesRemover, ReceivedVote, VoteCache,
-        VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue,
+        VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue, WinnerBlockBroadcaster,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -48,6 +48,7 @@ pub(crate) struct AecEventProcessor {
     pub(crate) local_votes_remover: LocalVotesRemover,
     pub(crate) stats: Arc<Stats>,
     pub(crate) fork_processor: Arc<ForkProcessor>,
+    pub(crate) winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
     pub(crate) plugins: Vec<Box<dyn AecEventHandler + Send>>,
 }
 
@@ -85,6 +86,11 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
             }
             AecEvent::ElectionConfirmed(election) => {
                 self.confirming_set.add(election.clone());
+                // Ensure election winner is broadcasted
+                self.winner_block_broadcaster
+                    .lock()
+                    .unwrap()
+                    .try_broadcast_winner(&election.winner, &election.votes);
             }
             AecEvent::ElectionEnded(election, priority) => {
                 let now = self.clock.now();

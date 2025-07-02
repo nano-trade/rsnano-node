@@ -413,9 +413,7 @@ impl Election {
         now: Timestamp,
         result: ConfirmationType,
     ) -> ConfirmedElection {
-        let mut votes: Vec<_> = self.votes().values().cloned().collect();
-        // sort descending
-        votes.sort_by(|a, b| b.weight.cmp(&a.weight));
+        let votes = self.votes().clone();
 
         ConfirmedElection {
             winner: self.winner().clone(),

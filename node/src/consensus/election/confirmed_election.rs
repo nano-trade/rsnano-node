@@ -1,6 +1,9 @@
-use std::time::{Duration, SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 
-use rsnano_core::{Amount, MaybeSavedBlock, SavedBlock};
+use rsnano_core::{Amount, MaybeSavedBlock, PublicKey, SavedBlock};
 use rsnano_stats::DetailType;
 
 use super::VoteSummary;
@@ -50,7 +53,7 @@ pub struct ConfirmedElection {
     pub election_end: SystemTime,
     pub election_duration: Duration,
     pub confirmation_type: ConfirmationType,
-    pub votes: Vec<VoteSummary>,
+    pub votes: HashMap<PublicKey, VoteSummary>,
 }
 
 impl ConfirmedElection {
@@ -64,7 +67,7 @@ impl ConfirmedElection {
             final_tally: Amount::zero(),
             voter_count: 0,
             election_duration: Duration::ZERO,
-            votes: Vec::new(),
+            votes: Default::default(),
         }
     }
 }

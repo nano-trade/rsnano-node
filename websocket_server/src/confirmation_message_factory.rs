@@ -48,13 +48,10 @@ impl ConfirmationMessageFactory<'_> {
         if self.options.include_election_info || self.options.include_election_info_with_votes {
             let mut info = into_election_info(self.election);
             if self.options.include_election_info_with_votes {
-                info.votes = Some(
-                    self.election
-                        .votes
-                        .iter()
-                        .map(into_json_vote_summary)
-                        .collect(),
-                );
+                let mut votes: Vec<_> = self.election.votes.values().cloned().collect();
+                // sort by descending weight
+                votes.sort_by(|a, b| b.weight.cmp(&a.weight));
+                info.votes = Some(votes.iter().map(into_json_vote_summary).collect());
             }
             Some(info)
         } else {
