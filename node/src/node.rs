@@ -46,7 +46,7 @@ use crate::{
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
     },
-    cementation::ConfirmingSet,
+    cementation::{ConfirmingSet, TrackConfirmationTimes},
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
     confirming_set_event_processor::ConfirmingSetEventProcessor,
     consensus::{
@@ -776,6 +776,10 @@ impl Node {
             });
         }
 
+        let track_conf_times = Box::new(TrackConfirmationTimes::default());
+        let conf_time_stats = track_conf_times.stats();
+        ledger_event_processor_plugins.push(track_conf_times);
+
         let bootstrapper = Arc::new(Bootstrapper::new(
             block_processor_queue.clone(),
             ledger.clone(),
@@ -1222,6 +1226,7 @@ impl Node {
         stats_collector.add_source(block_processor.clone());
         stats_collector.add_source(block_processor_queue.clone());
         stats_collector.add_source(backlog_waiter.clone());
+        stats_collector.add_source(conf_time_stats);
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());

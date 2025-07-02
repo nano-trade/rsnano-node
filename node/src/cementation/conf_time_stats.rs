@@ -1,9 +1,15 @@
+use crate::ledger_event_processor::LedgerEventProcessorPlugin;
 use bounded_vec_deque::BoundedVecDeque;
+use chrono::Utc;
+use rsnano_ledger::LedgerEvent;
 use rsnano_stats::{StatsCollection, StatsSource};
-use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 const STATS_KEY: &str = "confirmation_time";
-const SAMPLE_SIZE: usize = 1000;
+const DEFAULT_SAMPLE_SIZE: usize = 1000;
 
 /// Tracks duration for p90 p95 and p99 of the last 1000 confirmations
 pub(crate) struct ConfTimeStats {
@@ -11,6 +17,12 @@ pub(crate) struct ConfTimeStats {
 }
 
 impl ConfTimeStats {
+    pub fn new(sample_size: usize) -> Self {
+        Self {
+            durations: BoundedVecDeque::new(sample_size),
+        }
+    }
+
     pub fn add(&mut self, duration: Duration) {
         self.durations.push_back(duration.as_millis() as u64);
     }
@@ -18,9 +30,7 @@ impl ConfTimeStats {
 
 impl Default for ConfTimeStats {
     fn default() -> Self {
-        Self {
-            durations: BoundedVecDeque::new(1000),
-        }
+        Self::new(DEFAULT_SAMPLE_SIZE)
     }
 }
 
@@ -41,6 +51,40 @@ impl StatsSource for ConfTimeStats {
         result.insert(STATS_KEY, "p90", percentile(90));
         result.insert(STATS_KEY, "p95", percentile(95));
         result.insert(STATS_KEY, "p99", percentile(99));
+    }
+}
+
+pub(crate) struct TrackConfirmationTimes {
+    stats: Arc<Mutex<ConfTimeStats>>,
+}
+
+impl TrackConfirmationTimes {
+    pub fn stats(&self) -> Arc<Mutex<ConfTimeStats>> {
+        self.stats.clone()
+    }
+}
+
+impl Default for TrackConfirmationTimes {
+    fn default() -> Self {
+        Self {
+            stats: Arc::new(Mutex::new(Default::default())),
+        }
+    }
+}
+
+impl LedgerEventProcessorPlugin for TrackConfirmationTimes {
+    fn process(&mut self, event: &LedgerEvent) {
+        if let LedgerEvent::BlocksConfirmed(blocks) = event {
+            let now = Utc::now();
+            let mut stats = self.stats.lock().unwrap();
+
+            for (block, _) in blocks {
+                let conf_time = (now - block.sideband().timestamp.utc())
+                    .to_std()
+                    .unwrap_or_default();
+                stats.add(conf_time);
+            }
+        }
     }
 }
 
@@ -106,7 +150,7 @@ mod tests {
     }
 
     fn assert_stats(conf_times: &[Duration], p50: u64, p90: u64, p95: u64, p99: u64) {
-        let mut conf_stats = ConfTimeStats::default();
+        let mut conf_stats = ConfTimeStats::new(1000);
         for time in conf_times {
             conf_stats.add(*time);
         }

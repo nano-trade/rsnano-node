@@ -1,9 +1,9 @@
 use std::{
     net::SocketAddrV6,
     sync::{
+        Mutex,
         atomic::{AtomicUsize, Ordering},
         mpsc::{Receiver, Sender},
-        Mutex,
     },
     thread::yield_now,
     time::{Duration, Instant},
@@ -287,7 +287,9 @@ fn track_confirmations(
                 let cps = (confirmed as f64 / start.elapsed().as_secs_f64()) as i32;
                 let avg_conf_time = sum_conf_time.as_millis() / confirmed;
                 let bps = current_bps.load(Ordering::Relaxed);
-                info!("Confirmed {confirmed} blocks ({total} total) | {bps} bps | {cps} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}");
+                info!(
+                    "Confirmed {confirmed} blocks ({total} total) | {bps} bps | {cps} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}"
+                );
                 confirmed = 0;
                 start = Instant::now();
                 sum_conf_time = Duration::ZERO;

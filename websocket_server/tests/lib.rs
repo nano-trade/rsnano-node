@@ -20,12 +20,12 @@ use rsnano_node::{
 use rsnano_nullable_tcp::get_available_port;
 use rsnano_websocket_client::{
     ConfirmationSubArgs, ConfirmationTypeFilter, NanoWebSocketClient, NanoWebSocketClientFactory,
-    SubscribeArgs, TopicSub, UnsubscribeArgs, 
+    SubscribeArgs, TopicSub, UnsubscribeArgs,
 };
 use rsnano_websocket_messages::{BlockConfirmed, Topic};
 use rsnano_websocket_server::{
-    create_websocket_server, vote_received, TelemetryReceived, VoteReceived,
-    WebsocketListener, WebsocketListenerExt,
+    create_websocket_server, vote_received, TelemetryReceived, VoteReceived, WebsocketListener,
+    WebsocketListenerExt,
 };
 use test_helpers::{assert_timely2, make_fake_channel, System};
 use tokio::{task::spawn_blocking, time::timeout};
@@ -251,13 +251,13 @@ fn confirmation_options() {
             .unwrap_err();
 
         let sub_args = SubscribeArgs {
-            topic: TopicSub::Confirmation(ConfirmationSubArgs{ 
-                confirmation_types: ConfirmationTypeFilter::ActiveQuorum, 
-                all_local_accounts: true, 
-                include_election_info: true, 
-                ..Default::default() }), 
-            ack: true, 
-            ..Default::default() 
+            topic: TopicSub::Confirmation(ConfirmationSubArgs{
+                confirmation_types: ConfirmationTypeFilter::ActiveQuorum,
+                all_local_accounts: true,
+                include_election_info: true,
+                ..Default::default() }),
+            ack: true,
+            ..Default::default()
         };
         ws_client.subscribe(sub_args).await.unwrap();
         //await ack
@@ -280,12 +280,12 @@ fn confirmation_options() {
         assert!(election_info.votes.is_none());
 
         let sub_args = SubscribeArgs {
-            topic: TopicSub::Confirmation(ConfirmationSubArgs{ 
-                confirmation_types: ConfirmationTypeFilter::ActiveQuorum, 
-                all_local_accounts: true, 
-                ..Default::default() }), 
-            ack: true, 
-            ..Default::default() 
+            topic: TopicSub::Confirmation(ConfirmationSubArgs {
+                confirmation_types: ConfirmationTypeFilter::ActiveQuorum,
+                all_local_accounts: true,
+                ..Default::default() }),
+            ack: true,
+            ..Default::default()
         };
         ws_client.subscribe(sub_args).await.unwrap();
         //await ack
@@ -314,17 +314,19 @@ fn confirmation_options_votes() {
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
-        ws_client.subscribe(
-            SubscribeArgs { 
+        ws_client
+            .subscribe(SubscribeArgs {
                 topic: TopicSub::Confirmation(ConfirmationSubArgs {
                     confirmation_types: ConfirmationTypeFilter::ActiveQuorum,
                     include_election_info_with_votes: true,
                     include_block: false,
                     ..Default::default()
-                }), 
-                ack: true, 
-                .. Default::default() 
-            }).await.unwrap();
+                }),
+                ack: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
 
         //await ack
         ws_client.next().await.unwrap().unwrap();
@@ -341,7 +343,7 @@ fn confirmation_options_votes() {
         let response = ws_client.next().await.unwrap().unwrap();
         assert_eq!(response.topic, Some(Topic::Confirmation));
 
-        let message: BlockConfirmed  = serde_json::from_value(response.message.unwrap()).unwrap();
+        let message: BlockConfirmed = serde_json::from_value(response.message.unwrap()).unwrap();
         let election_info = message.election_info.unwrap();
         let votes = election_info.votes.unwrap();
         assert_eq!(votes.len(), 1);
@@ -349,7 +351,10 @@ fn confirmation_options_votes() {
         assert_eq!(vote.representative, DEV_GENESIS_ACCOUNT.encode_account());
         assert_ne!(vote.timestamp, "0");
         assert_eq!(vote.hash, send_hash.to_string());
-        assert_eq!(vote.weight, node1.balance(&DEV_GENESIS_ACCOUNT).to_string_dec());
+        assert_eq!(
+            vote.weight,
+            node1.balance(&DEV_GENESIS_ACCOUNT).to_string_dec()
+        );
     });
 }
 
@@ -359,21 +364,23 @@ fn confirmation_options_sideband() {
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
-        ws_client.subscribe(
-            SubscribeArgs { 
+        ws_client
+            .subscribe(SubscribeArgs {
                 topic: TopicSub::Confirmation(ConfirmationSubArgs {
                     confirmation_types: ConfirmationTypeFilter::ActiveQuorum,
                     include_block: false,
                     include_sideband_info: true,
                     ..Default::default()
-                }), 
-                ack: true, 
-                .. Default::default() 
-            }).await.unwrap();
+                }),
+                ack: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
         //await ack
         ws_client.next().await.unwrap().unwrap();
 
-	    // Confirm a state block for an in-wallet account
+        // Confirm a state block for an in-wallet account
         node1.insert_into_wallet(&DEV_GENESIS_KEY);
 
         let key = PrivateKey::new();
@@ -385,9 +392,9 @@ fn confirmation_options_sideband() {
         let response = ws_client.next().await.unwrap().unwrap();
         assert_eq!(response.topic, Some(Topic::Confirmation));
 
-        let message: BlockConfirmed  = serde_json::from_value(response.message.unwrap()).unwrap();
+        let message: BlockConfirmed = serde_json::from_value(response.message.unwrap()).unwrap();
         let sideband = message.sideband.unwrap();
-		// Make sure height and local_timestamp are non-zero.
+        // Make sure height and local_timestamp are non-zero.
         assert_ne!(sideband.height, "0");
         assert_ne!(sideband.local_timestamp, "0");
     });
@@ -458,7 +465,14 @@ fn vote() {
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
-        ws_client.subscribe(SubscribeArgs { topic: TopicSub::Vote, ack: true, id: None }).await.unwrap();
+        ws_client
+            .subscribe(SubscribeArgs {
+                topic: TopicSub::Vote,
+                ack: true,
+                id: None,
+            })
+            .await
+            .unwrap();
         //await ack
         ws_client.next().await.unwrap().unwrap();
 
@@ -556,10 +570,7 @@ fn ws_keepalive() {
     let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
-        ws_client
-            .send_text(r#"{"action": "ping"}"#)
-            .await
-            .unwrap();
+        ws_client.send_text(r#"{"action": "ping"}"#).await.unwrap();
         //await ack
         ws_client.next().await.unwrap().unwrap();
     });
@@ -574,9 +585,7 @@ fn telemetry() {
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
         ws_client
-            .send_text(
-                r#"{"action": "subscribe", "topic": "telemetry", "ack": true}"#
-            )
+            .send_text(r#"{"action": "subscribe", "topic": "telemetry", "ack": true}"#)
             .await
             .unwrap();
         //await ack
@@ -587,8 +596,7 @@ fn telemetry() {
         assert_eq!(response.topic, Some(Topic::Telemetry));
 
         // Check the bootstrap notification message
-        let message: TelemetryReceived =
-            serde_json::from_value(response.message.unwrap()).unwrap();
+        let message: TelemetryReceived = serde_json::from_value(response.message.unwrap()).unwrap();
         assert_eq!(
             message.address,
             node2.tcp_listener.local_address().ip().to_string()
@@ -610,9 +618,7 @@ fn new_unconfirmed_block() {
     node1.runtime.block_on(async {
         let mut ws_client = connect_websocket(&node1).await;
         ws_client
-            .send_text(
-                r#"{"action": "subscribe", "topic": "new_unconfirmed_block", "ack": true}"#,
-            )
+            .send_text(r#"{"action": "subscribe", "topic": "new_unconfirmed_block", "ack": true}"#)
             .await
             .unwrap();
         //await ack
@@ -674,4 +680,3 @@ async fn connect_websocket(node: &Node) -> NanoWebSocketClient {
         .await
         .expect("Failed to connect")
 }
-

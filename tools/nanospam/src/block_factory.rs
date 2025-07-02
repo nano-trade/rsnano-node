@@ -153,10 +153,12 @@ mod tests {
             Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT
         );
         assert!(block_factory.account_map.contains(&destination));
-        assert!(block_factory
-            .account_map
-            .get_receivable(&destination)
-            .is_some());
+        assert!(
+            block_factory
+                .account_map
+                .get_receivable(&destination)
+                .is_some()
+        );
     }
 
     #[test]
@@ -199,10 +201,12 @@ mod tests {
             "incorrect send account"
         );
         assert!(block_factory.account_map.contains(&account_b));
-        assert!(block_factory
-            .account_map
-            .get_receivable(&account_b)
-            .is_some());
+        assert!(
+            block_factory
+                .account_map
+                .get_receivable(&account_b)
+                .is_some()
+        );
     }
 
     #[test]
