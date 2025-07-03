@@ -367,7 +367,11 @@ impl ActiveElectionsContainer {
             observer: &self.observer,
             roots: &mut self.roots,
         };
-        apply_helper.apply_vote()
+        let result = apply_helper.apply_vote();
+        for entry in result.confirmed {
+            self.cleanup_election(entry);
+        }
+        result.per_block
     }
 
     pub fn force_confirm(&mut self, block_hash: &BlockHash, now: Timestamp) {
@@ -518,13 +522,7 @@ mod tests {
 
         assert_eq!(result.get(&block_hash), Some(&Ok(())));
 
-        assert_eq!(
-            container
-                .election_for_block(&block_hash)
-                .unwrap()
-                .is_confirmed(),
-            true
-        );
+        assert!(container.election_for_block(&block_hash).is_none());
     }
 
     fn test_final_vote(rep_key: &PrivateKey, block_hash: BlockHash) -> ReceivedVote {

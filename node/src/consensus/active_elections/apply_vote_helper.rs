@@ -1,6 +1,8 @@
 use super::{
-    recently_confirmed_cache::RecentlyConfirmedCache, root_container::RootContainer,
-    stats::VoteCounter, AecEvent, ApplyVoteArgs,
+    recently_confirmed_cache::RecentlyConfirmedCache,
+    root_container::{Entry, RootContainer},
+    stats::VoteCounter,
+    AecEvent, ApplyVoteArgs,
 };
 use crate::consensus::election::{ConfirmationType, Election, VoteSummary};
 use rsnano_core::{utils::BackpressureSender, Amount, BlockHash, VoteError, VoteSource};
@@ -15,36 +17,53 @@ pub(super) struct ApplyVoteHelper<'a> {
 }
 
 impl<'a> ApplyVoteHelper<'a> {
-    pub fn apply_vote(&mut self) -> HashMap<BlockHash, Result<(), VoteError>> {
-        let mut results = HashMap::new();
+    pub fn apply_vote(&mut self) -> ApplyVoteResult {
+        let mut result = ApplyVoteResult::default();
         for block_hash in self.args.vote.filtered_blocks() {
             // Ignore duplicate hashes (should not happen with a well-behaved voting node)
-            if results.contains_key(block_hash) {
+            if result.per_block.contains_key(block_hash) {
                 continue;
             }
 
             if let Some(election) = self.roots.election_for_block_mut(block_hash) {
-                let mut apply_to_election = ApplyVoteToElectionHelper {
-                    args: self.args,
-                    recently_confirmed: self.recently_confirmed,
-                    vote_counter: self.vote_counter,
-                    observer: self.observer,
-                    election,
-                    block_hash,
-                };
-                let vote_result = apply_to_election.apply_vote();
-                results.insert(*block_hash, vote_result);
+                {
+                    let mut apply_to_election = ApplyVoteToElectionHelper {
+                        args: self.args,
+                        recently_confirmed: self.recently_confirmed,
+                        vote_counter: self.vote_counter,
+                        observer: self.observer,
+                        election,
+                        block_hash,
+                    };
+                    let vote_result = apply_to_election.apply_vote();
+                    result.per_block.insert(*block_hash, vote_result);
+                }
+
+                if election.is_confirmed() {
+                    let root = election.qualified_root().clone();
+                    if let Some(entry) = self.roots.erase(&root) {
+                        result.confirmed.push(entry);
+                    }
+                }
             } else {
                 if self.recently_confirmed.hash_exists(block_hash) {
-                    results.insert(*block_hash, Err(VoteError::Late));
+                    result.per_block.insert(*block_hash, Err(VoteError::Late));
                 } else {
-                    results.insert(*block_hash, Err(VoteError::Indeterminate));
+                    result
+                        .per_block
+                        .insert(*block_hash, Err(VoteError::Indeterminate));
                 }
             }
         }
 
-        results
+        result
     }
+}
+
+#[derive(Default)]
+pub(crate) struct ApplyVoteResult {
+    pub per_block: HashMap<BlockHash, Result<(), VoteError>>,
+    pub confirmed: Vec<Entry>,
 }
 
 struct ApplyVoteToElectionHelper<'a> {
@@ -422,7 +441,8 @@ mod tests {
                 roots: &mut self.roots,
             };
 
-            helper.apply_vote()
+            let result = helper.apply_vote();
+            result.per_block
         }
     }
 
