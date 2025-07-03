@@ -72,7 +72,6 @@ impl RootContainer {
         let mut removed = Vec::new();
         for root in to_remove {
             if let Some(entry) = self.erase(&root) {
-                self.vote_router.disconnect_election(&entry.election);
                 removed.push(entry);
             }
         }
@@ -82,8 +81,9 @@ impl RootContainer {
 
     pub fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
         let erased = self.by_root.remove(root);
-        if erased.is_some() {
-            self.sequenced.retain(|x| x != root)
+        if let Some(entry) = &erased {
+            self.sequenced.retain(|x| x != root);
+            self.vote_router.disconnect_election(&entry.election);
         }
         erased
     }
