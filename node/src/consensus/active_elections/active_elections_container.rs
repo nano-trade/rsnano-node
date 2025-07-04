@@ -195,7 +195,7 @@ impl ActiveElectionsContainer {
     pub fn set_cooldown(&mut self, cool_down: bool, reason: AecCooldownReason) {
         let result = self.cooldown.set_cooldown(cool_down, reason);
         if result == CooldownResult::Recovered {
-            self.notify(AecEvent::VacancyUpdated);
+            self.notify(AecEvent::Recovered);
         }
     }
 
@@ -266,14 +266,8 @@ impl ActiveElectionsContainer {
     pub fn erase_ended_elections(&mut self) {
         let removed = self.roots.drain_filter(|i| i.election.state().has_ended());
 
-        let something_removed = removed.len() > 0;
-
         for entry in removed {
             self.cleanup_election(entry);
-        }
-
-        if something_removed {
-            self.notify(AecEvent::VacancyUpdated);
         }
     }
 
@@ -282,7 +276,6 @@ impl ActiveElectionsContainer {
             return false;
         };
         self.cleanup_election(entry);
-        self.notify(AecEvent::VacancyUpdated);
         true
     }
 

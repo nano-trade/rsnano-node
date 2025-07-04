@@ -56,7 +56,7 @@ pub enum AecEvent {
         HashMap<BlockHash, Result<(), VoteError>>,
     ),
     FinalPhaseStarted(BlockHash, QualifiedRoot),
-    VacancyUpdated,
+    Recovered,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]

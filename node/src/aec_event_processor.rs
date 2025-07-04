@@ -93,6 +93,8 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     .try_broadcast_winner(&election.winner, &election.votes);
             }
             AecEvent::ElectionEnded(election, priority) => {
+                self.election_schedulers.notify();
+
                 let now = self.clock.now();
                 let elapsed = election.start().elapsed(now);
                 // Track election duration
@@ -167,7 +169,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 }
                 self.recently_cemented_inserter.insert(election);
             }
-            AecEvent::VacancyUpdated => self.election_schedulers.notify(),
+            AecEvent::Recovered => self.election_schedulers.notify(),
         }
     }
 }
