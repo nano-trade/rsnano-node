@@ -1015,15 +1015,7 @@ fn conflicting_block_vote_existing_election() {
     assert_eq!(node.process_local(fork.clone()), Err(BlockError::Fork));
 
     // Election must be confirmed
-    assert_timely2(|| node.is_active_root(&fork.qualified_root()));
-    assert_timely2(|| {
-        node.active
-            .read()
-            .unwrap()
-            .election_for_root(&fork.qualified_root())
-            .unwrap()
-            .is_confirmed()
-    });
+    assert_timely2(|| node.ledger.confirmed().block_exists(&fork.hash()));
 }
 
 #[test]
