@@ -601,7 +601,6 @@ impl Node {
         )));
 
         let winner_block_broadcaster = Arc::new(Mutex::new(WinnerBlockBroadcaster::new(
-            stats.clone(),
             steady_clock.clone(),
             current_network,
             message_flooder.clone(),
@@ -1171,7 +1170,7 @@ impl Node {
             local_votes_remover,
             fork_processor,
             stats: stats.clone(),
-            winner_block_broadcaster,
+            winner_block_broadcaster: winner_block_broadcaster.clone(),
             plugins: Vec::new(),
         };
 
@@ -1230,6 +1229,7 @@ impl Node {
         stats_collector.add_source(block_processor_queue.clone());
         stats_collector.add_source(backlog_waiter.clone());
         stats_collector.add_source(conf_time_stats);
+        stats_collector.add_source(winner_block_broadcaster);
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
@@ -1808,6 +1808,7 @@ mod tests {
         let node = Node::new_null();
         let node_stats = node.stats();
         assert_contains_stats_source(&node_stats, StaleElectionsStats::default());
+        assert_contains_stats_source(&node_stats, WinnerBlockBroadcaster::new_null());
     }
 
     fn assert_contains_stats_source(node_stats: &StatsCollection, source: impl StatsSource) {

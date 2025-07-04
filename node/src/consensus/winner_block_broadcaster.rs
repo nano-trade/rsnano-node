@@ -1,33 +1,32 @@
 use std::{cmp::max, collections::HashMap, sync::Arc, time::Duration};
 
 use rsnano_core::{Block, BlockHash, Networks, PublicKey};
+use rsnano_messages::{Message, Publish};
+use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{bounded_hash_map::BoundedHashMap, election::VoteSummary};
 use crate::transport::MessageFlooder;
-use rsnano_messages::{Message, Publish};
-use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 
 /// Broadcasts the winner block of an election
 pub(crate) struct WinnerBlockBroadcaster {
-    stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
     last_broadcasts: BoundedHashMap<BlockHash, Timestamp>,
     broadcast_interval: Duration,
     message_flooder: MessageFlooder,
     rebroadcast_limiter: RateLimiter,
+    broadcast_initial: u64,
+    broadcast_repeat: u64,
 }
 
 impl WinnerBlockBroadcaster {
     pub(crate) fn new(
-        stats: Arc<Stats>,
         clock: Arc<SteadyClock>,
         network: Networks,
         message_flooder: MessageFlooder,
     ) -> Self {
         Self {
-            stats,
             clock,
             last_broadcasts: BoundedHashMap::new(1024 * 32),
             broadcast_interval: match network {
@@ -37,15 +36,16 @@ impl WinnerBlockBroadcaster {
             message_flooder,
             // TODO: Make rate limit configurable
             rebroadcast_limiter: RateLimiter::with_burst_ratio(100, 2.0),
+            broadcast_initial: 0,
+            broadcast_repeat: 0,
         }
     }
 
     #[allow(dead_code)]
     pub(crate) fn new_null() -> Self {
-        let stats = Arc::new(Stats::default());
         let clock = Arc::new(SteadyClock::new_null());
         let network = Networks::NanoLiveNetwork;
-        Self::new(stats, clock, network, MessageFlooder::new_null())
+        Self::new(clock, network, MessageFlooder::new_null())
     }
 
     pub fn try_broadcast_winner(
@@ -103,14 +103,11 @@ impl WinnerBlockBroadcaster {
                     .insert(winner_hash, self.clock.now())
                     .is_none();
 
-                self.stats.inc(
-                    StatType::Election,
-                    if is_initial {
-                        DetailType::BroadcastBlockInitial
-                    } else {
-                        DetailType::BroadcastBlockRepeat
-                    },
-                );
+                if is_initial {
+                    self.broadcast_initial += 1;
+                } else {
+                    self.broadcast_repeat += 1;
+                }
             }
         }
     }
@@ -122,5 +119,16 @@ impl WinnerBlockBroadcaster {
         } else {
             true
         }
+    }
+}
+
+impl StatsSource for WinnerBlockBroadcaster {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        result.insert(
+            "election",
+            "broadcast_block_initial",
+            self.broadcast_initial,
+        );
+        result.insert("election", "broadcast_block_repeat", self.broadcast_repeat);
     }
 }
