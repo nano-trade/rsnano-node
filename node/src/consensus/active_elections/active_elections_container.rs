@@ -398,6 +398,10 @@ impl ActiveElectionsContainer {
         }
     }
 
+    pub fn simulate_event(&self, event: AecEvent) {
+        self.notify(event);
+    }
+
     fn notify(&self, event: AecEvent) {
         if let Some(sender) = &self.observer {
             sender.send(event).unwrap()

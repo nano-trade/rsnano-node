@@ -8,6 +8,7 @@ use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{bounded_hash_map::BoundedHashMap, election::VoteSummary};
 use crate::transport::MessageFlooder;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 /// Broadcasts the winner block of an election
 pub(crate) struct WinnerBlockBroadcaster {
@@ -18,6 +19,7 @@ pub(crate) struct WinnerBlockBroadcaster {
     rebroadcast_limiter: RateLimiter,
     broadcast_initial: u64,
     broadcast_repeat: u64,
+    broadcast_listener: OutputListenerMt<BlockHash>,
 }
 
 impl WinnerBlockBroadcaster {
@@ -38,6 +40,7 @@ impl WinnerBlockBroadcaster {
             rebroadcast_limiter: RateLimiter::with_burst_ratio(100, 2.0),
             broadcast_initial: 0,
             broadcast_repeat: 0,
+            broadcast_listener: OutputListenerMt::default(),
         }
     }
 
@@ -48,12 +51,17 @@ impl WinnerBlockBroadcaster {
         Self::new(clock, network, MessageFlooder::new_null())
     }
 
+    pub fn track(&self) -> Arc<OutputTrackerMt<BlockHash>> {
+        self.broadcast_listener.track()
+    }
+
     pub fn try_broadcast_winner(
         &mut self,
         winner_block: &Block,
         votes: &HashMap<PublicKey, VoteSummary>,
     ) {
         let winner_hash = winner_block.hash();
+        self.broadcast_listener.emit(winner_hash);
         if self.should_broadcast(&winner_hash) {
             // Maximum amount of directed broadcasts to be sent per election
             let max_election_broadcasts = max(

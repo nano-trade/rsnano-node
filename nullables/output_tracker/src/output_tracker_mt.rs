@@ -1,26 +1,42 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc, Mutex, Weak,
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Condvar, Mutex, Weak,
+    },
+    time::Duration,
 };
 
 // Multi threaded output tracker
 pub struct OutputTrackerMt<T: Clone + 'static> {
     output: Mutex<Vec<T>>,
+    added: Condvar,
 }
 
 impl<T: Clone + 'static> OutputTrackerMt<T> {
     pub fn new() -> Self {
         Self {
             output: Mutex::new(Vec::new()),
+            added: Condvar::new(),
         }
     }
 
     pub fn add(&self, t: T) {
         self.output.lock().unwrap().push(t);
+        self.added.notify_all();
     }
 
     pub fn output(&self) -> Vec<T> {
         self.output.lock().unwrap().clone()
+    }
+
+    pub fn wait_output(&self) -> Result<Vec<T>, ()> {
+        let mut guard = self.output.lock().unwrap();
+        guard = self
+            .added
+            .wait_timeout_while(guard, Duration::from_secs(5), |i| i.is_empty())
+            .map_err(|_| ())?
+            .0;
+        Ok(guard.clone())
     }
 
     pub fn clear(&self) {

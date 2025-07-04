@@ -161,6 +161,7 @@ pub struct Node {
     pub stats_collector: StatsCollector,
     container_info_factory: ContainerInfoFactory,
     wallet_reps_checker: TimerThread<WalletRepsChecker>,
+    winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1229,7 +1230,7 @@ impl Node {
         stats_collector.add_source(block_processor_queue.clone());
         stats_collector.add_source(backlog_waiter.clone());
         stats_collector.add_source(conf_time_stats);
-        stats_collector.add_source(winner_block_broadcaster);
+        stats_collector.add_source(winner_block_broadcaster.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());
@@ -1325,6 +1326,7 @@ impl Node {
             stats_collector,
             container_info_factory: container_info,
             wallet_reps_checker: TimerThread::new("Wallet reps check", wallet_reps_checker),
+            winner_block_broadcaster,
         }
     }
 
@@ -1702,7 +1704,7 @@ impl CompositeNodeEventHandler {
 mod tests {
     use super::*;
     use crate::{
-        consensus::{AecTickerPlugin, BootstrapStaleElections, StaleElectionsStats},
+        consensus::{AecEvent, AecTickerPlugin, BootstrapStaleElections, StaleElectionsStats},
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
@@ -1809,6 +1811,22 @@ mod tests {
         let node_stats = node.stats();
         assert_contains_stats_source(&node_stats, StaleElectionsStats::default());
         assert_contains_stats_source(&node_stats, WinnerBlockBroadcaster::new_null());
+    }
+
+    #[test]
+    fn connect_winner_block_rebroadcaster() {
+        let node = Node::new_null();
+        let broadcast_tracker = node.winner_block_broadcaster.lock().unwrap().track();
+        let election = ConfirmedElection::new_test_instance();
+        let winner_hash = election.winner.hash();
+
+        node.active
+            .write()
+            .unwrap()
+            .simulate_event(AecEvent::ElectionConfirmed(election));
+
+        let output = broadcast_tracker.wait_output().unwrap();
+        assert_eq!(output, vec![winner_hash]);
     }
 
     fn assert_contains_stats_source(node_stats: &StatsCollection, source: impl StatsSource) {

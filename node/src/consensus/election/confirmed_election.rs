@@ -70,4 +70,11 @@ impl ConfirmedElection {
             votes: Default::default(),
         }
     }
+
+    pub fn new_test_instance() -> Self {
+        Self::new(
+            SavedBlock::new_test_instance(),
+            ConfirmationType::ActiveConfirmedQuorum,
+        )
+    }
 }
