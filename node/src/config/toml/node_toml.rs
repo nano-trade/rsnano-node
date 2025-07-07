@@ -68,6 +68,7 @@ pub struct NodeToml {
     pub network: Option<NetworkToml>,
     pub fork_cache: Option<ForkCacheToml>,
     pub vote_rebroadcaster: Option<VoteRebroadcasterToml>,
+    pub peering_port: Option<u16>,
 }
 
 impl NodeConfig {
@@ -414,6 +415,10 @@ impl NodeConfig {
                 self.rebroadcast_history.rebroadcast_min_gap = Duration::from_millis(i);
             }
         }
+
+        if let Some(port) = toml.peering_port {
+            self.network.listening_port = port;
+        }
     }
 }
 
@@ -513,6 +518,7 @@ impl From<&NodeConfig> for NodeToml {
             network: Some(config.into()),
             fork_cache: Some(config.into()),
             vote_rebroadcaster: Some(config.into()),
+            peering_port: Some(config.network.listening_port),
         }
     }
 }

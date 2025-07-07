@@ -2858,6 +2858,7 @@ name = "nanospam"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "dirs",
  "ntest",
  "rand 0.9.1",

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate clap;
+
 mod account_map;
 mod app;
 mod block_factory;

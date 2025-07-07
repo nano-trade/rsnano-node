@@ -1,5 +1,5 @@
 use std::{
-    fs::remove_file,
+    fs::{remove_dir_all, remove_file},
     net::SocketAddrV6,
     process::{Command, Stdio},
     sync::{
@@ -15,6 +15,7 @@ use tokio::{
     io::{AsyncReadExt, ReadHalf, WriteHalf},
     select,
     sync::mpsc,
+    time::sleep,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -35,6 +36,7 @@ use crate::{
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
 };
+use clap::Parser;
 use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::WalletAddArgs;
 
@@ -58,10 +60,11 @@ const GENESIS_PRV: &str = "49643F9B10CA1AA34F9AF8ED4AABD29F436104CCC375974B10853
 
 const NODE_CONFIG: &str = r#"
 [node]
+    peering_port = PEERING_PORT
     allow_local_peers = true
     bandwidth_limit = 0
     enable_voting = true
-    preconfigured_peers = []
+    preconfigured_peers = PRECONF_PEERS
     preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
     database_backend = "lmdb"
 
@@ -74,7 +77,7 @@ const NODE_CONFIG: &str = r#"
 [node.websocket]
     enable = true
     address = "::1"
-    port = 17078
+    port = WS_PORT
 
 [rpc]
     enable = true
@@ -83,8 +86,23 @@ const NODE_CONFIG: &str = r#"
 const RPC_CONFIG: &str = r#"
 address = "::1"
 enable_control = true
-port = 17076
+port = RPC_PORT
 "#;
+
+#[derive(Parser, Debug)]
+struct Args {
+    /// Attach to an already running node
+    #[arg(long, default_value_t = false)]
+    attach: bool,
+
+    /// Number of principal representatives
+    #[arg(long, default_value_t = 1)]
+    prs: usize,
+
+    /// Use C++ nano_node implementation
+    #[arg(long, default_value_t = false)]
+    cpp: bool,
+}
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
@@ -92,91 +110,124 @@ pub(crate) struct NanoSpamApp {
     pub tcp_stream_factory: TcpStreamFactory,
 }
 
+fn peering_port(node_id: usize) -> u16 {
+    17075 + (node_id as u16) * 10
+}
+
+fn rpc_port(node_id: usize) -> u16 {
+    17076 + (node_id as u16) * 10
+}
+
+fn websocket_port(node_id: usize) -> u16 {
+    17078 + (node_id as u16) * 10
+}
+
 impl NanoSpamApp {
     pub async fn run(&self) -> anyhow::Result<()> {
         self.tracing_init.init();
+        let args = Args::parse();
 
         let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
         let node_id_key = PrivateKey::from(42);
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
         let genesis_hash = self.get_genesis_hash();
-        let genesis_key = self.get_genesis_key();
+        let genesis_key = genesis_key();
 
-        info!("Starting node...");
-        // TODO create config file
         let mut data_dir = dirs::home_dir().unwrap();
         data_dir.push("NanoSpam");
 
-        let mut node_dir = data_dir.clone();
-        node_dir.push("pr1");
+        if !args.attach {
+            if data_dir.exists() {
+                info!("Deleting data from previous run: {data_dir:?}...");
+                remove_dir_all(&data_dir).unwrap();
+            }
 
-        std::fs::create_dir_all(&node_dir).unwrap();
+            for i in 0..args.prs {
+                info!("Setting up node PR{i}...");
 
-        let mut ledger_path = node_dir.clone();
-        ledger_path.push("data.ldb");
+                let mut node_dir = data_dir.clone();
+                node_dir.push(format!("pr{i}"));
 
-        if ledger_path.exists() {
-            info!("Deleting existing ledger file...");
-            remove_file(ledger_path).unwrap();
+                info!("Creating directory {node_dir:?}");
+                std::fs::create_dir_all(&node_dir).unwrap();
+
+                let mut ledger_path = node_dir.clone();
+                ledger_path.push("data.ldb");
+
+                let mut node_config_path = node_dir.clone();
+                node_config_path.push("config-node.toml");
+                if !node_config_path.exists() {
+                    info!("Creating node config file: {node_config_path:?}");
+                    let node_config = NODE_CONFIG
+                        .replace("PEERING_PORT", &peering_port(i).to_string())
+                        .replace("WS_PORT", &websocket_port(i).to_string())
+                        .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i));
+                    std::fs::write(node_config_path, node_config).unwrap();
+                }
+
+                let mut rpc_config_path = node_dir.clone();
+                rpc_config_path.push("config-rpc.toml");
+                if !rpc_config_path.exists() {
+                    info!("Creating rpc config file: {rpc_config_path:?}");
+                    let rpc_config = RPC_CONFIG.replace("RPC_PORT", &rpc_port(i).to_string());
+                    std::fs::write(rpc_config_path, rpc_config).unwrap();
+                }
+
+                let mut cmd = if args.cpp {
+                    let mut cmd = Command::new("nano_node");
+                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                        .env("NANO_TEST_EPOCH_1", "0")
+                        .env("NANO_TEST_EPOCH_2", "0")
+                        .env("NANO_TEST_EPOCH_2_RECV", "0")
+                        .arg("--network")
+                        .arg("test")
+                        .arg("--data-path")
+                        .arg(&node_dir)
+                        .arg("--daemon")
+                        .stdout(Stdio::null());
+                    cmd
+                } else {
+                    let mut cmd = Command::new("rsnano_node");
+                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                        .arg("--network")
+                        .arg("test")
+                        .arg("--data-path")
+                        .arg(&node_dir)
+                        .arg("node")
+                        .arg("run");
+                    //.stdout(Stdio::null());
+                    cmd
+                };
+
+                info!("Starting node: {cmd:?}");
+                cmd.spawn().unwrap();
+
+                let rpc_client = NanoRpcClient::new("http://[::1]:17076".parse().unwrap());
+                info!("Waiting for RPC...");
+                while rpc_client.version().await.is_err() {
+                    sleep(Duration::from_millis(100)).await;
+                }
+
+                if rpc_client.wallet_list().await.unwrap().is_empty() {
+                    info!("Creating wallet...");
+                    let resp = rpc_client.wallet_create(None).await.unwrap();
+                    rpc_client
+                        .wallet_add(WalletAddArgs {
+                            wallet: resp.wallet,
+                            key: pr_key(i).raw_key(),
+                            work: None,
+                        })
+                        .await
+                        .unwrap();
+                }
+            }
         }
 
-        let mut node_config_path = node_dir.clone();
-        node_config_path.push("config-node.toml");
-        if !node_config_path.exists() {
-            std::fs::write(node_config_path, NODE_CONFIG).unwrap();
-        }
-
-        let mut rpc_config_path = node_dir.clone();
-        rpc_config_path.push("config-rpc.toml");
-        if !rpc_config_path.exists() {
-            std::fs::write(rpc_config_path, RPC_CONFIG).unwrap();
-        }
-
-        let _node = if std::env::args().any(|a| a == "--cpp") {
-            Command::new("nano_node")
-                .env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                .env("NANO_TEST_EPOCH_1", "0")
-                .env("NANO_TEST_EPOCH_2", "0")
-                .env("NANO_TEST_EPOCH_2_RECV", "0")
-                .arg("--network")
-                .arg("test")
-                .arg("--data-path")
-                .arg(&node_dir)
-                .arg("--daemon")
-                .stdout(Stdio::null())
-                .spawn()
-                .unwrap();
-        } else {
-            Command::new("rsnano_node")
-                .env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                .arg("--network")
-                .arg("test")
-                .arg("--data-path")
-                .arg(&node_dir)
-                .arg("node")
-                .arg("run")
-                .stdout(Stdio::null())
-                .spawn()
-                .unwrap();
-        };
         info!("Creating account keys...");
         let mut account_map = AccountMap::default();
         account_map.fill(SPAM_ACCOUNTS);
-
-        let rpc_client = NanoRpcClient::new("http://[::1]:17076".parse().unwrap());
-        if rpc_client.wallet_list().await.unwrap().is_empty() {
-            let resp = rpc_client.wallet_create(None).await.unwrap();
-            rpc_client
-                .wallet_add(WalletAddArgs {
-                    wallet: resp.wallet,
-                    key: genesis_key.raw_key(),
-                    work: None,
-                })
-                .await
-                .unwrap();
-        }
 
         let block_factory = Mutex::new(BlockFactory::new(
             genesis_key,
@@ -275,10 +326,20 @@ impl NanoSpamApp {
         let genesis_block: Block = serde_json::from_str(GENESIS_BLOCK).unwrap();
         genesis_block.hash()
     }
+}
 
-    fn get_genesis_key(&self) -> PrivateKey {
-        PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
+fn preconfigured_peers(prs: usize, current_pr: usize) -> String {
+    let mut result = String::new();
+    result.push('[');
+    for i in 0..prs {
+        if i == current_pr {
+            continue;
+        }
+
+        result.push_str(&format!("\"[::1]:{}\",", peering_port(i)));
     }
+    result.push(']');
+    result
 }
 
 fn create_blocks(
@@ -443,4 +504,16 @@ async fn receive_messages(
         } => {}
     }
     info!("receive TCP messages finished");
+}
+
+fn pr_key(node_id: usize) -> PrivateKey {
+    if node_id == 0 {
+        genesis_key()
+    } else {
+        PrivateKey::from(node_id as u64)
+    }
+}
+
+fn genesis_key() -> PrivateKey {
+    PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
 }
