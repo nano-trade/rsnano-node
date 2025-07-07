@@ -40,7 +40,9 @@ pub use account_create::*;
 pub use account_move::*;
 pub use accounts_create::*;
 pub use receive::*;
+use rsnano_core::WalletId;
 pub use send::*;
+use serde::{Deserialize, Serialize};
 pub use wallet_add::*;
 pub use wallet_add_watch::*;
 pub use wallet_balances::*;
@@ -59,3 +61,8 @@ pub use wallet_with_password::*;
 pub use wallet_work_get::*;
 pub use work_get::*;
 pub use work_set::*;
+
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct WalletListResponse {
+    pub wallets: Vec<WalletId>,
+}

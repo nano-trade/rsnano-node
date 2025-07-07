@@ -2858,6 +2858,7 @@ name = "nanospam"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dirs",
  "ntest",
  "rand 0.9.1",
  "rsnano_core",
@@ -2868,6 +2869,8 @@ dependencies = [
  "rsnano_nullable_env",
  "rsnano_nullable_tcp",
  "rsnano_nullable_tracing_subscriber",
+ "rsnano_rpc_client",
+ "rsnano_rpc_messages",
  "rsnano_stats",
  "rsnano_websocket_client",
  "rsnano_websocket_messages",

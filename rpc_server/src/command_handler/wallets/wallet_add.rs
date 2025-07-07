@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_node::wallets::WalletsExt;
-use rsnano_rpc_messages::{AccountResponse, WalletAddArgs};
+use rsnano_rpc_messages::{AccountResponse, WalletAddArgs, WalletListResponse};
 
 impl RpcCommandHandler {
     pub(crate) fn wallet_add(&self, args: WalletAddArgs) -> anyhow::Result<AccountResponse> {
@@ -10,5 +10,11 @@ impl RpcCommandHandler {
             .wallets
             .insert_adhoc2(&args.wallet, &args.key, generate_work)?;
         Ok(AccountResponse::new(pub_key.as_account()))
+    }
+
+    pub(crate) fn wallet_list(&self) -> WalletListResponse {
+        WalletListResponse {
+            wallets: self.node.wallets.wallet_ids(),
+        }
     }
 }

@@ -1,15 +1,16 @@
 use std::{
+    fs::remove_file,
     net::SocketAddrV6,
+    process::{Command, Stdio},
     sync::{
-        Mutex,
         atomic::{AtomicUsize, Ordering},
         mpsc::{Receiver, Sender},
+        Mutex,
     },
     thread::yield_now,
     time::{Duration, Instant},
 };
 
-use anyhow::anyhow;
 use tokio::{
     io::{AsyncReadExt, ReadHalf, WriteHalf},
     select,
@@ -20,7 +21,6 @@ use tracing::info;
 
 use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_network::bandwidth_limiter::RateLimiter;
-use rsnano_nullable_env::Env;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 use rsnano_websocket_client::{
@@ -35,6 +35,8 @@ use crate::{
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
 };
+use rsnano_rpc_client::NanoRpcClient;
+use rsnano_rpc_messages::WalletAddArgs;
 
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 15_000_000;
@@ -43,11 +45,51 @@ const INITIAL_BPS: usize = 50;
 const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(3);
 const BPS_INCREASE: usize = 50;
 
+const GENESIS_BLOCK: &str = r#"{
+    "type": "open",
+    "account": "nano_3nroioygg54nusrmyun4woimqex36sp3drnctdt5955uqu47fxbkrxk7n7ne",
+    "source": "D315857CE70C54DE713F6E82E5613BB3A1266C15E28AD2F4338C7BBEC456F532",
+    "representative": "nano_3nroioygg54nusrmyun4woimqex36sp3drnctdt5955uqu47fxbkrxk7n7ne",
+    "signature": "3F6792C2DC623DF2E8643777160AB983B66B337E2478E13D2C3448126A8F4CD8DCCD19803C158A057FA44060AE0EFC09B1C311CB4FBF42F8D240610B38F56E08",
+    "work": "70FEF01F7EC45DEC"
+    }"#;
+
+const GENESIS_PRV: &str = "49643F9B10CA1AA34F9AF8ED4AABD29F436104CCC375974B108534A48EAE3FE1";
+
+const NODE_CONFIG: &str = r#"
+[node]
+    allow_local_peers = true
+    bandwidth_limit = 0
+    enable_voting = true
+    preconfigured_peers = []
+    preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
+    database_backend = "lmdb"
+
+[node.lmdb]
+    sync = "nosync_unsafe"
+
+[node.bounded_backlog]
+    enable = false
+
+[node.websocket]
+    enable = true
+    address = "::1"
+    port = 17078
+
+[rpc]
+    enable = true
+"#;
+
+const RPC_CONFIG: &str = r#"
+address = "::1"
+enable_control = true
+port = 17076
+"#;
+
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
     pub tracing_init: TracingInitializer,
     pub tcp_stream_factory: TcpStreamFactory,
-    pub env: Env,
 }
 
 impl NanoSpamApp {
@@ -57,12 +99,85 @@ impl NanoSpamApp {
         let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
         let node_id_key = PrivateKey::from(42);
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
-        let genesis_hash = self.get_genesis_hash()?;
-        let genesis_key = self.get_genesis_key()?;
+        let genesis_hash = self.get_genesis_hash();
+        let genesis_key = self.get_genesis_key();
 
+        info!("Starting node...");
+        // TODO create config file
+        let mut data_dir = dirs::home_dir().unwrap();
+        data_dir.push("NanoSpam");
+
+        let mut node_dir = data_dir.clone();
+        node_dir.push("pr1");
+
+        std::fs::create_dir_all(&node_dir).unwrap();
+
+        let mut ledger_path = node_dir.clone();
+        ledger_path.push("data.ldb");
+
+        if ledger_path.exists() {
+            info!("Deleting existing ledger file...");
+            remove_file(ledger_path).unwrap();
+        }
+
+        let mut node_config_path = node_dir.clone();
+        node_config_path.push("config-node.toml");
+        if !node_config_path.exists() {
+            std::fs::write(node_config_path, NODE_CONFIG).unwrap();
+        }
+
+        let mut rpc_config_path = node_dir.clone();
+        rpc_config_path.push("config-rpc.toml");
+        if !rpc_config_path.exists() {
+            std::fs::write(rpc_config_path, RPC_CONFIG).unwrap();
+        }
+
+        let _node = if std::env::args().any(|a| a == "--cpp") {
+            Command::new("nano_node")
+                .env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                .env("NANO_TEST_EPOCH_1", "0")
+                .env("NANO_TEST_EPOCH_2", "0")
+                .env("NANO_TEST_EPOCH_2_RECV", "0")
+                .arg("--network")
+                .arg("test")
+                .arg("--data-path")
+                .arg(&node_dir)
+                .arg("--daemon")
+                .stdout(Stdio::null())
+                .spawn()
+                .unwrap();
+        } else {
+            Command::new("rsnano_node")
+                .env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                .arg("--network")
+                .arg("test")
+                .arg("--data-path")
+                .arg(&node_dir)
+                .arg("node")
+                .arg("run")
+                .stdout(Stdio::null())
+                .spawn()
+                .unwrap();
+        };
         info!("Creating account keys...");
         let mut account_map = AccountMap::default();
         account_map.fill(SPAM_ACCOUNTS);
+
+        let rpc_client = NanoRpcClient::new("http://[::1]:17076".parse().unwrap());
+        if rpc_client.wallet_list().await.unwrap().is_empty() {
+            let resp = rpc_client.wallet_create(None).await.unwrap();
+            rpc_client
+                .wallet_add(WalletAddArgs {
+                    wallet: resp.wallet,
+                    key: genesis_key.raw_key(),
+                    work: None,
+                })
+                .await
+                .unwrap();
+        }
+
         let block_factory = Mutex::new(BlockFactory::new(
             genesis_key,
             genesis_hash,
@@ -156,25 +271,14 @@ impl NanoSpamApp {
         Ok(())
     }
 
-    fn get_genesis_hash(&self) -> anyhow::Result<BlockHash> {
-        let json = self.get_env(Self::GENESIS_BLOCK_ENV)?;
-        let genesis_block: Block = serde_json::from_str(&json)?;
-        Ok(genesis_block.hash())
+    fn get_genesis_hash(&self) -> BlockHash {
+        let genesis_block: Block = serde_json::from_str(GENESIS_BLOCK).unwrap();
+        genesis_block.hash()
     }
 
-    fn get_genesis_key(&self) -> anyhow::Result<PrivateKey> {
-        let key_str = self.get_env(Self::GENESIS_PRV_KEY_ENV)?;
-        PrivateKey::from_hex_str(&key_str)
+    fn get_genesis_key(&self) -> PrivateKey {
+        PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
     }
-
-    fn get_env(&self, key: &str) -> anyhow::Result<String> {
-        self.env
-            .var(key)
-            .map_err(|_| anyhow!("env var '{}' not set", key))
-    }
-
-    const GENESIS_BLOCK_ENV: &str = "NANO_TEST_GENESIS_BLOCK";
-    const GENESIS_PRV_KEY_ENV: &str = "NANO_TEST_GENESIS_PRV";
 }
 
 fn create_blocks(
@@ -339,27 +443,4 @@ async fn receive_messages(
         } => {}
     }
     info!("receive TCP messages finished");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn initialize_tracing() {
-        let tracing_init = TracingInitializer::new_null();
-        let init_tracker = tracing_init.track();
-        let tcp_stream_factory = TcpStreamFactory::new_null();
-        let env = Env::new_null();
-
-        let app = NanoSpamApp {
-            tracing_init,
-            tcp_stream_factory,
-            env,
-        };
-
-        let _ = app.run().await;
-
-        assert_eq!(init_tracker.output().len(), 1);
-    }
 }

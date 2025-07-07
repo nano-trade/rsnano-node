@@ -15,6 +15,8 @@ rsnano_network = { path = "../../network" }
 rsnano_network_protocol = { path = "../../network_protocol" }
 rsnano_websocket_messages = { path = "../../websocket_messages" }
 rsnano_websocket_client = { path = "../../websocket_client" }
+rsnano_rpc_client = { path = "../../rpc_client" }
+rsnano_rpc_messages = { path = "../../rpc_messages" }
 anyhow = "1.0.98"
 tokio = { version = "1.44.2", features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
 tokio-scoped = "0.2.0"
@@ -23,6 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand = "0.9.1"
 tokio-util = "0.7.15"
+dirs = "6.0.0"
 
 [dev-dependencies]
 ntest = "0.9.3"

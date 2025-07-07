@@ -96,6 +96,7 @@ impl RpcCommandHandler {
             RpcCommand::UncheckedClear => to_value(self.unchecked_clear()),
             RpcCommand::Unchecked(args) => to_value(self.unchecked(args)),
             RpcCommand::UncheckedGet(args) => to_value(self.unchecked_get(args)?),
+            RpcCommand::WalletList => to_value(self.wallet_list()),
             RpcCommand::WalletAdd(args) => to_value(self.wallet_add(args)?),
             RpcCommand::WalletAddWatch(args) => to_value(self.wallet_add_watch(args)?),
             RpcCommand::WalletBalances(args) => to_value(self.wallet_balances(args)?),
@@ -211,6 +212,7 @@ fn requires_control(command: &RpcCommand) -> bool {
         | RpcCommand::Stop
         | RpcCommand::UncheckedClear
         | RpcCommand::Unopened(_)
+        | RpcCommand::WalletList
         | RpcCommand::WalletAdd(_)
         | RpcCommand::WalletAddWatch(_)
         | RpcCommand::WalletChangeSeed(_)
