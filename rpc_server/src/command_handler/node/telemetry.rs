@@ -1,18 +1,17 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::{anyhow, bail};
-use rsnano_rpc_messages::{TelemetryArgs, TelemetryDto, TelemetryResponse};
+use rsnano_rpc_messages::{RawTelemetryResponse, TelemetryArgs, TelemetryDto, TelemetryResponse};
 use std::net::SocketAddrV6;
 
 impl RpcCommandHandler {
     pub(crate) fn telemetry(&self, args: TelemetryArgs) -> anyhow::Result<TelemetryResponse> {
-        let mut responses = Vec::new();
         if args.address.is_some() || args.port.is_some() {
             let endpoint = Self::get_endpoint(&args)?;
 
             if self.is_local_address(&endpoint) {
                 // Requesting telemetry metrics locally
                 let data = self.node.telemetry.local_telemetry();
-                responses.push(TelemetryDto::from(data));
+                Ok(TelemetryResponse::Single(data.into()))
             } else {
                 let telemetry = self
                     .node
@@ -20,7 +19,7 @@ impl RpcCommandHandler {
                     .get_telemetry(&endpoint)
                     .ok_or_else(|| anyhow!("Peer not found"))?;
 
-                responses.push(TelemetryDto::from(telemetry));
+                Ok(TelemetryResponse::Single(telemetry.into()))
             }
         } else {
             // By default, local telemetry metrics are returned,
@@ -28,20 +27,22 @@ impl RpcCommandHandler {
             let output_raw = args.raw.unwrap_or_default().inner();
             if output_raw {
                 let all_telemetries = self.node.telemetry.get_all_telemetries();
+                let mut responses = Vec::new();
                 for (addr, data) in all_telemetries {
                     let mut metric = TelemetryDto::from(data);
                     metric.address = Some(*addr.ip());
                     metric.port = Some(addr.port().into());
                     responses.push(metric);
                 }
+                Ok(TelemetryResponse::Raw(RawTelemetryResponse {
+                    metrics: responses,
+                }))
             } else {
                 // Default case without any parameters, requesting telemetry metrics locally
                 let data = self.node.telemetry.local_telemetry();
-                responses.push(data.into());
+                Ok(TelemetryResponse::Single(data.into()))
             }
         }
-
-        Ok(TelemetryResponse { metrics: responses })
     }
 
     fn get_endpoint(args: &TelemetryArgs) -> anyhow::Result<SocketAddrV6> {

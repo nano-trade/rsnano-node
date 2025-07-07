@@ -26,7 +26,7 @@ impl NanoRpcClient {
         }
     }
 
-    pub async fn telemetry(&self, args: TelemetryArgs) -> Result<TelemetryResponse> {
+    pub async fn telemetry(&self, args: TelemetryArgs) -> Result<RawTelemetryResponse> {
         self.request(&RpcCommand::telemetry(args)).await
     }
 
