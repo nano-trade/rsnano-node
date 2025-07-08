@@ -26,7 +26,7 @@ impl BlockResult {
 
 impl BlockFactory {
     // Send from genesis
-    const INITIAL_AMOUNT_SENT: Amount = Amount::nano(100_000_000);
+    pub const INITIAL_AMOUNT_SENT: Amount = Amount::nano(100_000_000);
 
     pub(crate) fn new(
         genesis_key: PrivateKey,
@@ -153,12 +153,10 @@ mod tests {
             Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT
         );
         assert!(block_factory.account_map.contains(&destination));
-        assert!(
-            block_factory
-                .account_map
-                .get_receivable(&destination)
-                .is_some()
-        );
+        assert!(block_factory
+            .account_map
+            .get_receivable(&destination)
+            .is_some());
     }
 
     #[test]
@@ -201,12 +199,10 @@ mod tests {
             "incorrect send account"
         );
         assert!(block_factory.account_map.contains(&account_b));
-        assert!(
-            block_factory
-                .account_map
-                .get_receivable(&account_b)
-                .is_some()
-        );
+        assert!(block_factory
+            .account_map
+            .get_receivable(&account_b)
+            .is_some());
     }
 
     #[test]

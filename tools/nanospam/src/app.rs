@@ -1,5 +1,6 @@
 use std::{
     fs::remove_dir_all,
+    hash::Hash,
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
@@ -15,7 +16,9 @@ use tokio::{io::AsyncWriteExt, select, sync::mpsc, time::sleep};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
+use rsnano_core::{
+    Amount, Block, BlockHash, Networks, PrivateKey, ProtocolInfo, WalletId, WorkNonce,
+};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
@@ -32,8 +35,8 @@ use crate::{
 };
 use clap::Parser;
 use rsnano_messages::{Message, MessageSerializer, Publish};
-use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::WalletAddArgs;
+use rsnano_rpc_client::{NanoRpcClient, Url};
+use rsnano_rpc_messages::{SendArgs, WalletAddArgs};
 
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 15_000_000;
@@ -136,6 +139,11 @@ impl NanoSpamApp {
                 remove_dir_all(&data_dir).unwrap();
             }
 
+            let pr_balance = (Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT) / args.prs as u128;
+            let genesis_rpc =
+                NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(0)).parse().unwrap());
+            let mut genesis_wallet = WalletId::zero();
+
             for i in 0..args.prs {
                 info!("Setting up node PR{i}...");
 
@@ -178,8 +186,7 @@ impl NanoSpamApp {
                         .arg("test")
                         .arg("--data-path")
                         .arg(&node_dir)
-                        .arg("--daemon")
-                        .stdout(Stdio::null());
+                        .arg("--daemon");
                     cmd
                 } else {
                     let mut cmd = Command::new("rsnano_node");
@@ -190,15 +197,15 @@ impl NanoSpamApp {
                         .arg("--data-path")
                         .arg(&node_dir)
                         .arg("node")
-                        .arg("run")
-                        .stdout(Stdio::null());
+                        .arg("run");
                     cmd
                 };
 
                 info!("Starting node: {cmd:?}");
-                cmd.spawn().unwrap();
+                cmd.stdout(Stdio::null()).spawn().unwrap();
 
-                let rpc_client = NanoRpcClient::new("http://[::1]:17076".parse().unwrap());
+                let rpc_client =
+                    NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(i)).parse().unwrap());
                 info!("Waiting for RPC...");
                 while rpc_client.version().await.is_err() {
                     sleep(Duration::from_millis(100)).await;
@@ -207,14 +214,42 @@ impl NanoSpamApp {
                 if rpc_client.wallet_list().await.unwrap().is_empty() {
                     info!("Creating wallet...");
                     let resp = rpc_client.wallet_create(None).await.unwrap();
+                    if i == 0 {
+                        genesis_wallet = resp.wallet;
+                    }
+                    let pr_key = pr_key(i);
                     rpc_client
                         .wallet_add(WalletAddArgs {
                             wallet: resp.wallet,
-                            key: pr_key(i).raw_key(),
+                            key: pr_key.raw_key(),
                             work: None,
                         })
                         .await
                         .unwrap();
+
+                    if i > 0 {
+                        info!("Sending PR amount: Ӿ{} ...", pr_balance.format_balance(0));
+                        let block = genesis_rpc
+                            .send(SendArgs {
+                                wallet: genesis_wallet,
+                                source: genesis_key.account(),
+                                destination: pr_key.account(),
+                                amount: pr_balance,
+                                work: Some(WorkNonce::new(0)),
+                                id: None,
+                            })
+                            .await
+                            .unwrap();
+                        info!("Waiting for confirmation...");
+                        sleep(Duration::from_millis(500)).await;
+                        loop {
+                            let info = rpc_client.block_info(block.block).await.unwrap();
+                            if info.confirmed.inner() {
+                                break;
+                            }
+                            sleep(Duration::from_millis(100)).await;
+                        }
+                    }
                 }
             }
         }
