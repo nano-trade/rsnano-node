@@ -1013,7 +1013,7 @@ impl Node {
 
         info!(
             "Outbound bandwidth limit: {} bytes/s, burst ratio: {}",
-            config.bandwidth_limit, config.bandwidth_limit_burst_ratio
+            config.network.limiter.generic_limit, config.network.limiter.generic_burst_ratio
         );
 
         let has_local_reps = {

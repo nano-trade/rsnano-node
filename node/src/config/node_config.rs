@@ -71,12 +71,8 @@ pub struct NodeConfig {
     pub external_address: String,
     pub external_port: u16,
     pub use_memory_pools: bool,
-    pub bandwidth_limit: usize,
-    pub bandwidth_limit_burst_ratio: f64,
     pub bootstrap: BootstrapConfig,
     pub bootstrap_server: BootstrapServerConfig,
-    pub bootstrap_bandwidth_limit: usize,
-    pub bootstrap_bandwidth_burst_ratio: f64,
     pub confirming_set_batch_time: Duration,
     pub backup_before_upgrade: bool,
     pub max_work_generate_multiplier: f64,
@@ -274,14 +270,6 @@ impl NodeConfig {
             external_address: Ipv6Addr::UNSPECIFIED.to_string(),
             external_port: 0,
             use_memory_pools: true,
-            // Default outbound traffic shaping is 10MB/s
-            bandwidth_limit: 10 * 1024 * 1024,
-            // By default, allow bursts of 15MB/s (not sustainable)
-            bandwidth_limit_burst_ratio: 3_f64,
-            // Default bootstrap outbound traffic limit is 5MB/s
-            bootstrap_bandwidth_limit: 5 * 1024 * 1024,
-            // Bootstrap traffic does not need bursts
-            bootstrap_bandwidth_burst_ratio: 1.,
             bootstrap: Default::default(),
             bootstrap_server: Default::default(),
             confirming_set_batch_time: Duration::from_millis(250),

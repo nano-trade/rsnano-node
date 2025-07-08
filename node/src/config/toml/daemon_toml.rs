@@ -303,20 +303,20 @@ mod tests {
             default_cfg.node.backup_before_upgrade
         );
         assert_ne!(
-            deserialized.node.bandwidth_limit,
-            default_cfg.node.bandwidth_limit
+            deserialized.node.network.limiter.generic_limit,
+            default_cfg.node.network.limiter.generic_limit
         );
         assert_ne!(
-            deserialized.node.bandwidth_limit_burst_ratio,
-            default_cfg.node.bandwidth_limit_burst_ratio
+            deserialized.node.network.limiter.generic_burst_ratio,
+            default_cfg.node.network.limiter.generic_burst_ratio
         );
         assert_ne!(
-            deserialized.node.bootstrap_bandwidth_limit,
-            default_cfg.node.bootstrap_bandwidth_limit
+            deserialized.node.network.limiter.bootstrap_limit,
+            default_cfg.node.network.limiter.bootstrap_limit
         );
         assert_ne!(
-            deserialized.node.bootstrap_bandwidth_burst_ratio,
-            default_cfg.node.bootstrap_bandwidth_burst_ratio
+            deserialized.node.network.limiter.bootstrap_burst_ratio,
+            default_cfg.node.network.limiter.bootstrap_burst_ratio
         );
         assert_ne!(
             deserialized.node.bootstrap_initiator_threads,

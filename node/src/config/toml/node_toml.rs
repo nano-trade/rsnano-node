@@ -82,17 +82,17 @@ impl NodeConfig {
         if let Some(backup_before_upgrade) = toml.backup_before_upgrade {
             self.backup_before_upgrade = backup_before_upgrade;
         }
-        if let Some(bandwidth_limit) = toml.bandwidth_limit {
-            self.bandwidth_limit = bandwidth_limit;
+        if let Some(limit) = toml.bandwidth_limit {
+            self.network.limiter.generic_limit = limit;
         }
-        if let Some(bandwidth_limit_burst_ratio) = toml.bandwidth_limit_burst_ratio {
-            self.bandwidth_limit_burst_ratio = bandwidth_limit_burst_ratio;
+        if let Some(ratio) = toml.bandwidth_limit_burst_ratio {
+            self.network.limiter.generic_burst_ratio = ratio;
         }
-        if let Some(bootstrap_bandwidth_burst_ratio) = toml.bootstrap_bandwidth_burst_ratio {
-            self.bootstrap_bandwidth_burst_ratio = bootstrap_bandwidth_burst_ratio;
+        if let Some(limit) = toml.bootstrap_bandwidth_limit {
+            self.network.limiter.bootstrap_limit = limit;
         }
-        if let Some(bootstrap_bandwidth_limit) = toml.bootstrap_bandwidth_limit {
-            self.bootstrap_bandwidth_limit = bootstrap_bandwidth_limit;
+        if let Some(ratio) = toml.bootstrap_bandwidth_burst_ratio {
+            self.network.limiter.bootstrap_burst_ratio = ratio;
         }
         if let Some(bootstrap_fraction_numerator) = toml.bootstrap_fraction_numerator {
             self.bootstrap_fraction_numerator = bootstrap_fraction_numerator;
@@ -428,10 +428,10 @@ impl From<&NodeConfig> for NodeToml {
             allow_local_peers: Some(config.allow_local_peers),
             background_threads: Some(config.background_threads),
             backup_before_upgrade: Some(config.backup_before_upgrade),
-            bandwidth_limit: Some(config.bandwidth_limit),
-            bandwidth_limit_burst_ratio: Some(config.bandwidth_limit_burst_ratio),
-            bootstrap_bandwidth_burst_ratio: Some(config.bootstrap_bandwidth_burst_ratio),
-            bootstrap_bandwidth_limit: Some(config.bootstrap_bandwidth_limit),
+            bandwidth_limit: Some(config.network.limiter.generic_limit),
+            bandwidth_limit_burst_ratio: Some(config.network.limiter.generic_burst_ratio),
+            bootstrap_bandwidth_limit: Some(config.network.limiter.bootstrap_limit),
+            bootstrap_bandwidth_burst_ratio: Some(config.network.limiter.bootstrap_burst_ratio),
             bootstrap_fraction_numerator: Some(config.bootstrap_fraction_numerator),
             bootstrap_initiator_threads: Some(config.bootstrap_initiator_threads),
             bootstrap_serving_threads: Some(config.bootstrap_serving_threads),
