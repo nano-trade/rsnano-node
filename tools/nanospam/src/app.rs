@@ -1,6 +1,6 @@
 use std::{
-    fs::{remove_dir_all, remove_file},
-    net::SocketAddrV6,
+    fs::remove_dir_all,
+    net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -11,12 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tokio::{
-    io::{AsyncReadExt, ReadHalf, WriteHalf},
-    select,
-    sync::mpsc,
-    time::sleep,
-};
+use tokio::{io::AsyncWriteExt, select, sync::mpsc, time::sleep};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -32,11 +27,11 @@ use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 use crate::{
     account_map::AccountMap,
     block_factory::{BlockFactory, BlockResult},
-    block_publisher::BlockPublisher,
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
 };
 use clap::Parser;
+use rsnano_messages::{Message, MessageSerializer, Publish};
 use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::WalletAddArgs;
 
@@ -127,7 +122,6 @@ impl NanoSpamApp {
         self.tracing_init.init();
         let args = Args::parse();
 
-        let peer_addr: SocketAddrV6 = "[::1]:17075".parse()?;
         let node_id_key = PrivateKey::from(42);
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
         let genesis_hash = self.get_genesis_hash();
@@ -196,8 +190,8 @@ impl NanoSpamApp {
                         .arg("--data-path")
                         .arg(&node_dir)
                         .arg("node")
-                        .arg("run");
-                    //.stdout(Stdio::null());
+                        .arg("run")
+                        .stdout(Stdio::null());
                     cmd
                 };
 
@@ -236,13 +230,17 @@ impl NanoSpamApp {
             MAX_BLOCKS,
         ));
 
-        info!(?peer_addr, "Connecting to node...");
-        let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
+        let mut tcp_streams = Vec::new();
 
-        info!("Performing handshake...");
-        perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
+        for i in 0..args.prs {
+            let peer_addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, peering_port(i), 0, 0);
+            info!(?peer_addr, "Connecting to node PR{i}...");
+            let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
+            info!("Performing handshake...");
+            perform_handshake(protocol, genesis_hash, node_id_key.clone(), &mut tcp_stream).await?;
+            tcp_streams.push(tcp_stream);
+        }
 
-        let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
         let tx_block_clone = tx_block.clone();
         let delayed_blocks = Mutex::new(DelayedBlocks::new());
@@ -294,11 +292,6 @@ impl NanoSpamApp {
                     cancel_ws_recv.clone(),
                     &ws_queue_len,
                 ));
-                scope.spawn(receive_messages(
-                    tcp_read,
-                    protocol,
-                    cancel_tcp_recv.clone(),
-                ));
                 scope.spawn(republish_delayed_blocks(
                     tx_block_clone,
                     &delayed_blocks,
@@ -306,7 +299,7 @@ impl NanoSpamApp {
                 ));
                 scope.spawn(publish_blocks(
                     rx_block,
-                    tcp_write,
+                    tcp_streams,
                     protocol,
                     &delayed_blocks,
                     cancel_tcp_recv,
@@ -381,19 +374,30 @@ fn create_blocks(
 
 async fn publish_blocks(
     mut rx_block: mpsc::Receiver<Block>,
-    tcp_write: WriteHalf<TcpStream>,
+    mut tcp_streams: Vec<TcpStream>,
     protocol: ProtocolInfo,
     delayed_blocks: &Mutex<DelayedBlocks>,
     cancel_token: CancellationToken,
 ) {
-    let mut publisher = BlockPublisher::new(protocol, tcp_write);
+    let mut serializer = MessageSerializer::new(protocol);
     while let Some(block) = rx_block.recv().await {
         let hash = block.hash();
-        publisher.publish(block).await.unwrap();
+
         delayed_blocks
             .lock()
             .unwrap()
             .published(&hash, Instant::now());
+
+        let publish = Message::Publish(Publish::new_from_originator(block));
+        let buffer = serializer.serialize(&publish);
+
+        tokio_scoped::scope(|s| {
+            for stream in &mut tcp_streams {
+                s.spawn(async {
+                    stream.write(buffer).await.unwrap();
+                });
+            }
+        });
     }
     cancel_token.cancel();
 }
@@ -480,30 +484,6 @@ async fn receive_websocket(
         ws_queue_len.fetch_add(1, Ordering::Relaxed);
     }
     info!("receive websocket finished");
-}
-
-async fn receive_messages(
-    mut read: ReadHalf<TcpStream>,
-    _protocol: ProtocolInfo,
-    cancel_token: CancellationToken,
-) {
-    let mut recv_buffer = vec![0; 1024 * 4];
-    //let mut deserializer = MessageDeserializer::new(protocol);
-
-    select! {
-        _ = cancel_token.cancelled() => {},
-        _ = async {
-            loop{
-                let _n = read.read(&mut recv_buffer).await.unwrap();
-                //deserializer.push(&recv_buffer[..n]);
-                //while let Some(msg) = deserializer.try_deserialize() {
-                //    let msg = msg.unwrap();
-                //    debug!(message = ?msg.message, "Received message");
-                //}
-            }
-        } => {}
-    }
-    info!("receive TCP messages finished");
 }
 
 fn pr_key(node_id: usize) -> PrivateKey {
