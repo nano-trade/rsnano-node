@@ -1,5 +1,6 @@
 use std::{
     fs::remove_dir_all,
+    hash::Hash,
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
@@ -16,7 +17,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use rsnano_core::{
-    Amount, Block, BlockHash, Networks, PrivateKey, ProtocolInfo, WalletId, WorkNonce,
+    Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, StateBlockArgs,
+    WalletId, WorkNonce,
 };
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
@@ -42,7 +44,8 @@ const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 const INITIAL_BPS: usize = 1;
 const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(3);
-const BPS_INCREASE: usize = 5;
+const BPS_INCREASE: usize = 50;
+const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 
 const GENESIS_BLOCK: &str = r#"{
     "type": "open",
@@ -139,13 +142,15 @@ impl NanoSpamApp {
         let genesis_rpc =
             NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(0)).parse().unwrap());
 
+        let initial_key = AccountMap::initial_spam_key();
+
         if !args.attach {
             if data_dir.exists() {
                 info!("Deleting data from previous run: {data_dir:?}...");
                 remove_dir_all(&data_dir).unwrap();
             }
 
-            let pr_balance = (Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT) / args.prs as u128;
+            let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
             let mut genesis_wallet = WalletId::zero();
 
             for i in 0..args.prs {
@@ -248,7 +253,7 @@ impl NanoSpamApp {
                         pr_balance.format_balance(0),
                         pr_key.account().encode_account()
                     );
-                    let block = genesis_rpc
+                    let send_hash = genesis_rpc
                         .send(SendArgs {
                             wallet: genesis_wallet,
                             source: genesis_key.account(),
@@ -258,41 +263,54 @@ impl NanoSpamApp {
                             id: None,
                         })
                         .await
-                        .unwrap();
-
-                    info!("Waiting for confirmation...");
-                    loop {
-                        if let Ok(info) = rpc_client.block_info(block.block).await {
-                            if info.confirmed.inner() {
-                                break;
-                            }
-                        }
-                        sleep(Duration::from_millis(100)).await;
-                    }
+                        .unwrap()
+                        .block;
+                    wait_until_confirmed(&rpc_client, send_hash).await;
 
                     info!("Receiving...");
-                    let recv = rpc_client
+                    let recv_hash = rpc_client
                         .receive(ReceiveArgs {
                             wallet: resp.wallet,
                             account: pr_key.account(),
-                            block: block.block,
+                            block: send_hash,
                             work: Some(WorkNonce::new(0)),
                         })
                         .await
-                        .unwrap();
-                    info!("Waiting for confirmation...");
-                    loop {
-                        if let Ok(info) = rpc_client.block_info(recv.block).await {
-                            if info.confirmed.inner() {
-                                break;
-                            }
-                        }
-                        sleep(Duration::from_millis(100)).await;
-                    }
+                        .unwrap()
+                        .block;
+                    wait_until_confirmed(&rpc_client, recv_hash).await;
                     info!("DONE");
                     info!("********************************************************************************");
                 }
             }
+
+            info!("Sending initial spam amount...");
+            // Send total spam amount
+            let genesis_send = genesis_rpc
+                .send(SendArgs {
+                    wallet: genesis_wallet,
+                    source: genesis_key.account(),
+                    destination: initial_key.account(),
+                    amount: INITIAL_AMOUNT,
+                    work: Some(0.into()),
+                    id: None,
+                })
+                .await
+                .unwrap()
+                .block;
+            wait_until_confirmed(&genesis_rpc, genesis_send).await;
+            info!("Receiving initial spam amount...");
+            let block: Block = StateBlockArgs {
+                key: &initial_key,
+                previous: BlockHash::zero(),
+                representative: initial_key.public_key(),
+                balance: INITIAL_AMOUNT,
+                link: genesis_send.into(),
+                work: 0.into(),
+            }
+            .into();
+            let recv = genesis_rpc.process(JsonBlock::from(block)).await.unwrap();
+            wait_until_confirmed(&genesis_rpc, recv.hash).await;
         }
 
         if args.setup_only {
@@ -300,21 +318,16 @@ impl NanoSpamApp {
         }
 
         info!("Creating account keys...");
-        let mut account_map = AccountMap::default();
-        account_map.fill(SPAM_ACCOUNTS);
-
-        let genesis_info = genesis_rpc
-            .account_info(genesis_key.account())
+        let frontier = genesis_rpc
+            .account_info(initial_key.account())
             .await
-            .unwrap();
+            .unwrap()
+            .frontier;
 
-        let block_factory = Mutex::new(BlockFactory::new(
-            genesis_key,
-            genesis_info.frontier,
-            genesis_info.balance,
-            account_map,
-            MAX_BLOCKS,
-        ));
+        let mut account_map = AccountMap::default();
+        account_map.fill(SPAM_ACCOUNTS, INITIAL_AMOUNT, frontier);
+
+        let block_factory = Mutex::new(BlockFactory::new(account_map, MAX_BLOCKS));
 
         let mut tcp_streams = Vec::new();
 
@@ -581,4 +594,16 @@ fn pr_key(node_id: usize) -> PrivateKey {
 
 fn genesis_key() -> PrivateKey {
     PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
+}
+
+async fn wait_until_confirmed(rpc_client: &NanoRpcClient, hash: BlockHash) {
+    info!("Waiting for confirmation...");
+    loop {
+        if let Ok(info) = rpc_client.block_info(hash).await {
+            if info.confirmed.inner() {
+                break;
+            }
+        }
+        sleep(Duration::from_millis(100)).await;
+    }
 }
