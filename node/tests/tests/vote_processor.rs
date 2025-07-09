@@ -12,8 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use test_helpers::{
-    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq2, setup_chain,
-    start_election, System,
+    assert_always_eq, assert_timely2, assert_timely_eq2, setup_chain, start_election, System,
 };
 
 #[test]
@@ -177,9 +176,9 @@ fn weights() {
     let level1 = stake / 500; // 0.2%
     let level2 = stake / 50; // 2%
 
-    let key0 = PrivateKey::new();
     let key1 = PrivateKey::new();
     let key2 = PrivateKey::new();
+    let key3 = PrivateKey::new();
 
     let wallet_id0 = node0.wallets.wallet_ids()[0];
     let wallet_id1 = node1.wallets.wallet_ids()[0];
@@ -187,27 +186,27 @@ fn weights() {
     let wallet_id3 = node3.wallets.wallet_ids()[0];
 
     node0.insert_into_wallet(&DEV_GENESIS_KEY);
-    node1.insert_into_wallet(&key0);
-    node2.insert_into_wallet(&key1);
-    node3.insert_into_wallet(&key2);
+    node1.insert_into_wallet(&key1);
+    node2.insert_into_wallet(&key2);
+    node3.insert_into_wallet(&key3);
 
     node1
         .wallets
-        .set_representative(wallet_id1, key0.public_key(), false)
+        .set_representative(wallet_id1, key1.public_key(), false)
         .unwrap();
     node2
         .wallets
-        .set_representative(wallet_id2, key1.public_key(), false)
+        .set_representative(wallet_id2, key2.public_key(), false)
         .unwrap();
     node3
         .wallets
-        .set_representative(wallet_id3, key2.public_key(), false)
+        .set_representative(wallet_id3, key3.public_key(), false)
         .unwrap();
 
     node0.wallets.send_sync(
         wallet_id0,
         *DEV_GENESIS_ACCOUNT,
-        key0.account(),
+        key1.account(),
         level0,
         0.into(),
         true,
@@ -216,7 +215,7 @@ fn weights() {
     node0.wallets.send_sync(
         wallet_id0,
         *DEV_GENESIS_ACCOUNT,
-        key1.account(),
+        key2.account(),
         level1,
         0.into(),
         true,
@@ -226,7 +225,7 @@ fn weights() {
     node0.wallets.send_sync(
         wallet_id0,
         *DEV_GENESIS_ACCOUNT,
-        key2.account(),
+        key3.account(),
         level2,
         0.into(),
         true,
@@ -234,13 +233,12 @@ fn weights() {
     );
 
     // Wait for representatives
-    assert_timely(Duration::from_secs(10), || {
-        node0.ledger.rep_weights.len() == 4
-    });
+    assert_timely2(|| node0.ledger.rep_weights.len() == 4);
+    node0.online_reps.lock().unwrap().set_trended(Amount::MAX);
 
     // Wait for rep tiers to be updated
     node0.stats.clear();
-    assert_timely(Duration::from_secs(5), || {
+    assert_timely2(|| {
         node0
             .stats
             .count(StatType::RepTiers, DetailType::Updated, Direction::In)
@@ -248,15 +246,15 @@ fn weights() {
     });
 
     assert_timely_eq2(
-        || node0.rep_tiers.lock().unwrap().tier(&key0.public_key()),
+        || node0.rep_tiers.lock().unwrap().tier(&key1.public_key()),
         RepTier::None,
     );
     assert_timely_eq2(
-        || node0.rep_tiers.lock().unwrap().tier(&key1.public_key()),
+        || node0.rep_tiers.lock().unwrap().tier(&key2.public_key()),
         RepTier::Tier1,
     );
     assert_timely_eq2(
-        || node0.rep_tiers.lock().unwrap().tier(&key2.public_key()),
+        || node0.rep_tiers.lock().unwrap().tier(&key3.public_key()),
         RepTier::Tier2,
     );
     assert_timely_eq2(

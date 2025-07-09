@@ -1564,7 +1564,7 @@ impl Node {
         self.rep_tiers_calculator.start(if is_dev_network {
             Duration::from_millis(500)
         } else {
-            Duration::from_secs(60 * 10)
+            Duration::from_secs(10)
         });
         if self.config.enable_vote_processor {
             self.vote_processor.start();

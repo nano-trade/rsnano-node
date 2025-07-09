@@ -4,9 +4,9 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
+        Mutex,
         atomic::{AtomicUsize, Ordering},
         mpsc::{Receiver, Sender},
-        Mutex,
     },
     thread::yield_now,
     time::{Duration, Instant},
@@ -154,7 +154,9 @@ impl NanoSpamApp {
             let mut genesis_wallet = WalletId::zero();
 
             for i in 0..args.prs {
-                info!("********************************************************************************");
+                info!(
+                    "********************************************************************************"
+                );
                 info!("Setting up node PR{i}...");
 
                 let mut node_dir = data_dir.clone();
@@ -280,7 +282,9 @@ impl NanoSpamApp {
                         .block;
                     wait_until_confirmed(&rpc_client, recv_hash).await;
                     info!("DONE");
-                    info!("********************************************************************************");
+                    info!(
+                        "********************************************************************************"
+                    );
                 }
             }
 

@@ -103,21 +103,9 @@ impl ContainerInfoProvider for CurrentRepTiers {
     fn container_info(&self) -> ContainerInfo {
         let tiers = self.lock().unwrap();
         [
-            (
-                "representatives_1",
-                tiers.tier1.len(),
-                size_of::<PublicKey>(),
-            ),
-            (
-                "representatives_2",
-                tiers.tier2.len(),
-                size_of::<PublicKey>(),
-            ),
-            (
-                "representatives_3",
-                tiers.tier3.len(),
-                size_of::<PublicKey>(),
-            ),
+            ("tier_1", tiers.tier1.len(), size_of::<PublicKey>()),
+            ("tier_2", tiers.tier2.len(), size_of::<PublicKey>()),
+            ("tier_3", tiers.tier3.len(), size_of::<PublicKey>()),
         ]
         .into()
     }
@@ -219,12 +207,6 @@ impl RepTiersCalculator {
             tier2: new_tier2,
             tier3: new_tier3,
         };
-        //{
-        //    let mut guard = self.tiers.lock().unwrap();
-        //    guard.tier1 = new_rep_tiers.tier1.clone();
-        //    guard.tier2 = new_rep_tiers.tier2.clone();
-        //    guard.tier3 = new_rep_tiers.tier3.clone();
-        //}
 
         for consumer in &self.consumers {
             consumer.update_rep_tiers(new_rep_tiers.clone());
