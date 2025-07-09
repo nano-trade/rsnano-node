@@ -45,7 +45,7 @@ impl OnlineReps {
     pub const fn default_interval_for(network: Networks) -> Duration {
         match network {
             Networks::NanoDevNetwork => Duration::from_secs(1),
-            _ => Duration::from_secs(5 * 60),
+            _ => Duration::from_secs(20),
         }
     }
 
@@ -91,11 +91,6 @@ impl OnlineReps {
 
     pub fn online_weight_minimum(&self) -> Amount {
         self.online_weight_minimum
-    }
-
-    // TODO remove
-    pub fn set_online(&mut self, amount: Amount) {
-        self.online_weight = amount;
     }
 
     #[allow(dead_code)]
@@ -260,7 +255,7 @@ impl OnlineReps {
         }
     }
 
-    fn calculate_online_weight(&mut self) {
+    pub fn calculate_online_weight(&mut self) {
         let mut current = Amount::zero();
         let rep_weights = self.rep_weights.read();
         for account in self.online_reps.iter() {
