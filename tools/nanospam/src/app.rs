@@ -1,6 +1,5 @@
 use std::{
     fs::remove_dir_all,
-    hash::Hash,
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
@@ -35,15 +34,15 @@ use crate::{
 };
 use clap::Parser;
 use rsnano_messages::{Message, MessageSerializer, Publish};
-use rsnano_rpc_client::{NanoRpcClient, Url};
-use rsnano_rpc_messages::{SendArgs, WalletAddArgs};
+use rsnano_rpc_client::NanoRpcClient;
+use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
 
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
-const INITIAL_BPS: usize = 50;
+const INITIAL_BPS: usize = 1;
 const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(3);
-const BPS_INCREASE: usize = 50;
+const BPS_INCREASE: usize = 5;
 
 const GENESIS_BLOCK: &str = r#"{
     "type": "open",
@@ -100,6 +99,10 @@ struct Args {
     /// Use C++ nano_node implementation
     #[arg(long, default_value_t = false)]
     cpp: bool,
+
+    /// Only create the node config files and set up the wallets, then exit
+    #[arg(long, default_value_t = false)]
+    setup_only: bool,
 }
 
 #[derive(Default)]
@@ -133,6 +136,9 @@ impl NanoSpamApp {
         let mut data_dir = dirs::home_dir().unwrap();
         data_dir.push("NanoSpam");
 
+        let genesis_rpc =
+            NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(0)).parse().unwrap());
+
         if !args.attach {
             if data_dir.exists() {
                 info!("Deleting data from previous run: {data_dir:?}...");
@@ -140,11 +146,10 @@ impl NanoSpamApp {
             }
 
             let pr_balance = (Amount::MAX - BlockFactory::INITIAL_AMOUNT_SENT) / args.prs as u128;
-            let genesis_rpc =
-                NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(0)).parse().unwrap());
             let mut genesis_wallet = WalletId::zero();
 
             for i in 0..args.prs {
+                info!("********************************************************************************");
                 info!("Setting up node PR{i}...");
 
                 let mut node_dir = data_dir.clone();
@@ -204,6 +209,7 @@ impl NanoSpamApp {
                 info!("Starting node: {cmd:?}");
                 cmd.stdout(Stdio::null()).spawn().unwrap();
 
+                // Set up wallet
                 let rpc_client =
                     NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(i)).parse().unwrap());
                 info!("Waiting for RPC...");
@@ -211,56 +217,101 @@ impl NanoSpamApp {
                     sleep(Duration::from_millis(100)).await;
                 }
 
-                if rpc_client.wallet_list().await.unwrap().is_empty() {
-                    info!("Creating wallet...");
-                    let resp = rpc_client.wallet_create(None).await.unwrap();
-                    if i == 0 {
-                        genesis_wallet = resp.wallet;
-                    }
-                    let pr_key = pr_key(i);
+                info!("Creating wallet...");
+                let resp = rpc_client.wallet_create(None).await.unwrap();
+                if i == 0 {
+                    genesis_wallet = resp.wallet;
+                }
+                let pr_key = pr_key(i);
+                rpc_client
+                    .wallet_add(WalletAddArgs {
+                        wallet: resp.wallet,
+                        key: pr_key.raw_key(),
+                        work: None,
+                    })
+                    .await
+                    .unwrap();
+
+                if i > 0 {
+                    info!("Setting default representative...");
                     rpc_client
-                        .wallet_add(WalletAddArgs {
+                        .wallet_representative_set(WalletRepresentativeSetArgs {
                             wallet: resp.wallet,
-                            key: pr_key.raw_key(),
-                            work: None,
+                            representative: pr_key.account(),
+                            update_existing_accounts: Some(false.into()),
                         })
                         .await
                         .unwrap();
 
-                    if i > 0 {
-                        info!("Sending PR amount: Ӿ{} ...", pr_balance.format_balance(0));
-                        let block = genesis_rpc
-                            .send(SendArgs {
-                                wallet: genesis_wallet,
-                                source: genesis_key.account(),
-                                destination: pr_key.account(),
-                                amount: pr_balance,
-                                work: Some(WorkNonce::new(0)),
-                                id: None,
-                            })
-                            .await
-                            .unwrap();
-                        info!("Waiting for confirmation...");
-                        sleep(Duration::from_millis(500)).await;
-                        loop {
-                            let info = rpc_client.block_info(block.block).await.unwrap();
+                    info!(
+                        "Sending Ӿ{} to PR{i} wallet {} ...",
+                        pr_balance.format_balance(0),
+                        pr_key.account().encode_account()
+                    );
+                    let block = genesis_rpc
+                        .send(SendArgs {
+                            wallet: genesis_wallet,
+                            source: genesis_key.account(),
+                            destination: pr_key.account(),
+                            amount: pr_balance,
+                            work: Some(WorkNonce::new(0)),
+                            id: None,
+                        })
+                        .await
+                        .unwrap();
+
+                    info!("Waiting for confirmation...");
+                    loop {
+                        if let Ok(info) = rpc_client.block_info(block.block).await {
                             if info.confirmed.inner() {
                                 break;
                             }
-                            sleep(Duration::from_millis(100)).await;
                         }
+                        sleep(Duration::from_millis(100)).await;
                     }
+
+                    info!("Receiving...");
+                    let recv = rpc_client
+                        .receive(ReceiveArgs {
+                            wallet: resp.wallet,
+                            account: pr_key.account(),
+                            block: block.block,
+                            work: Some(WorkNonce::new(0)),
+                        })
+                        .await
+                        .unwrap();
+                    info!("Waiting for confirmation...");
+                    loop {
+                        if let Ok(info) = rpc_client.block_info(recv.block).await {
+                            if info.confirmed.inner() {
+                                break;
+                            }
+                        }
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                    info!("DONE");
+                    info!("********************************************************************************");
                 }
             }
+        }
+
+        if args.setup_only {
+            return Ok(());
         }
 
         info!("Creating account keys...");
         let mut account_map = AccountMap::default();
         account_map.fill(SPAM_ACCOUNTS);
 
+        let genesis_info = genesis_rpc
+            .account_info(genesis_key.account())
+            .await
+            .unwrap();
+
         let block_factory = Mutex::new(BlockFactory::new(
             genesis_key,
-            genesis_hash,
+            genesis_info.frontier,
+            genesis_info.balance,
             account_map,
             MAX_BLOCKS,
         ));
@@ -417,14 +468,13 @@ async fn publish_blocks(
     let mut serializer = MessageSerializer::new(protocol);
     while let Some(block) = rx_block.recv().await {
         let hash = block.hash();
+        let publish = Message::Publish(Publish::new_from_originator(block));
+        let buffer = serializer.serialize(&publish);
 
         delayed_blocks
             .lock()
             .unwrap()
             .published(&hash, Instant::now());
-
-        let publish = Message::Publish(Publish::new_from_originator(block));
-        let buffer = serializer.serialize(&publish);
 
         tokio_scoped::scope(|s| {
             for stream in &mut tcp_streams {

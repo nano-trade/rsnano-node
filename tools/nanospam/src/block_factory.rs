@@ -4,7 +4,8 @@ use rsnano_core::{Amount, Block, BlockHash, PrivateKey, StateBlockArgs};
 
 pub(crate) struct BlockFactory {
     genesis_key: PrivateKey,
-    genesis_hash: BlockHash,
+    genesis_frontier: BlockHash,
+    genesis_balance: Amount,
     max_blocks: usize,
     created: usize,
     account_map: AccountMap,
@@ -30,13 +31,15 @@ impl BlockFactory {
 
     pub(crate) fn new(
         genesis_key: PrivateKey,
-        genesis_hash: BlockHash,
+        genesis_frontier: BlockHash,
+        genesis_balance: Amount,
         account_map: AccountMap,
         max_blocks: usize,
     ) -> Self {
         Self {
             genesis_key,
-            genesis_hash,
+            genesis_frontier,
+            genesis_balance,
             max_blocks,
             created: 0,
             account_map,
@@ -98,9 +101,9 @@ impl BlockFactory {
                 // Initial send from genesis account
                 let genesis_send: Block = StateBlockArgs {
                     key: &self.genesis_key,
-                    previous: self.genesis_hash,
+                    previous: self.genesis_frontier,
                     representative: self.genesis_key.public_key(),
-                    balance: Amount::MAX - Self::INITIAL_AMOUNT_SENT,
+                    balance: self.genesis_balance - Self::INITIAL_AMOUNT_SENT,
                     link: destination.into(),
                     work: 0.into(),
                 }
@@ -140,6 +143,7 @@ mod tests {
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
             TEST_GENESIS_HASH,
+            Amount::MAX,
             test_account_map(),
             MAX_BLOCKS,
         );
@@ -164,6 +168,7 @@ mod tests {
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
             TEST_GENESIS_HASH,
+            Amount::MAX,
             test_account_map(),
             MAX_BLOCKS,
         );
@@ -182,6 +187,7 @@ mod tests {
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
             TEST_GENESIS_HASH,
+            Amount::MAX,
             test_account_map(),
             MAX_BLOCKS,
         );
@@ -225,6 +231,7 @@ mod tests {
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
             TEST_GENESIS_HASH,
+            Amount::MAX,
             account_map,
             MAX_BLOCKS,
         );
@@ -254,6 +261,7 @@ mod tests {
         let mut block_factory = BlockFactory::new(
             TEST_GENESIS_KEY.clone(),
             TEST_GENESIS_HASH,
+            Amount::MAX,
             account_map,
             block_count,
         );
