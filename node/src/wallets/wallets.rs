@@ -1400,7 +1400,7 @@ impl WalletsExt for Arc<Wallets> {
         } else if self.network_params.network.is_test_network() {
             test_scan_wallet_reps_delay()
         } else {
-            Duration::from_secs(60 * 15)
+            Duration::from_secs(10)
         };
 
         let self_l = Arc::clone(self);
@@ -2219,6 +2219,6 @@ impl WalletsExt for Arc<Wallets> {
 }
 
 fn test_scan_wallet_reps_delay() -> Duration {
-    let test_env = get_env_or_default_string("NANO_TEST_WALLET_SCAN_REPS_DELAY", "900000"); // 15 minutes by default
+    let test_env = get_env_or_default_string("NANO_TEST_WALLET_SCAN_REPS_DELAY", "10000"); // 10 seconds by default
     Duration::from_millis(test_env.parse().unwrap())
 }
