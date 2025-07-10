@@ -11,8 +11,7 @@ use crate::{representatives::PeeredRepInfo, transport::MessageFlooder};
 pub struct ConfirmationSolicitor {
     /// Maximum amount of requests to be sent per election, bypassed if an existing vote is for a different hash
     max_election_requests: usize,
-    representative_requests: Vec<PeeredRepInfo>,
-    representative_broadcasts: Vec<PeeredRepInfo>,
+    representatives: Vec<PeeredRepInfo>,
     requests: HashMap<ChannelId, (Arc<Channel>, Vec<(BlockHash, Root)>)>,
     prepared: bool,
     message_flooder: MessageFlooder,
@@ -23,8 +22,7 @@ impl ConfirmationSolicitor {
         Self {
             max_election_requests: 50,
             prepared: false,
-            representative_requests: Vec::new(),
-            representative_broadcasts: Vec::new(),
+            representatives: Vec::new(),
             requests: HashMap::new(),
             message_flooder,
         }
@@ -34,8 +32,7 @@ impl ConfirmationSolicitor {
     pub fn prepare(&mut self, representatives: &[PeeredRepInfo]) {
         debug_assert!(!self.prepared);
         self.requests.clear();
-        self.representative_requests = representatives.to_vec();
-        self.representative_broadcasts = representatives.to_vec();
+        self.representatives = representatives.to_vec();
         self.prepared = true;
     }
 
@@ -46,7 +43,7 @@ impl ConfirmationSolicitor {
         let mut rep_request_count = 0;
         let winner = election.winner();
         let mut to_remove = Vec::new();
-        for rep in &self.representative_requests {
+        for rep in &self.representatives {
             if rep_request_count >= self.max_election_requests {
                 break;
             }
@@ -88,7 +85,7 @@ impl ConfirmationSolicitor {
         }
 
         if !to_remove.is_empty() {
-            self.representative_requests
+            self.representatives
                 .retain(|i| !to_remove.contains(&i.rep_key));
         }
 
