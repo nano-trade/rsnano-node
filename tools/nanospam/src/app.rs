@@ -107,7 +107,7 @@ struct Args {
     attach: bool,
 
     #[arg(long)]
-    /// Block rate in the form "1000+100@3s"
+    /// Block rate in the form "1000+50@3s" or "1000"
     rate: Option<String>,
 
     #[arg(long)]
