@@ -38,6 +38,7 @@ use crate::{
     block_factory::{BlockFactory, BlockResult},
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
+    rate_spec::RateSpec,
 };
 use clap::Parser;
 use rsnano_messages::{Message, MessageSerializer, Publish};
@@ -47,10 +48,8 @@ use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresenta
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
-const INITIAL_BPS: usize = 5000;
-const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(3);
-const BPS_INCREASE: usize = 50;
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
+const DEFAULT_RATE: &str = "1+50@3s";
 
 const GENESIS_BLOCK: &str = r#"{
     "type": "open",
@@ -107,6 +106,9 @@ struct Args {
     /// Attach to an already running node
     #[arg(long, default_value_t = false)]
     attach: bool,
+
+    /// block rate in the form "1000+100@3s"
+    rate: Option<String>,
 }
 
 #[derive(Default)]
@@ -136,6 +138,12 @@ impl NanoSpamApp {
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
         let genesis_hash = self.get_genesis_hash();
         let genesis_key = genesis_key();
+        let rate_spec: RateSpec = args
+            .rate
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or(DEFAULT_RATE)
+            .parse()?;
 
         let mut data_dir = dirs::home_dir().unwrap();
         data_dir.push("NanoSpam");
@@ -337,7 +345,7 @@ impl NanoSpamApp {
         let delayed_blocks = Mutex::new(DelayedBlocks::new());
         let cancel_tcp_recv = CancellationToken::new();
         let cancel_ws_recv = CancellationToken::new();
-        let current_bps = AtomicUsize::new(INITIAL_BPS);
+        let current_bps = AtomicUsize::new(rate_spec.initial_bps);
 
         info!("Connecting to websocket...");
         let mut ws_client = NanoWebSocketClientFactory::default()
@@ -374,7 +382,15 @@ impl NanoSpamApp {
                     &current_bps,
                 )
             });
-            s.spawn(|| create_blocks(&block_factory, tx_block, &delayed_blocks, &current_bps));
+            s.spawn(|| {
+                create_blocks(
+                    &block_factory,
+                    tx_block,
+                    &delayed_blocks,
+                    &current_bps,
+                    rate_spec,
+                )
+            });
 
             tokio_scoped::scope(|scope| {
                 scope.spawn(receive_websocket(
@@ -436,6 +452,7 @@ fn create_blocks(
     tx_block: mpsc::Sender<Block>,
     delayed_blocks: &Mutex<DelayedBlocks>,
     current_bps: &AtomicUsize,
+    rate_spec: RateSpec,
 ) {
     let mut bps_start = Instant::now();
     let mut limiter = RateLimiter::new(current_bps.load(Ordering::Relaxed));
@@ -459,8 +476,9 @@ fn create_blocks(
         }
 
         tx_block.blocking_send(block).unwrap();
-        if bps_start.elapsed() >= BPS_INCREASE_INTERVAL {
-            let new_bps = current_bps.fetch_add(BPS_INCREASE, Ordering::Relaxed) + BPS_INCREASE;
+        if bps_start.elapsed() >= rate_spec.interval {
+            let new_bps =
+                current_bps.fetch_add(rate_spec.increment, Ordering::Relaxed) + rate_spec.increment;
             limiter.set_limit(new_bps);
             bps_start = Instant::now();
         }

@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Context};
 use std::{str::FromStr, time::Duration};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -24,11 +25,11 @@ impl RateSpec {
         }
     }
 
-    fn parse_bps(input: &str) -> Result<usize, &'static str> {
-        input.parse().map_err(|_| "invalid bps")
+    fn parse_bps(input: &str) -> anyhow::Result<usize> {
+        input.parse().context("invalid bps")
     }
 
-    fn parse_increment_and_interval(input: &str) -> Result<(usize, Duration), &'static str> {
+    fn parse_increment_and_interval(input: &str) -> anyhow::Result<(usize, Duration)> {
         if input.is_empty() {
             Ok((0, Duration::ZERO))
         } else {
@@ -43,11 +44,11 @@ impl RateSpec {
         }
     }
 
-    fn parse_increment(input: &str) -> Result<usize, &'static str> {
-        input.parse().map_err(|_| "invalid increment")
+    fn parse_increment(input: &str) -> anyhow::Result<usize> {
+        input.parse().context("invalid increment")
     }
 
-    fn parse_interval(input: &str) -> Result<Duration, &'static str> {
+    fn parse_interval(input: &str) -> anyhow::Result<Duration> {
         if input.is_empty() {
             return Ok(Duration::from_secs(1));
         }
@@ -60,15 +61,15 @@ impl RateSpec {
             return Ok(Duration::from_secs(60 * mins?));
         }
 
-        Err("invalid interval")
+        Err(anyhow!("invalid interval"))
     }
 
-    fn try_parse_suffix(suffix: &str, input: &str) -> Option<Result<u64, &'static str>> {
+    fn try_parse_suffix(suffix: &str, input: &str) -> Option<anyhow::Result<u64>> {
         if input.ends_with(suffix) {
             Some(
                 input[..input.len() - suffix.len()]
                     .parse::<u64>()
-                    .map_err(|_| "invalid interval"),
+                    .context("invalid interval"),
             )
         } else {
             None
@@ -77,7 +78,7 @@ impl RateSpec {
 }
 
 impl FromStr for RateSpec {
-    type Err = &'static str;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some((bps_str, incr_str)) = s.split_once('+') {
@@ -148,14 +149,14 @@ mod tests {
 
     fn assert_parse(input: &str, expected: RateSpec) {
         assert_eq!(
-            input.parse::<RateSpec>(),
-            Ok(expected),
+            input.parse::<RateSpec>().unwrap(),
+            expected,
             "input string: {}",
             input
         );
     }
 
     fn assert_parse_fails(input: &str, error: &str) {
-        assert_eq!(input.parse::<RateSpec>(), Err(error));
+        assert_eq!(input.parse::<RateSpec>().unwrap_err().to_string(), error);
     }
 }
