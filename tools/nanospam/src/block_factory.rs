@@ -32,7 +32,7 @@ impl BlockFactory {
     }
 
     pub fn create_next(&mut self) -> Option<BlockResult> {
-        if self.created >= self.max_blocks {
+        if self.max_blocks > 0 && self.created >= self.max_blocks {
             return None;
         }
 
@@ -89,6 +89,10 @@ impl BlockFactory {
     pub fn confirm(&mut self, hash: BlockHash) {
         self.account_map.confirm(hash);
     }
+
+    pub fn created(&self) -> usize {
+        self.created
+    }
 }
 
 #[cfg(test)]
@@ -110,12 +114,10 @@ mod tests {
 
         assert_eq!(account, AccountMap::initial_spam_key().account());
         assert!(block_factory.account_map.contains(&destination));
-        assert!(
-            block_factory
-                .account_map
-                .get_receivable(&destination)
-                .is_some()
-        );
+        assert!(block_factory
+            .account_map
+            .get_receivable(&destination)
+            .is_some());
     }
 
     #[test]

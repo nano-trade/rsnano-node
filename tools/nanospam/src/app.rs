@@ -46,7 +46,6 @@ use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
 
 const SPAM_ACCOUNTS: usize = 500_000;
-const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 const DEFAULT_RATE: &str = "1+50@3s";
@@ -107,8 +106,13 @@ struct Args {
     #[arg(long, default_value_t = false)]
     attach: bool,
 
-    /// block rate in the form "1000+100@3s"
+    #[arg(long)]
+    /// Block rate in the form "1000+100@3s"
     rate: Option<String>,
+
+    #[arg(long)]
+    /// Number of blocks to publish
+    blocks: Option<usize>,
 }
 
 #[derive(Default)]
@@ -324,7 +328,7 @@ impl NanoSpamApp {
         let mut account_map = AccountMap::default();
         account_map.fill(SPAM_ACCOUNTS, INITIAL_AMOUNT, frontier);
 
-        let block_factory = Mutex::new(BlockFactory::new(account_map, MAX_BLOCKS));
+        let block_factory = Mutex::new(BlockFactory::new(account_map, args.blocks.unwrap_or(0)));
 
         let mut tcp_writers = Vec::new();
         let mut tcp_readers = Vec::new();
@@ -419,10 +423,11 @@ impl NanoSpamApp {
             });
         });
         let duration_secs = started.elapsed().as_secs_f64();
-        let cps = (MAX_BLOCKS as f64 / duration_secs) as i32;
+        let created_blocks = block_factory.lock().unwrap().created();
+        let cps = (created_blocks as f64 / duration_secs) as i32;
         info!("Confirming all blocks took {duration_secs:.2}s");
         info!("Confirmation rate: {cps} cps");
-        let conf_time = sum_conf_time.as_millis() / MAX_BLOCKS as u128;
+        let conf_time = sum_conf_time.as_millis() / created_blocks as u128;
         info!("Average conf time: {conf_time} ms");
         Ok(())
     }
