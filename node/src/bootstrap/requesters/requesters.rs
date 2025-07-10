@@ -7,7 +7,7 @@ use rsnano_ledger::Ledger;
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_network::Network;
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::Stats;
+use rsnano_stats::{Stats, StatsCollection, StatsSource};
 
 use super::{
     bootstrap_promise_runner::BootstrapPromiseRunner, channel_waiter::ChannelWaiter,
@@ -34,6 +34,7 @@ pub(crate) struct Requesters {
     ledger: Arc<Ledger>,
     block_processor_queue: Arc<BlockProcessorQueue>,
     network: Arc<RwLock<Network>>,
+    stats_sources: Mutex<Vec<Arc<dyn StatsSource + Send + Sync>>>,
 }
 
 impl Requesters {
@@ -61,6 +62,7 @@ impl Requesters {
             block_processor_queue,
             network,
             threads: Mutex::new(None),
+            stats_sources: Mutex::new(Vec::new()),
         }
     }
 
@@ -94,13 +96,13 @@ impl Requesters {
         let priorities = if self.config.enable_priorities {
             let mut requester = PriorityRequester::new(
                 self.block_processor_queue.clone(),
-                self.stats.clone(),
                 channel_waiter.clone(),
                 self.clock.clone(),
                 self.ledger.clone(),
                 &self.config,
             );
             requester.block_processor_threshold = self.config.block_processor_theshold;
+            self.stats_sources.lock().unwrap().push(requester.stats());
 
             Some(self.spawn_query("Bootstrap", requester, runner.clone()))
         } else {
@@ -182,6 +184,14 @@ impl RequesterThreads {
         }
         if let Some(frontiers) = self.frontiers.take() {
             frontiers.join().unwrap();
+        }
+    }
+}
+
+impl StatsSource for Requesters {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        for s in self.stats_sources.lock().unwrap().iter() {
+            s.collect_stats(result);
         }
     }
 }

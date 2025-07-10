@@ -14,7 +14,7 @@ use rsnano_ledger::{Ledger, ProcessedResult};
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
 use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DeadChannelCleanupStep, Network};
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, Sample, StatType, Stats};
+use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{
     block_inspector::BlockInspector,
@@ -286,6 +286,12 @@ impl Drop for Bootstrapper {
 impl ContainerInfoProvider for Bootstrapper {
     fn container_info(&self) -> ContainerInfo {
         self.state.lock().unwrap().container_info()
+    }
+}
+
+impl StatsSource for Bootstrapper {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        self.requesters.collect_stats(result);
     }
 }
 

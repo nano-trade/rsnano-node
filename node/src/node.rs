@@ -1231,6 +1231,7 @@ impl Node {
         stats_collector.add_source(backlog_waiter.clone());
         stats_collector.add_source(conf_time_stats);
         stats_collector.add_source(winner_block_broadcaster.clone());
+        stats_collector.add_source(bootstrapper.clone());
 
         let mut container_info = ContainerInfoFactory::new();
         container_info.add("work", work_factory.clone());

@@ -1,9 +1,12 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use rsnano_ledger::{BlockSource, Ledger};
 use rsnano_network::Channel;
 use rsnano_nullable_clock::SteadyClock;
-use rsnano_stats::{DetailType, StatType, Stats};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{
     pull_count_decider::PullCountDecider, pull_type_decider::PullTypeDecider,
@@ -20,17 +23,16 @@ use crate::{
 pub(crate) struct PriorityRequester {
     state: PriorityState,
     block_processor_queue: Arc<BlockProcessorQueue>,
-    stats: Arc<Stats>,
     channel_waiter: ChannelWaiter,
     pub block_processor_threshold: usize,
     query_factory: QueryFactory,
     clock: Arc<SteadyClock>,
+    stats: Arc<PriorityRequesterStats>,
 }
 
 impl PriorityRequester {
     pub(crate) fn new(
         block_processor_queue: Arc<BlockProcessorQueue>,
-        stats: Arc<Stats>,
         channel_waiter: ChannelWaiter,
         clock: Arc<SteadyClock>,
         ledger: Arc<Ledger>,
@@ -43,12 +45,16 @@ impl PriorityRequester {
         Self {
             state: PriorityState::Initial,
             block_processor_queue,
-            stats,
+            stats: Default::default(),
             channel_waiter,
             query_factory,
             block_processor_threshold: 1000,
             clock,
         }
+    }
+
+    pub fn stats(&self) -> Arc<PriorityRequesterStats> {
+        self.stats.clone()
     }
 
     fn block_processor_free(&self) -> bool {
@@ -68,7 +74,7 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
     fn poll(&mut self, state: &mut BootstrapState) -> PollResult<AscPullQuerySpec> {
         match self.state {
             PriorityState::Initial => {
-                self.stats.inc(StatType::Bootstrap, DetailType::Loop);
+                self.stats.loop_count.fetch_add(1, Ordering::Relaxed);
                 self.state = PriorityState::WaitBlockProcessor;
                 PollResult::Progress
             }
@@ -77,12 +83,18 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
                     self.state = PriorityState::WaitChannel;
                     PollResult::Progress
                 } else {
+                    self.stats
+                        .wait_block_processor
+                        .fetch_add(1, Ordering::Relaxed);
                     PollResult::Wait
                 }
             }
             PriorityState::WaitChannel => match self.channel_waiter.poll(state) {
                 PollResult::Progress => PollResult::Progress,
-                PollResult::Wait => PollResult::Wait,
+                PollResult::Wait => {
+                    self.stats.wait_channel.fetch_add(1, Ordering::Relaxed);
+                    PollResult::Wait
+                }
                 PollResult::Finished(channel) => {
                     self.state = PriorityState::WaitPriority(channel);
                     PollResult::Progress
@@ -96,10 +108,47 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
                     self.state = PriorityState::Initial;
                     PollResult::Finished(query)
                 } else {
+                    self.stats.wait_priority.fetch_add(1, Ordering::Relaxed);
                     PollResult::Wait
                 }
             }
         }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct PriorityRequesterStats {
+    pub loop_count: AtomicU64,
+    pub wait_block_processor: AtomicU64,
+    pub wait_channel: AtomicU64,
+    pub wait_priority: AtomicU64,
+}
+
+impl StatsSource for PriorityRequesterStats {
+    fn collect_stats(&self, result: &mut StatsCollection) {
+        const STAT_NAME: &'static str = "boot_requester_prio";
+
+        result.insert(STAT_NAME, "loop", self.loop_count.load(Ordering::Relaxed));
+        result.insert(
+            STAT_NAME,
+            "wait_block_processor",
+            self.wait_block_processor.load(Ordering::Relaxed),
+        );
+        result.insert(
+            STAT_NAME,
+            "wait_block_processor",
+            self.wait_block_processor.load(Ordering::Relaxed),
+        );
+        result.insert(
+            STAT_NAME,
+            "wait_channel",
+            self.wait_channel.load(Ordering::Relaxed),
+        );
+        result.insert(
+            STAT_NAME,
+            "wait_priority",
+            self.wait_priority.load(Ordering::Relaxed),
+        );
     }
 }
 
@@ -179,7 +228,6 @@ mod tests {
 
     fn create_requester() -> (PriorityRequester, Arc<RwLock<Network>>) {
         let block_processor_queue = Arc::new(BlockProcessorQueue::default());
-        let stats = Arc::new(Stats::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
         let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(1024)));
         let channel_waiter = ChannelWaiter::new(network.clone(), rate_limiter, 1024);
@@ -189,7 +237,6 @@ mod tests {
 
         let requester = PriorityRequester::new(
             block_processor_queue,
-            stats,
             channel_waiter,
             clock,
             ledger,
