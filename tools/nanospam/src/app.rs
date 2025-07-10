@@ -1,18 +1,23 @@
 use std::{
     fs::remove_dir_all,
-    hash::Hash,
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
-        Mutex,
         atomic::{AtomicUsize, Ordering},
         mpsc::{Receiver, Sender},
+        Mutex,
     },
     thread::yield_now,
     time::{Duration, Instant},
 };
 
-use tokio::{io::AsyncWriteExt, select, sync::mpsc, time::sleep};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
+    select,
+    sync::mpsc,
+    task::JoinSet,
+    time::sleep,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -42,7 +47,7 @@ use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresenta
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BLOCKS: usize = 15_000_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
-const INITIAL_BPS: usize = 1;
+const INITIAL_BPS: usize = 5000;
 const BPS_INCREASE_INTERVAL: Duration = Duration::from_secs(3);
 const BPS_INCREASE: usize = 50;
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
@@ -91,21 +96,17 @@ port = RPC_PORT
 
 #[derive(Parser, Debug)]
 struct Args {
-    /// Attach to an already running node
-    #[arg(long, default_value_t = false)]
-    attach: bool,
-
     /// Number of principal representatives
     #[arg(long, default_value_t = 1)]
     prs: usize,
 
-    /// Use C++ nano_node implementation
-    #[arg(long, default_value_t = false)]
-    cpp: bool,
-
     /// Only create the node config files and set up the wallets, then exit
     #[arg(long, default_value_t = false)]
     setup_only: bool,
+
+    /// Attach to an already running node
+    #[arg(long, default_value_t = false)]
+    attach: bool,
 }
 
 #[derive(Default)]
@@ -187,34 +188,18 @@ impl NanoSpamApp {
                     std::fs::write(rpc_config_path, rpc_config).unwrap();
                 }
 
-                let mut cmd = if args.cpp {
-                    let mut cmd = Command::new("nano_node");
-                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                        .env("NANO_TEST_EPOCH_1", "0")
-                        .env("NANO_TEST_EPOCH_2", "0")
-                        .env("NANO_TEST_EPOCH_2_RECV", "0")
-                        .arg("--network")
-                        .arg("test")
-                        .arg("--data-path")
-                        .arg(&node_dir)
-                        .arg("--daemon");
-                    cmd
-                } else {
-                    let mut cmd = Command::new("rsnano_node");
-                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                        .arg("--network")
-                        .arg("test")
-                        .arg("--data-path")
-                        .arg(&node_dir)
-                        .arg("node")
-                        .arg("run");
-                    cmd
-                };
-
+                let mut cmd = Command::new("rsnano_node");
+                cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                    .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                    .arg("--network")
+                    .arg("test")
+                    .arg("--data-path")
+                    .arg(&node_dir)
+                    .arg("node")
+                    .arg("run")
+                    .stdout(Stdio::null());
                 info!("Starting node: {cmd:?}");
-                cmd.stdout(Stdio::null()).spawn().unwrap();
+                cmd.spawn().unwrap();
 
                 // Set up wallet
                 let rpc_client =
@@ -333,7 +318,8 @@ impl NanoSpamApp {
 
         let block_factory = Mutex::new(BlockFactory::new(account_map, MAX_BLOCKS));
 
-        let mut tcp_streams = Vec::new();
+        let mut tcp_writers = Vec::new();
+        let mut tcp_readers = Vec::new();
 
         for i in 0..args.prs {
             let peer_addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, peering_port(i), 0, 0);
@@ -341,7 +327,9 @@ impl NanoSpamApp {
             let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
             info!("Performing handshake...");
             perform_handshake(protocol, genesis_hash, node_id_key.clone(), &mut tcp_stream).await?;
-            tcp_streams.push(tcp_stream);
+            let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
+            tcp_writers.push(tcp_write);
+            tcp_readers.push(tcp_read);
         }
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
@@ -395,6 +383,11 @@ impl NanoSpamApp {
                     cancel_ws_recv.clone(),
                     &ws_queue_len,
                 ));
+                scope.spawn(receive_messages(
+                    tcp_readers,
+                    protocol,
+                    cancel_tcp_recv.clone(),
+                ));
                 scope.spawn(republish_delayed_blocks(
                     tx_block_clone,
                     &delayed_blocks,
@@ -402,7 +395,7 @@ impl NanoSpamApp {
                 ));
                 scope.spawn(publish_blocks(
                     rx_block,
-                    tcp_streams,
+                    tcp_writers,
                     protocol,
                     &delayed_blocks,
                     cancel_tcp_recv,
@@ -477,7 +470,7 @@ fn create_blocks(
 
 async fn publish_blocks(
     mut rx_block: mpsc::Receiver<Block>,
-    mut tcp_streams: Vec<TcpStream>,
+    mut tcp_streams: Vec<WriteHalf<TcpStream>>,
     protocol: ProtocolInfo,
     delayed_blocks: &Mutex<DelayedBlocks>,
     cancel_token: CancellationToken,
@@ -586,6 +579,27 @@ async fn receive_websocket(
         ws_queue_len.fetch_add(1, Ordering::Relaxed);
     }
     info!("receive websocket finished");
+}
+
+async fn receive_messages(
+    readers: Vec<ReadHalf<TcpStream>>,
+    _protocol: ProtocolInfo,
+    cancel_token: CancellationToken,
+) {
+    select! {
+        _ = cancel_token.cancelled() => {},
+        _ = async {
+            let mut set = JoinSet::new();
+            for mut reader in readers {
+                set.spawn(async move {
+                    let mut recv_buffer = vec![0; 1024 * 4];
+                    loop{
+                        reader.read(&mut recv_buffer).await.unwrap();
+                    }
+                });
+            }
+        } => {}
+    }
 }
 
 fn pr_key(node_id: usize) -> PrivateKey {
