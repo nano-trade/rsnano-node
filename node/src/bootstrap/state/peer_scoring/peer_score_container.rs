@@ -99,11 +99,14 @@ mod tests {
         container.insert(PeerScore::new(channel_id));
         container.insert(PeerScore::new(another_channel_id));
         let modified = container.modify(channel_id, |i| {
-            i.outstanding = 1000;
+            i.running_queries = 1000;
         });
         assert!(modified);
-        assert_eq!(container.get(channel_id).unwrap().outstanding, 1000);
-        assert_ne!(container.get(another_channel_id).unwrap().outstanding, 1000);
+        assert_eq!(container.get(channel_id).unwrap().running_queries, 1000);
+        assert_ne!(
+            container.get(another_channel_id).unwrap().running_queries,
+            1000
+        );
     }
 
     #[test]
@@ -114,9 +117,12 @@ mod tests {
         container.insert(PeerScore::new(channel_id));
         container.insert(PeerScore::new(another_channel_id));
         container.modify_all(|i| {
-            i.outstanding = 1000;
+            i.running_queries = 1000;
         });
-        assert_eq!(container.get(channel_id).unwrap().outstanding, 1000);
-        assert_eq!(container.get(another_channel_id).unwrap().outstanding, 1000);
+        assert_eq!(container.get(channel_id).unwrap().running_queries, 1000);
+        assert_eq!(
+            container.get(another_channel_id).unwrap().running_queries,
+            1000
+        );
     }
 }

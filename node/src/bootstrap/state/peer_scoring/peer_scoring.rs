@@ -23,8 +23,8 @@ impl PeerScoring {
 
     pub fn received_message(&mut self, channel_id: ChannelId) {
         self.scoring.modify(channel_id, |i| {
-            if i.outstanding > 1 {
-                i.outstanding -= 1;
+            if i.running_queries > 1 {
+                i.running_queries -= 1;
                 i.response_count_total += 1;
             }
         });
@@ -47,8 +47,8 @@ impl PeerScoring {
     ) -> bool {
         let mut success = true;
         let modified = scoring.modify(channel_id, |i| {
-            if i.outstanding < channel_limit {
-                i.outstanding += 1;
+            if i.running_queries < channel_limit {
+                i.running_queries += 1;
                 i.request_count_total += 1;
             } else {
                 success = false;
