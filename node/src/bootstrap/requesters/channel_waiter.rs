@@ -1,6 +1,10 @@
 use crate::bootstrap::{state::BootstrapState, BootstrapPromise, PollResult};
 use rsnano_network::{bandwidth_limiter::RateLimiter, Channel, ChannelId, Network, TrafficType};
-use std::sync::{Arc, Mutex, RwLock};
+use rsnano_stats::StatsCollection;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc, Mutex, RwLock,
+};
 
 /// Waits until a channel becomes available
 #[derive(Clone)]
@@ -9,6 +13,7 @@ pub(super) struct ChannelWaiter {
     state: ChannelWaitState,
     limiter: Arc<Mutex<RateLimiter>>,
     max_requests: usize,
+    stats: Arc<ChannelWaiterStats>,
 }
 
 #[derive(Clone)]
@@ -30,7 +35,12 @@ impl ChannelWaiter {
             state: ChannelWaitState::Initial,
             limiter,
             max_requests,
+            stats: Arc::new(Default::default()),
         }
+    }
+
+    pub fn stats(&self) -> Arc<ChannelWaiterStats> {
+        self.stats.clone()
     }
 
     fn candidate_channels(network: &Network) -> Vec<ChannelId> {
@@ -54,6 +64,7 @@ impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
                     self.state = ChannelWaitState::WaitLimiter;
                     return PollResult::Progress;
                 }
+                self.stats.queries_overfill.fetch_add(1, Ordering::Relaxed);
             }
             ChannelWaitState::WaitLimiter => {
                 // Wait until more requests can be sent
@@ -61,6 +72,7 @@ impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
                     self.state = ChannelWaitState::WaitChannel;
                     return PollResult::Progress;
                 }
+                self.stats.rate_limit.fetch_add(1, Ordering::Relaxed);
             }
             ChannelWaitState::WaitChannel => {
                 // Wait until a channel is available
@@ -73,10 +85,38 @@ impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
                         return PollResult::Finished(channel.clone());
                     }
                 }
+                self.stats.no_candidate.fetch_add(1, Ordering::Relaxed);
             }
         }
 
         PollResult::Wait
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct ChannelWaiterStats {
+    pub queries_overfill: AtomicU64,
+    pub rate_limit: AtomicU64,
+    pub no_candidate: AtomicU64,
+}
+
+impl ChannelWaiterStats {
+    pub fn collect_stats(&self, stat_name: &'static str, result: &mut StatsCollection) {
+        result.insert(
+            stat_name,
+            "queries_overfill",
+            self.queries_overfill.load(Ordering::Relaxed),
+        );
+        result.insert(
+            stat_name,
+            "rate_limit",
+            self.rate_limit.load(Ordering::Relaxed),
+        );
+        result.insert(
+            stat_name,
+            "no_candidate",
+            self.no_candidate.load(Ordering::Relaxed),
+        );
     }
 }
 

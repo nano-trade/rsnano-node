@@ -15,8 +15,9 @@ use super::{
 use crate::{
     block_processing::BlockProcessorQueue,
     bootstrap::{
-        requesters::channel_waiter::ChannelWaiter, state::BootstrapState, AscPullQuerySpec,
-        BootstrapConfig, BootstrapPromise, PollResult,
+        requesters::channel_waiter::{ChannelWaiter, ChannelWaiterStats},
+        state::BootstrapState,
+        AscPullQuerySpec, BootstrapConfig, BootstrapPromise, PollResult,
     },
 };
 
@@ -41,11 +42,15 @@ impl PriorityRequester {
         let pull_type_decider = PullTypeDecider::new(config.optimistic_request_percentage);
         let pull_count_decider = PullCountDecider::new(config.max_pull_count);
         let query_factory = QueryFactory::new(ledger, pull_type_decider, pull_count_decider);
+        let stats = Arc::new(PriorityRequesterStats {
+            channel_waiter: channel_waiter.stats(),
+            ..Default::default()
+        });
 
         Self {
             state: PriorityState::Initial,
             block_processor_queue,
-            stats: Default::default(),
+            stats,
             channel_waiter,
             query_factory,
             block_processor_threshold: 1000,
@@ -91,10 +96,7 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
             }
             PriorityState::WaitChannel => match self.channel_waiter.poll(state) {
                 PollResult::Progress => PollResult::Progress,
-                PollResult::Wait => {
-                    self.stats.wait_channel.fetch_add(1, Ordering::Relaxed);
-                    PollResult::Wait
-                }
+                PollResult::Wait => PollResult::Wait,
                 PollResult::Finished(channel) => {
                     self.state = PriorityState::WaitPriority(channel);
                     PollResult::Progress
@@ -120,8 +122,8 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
 pub(crate) struct PriorityRequesterStats {
     pub loop_count: AtomicU64,
     pub wait_block_processor: AtomicU64,
-    pub wait_channel: AtomicU64,
     pub wait_priority: AtomicU64,
+    pub channel_waiter: Arc<ChannelWaiterStats>,
 }
 
 impl StatsSource for PriorityRequesterStats {
@@ -141,14 +143,11 @@ impl StatsSource for PriorityRequesterStats {
         );
         result.insert(
             STAT_NAME,
-            "wait_channel",
-            self.wait_channel.load(Ordering::Relaxed),
-        );
-        result.insert(
-            STAT_NAME,
             "wait_priority",
             self.wait_priority.load(Ordering::Relaxed),
         );
+
+        self.channel_waiter.collect_stats(STAT_NAME, result);
     }
 }
 
