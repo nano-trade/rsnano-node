@@ -17,7 +17,10 @@ use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{bucket_stats::BucketStats, Bucket, Bucketing, PriorityBucketConfig};
-use crate::consensus::{ActiveElectionsContainer, AecInsertError};
+use crate::consensus::{
+    election_schedulers::priority::{BlockEviction, BucketInsertError},
+    ActiveElectionsContainer, AecInsertError,
+};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
@@ -141,27 +144,33 @@ impl PriorityScheduler {
 
         let priority = any.block_priority(&block);
 
-        let added = {
+        let insert_result = {
             let mut buckets = self.buckets.lock().unwrap();
             let (bucket, bucket_index) = self.find_bucket(&mut buckets, priority.balance);
             self.activations_per_bucket[bucket_index].fetch_add(1, Ordering::Relaxed);
-            bucket.push(priority, block.into())
+            bucket.insert(priority, block.into())
         };
 
-        if added {
+        match insert_result {
+            Ok(BlockEviction::None) => {}
+            Ok(BlockEviction::Evicted) => {
+                self.stats
+                    .inc(StatType::ElectionScheduler, DetailType::Evicted);
+            }
+            Err(BucketInsertError::Duplicate) => {
+                self.stats
+                    .inc(StatType::ElectionScheduler, DetailType::Duplicate);
+            }
+            Err(BucketInsertError::PriorityTooLow) => {
+                self.stats
+                    .inc(StatType::ElectionScheduler, DetailType::ActivateFull);
+            }
+        }
+
+        if insert_result.is_ok() {
             self.stats
                 .inc(StatType::ElectionScheduler, DetailType::Activated);
-            trace!(
-                account = account.encode_account(),
-                time = %account_info.modified,
-                priority_balance = ?priority.balance,
-                priority_timestamp = ?priority.time,
-                "block activated"
-            );
             self.condition.notify_all();
-        } else {
-            self.stats
-                .inc(StatType::ElectionScheduler, DetailType::ActivateFull);
         }
     }
 

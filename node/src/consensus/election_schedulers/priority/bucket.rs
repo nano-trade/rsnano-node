@@ -96,17 +96,25 @@ impl Bucket {
         }
     }
 
-    pub fn push(&mut self, priority: BlockPriority, block: SavedBlock) -> bool {
+    pub fn insert(
+        &mut self,
+        priority: BlockPriority,
+        block: SavedBlock,
+    ) -> Result<BlockEviction, BucketInsertError> {
         let hash = block.hash();
         let inserted = self.queue.insert(BlockEntry::new(block, priority));
+        if !inserted {
+            return Err(BucketInsertError::Duplicate);
+        }
+
         if self.queue.len() > self.config.max_blocks {
-            if let Some(removed) = self.queue.pop_lowest_prio() {
-                inserted && !(removed.priority == priority && removed.block.hash() == hash)
-            } else {
-                inserted
+            let removed = self.queue.pop_lowest_prio().unwrap();
+            if removed.block.hash() == hash {
+                return Err(BucketInsertError::PriorityTooLow);
             }
+            Ok(BlockEviction::Evicted)
         } else {
-            inserted
+            Ok(BlockEviction::None)
         }
     }
 
@@ -149,6 +157,23 @@ impl Bucket {
             .map(|i| i.root.clone())
     }
 }
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum BlockEviction {
+    /// The block was inserted WITHOUT removing another block
+    None,
+    /// The block was inserted and a block with lower priority got removed
+    Evicted,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum BucketInsertError {
+    /// The block was already in the bucket
+    Duplicate,
+    /// The bucket was full and the blocks priority was too low to replace another block
+    PriorityTooLow,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,7 +195,10 @@ mod tests {
         let bucket = &mut fixture.bucket;
         let block = SavedBlock::new_test_instance();
 
-        assert!(bucket.push(test_priority(1000), block.clone()));
+        assert_eq!(
+            bucket.insert(test_priority(1000), block.clone()),
+            Ok(BlockEviction::None)
+        );
 
         assert_eq!(bucket.len(), 1);
         assert_eq!(bucket.contains(&block.hash()), true);
@@ -183,8 +211,14 @@ mod tests {
         let bucket = &mut fixture.bucket;
         let block = SavedBlock::new_test_instance();
 
-        assert_eq!(bucket.push(test_priority(1000), block.clone()), true);
-        assert_eq!(bucket.push(test_priority(1000), block), false);
+        assert_eq!(
+            bucket.insert(test_priority(1000), block.clone()),
+            Ok(BlockEviction::None)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(1000), block),
+            Err(BucketInsertError::Duplicate)
+        );
         assert_eq!(bucket.len(), 1);
     }
 
@@ -196,10 +230,22 @@ mod tests {
         let block1 = SavedBlock::new_test_instance_with_key(2);
         let block2 = SavedBlock::new_test_instance_with_key(3);
         let block3 = SavedBlock::new_test_instance_with_key(4);
-        assert!(bucket.push(test_priority(2000), block0.clone()));
-        assert!(bucket.push(test_priority(1001), block1.clone()));
-        assert!(bucket.push(test_priority(1000), block2.clone()));
-        assert!(bucket.push(test_priority(900), block3.clone()));
+        assert_eq!(
+            bucket.insert(test_priority(2000), block0.clone()),
+            Ok(BlockEviction::None)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(1001), block1.clone()),
+            Ok(BlockEviction::None)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(1000), block2.clone()),
+            Ok(BlockEviction::None)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(900), block3.clone()),
+            Ok(BlockEviction::None)
+        );
 
         assert_eq!(bucket.len(), 4);
         let blocks: Vec<_> = bucket.blocks().cloned().collect();
@@ -226,12 +272,27 @@ mod tests {
         let block2 = SavedBlock::new_test_instance_with_key(3);
         let block3 = SavedBlock::new_test_instance_with_key(4);
 
-        assert_eq!(bucket.push(test_priority(2000), block0.clone()), true);
-        assert_eq!(bucket.push(test_priority(900), block1.clone()), true);
-        assert_eq!(bucket.push(test_priority(3000), block2.clone()), false);
-        assert_eq!(bucket.push(test_priority(1001), block3.clone()), true); // Evicts 2000
+        assert_eq!(
+            bucket.insert(test_priority(2000), block0.clone()),
+            Ok(BlockEviction::None)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(900), block1.clone()),
+            Ok(BlockEviction::None)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(3000), block2.clone()),
+            Err(BucketInsertError::PriorityTooLow)
+        );
+        assert_eq!(
+            bucket.insert(test_priority(1001), block3.clone()),
+            Ok(BlockEviction::Evicted)
+        ); // Evicts 2000
         assert_eq!(bucket.contains(&block0.hash()), false);
-        assert_eq!(bucket.push(test_priority(1000), block0.clone()), true); // Evicts 1001
+        assert_eq!(
+            bucket.insert(test_priority(1000), block0.clone()),
+            Ok(BlockEviction::Evicted)
+        ); // Evicts 1001
         assert_eq!(bucket.contains(&block3.hash()), false);
 
         assert_eq!(bucket.len(), 2);
