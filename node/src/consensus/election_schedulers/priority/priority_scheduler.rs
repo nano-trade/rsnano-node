@@ -100,19 +100,19 @@ impl PriorityScheduler {
             .any(|b| b.contains(hash))
     }
 
-    pub fn activate(&self, any: &impl AnySet, account: &Account) -> bool {
+    pub fn activate(&self, any: &impl AnySet, account: &Account) {
         debug_assert!(!account.is_zero());
         if let Some(account_info) = any.get_account(account) {
             let conf_info = any.confirmed().get_conf_info(account).unwrap_or_default();
 
             if conf_info.height < account_info.block_count {
-                return self.activate_with_info(any, account, &account_info, &conf_info);
+                self.activate_with_info(any, account, &account_info, &conf_info);
+                return;
             }
         };
 
         self.stats
             .inc(StatType::ElectionScheduler, DetailType::ActivateSkip);
-        false // Not activated
     }
 
     pub fn activate_with_info(
@@ -121,7 +121,7 @@ impl PriorityScheduler {
         account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
-    ) -> bool {
+    ) {
         debug_assert!(conf_info.frontier != account_info.head);
 
         let hash = match conf_info.height {
@@ -130,14 +130,13 @@ impl PriorityScheduler {
         };
 
         let Some(block) = any.get_block(&hash) else {
-            // Not activated
-            return false;
+            return;
         };
 
         if !any.dependents_confirmed(&block) {
             self.stats
                 .inc(StatType::ElectionScheduler, DetailType::ActivateFailed);
-            return false; // Not activated
+            return;
         }
 
         let priority = any.block_priority(&block);
@@ -164,8 +163,6 @@ impl PriorityScheduler {
             self.stats
                 .inc(StatType::ElectionScheduler, DetailType::ActivateFull);
         }
-
-        true // Activated
     }
 
     fn find_bucket<'a, 'b>(
@@ -291,20 +288,20 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn activate_successors(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
+    pub fn activate_successors(&self, any: &impl AnySet, block: &SavedBlock) {
         if self.activate_successors_listener.is_tracked() {
             self.activate_successors_listener.emit(block.clone());
         }
-        self.activate(any, &block.account()) | self.activate_destination_account(any, &block)
+        self.activate(any, &block.account());
+        self.activate_destination_account(any, &block);
     }
 
-    fn activate_destination_account(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
+    fn activate_destination_account(&self, any: &impl AnySet, block: &SavedBlock) {
         if let Some(destination) = block.destination() {
             if block.is_send() && !destination.is_zero() && destination != block.account() {
-                return self.activate(any, &destination);
+                self.activate(any, &destination);
             }
         }
-        false
     }
 
     pub fn remove_election(&self, priority: BlockPriority, root: &QualifiedRoot) {

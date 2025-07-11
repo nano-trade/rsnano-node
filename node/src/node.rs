@@ -95,6 +95,7 @@ use rsnano_network_protocol::{
 use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;
 
+#[allow(dead_code)]
 pub struct Node {
     is_nulled: bool,
     pub runtime: tokio::runtime::Handle,

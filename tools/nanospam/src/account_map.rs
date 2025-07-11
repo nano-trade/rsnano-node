@@ -164,10 +164,12 @@ impl AccountMap {
         }
     }
 
+    #[allow(dead_code)]
     pub fn contains(&self, account: &Account) -> bool {
         self.account_states.contains_key(account)
     }
 
+    #[allow(dead_code)]
     pub fn get_receivable(&self, account: &Account) -> Option<(BlockHash, Amount)> {
         let entries = self.receivable.get(account)?;
         entries.first().cloned()
@@ -194,12 +196,6 @@ impl AccountMap {
             }
         }
         None
-    }
-
-    pub fn should_send_genesis(&self) -> bool {
-        self.empty_accounts.len() == self.all_accounts.len()
-            && self.receivable.is_empty()
-            && self.unconfirmed.is_empty()
     }
 }
 

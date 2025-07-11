@@ -14,6 +14,7 @@ pub(crate) enum BlockResult {
 }
 
 impl BlockResult {
+    #[allow(dead_code)]
     pub fn unwrap(self) -> Block {
         match self {
             BlockResult::Block(block) => block,
@@ -99,10 +100,8 @@ impl BlockFactory {
 mod tests {
     use super::*;
     use rsnano_core::PrivateKey;
-    use std::{sync::LazyLock, time::Instant};
+    use std::time::Instant;
 
-    static TEST_GENESIS_KEY: LazyLock<PrivateKey> = LazyLock::new(|| PrivateKey::from(42));
-    const TEST_GENESIS_HASH: BlockHash = BlockHash::from_bytes([10; 32]);
     const MAX_BLOCKS: usize = 4;
 
     #[test]

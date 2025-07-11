@@ -160,7 +160,6 @@ mod tests {
     use rsnano_ledger::Ledger;
     use rsnano_network::{bandwidth_limiter::RateLimiter, Network};
     use rsnano_nullable_clock::SteadyClock;
-    use rsnano_stats::Stats;
 
     use super::PriorityRequester;
     use crate::{
