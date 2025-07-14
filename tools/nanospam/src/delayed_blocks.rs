@@ -1,6 +1,7 @@
 use rsnano_core::{Block, BlockHash};
+use rustc_hash::FxHashMap;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     time::{Duration, Instant},
 };
 
@@ -8,7 +9,7 @@ const DELAY_LIMIT: Duration = Duration::from_secs(10);
 
 pub(crate) struct DelayedBlocks {
     /// block + publish timestamp
-    blocks: HashMap<BlockHash, PublishInfo>,
+    blocks: FxHashMap<BlockHash, PublishInfo>,
     by_time: BTreeMap<Instant, Vec<BlockHash>>,
     finished: bool,
 }
@@ -16,7 +17,7 @@ pub(crate) struct DelayedBlocks {
 impl DelayedBlocks {
     pub(crate) fn new() -> Self {
         Self {
-            blocks: HashMap::new(),
+            blocks: FxHashMap::default(),
             by_time: BTreeMap::new(),
             finished: false,
         }

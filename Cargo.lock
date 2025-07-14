@@ -2875,6 +2875,7 @@ dependencies = [
  "rsnano_stats",
  "rsnano_websocket_client",
  "rsnano_websocket_messages",
+ "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "tokio",

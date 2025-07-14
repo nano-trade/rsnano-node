@@ -3,24 +3,24 @@ use rand::{
     seq::{IndexedRandom, IteratorRandom},
 };
 use rsnano_core::{Account, Amount, BlockHash, PrivateKey};
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Default)]
 pub(crate) struct AccountMap {
-    pub account_states: HashMap<Account, AccountState>,
+    pub account_states: FxHashMap<Account, AccountState>,
     all_accounts: Vec<Account>,
-    empty_accounts: HashSet<Account>,
-    active_accounts: HashSet<Account>,
+    empty_accounts: FxHashSet<Account>,
+    active_accounts: FxHashSet<Account>,
     active_accounts_vec: Vec<Account>,
-    confirmed_accounts: HashSet<Account>,
+    confirmed_accounts: FxHashSet<Account>,
 
     /// Account => Send block hash + amount sent
-    receivable: HashMap<Account, Vec<(BlockHash, Amount)>>,
+    receivable: FxHashMap<Account, Vec<(BlockHash, Amount)>>,
 
     /// Accounts that can receive and the send is confirmed
     /// Receiving account + send hash => amount
-    confirmed_receivable: HashMap<(Account, BlockHash), Amount>,
-    unconfirmed: HashMap<BlockHash, (Account, Option<Account>)>,
+    confirmed_receivable: FxHashMap<(Account, BlockHash), Amount>,
+    unconfirmed: FxHashMap<BlockHash, (Account, Option<Account>)>,
 }
 
 pub(crate) struct AccountState {
