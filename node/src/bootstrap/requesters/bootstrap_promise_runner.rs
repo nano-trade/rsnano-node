@@ -21,42 +21,45 @@ impl BootstrapPromiseRunner {
         P: BootstrapPromise<T>,
     {
         let mut interval = Self::INITIAL_INTERVAL;
-        let mut state = self.state.lock().unwrap();
         loop {
-            if state.stopped {
-                return None;
-            }
-
-            match self.progress(&mut promise, &mut state, interval) {
+            match self.progress(&mut promise, interval) {
                 Ok(result) => return Some(result),
                 Err(i) => interval = i,
             }
 
-            state = self
-                .state_changed
-                .wait_timeout_while(state, interval, |s| !s.stopped)
-                .unwrap()
-                .0;
+            let state = self.state.lock().unwrap();
+            if state.stopped {
+                return None;
+            }
+            drop(
+                self.state_changed
+                    .wait_timeout_while(state, interval, |s| !s.stopped)
+                    .unwrap()
+                    .0,
+            );
         }
     }
 
-    fn progress<A, T>(
-        &self,
-        action: &mut A,
-        state: &mut BootstrapState,
-        mut wait_interval: Duration,
-    ) -> Result<T, Duration>
+    fn progress<A, T>(&self, action: &mut A, mut wait_interval: Duration) -> Result<T, Duration>
     where
         A: BootstrapPromise<T>,
     {
+        let mut state = self.state.lock().unwrap();
         let mut reset_wait_interval = false;
+        let mut poll_count: usize = 0;
         loop {
-            match action.poll(state) {
+            poll_count = poll_count.overflowing_add(1).0;
+            match action.poll(&mut state) {
                 PollResult::Progress => {
                     if state.stopped {
                         return Err(Self::INITIAL_INTERVAL);
                     }
                     reset_wait_interval = true;
+                    if poll_count % 100 == 0 {
+                        drop(state);
+                        std::thread::yield_now();
+                        state = self.state.lock().unwrap();
+                    }
                 }
                 PollResult::Wait => {
                     wait_interval = if reset_wait_interval {
