@@ -34,6 +34,7 @@ pub struct BootstrapConfig {
     pub enable_frontier_scan: bool,
     /// Maximum number of un-responded requests per channel, should be lower or equal to bootstrap server max queue size
     pub channel_limit: usize,
+    /// Limit of outgoing messages/s over all channels
     pub rate_limit: usize,
     pub database_rate_limit: usize,
     pub frontier_rate_limit: usize,

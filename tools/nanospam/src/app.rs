@@ -77,6 +77,17 @@ const NODE_CONFIG: &str = r#"
 [node.bounded_backlog]
     enable = false
 
+[node.bootstrap_server]
+    # default 500
+    limiter = 500
+
+[node.bootstrap]
+    # default 500
+    rate_limit = 500
+
+    # default 16
+    channel_limit = 64
+
 [node.websocket]
     enable = true
     address = "::1"
