@@ -88,6 +88,9 @@ const NODE_CONFIG: &str = r#"
     # default 16
     channel_limit = 64
 
+[node.monitor]
+    interval = 10
+
 [node.websocket]
     enable = true
     address = "::1"

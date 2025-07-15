@@ -9,7 +9,10 @@ use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_ledger::Ledger;
 use rsnano_network::Network;
 
-use crate::{consensus::ActiveElectionsContainer, representatives::OnlineReps};
+use crate::{
+    block_rate_calculator::CurrentBlockRates, consensus::ActiveElectionsContainer,
+    representatives::OnlineReps,
+};
 
 /// Periodically prints info about BPS, CPS, elections, peers,...
 pub struct NodeMonitor {
@@ -17,9 +20,8 @@ pub struct NodeMonitor {
     network: Arc<RwLock<Network>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
+    block_rates: Arc<CurrentBlockRates>,
     last_time: Option<Instant>,
-    last_blocks_confirmed: u64,
-    last_blocks_total: u64,
 }
 
 impl NodeMonitor {
@@ -28,19 +30,22 @@ impl NodeMonitor {
         network: Arc<RwLock<Network>>,
         online_peers: Arc<Mutex<OnlineReps>>,
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
+        block_rates: Arc<CurrentBlockRates>,
     ) -> Self {
         Self {
             ledger,
             network,
             online_reps: online_peers,
             active_elections,
+            block_rates,
             last_time: None,
-            last_blocks_total: 0,
-            last_blocks_confirmed: 0,
         }
     }
 
-    fn log(&self, last: Instant, blocks_confirmed: u64, blocks_total: u64) {
+    fn log(&self) {
+        let blocks_confirmed = self.ledger.confirmed_count();
+        let blocks_total = self.ledger.block_count();
+
         // TODO: Maybe emphasize somehow that confirmed doesn't need to be equal to total; backlog is OK
         info!(
             "Blocks confirmed: {} | total: {} (backlog: {})",
@@ -49,22 +54,12 @@ impl NodeMonitor {
             blocks_total - blocks_confirmed
         );
 
-        // Calculate the rates
-        let elapsed_secs = last.elapsed().as_secs() as f64;
-        let blocks_confirmed_rate =
-            (blocks_confirmed - self.last_blocks_confirmed) as f64 / elapsed_secs;
-
-        // Block rollback can cause the block count to go down!
-        let blocks_checked_rate =
-            if let Some(diff) = blocks_total.checked_sub(self.last_blocks_total) {
-                diff as f64 / elapsed_secs
-            } else {
-                0.0
-            };
+        let blocks_checked_rate = self.block_rates.bps();
+        let blocks_confirmed_rate = self.block_rates.cps();
 
         info!(
-            "Blocks rate (avg over {}s): confirmed: {:.2}/s | total {:.2}/s)",
-            elapsed_secs, blocks_confirmed_rate, blocks_checked_rate
+            "Blocks rate: confirmed: {:.2}/s | total {:.2}/s)",
+            blocks_confirmed_rate, blocks_checked_rate
         );
 
         let channels = self.network.read().unwrap().channels_info();
@@ -100,16 +95,11 @@ impl NodeMonitor {
 
 impl Runnable for NodeMonitor {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        let blocks_confirmed = self.ledger.confirmed_count();
-        let blocks_total = self.ledger.block_count();
-
-        if let Some(last) = self.last_time {
-            self.log(last, blocks_confirmed, blocks_total);
+        if self.last_time.is_some() {
+            self.log();
         } else {
             // Wait for node to warm up before logging
         }
         self.last_time = Some(Instant::now());
-        self.last_blocks_confirmed = blocks_confirmed;
-        self.last_blocks_total = blocks_total;
     }
 }

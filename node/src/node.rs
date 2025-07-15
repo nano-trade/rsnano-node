@@ -1092,6 +1092,9 @@ impl Node {
             stats.clone(),
         ));
 
+        let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
+        let block_rates = block_rate_calculator.rates().clone();
+
         let monitor = TimerThread::new(
             "Monitor",
             NodeMonitor::new(
@@ -1099,6 +1102,7 @@ impl Node {
                 network.clone(),
                 online_reps.clone(),
                 active_elections.clone(),
+                block_rates,
             ),
         );
 
@@ -1214,7 +1218,6 @@ impl Node {
         spawn_backpressure_processor("Confset ev proc", rx_confirming, confirming_set_ev_proc);
 
         vote_processor.add_observer(aec_sender);
-        let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
 
         let mut stats_collector = StatsCollector::new();
         stats_collector.add_source(stats.clone());
