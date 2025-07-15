@@ -621,6 +621,7 @@ async fn receive_messages(
                     }
                 });
             }
+            set.join_all().await;
         } => {}
     }
 }
