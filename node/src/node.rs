@@ -62,8 +62,8 @@ use crate::{
         VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
-    monitor::NodeMonitor,
     node_id_key_file::NodeIdKeyFile,
+    node_monitor::NodeMonitor,
     pruning::{LedgerPruning, LedgerPruningExt},
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{
