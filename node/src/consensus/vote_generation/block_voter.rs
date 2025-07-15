@@ -5,12 +5,13 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 use super::{last_votes::LastVotes, VoteGenerators};
-use crate::consensus::election::VoteType;
+use crate::{block_rate_calculator::CurrentBlockRates, consensus::election::VoteType};
 
 /// Tries to enqueue a vote for a given block
 pub(crate) struct BlockVoter {
     vote_generators: Arc<VoteGenerators>,
     clock: Arc<SteadyClock>,
+    block_rates: Arc<CurrentBlockRates>,
     vote_listener: OutputListenerMt<BlockVoteRequest>,
     last_votes: Mutex<LastVotes>,
 }
@@ -19,11 +20,13 @@ impl BlockVoter {
     pub(crate) fn new(
         vote_generators: Arc<VoteGenerators>,
         clock: Arc<SteadyClock>,
+        block_rates: Arc<CurrentBlockRates>,
         network: Networks,
     ) -> Self {
         Self {
             vote_generators,
             clock,
+            block_rates,
             vote_listener: OutputListenerMt::new(),
             last_votes: Mutex::new(LastVotes::new(network)),
         }
@@ -33,8 +36,9 @@ impl BlockVoter {
     pub fn new_null() -> Self {
         let vote_generators = Arc::new(VoteGenerators::new_null());
         let clock = Arc::new(SteadyClock::new_null());
+        let block_rates = Arc::new(CurrentBlockRates::default());
         let network = Networks::NanoLiveNetwork;
-        Self::new(vote_generators, clock, network)
+        Self::new(vote_generators, clock, block_rates, network)
     }
 
     #[allow(dead_code)]
@@ -56,6 +60,11 @@ impl BlockVoter {
         if !self.vote_generators.voting_enabled() {
             return;
         }
+
+        // Testing CPS limit:
+        //if self.block_rates.cps() > 500 {
+        //    return;
+        //}
 
         let now = self.clock.now();
 
@@ -87,9 +96,10 @@ mod tests {
     fn track_votes() {
         let vote_generators = Arc::new(VoteGenerators::new_null());
         let clock = Arc::new(SteadyClock::new_null());
+        let block_rates = Arc::new(CurrentBlockRates::default());
         let network = Networks::NanoLiveNetwork;
 
-        let voter = BlockVoter::new(vote_generators, clock, network);
+        let voter = BlockVoter::new(vote_generators, clock, block_rates, network);
         let vote_tracker = voter.track();
 
         let expected = BlockVoteRequest {

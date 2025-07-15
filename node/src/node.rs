@@ -588,9 +588,13 @@ impl Node {
         active_elections.set_observer(aec_sender.clone());
         let active_elections = Arc::new(RwLock::new(active_elections));
 
+        let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
+        let block_rates = block_rate_calculator.rates().clone();
+
         let block_voter = Arc::new(BlockVoter::new(
             vote_generators.clone(),
             steady_clock.clone(),
+            block_rates.clone(),
             current_network,
         ));
 
@@ -1108,9 +1112,6 @@ impl Node {
             ledger.clone(),
             stats.clone(),
         ));
-
-        let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
-        let block_rates = block_rate_calculator.rates().clone();
 
         let monitor = TimerThread::new(
             "Monitor",
