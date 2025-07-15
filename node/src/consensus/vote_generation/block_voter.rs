@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -7,9 +7,7 @@ use rsnano_core::{BlockHash, Networks, Root};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{DetailType, StatType, Stats};
 
-use crate::consensus::{
-    bounded_hash_map::BoundedHashMap, election::VoteType, ActiveElectionsContainer,
-};
+use crate::consensus::{bounded_hash_map::BoundedHashMap, election::VoteType};
 
 use super::VoteGenerators;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -18,7 +16,6 @@ use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 pub(crate) struct BlockVoter {
     stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
-    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
     last_votes: Mutex<BoundedHashMap<(BlockHash, VoteType), Timestamp>>,
     vote_broadcast_interval: Duration,
@@ -29,14 +26,12 @@ impl BlockVoter {
     pub(crate) fn new(
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
-        active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
         network: Networks,
     ) -> Self {
         Self {
             stats,
             vote_generators,
-            active_elections,
             clock,
             last_votes: Mutex::new(BoundedHashMap::new(1024 * 32)),
             vote_broadcast_interval: match network {
@@ -51,31 +46,14 @@ impl BlockVoter {
     pub fn new_null() -> Self {
         let stats = Arc::new(Stats::default());
         let vote_generators = Arc::new(VoteGenerators::new_null());
-        let active_elections = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
         let clock = Arc::new(SteadyClock::new_null());
         let network = Networks::NanoLiveNetwork;
-        Self::new(stats, vote_generators, active_elections, clock, network)
+        Self::new(stats, vote_generators, clock, network)
     }
 
     #[allow(dead_code)]
     pub fn track(&self) -> Arc<OutputTrackerMt<BlockVoteRequest>> {
         self.vote_listener.track()
-    }
-
-    pub fn try_vote(&self, block_hash: &BlockHash) {
-        let (block_hash, root, vote_type) = {
-            let active = self.active_elections.read().unwrap();
-            let Some(election) = active.election_for_block(block_hash) else {
-                return;
-            };
-            (
-                election.winner().hash(),
-                election.qualified_root().root,
-                election.vote_type(),
-            )
-        };
-
-        self.try_vote_for_block(block_hash, root, vote_type);
     }
 
     /// Broadcasts vote for the given block hash
@@ -105,9 +83,6 @@ impl BlockVoter {
                 return;
             }
         }
-
-        self.stats
-            .inc(StatType::Election, DetailType::BroadcastVote);
 
         match vote_type {
             VoteType::NonFinal => {
@@ -145,11 +120,10 @@ mod tests {
     fn track_votes() {
         let stats = Arc::new(Stats::default());
         let vote_generators = Arc::new(VoteGenerators::new_null());
-        let aec = Arc::new(RwLock::new(ActiveElectionsContainer::default()));
         let clock = Arc::new(SteadyClock::new_null());
         let network = Networks::NanoLiveNetwork;
 
-        let voter = BlockVoter::new(stats, vote_generators, aec, clock, network);
+        let voter = BlockVoter::new(stats, vote_generators, clock, network);
         let vote_tracker = voter.track();
 
         let expected = BlockVoteRequest {

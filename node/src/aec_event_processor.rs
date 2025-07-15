@@ -78,7 +78,8 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
             AecEvent::ElectionStarted(hash, root) => {
                 self.fork_processor.try_add_cached_forks(&root);
                 self.bootstrap_election_activator.election_started(hash);
-                self.block_voter.try_vote(&hash);
+                self.block_voter
+                    .try_vote_for_block(hash, root.root, VoteType::NonFinal);
                 self.vote_cache_processor.trigger(hash);
                 if let Some(tx) = &self.node_observer {
                     tx.send(NodeEvent::ElectionStarted(hash)).unwrap();

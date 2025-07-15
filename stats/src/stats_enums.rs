@@ -238,7 +238,6 @@ pub enum DetailType {
     ElectionHintedOverflow,
     ElectionHintedConfirmed,
     ElectionHintedDrop,
-    BroadcastVote,
     BroadcastVoteNormal,
     BroadcastVoteFinal,
     GenerateVote,
