@@ -2,20 +2,20 @@ use rsnano_nullable_clock::Timestamp;
 use std::collections::VecDeque;
 
 #[derive(Default)]
-pub(crate) struct RateCalculator {
+pub struct RateCalculator {
     values: VecDeque<(u64, Timestamp)>,
 }
 
 impl RateCalculator {
     const MAX_SAMPLES: usize = 60;
 
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             values: VecDeque::new(),
         }
     }
 
-    pub(crate) fn rate(&self) -> i64 {
+    pub fn rate(&self) -> i64 {
         if self.values.len() < 2 {
             0
         } else {
@@ -27,7 +27,7 @@ impl RateCalculator {
         }
     }
 
-    pub(crate) fn sample(&mut self, value: u64, timestamp: Timestamp) {
+    pub fn sample(&mut self, value: u64, timestamp: Timestamp) {
         self.values.push_back((value, timestamp));
         if self.values.len() > Self::MAX_SAMPLES {
             self.values.pop_front();
