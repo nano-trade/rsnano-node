@@ -9,6 +9,7 @@ extern crate core;
 
 mod aec_event_processor;
 pub mod block_processing;
+pub mod block_rate_calculator;
 pub mod bootstrap;
 pub mod cementation;
 pub mod config;

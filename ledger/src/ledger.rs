@@ -863,12 +863,23 @@ impl Ledger {
         verifier.verify_votes(candidates, is_final)
     }
 
+    pub fn block_count(&self) -> u64 {
+        self.store.cache.block_count.load(Ordering::SeqCst)
+    }
+
+    pub fn simulate_block_count(&self, value: u64) {
+        self.store.cache.block_count.store(value, Ordering::SeqCst)
+    }
+
     pub fn confirmed_count(&self) -> u64 {
         self.store.cache.confirmed_count.load(Ordering::SeqCst)
     }
 
-    pub fn block_count(&self) -> u64 {
-        self.store.cache.block_count.load(Ordering::SeqCst)
+    pub fn simulate_confirmed_count(&self, value: u64) {
+        self.store
+            .cache
+            .confirmed_count
+            .store(value, Ordering::SeqCst)
     }
 
     pub fn account_count(&self) -> u64 {
