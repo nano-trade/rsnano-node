@@ -11,7 +11,8 @@ use rsnano_network::Network;
 
 use crate::{consensus::ActiveElectionsContainer, representatives::OnlineReps};
 
-pub struct Monitor {
+/// Periodically prints info about BPS, CPS, elections, peers,...
+pub struct NodeMonitor {
     ledger: Arc<Ledger>,
     network: Arc<RwLock<Network>>,
     online_reps: Arc<Mutex<OnlineReps>>,
@@ -21,7 +22,7 @@ pub struct Monitor {
     last_blocks_total: u64,
 }
 
-impl Monitor {
+impl NodeMonitor {
     pub fn new(
         ledger: Arc<Ledger>,
         network: Arc<RwLock<Network>>,
@@ -97,7 +98,7 @@ impl Monitor {
     }
 }
 
-impl Runnable for Monitor {
+impl Runnable for NodeMonitor {
     fn run(&mut self, _cancel_token: &CancellationToken) {
         let blocks_confirmed = self.ledger.confirmed_count();
         let blocks_total = self.ledger.block_count();

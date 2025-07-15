@@ -62,7 +62,7 @@ use crate::{
         VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
-    monitor::Monitor,
+    monitor::NodeMonitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
     recently_cemented_inserter::RecentlyCementedInserter,
@@ -144,7 +144,7 @@ pub struct Node {
     peer_cache_updater: TimerThread<PeerCacheUpdater>,
     peer_cache_connector: TimerThread<PeerCacheConnector>,
     pub inbound_message_queue: Arc<InboundMessageQueue>,
-    monitor: TimerThread<Monitor>,
+    monitor: TimerThread<NodeMonitor>,
     stopped: AtomicBool,
     pub network_filter: Arc<NetworkFilter>,
     pub message_sender: Arc<Mutex<MessageSender>>, // TODO remove this. It is needed right now
@@ -1092,7 +1092,7 @@ impl Node {
 
         let monitor = TimerThread::new(
             "Monitor",
-            Monitor::new(
+            NodeMonitor::new(
                 ledger.clone(),
                 network.clone(),
                 online_reps.clone(),
