@@ -7,7 +7,11 @@ use rsnano_ledger::{
     test_helpers::UnsavedBlockLatticeBuilder, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
     DEV_GENESIS_PUB_KEY,
 };
-use rsnano_node::{config::NodeFlags, consensus::ReceivedVote, wallets::WalletsExt};
+use rsnano_node::{
+    config::NodeFlags,
+    consensus::{election::VoteType, ReceivedVote},
+    wallets::WalletsExt,
+};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
     assert_timely, assert_timely2, assert_timely_eq2, make_fake_channel, start_election,
@@ -113,7 +117,7 @@ fn vote_generator_cache() {
         .unwrap();
 
     node.vote_generators
-        .generate_non_final_vote(&epoch1.root(), &epoch1.hash());
+        .generate_vote(&epoch1.root(), &epoch1.hash(), VoteType::NonFinal);
 
     // Wait until the votes are available
     assert_timely(Duration::from_secs(1), || {
@@ -283,8 +287,11 @@ fn vote_spacing_vote_generator() {
         ),
         0
     );
-    node.vote_generators
-        .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send1.hash().into());
+    node.vote_generators.generate_vote(
+        &(*DEV_GENESIS_HASH).into(),
+        &send1.hash().into(),
+        VoteType::NonFinal,
+    );
 
     assert_timely_eq2(
         || {
@@ -299,8 +306,11 @@ fn vote_spacing_vote_generator() {
 
     node.ledger.roll_back(&send1.hash()).unwrap();
     node.ledger.process_one(&send2).unwrap();
-    node.vote_generators
-        .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
+    node.vote_generators.generate_vote(
+        &(*DEV_GENESIS_HASH).into(),
+        &send2.hash().into(),
+        VoteType::NonFinal,
+    );
 
     assert_timely_eq2(
         || {
@@ -323,8 +333,11 @@ fn vote_spacing_vote_generator() {
     );
     std::thread::sleep(node.vote_generators.voting_delay());
 
-    node.vote_generators
-        .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
+    node.vote_generators.generate_vote(
+        &(*DEV_GENESIS_HASH).into(),
+        &send2.hash().into(),
+        VoteType::NonFinal,
+    );
 
     assert_timely_eq2(
         || {
@@ -366,8 +379,11 @@ fn vote_spacing_rapid() {
 
     node.process(send1.clone());
 
-    node.vote_generators
-        .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send1.hash().into());
+    node.vote_generators.generate_vote(
+        &(*DEV_GENESIS_HASH).into(),
+        &send1.hash().into(),
+        VoteType::NonFinal,
+    );
 
     assert_timely_eq2(
         || {
@@ -382,8 +398,11 @@ fn vote_spacing_rapid() {
 
     node.ledger.roll_back(&send1.hash()).unwrap();
     node.ledger.process_one(&send2).unwrap();
-    node.vote_generators
-        .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
+    node.vote_generators.generate_vote(
+        &(*DEV_GENESIS_HASH).into(),
+        &send2.hash().into(),
+        VoteType::NonFinal,
+    );
 
     assert_timely_eq2(
         || {
@@ -398,8 +417,11 @@ fn vote_spacing_rapid() {
 
     std::thread::sleep(node.vote_generators.voting_delay());
 
-    node.vote_generators
-        .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
+    node.vote_generators.generate_vote(
+        &(*DEV_GENESIS_HASH).into(),
+        &send2.hash().into(),
+        VoteType::NonFinal,
+    );
 
     assert_timely_eq2(
         || {

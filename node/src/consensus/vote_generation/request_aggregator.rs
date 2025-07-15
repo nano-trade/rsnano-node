@@ -16,6 +16,7 @@ use super::{
     request_aggregator_impl::{AggregateResult, RequestAggregatorImpl},
     VoteGenerators,
 };
+use crate::consensus::election::VoteType;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RequestAggregatorConfig {
@@ -253,9 +254,11 @@ impl RequestAggregatorLoop {
                 .inc(StatType::RequestAggregatorReplies, DetailType::NormalVote);
 
             // Generate votes for the remaining hashes
-            let generated = self
-                .vote_generators
-                .generate_non_final_votes(&remaining.remaining_normal, &request.channel);
+            let generated = self.vote_generators.generate_votes(
+                &remaining.remaining_normal,
+                &request.channel,
+                VoteType::NonFinal,
+            );
             self.stats.add_dir(
                 StatType::Requests,
                 DetailType::RequestsCannotVote,
@@ -269,9 +272,11 @@ impl RequestAggregatorLoop {
                 .inc(StatType::RequestAggregatorReplies, DetailType::FinalVote);
 
             // Generate final votes for the remaining hashes
-            let generated = self
-                .vote_generators
-                .generate_final_votes(&remaining.remaining_final, &request.channel);
+            let generated = self.vote_generators.generate_votes(
+                &remaining.remaining_final,
+                &request.channel,
+                VoteType::Final,
+            );
             self.stats.add_dir(
                 StatType::Requests,
                 DetailType::RequestsCannotVote,

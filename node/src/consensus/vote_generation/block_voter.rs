@@ -5,16 +5,13 @@ use std::{
 
 use rsnano_core::{BlockHash, Networks, Root};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use rsnano_stats::{DetailType, StatType, Stats};
-
-use crate::consensus::{bounded_hash_map::BoundedHashMap, election::VoteType};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 use super::VoteGenerators;
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use crate::consensus::{bounded_hash_map::BoundedHashMap, election::VoteType};
 
 /// Tries to enqueue a vote for a given block
 pub(crate) struct BlockVoter {
-    stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
     clock: Arc<SteadyClock>,
     last_votes: Mutex<BoundedHashMap<(BlockHash, VoteType), Timestamp>>,
@@ -24,13 +21,11 @@ pub(crate) struct BlockVoter {
 
 impl BlockVoter {
     pub(crate) fn new(
-        stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
         clock: Arc<SteadyClock>,
         network: Networks,
     ) -> Self {
         Self {
-            stats,
             vote_generators,
             clock,
             last_votes: Mutex::new(BoundedHashMap::new(1024 * 32)),
@@ -44,11 +39,10 @@ impl BlockVoter {
 
     #[allow(dead_code)]
     pub fn new_null() -> Self {
-        let stats = Arc::new(Stats::default());
         let vote_generators = Arc::new(VoteGenerators::new_null());
         let clock = Arc::new(SteadyClock::new_null());
         let network = Networks::NanoLiveNetwork;
-        Self::new(stats, vote_generators, clock, network)
+        Self::new(vote_generators, clock, network)
     }
 
     #[allow(dead_code)]
@@ -84,19 +78,8 @@ impl BlockVoter {
             }
         }
 
-        match vote_type {
-            VoteType::NonFinal => {
-                self.stats
-                    .inc(StatType::Election, DetailType::GenerateVoteNormal);
-                self.vote_generators
-                    .generate_non_final_vote(&root, &block_hash);
-            }
-            VoteType::Final => {
-                self.stats
-                    .inc(StatType::Election, DetailType::GenerateVoteFinal);
-                self.vote_generators.generate_final_vote(&root, &block_hash);
-            }
-        }
+        self.vote_generators
+            .generate_vote(&root, &block_hash, vote_type);
 
         self.last_votes
             .lock()
@@ -118,12 +101,11 @@ mod tests {
 
     #[test]
     fn track_votes() {
-        let stats = Arc::new(Stats::default());
         let vote_generators = Arc::new(VoteGenerators::new_null());
         let clock = Arc::new(SteadyClock::new_null());
         let network = Networks::NanoLiveNetwork;
 
-        let voter = BlockVoter::new(stats, vote_generators, clock, network);
+        let voter = BlockVoter::new(vote_generators, clock, network);
         let vote_tracker = voter.track();
 
         let expected = BlockVoteRequest {

@@ -8,12 +8,12 @@ use rsnano_ledger::Ledger;
 use rsnano_network::{Channel, ChannelId};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use rsnano_stats::Stats;
+use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{vote_generator::VoteGenerator, LocalVoteHistory};
 use crate::{
     config::{NetworkParams, NodeConfig},
-    consensus::VoteBroadcaster,
+    consensus::{election::VoteType, VoteBroadcaster},
     transport::MessageSender,
     wallets::Wallets,
 };
@@ -31,6 +31,7 @@ pub struct VoteGenerators {
     vote_listener: OutputListenerMt<VoteGenerationEvent>,
     voting_delay: Duration,
     wallets: Arc<Wallets>,
+    stats: Arc<Stats>,
 }
 
 impl VoteGenerators {
@@ -72,7 +73,7 @@ impl VoteGenerators {
             wallets.clone(),
             history,
             true, //final
-            stats,
+            stats.clone(),
             message_sender.clone(),
             voting_delay,
             config.vote_generator_delay,
@@ -86,6 +87,7 @@ impl VoteGenerators {
             vote_listener: OutputListenerMt::new(),
             voting_delay,
             wallets,
+            stats,
         }
     }
 
@@ -130,38 +132,39 @@ impl VoteGenerators {
         self.vote_listener.track()
     }
 
-    pub(crate) fn generate_final_vote(&self, root: &Root, hash: &BlockHash) {
-        self.final_vote_generator.add(root, hash);
+    pub fn generate_vote(&self, root: &Root, hash: &BlockHash, vote_type: VoteType) {
+        match vote_type {
+            VoteType::NonFinal => {
+                self.stats
+                    .inc(StatType::Election, DetailType::GenerateVoteNormal);
+                self.non_final_vote_generator.add(root, hash);
+            }
+            VoteType::Final => {
+                self.stats
+                    .inc(StatType::Election, DetailType::GenerateVoteFinal);
+                self.final_vote_generator.add(root, hash);
+            }
+        }
     }
 
-    pub(crate) fn generate_final_votes(
+    pub(crate) fn generate_votes(
         &self,
         blocks: &[SavedBlock],
         channel: &Arc<Channel>,
+        vote_type: VoteType,
     ) -> usize {
         if self.vote_listener.is_tracked() {
             self.vote_listener.emit(VoteGenerationEvent {
                 channel_id: channel.channel_id(),
                 blocks: blocks.to_vec(),
-                final_vote: true,
+                final_vote: vote_type == VoteType::Final,
             });
         }
-        self.final_vote_generator.generate(blocks, channel)
-    }
 
-    pub fn generate_non_final_vote(&self, root: &Root, hash: &BlockHash) {
-        self.non_final_vote_generator.add(root, hash);
-    }
-
-    pub fn generate_non_final_votes(&self, blocks: &[SavedBlock], channel: &Arc<Channel>) -> usize {
-        if self.vote_listener.is_tracked() {
-            self.vote_listener.emit(VoteGenerationEvent {
-                channel_id: channel.channel_id(),
-                blocks: blocks.to_vec(),
-                final_vote: false,
-            });
+        match vote_type {
+            VoteType::NonFinal => self.non_final_vote_generator.generate(blocks, channel),
+            VoteType::Final => self.final_vote_generator.generate(blocks, channel),
         }
-        self.non_final_vote_generator.generate(blocks, channel)
     }
 
     pub fn voting_enabled(&self) -> bool {

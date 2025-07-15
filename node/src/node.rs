@@ -570,7 +570,6 @@ impl Node {
         let active_elections = Arc::new(RwLock::new(active_elections));
 
         let block_voter = Arc::new(BlockVoter::new(
-            stats.clone(),
             vote_generators.clone(),
             steady_clock.clone(),
             current_network,

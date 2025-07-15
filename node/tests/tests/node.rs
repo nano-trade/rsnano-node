@@ -14,7 +14,7 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockContext, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{AecEvent, AggregatorRequest, FilteredVote, ReceivedVote},
+    consensus::{election::VoteType, AecEvent, AggregatorRequest, FilteredVote, ReceivedVote},
     wallets::WalletsExt,
     work::WorkRequest,
 };
@@ -234,7 +234,7 @@ fn vote_by_hash_bundle() {
     // Enqueue vote requests for all the blocks
     for block in &blocks {
         node.vote_generators
-            .generate_non_final_vote(&block.root(), &block.hash());
+            .generate_vote(&block.root(), &block.hash(), VoteType::NonFinal);
     }
 
     let mut max_hashes = 0;
