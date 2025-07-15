@@ -43,6 +43,7 @@ use crate::{
         BoundedBacklog, BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
         LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
     },
+    block_rate_calculator::BlockRateCalculator,
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
     },
@@ -163,6 +164,7 @@ pub struct Node {
     container_info_factory: ContainerInfoFactory,
     wallet_reps_checker: TimerThread<WalletRepsChecker>,
     winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
+    block_rate_calculator: TimerThread<BlockRateCalculator>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1212,6 +1214,7 @@ impl Node {
         spawn_backpressure_processor("Confset ev proc", rx_confirming, confirming_set_ev_proc);
 
         vote_processor.add_observer(aec_sender);
+        let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
 
         let mut stats_collector = StatsCollector::new();
         stats_collector.add_source(stats.clone());
@@ -1327,6 +1330,7 @@ impl Node {
             container_info_factory: container_info,
             wallet_reps_checker: TimerThread::new("Wallet reps check", wallet_reps_checker),
             winner_block_broadcaster,
+            block_rate_calculator: TimerThread::new("Blk rate", block_rate_calculator),
         }
     }
 
@@ -1524,6 +1528,8 @@ impl Node {
             panic!("Genesis block not found!");
         }
 
+        self.block_rate_calculator.start(Duration::from_millis(500));
+
         self.online_weight_calculation
             .run_once_then_start(OnlineReps::default_interval_for(
                 self.network_params.network.current_network,
@@ -1654,6 +1660,7 @@ impl Node {
         self.network_threads.lock().unwrap().stop(); // Stop network last to avoid killing in-use sockets
         self.monitor.stop();
         self.vote_rebroadcaster.stop();
+        self.block_rate_calculator.stop();
 
         self.wallet_workers.stop();
         self.workers.stop();
@@ -1746,6 +1753,23 @@ mod tests {
             vec![TimerStartEvent {
                 thread_name: "Net reachout".to_string(),
                 interval: merge_period,
+                start_type: TimerStartType::Start
+            }]
+        );
+    }
+
+    #[test]
+    fn start_block_rate_calculator() {
+        let mut node = TestNode::new();
+        let start_tracker = node.block_rate_calculator.track_start();
+
+        node.start();
+
+        assert_eq!(
+            start_tracker.output(),
+            vec![TimerStartEvent {
+                thread_name: "Blk rate".to_string(),
+                interval: Duration::from_millis(500),
                 start_type: TimerStartType::Start
             }]
         );
