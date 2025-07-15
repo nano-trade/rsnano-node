@@ -1,4 +1,5 @@
 mod block_voter;
+mod last_votes;
 mod local_vote_history;
 mod request_aggregator;
 mod request_aggregator_impl;

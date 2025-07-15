@@ -52,14 +52,14 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
         for election in elections {
             match election.state() {
                 ElectionState::Passive => {
-                    self.block_voter.try_vote_for_block(
+                    self.block_voter.try_vote(
                         election.winner().hash(),
                         election.winner().root(),
                         election.vote_type(),
                     );
                 }
                 ElectionState::Active => {
-                    self.block_voter.try_vote_for_block(
+                    self.block_voter.try_vote(
                         election.winner().hash(),
                         election.winner().root(),
                         election.vote_type(),

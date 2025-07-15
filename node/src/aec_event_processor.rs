@@ -79,7 +79,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 self.fork_processor.try_add_cached_forks(&root);
                 self.bootstrap_election_activator.election_started(hash);
                 self.block_voter
-                    .try_vote_for_block(hash, root.root, VoteType::NonFinal);
+                    .try_vote(hash, root.root, VoteType::NonFinal);
                 self.vote_cache_processor.trigger(hash);
                 if let Some(tx) = &self.node_observer {
                     tx.send(NodeEvent::ElectionStarted(hash)).unwrap();
@@ -160,8 +160,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                 }
             }
             AecEvent::FinalPhaseStarted(hash, root) => {
-                self.block_voter
-                    .try_vote_for_block(hash, root.root, VoteType::Final);
+                self.block_voter.try_vote(hash, root.root, VoteType::Final);
             }
             AecEvent::BlockConfirmed(block, election) => {
                 if let Some(tx) = &self.node_observer {

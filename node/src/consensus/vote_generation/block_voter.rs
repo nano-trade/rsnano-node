@@ -1,22 +1,18 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
 
 use rsnano_core::{BlockHash, Networks, Root};
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
-use super::VoteGenerators;
-use crate::consensus::{bounded_hash_map::BoundedHashMap, election::VoteType};
+use super::{last_votes::LastVotes, VoteGenerators};
+use crate::consensus::election::VoteType;
 
 /// Tries to enqueue a vote for a given block
 pub(crate) struct BlockVoter {
     vote_generators: Arc<VoteGenerators>,
     clock: Arc<SteadyClock>,
-    last_votes: Mutex<BoundedHashMap<(BlockHash, VoteType), Timestamp>>,
-    vote_broadcast_interval: Duration,
     vote_listener: OutputListenerMt<BlockVoteRequest>,
+    last_votes: Mutex<LastVotes>,
 }
 
 impl BlockVoter {
@@ -28,12 +24,8 @@ impl BlockVoter {
         Self {
             vote_generators,
             clock,
-            last_votes: Mutex::new(BoundedHashMap::new(1024 * 32)),
-            vote_broadcast_interval: match network {
-                Networks::NanoDevNetwork => Duration::from_millis(500),
-                _ => Duration::from_secs(15),
-            },
             vote_listener: OutputListenerMt::new(),
+            last_votes: Mutex::new(LastVotes::new(network)),
         }
     }
 
@@ -52,7 +44,7 @@ impl BlockVoter {
 
     /// Broadcasts vote for the given block hash
     /// Checks if sufficient amount of time (`vote_generation_interval`) passed since the last vote generation
-    pub fn try_vote_for_block(&self, block_hash: BlockHash, root: Root, vote_type: VoteType) {
+    pub fn try_vote(&self, block_hash: BlockHash, root: Root, vote_type: VoteType) {
         if self.vote_listener.is_tracked() {
             self.vote_listener.emit(BlockVoteRequest {
                 block_hash,
@@ -65,26 +57,18 @@ impl BlockVoter {
             return;
         }
 
-        let last_vote = self
+        let now = self.clock.now();
+
+        let should_vote = self
             .last_votes
             .lock()
             .unwrap()
-            .get(&(block_hash, vote_type))
-            .cloned();
+            .try_insert(block_hash, vote_type, now);
 
-        if let Some(last_vote) = last_vote {
-            if last_vote.elapsed(self.clock.now()) < self.vote_broadcast_interval {
-                return;
-            }
+        if should_vote {
+            self.vote_generators
+                .generate_vote(&root, &block_hash, vote_type);
         }
-
-        self.vote_generators
-            .generate_vote(&root, &block_hash, vote_type);
-
-        self.last_votes
-            .lock()
-            .unwrap()
-            .insert((block_hash, vote_type), self.clock.now());
     }
 }
 
@@ -114,7 +98,7 @@ mod tests {
             vote_type: VoteType::NonFinal,
         };
 
-        voter.try_vote_for_block(expected.block_hash, expected.root, expected.vote_type);
+        voter.try_vote(expected.block_hash, expected.root, expected.vote_type);
 
         let output = vote_tracker.output();
         assert_eq!(output, [expected]);
