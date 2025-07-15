@@ -12,7 +12,6 @@ mod navigator;
 mod node_callbacks;
 mod node_runner;
 mod nullable_runtime;
-mod rate_calculator;
 
 use eframe::egui;
 use gui::MainView;

@@ -1,6 +1,7 @@
 mod backpressure_event_processor;
 mod long_running_transaction_logger;
 mod processing_queue;
+mod rate_calculator;
 mod thread_pool;
 mod timer;
 mod timer_thread;
@@ -16,6 +17,7 @@ use blake2::{
 };
 pub use long_running_transaction_logger::{LongRunningTransactionLogger, TxnTrackingConfig};
 pub use processing_queue::*;
+pub use rate_calculator::RateCalculator;
 use rsnano_core::HardenedConstants;
 use std::net::Ipv6Addr;
 pub use thread_pool::*;

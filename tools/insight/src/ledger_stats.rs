@@ -1,7 +1,5 @@
-use rsnano_node::Node;
+use rsnano_node::{utils::RateCalculator, Node};
 use rsnano_nullable_clock::Timestamp;
-
-use crate::rate_calculator::RateCalculator;
 
 pub(crate) struct LedgerStats {
     pub total_blocks: u64,
