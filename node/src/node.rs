@@ -43,7 +43,7 @@ use crate::{
         BoundedBacklog, BoundedBacklogPlugin, ElectionWinnerReprocessor, LocalBlockBroadcaster,
         LocalBlockBroadcasterExt, LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
     },
-    block_rate_calculator::BlockRateCalculator,
+    block_rate_calculator::{BlockRateCalculator, CurrentBlockRates},
     bootstrap::{
         BootstrapExt, BootstrapResponderCleanup, BootstrapServer, Bootstrapper, BootstrapperCleanup,
     },
@@ -166,6 +166,7 @@ pub struct Node {
     wallet_reps_checker: TimerThread<WalletRepsChecker>,
     winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
     block_rate_calculator: TimerThread<BlockRateCalculator>,
+    pub block_rates: Arc<CurrentBlockRates>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1118,7 +1119,7 @@ impl Node {
                 network.clone(),
                 online_reps.clone(),
                 active_elections.clone(),
-                block_rates,
+                block_rates.clone(),
             ),
         );
 
@@ -1350,6 +1351,7 @@ impl Node {
             wallet_reps_checker: TimerThread::new("Wallet reps check", wallet_reps_checker),
             winner_block_broadcaster,
             block_rate_calculator: TimerThread::new("Blk rate", block_rate_calculator),
+            block_rates,
         }
     }
 

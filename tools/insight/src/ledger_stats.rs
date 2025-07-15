@@ -1,11 +1,10 @@
-use rsnano_node::{utils::RateCalculator, Node};
-use rsnano_nullable_clock::Timestamp;
+use rsnano_node::Node;
 
 pub(crate) struct LedgerStats {
     pub total_blocks: u64,
     pub confirmed_blocks: u64,
-    cps_rate: RateCalculator,
-    bps_rate: RateCalculator,
+    pub bps: i64,
+    pub cps: i64,
 }
 
 impl LedgerStats {
@@ -13,23 +12,23 @@ impl LedgerStats {
         Self {
             total_blocks: 0,
             confirmed_blocks: 0,
-            cps_rate: RateCalculator::new(),
-            bps_rate: RateCalculator::new(),
+            bps: 0,
+            cps: 0,
         }
     }
 
-    pub(crate) fn update(&mut self, node: &Node, now: Timestamp) {
+    pub(crate) fn update(&mut self, node: &Node) {
         self.total_blocks = node.ledger.block_count();
         self.confirmed_blocks = node.ledger.confirmed_count();
-        self.cps_rate.sample(self.confirmed_blocks, now);
-        self.bps_rate.sample(self.total_blocks, now);
+        self.bps = node.block_rates.bps();
+        self.cps = node.block_rates.cps();
     }
 
     pub(crate) fn blocks_per_second(&self) -> i64 {
-        self.bps_rate.rate()
+        self.bps
     }
 
     pub(crate) fn confirmations_per_second(&self) -> i64 {
-        self.cps_rate.rate()
+        self.cps
     }
 }

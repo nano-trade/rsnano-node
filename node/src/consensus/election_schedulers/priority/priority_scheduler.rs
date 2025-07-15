@@ -7,13 +7,13 @@ use std::{
     time::Duration,
 };
 
-use tracing::trace;
-
 use rsnano_core::{
     utils::{BlockPriority, ContainerInfo},
     Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, QualifiedRoot, SavedBlock,
 };
 use rsnano_ledger::{AnySet, ConfirmedSet};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{bucket_stats::BucketStats, Bucket, Bucketing, PriorityBucketConfig};
@@ -21,8 +21,6 @@ use crate::consensus::{
     election_schedulers::priority::{BlockEviction, BucketInsertError},
     ActiveElectionsContainer, AecInsertError,
 };
-use rsnano_nullable_clock::SteadyClock;
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 pub struct PriorityScheduler {
     stopped: Mutex<bool>,

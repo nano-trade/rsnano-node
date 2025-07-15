@@ -92,7 +92,7 @@ impl InsightApp {
         }
 
         if let Some(node) = self.node_runner.node() {
-            self.ledger_stats.update(&node, now);
+            self.ledger_stats.update(&node);
             let channels = node.network.read().unwrap().sorted_channels();
             let telemetries = node.telemetry.get_all_telemetries();
             let (peered_reps, min_rep_weight) = {
