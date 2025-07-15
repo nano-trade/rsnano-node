@@ -89,6 +89,7 @@ use crate::{
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
+use num_format::{Locale, ToFormattedString};
 use rsnano_network_protocol::{
     HandshakeStats, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
     LatestKeepalivesCleanup, NanoDataReceiverFactory, SynCookies,
@@ -354,11 +355,26 @@ impl Node {
         ledger.set_observer(ledger_tx);
 
         let ledger = Arc::new(ledger);
-        info!("Block count:    {}", ledger.block_count());
-        info!("Confirmed count: {}", ledger.confirmed_count());
-        info!("Account count:  {}", ledger.account_count());
-        info!("Pruned count:   {}", ledger.pruned_count());
-        info!("Representative count: {}", rep_weights.len());
+        info!(
+            "Block count:     {}",
+            ledger.block_count().to_formatted_string(&Locale::en)
+        );
+        info!(
+            "Confirmed count: {}",
+            ledger.confirmed_count().to_formatted_string(&Locale::en)
+        );
+        info!(
+            "Account count:   {}",
+            ledger.account_count().to_formatted_string(&Locale::en)
+        );
+        info!(
+            "Pruned count:    {}",
+            ledger.pruned_count().to_formatted_string(&Locale::en)
+        );
+        info!(
+            "Representative count: {}",
+            rep_weights.len().to_formatted_string(&Locale::en)
+        );
 
         log_bootstrap_weights(&rep_weights);
 

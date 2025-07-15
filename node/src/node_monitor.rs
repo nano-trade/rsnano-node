@@ -13,6 +13,7 @@ use crate::{
     block_rate_calculator::CurrentBlockRates, consensus::ActiveElectionsContainer,
     representatives::OnlineReps,
 };
+use num_format::{Locale, ToFormattedString};
 
 /// Periodically prints info about BPS, CPS, elections, peers,...
 pub struct NodeMonitor {
@@ -46,22 +47,6 @@ impl NodeMonitor {
         let blocks_confirmed = self.ledger.confirmed_count();
         let blocks_total = self.ledger.block_count();
 
-        // TODO: Maybe emphasize somehow that confirmed doesn't need to be equal to total; backlog is OK
-        info!(
-            "Blocks confirmed: {} | total: {} (backlog: {})",
-            blocks_confirmed,
-            blocks_total,
-            blocks_total - blocks_confirmed
-        );
-
-        let blocks_checked_rate = self.block_rates.bps();
-        let blocks_confirmed_rate = self.block_rates.cps();
-
-        info!(
-            "Blocks rate: confirmed: {:.2}/s | total {:.2}/s)",
-            blocks_confirmed_rate, blocks_checked_rate
-        );
-
         let channels = self.network.read().unwrap().channels_info();
         info!(
             "Peers: {} (realtime: {} | inbound: {} | outbound: {})",
@@ -89,6 +74,22 @@ impl NodeMonitor {
         info!(
             "Elections active: {} (priority: {} | hinted: {} | optimistic: {})",
             elections.total, elections.priority, elections.hinted, elections.optimistic
+        );
+
+        // TODO: Maybe emphasize somehow that confirmed doesn't need to be equal to total; backlog is OK
+        info!(
+            "Blocks confirmed: {} | total: {} (backlog: {})",
+            blocks_confirmed.to_formatted_string(&Locale::en),
+            blocks_total.to_formatted_string(&Locale::en),
+            (blocks_total - blocks_confirmed).to_formatted_string(&Locale::en)
+        );
+
+        let blocks_checked_rate = self.block_rates.bps();
+        let blocks_confirmed_rate = self.block_rates.cps();
+
+        info!(
+            "Blocks rate: {} bps | {} cps)",
+            blocks_checked_rate, blocks_confirmed_rate,
         );
     }
 }

@@ -4262,6 +4262,7 @@ dependencies = [
  "ntest",
  "num",
  "num-derive",
+ "num-format",
  "num-traits 0.2.19",
  "once_cell",
  "ordered-float 5.0.0",
