@@ -5,6 +5,7 @@ use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::channel_waiter::ChannelWaiter;
 use crate::bootstrap::{state::BootstrapState, AscPullQuerySpec, BootstrapPromise, PollResult};
+use rsnano_nullable_clock::Timestamp;
 
 pub(super) struct DependencyRequester {
     state: DependencyState,
@@ -29,7 +30,7 @@ impl DependencyRequester {
 }
 
 impl BootstrapPromise<AscPullQuerySpec> for DependencyRequester {
-    fn poll(&mut self, state: &mut BootstrapState) -> PollResult<AscPullQuerySpec> {
+    fn poll(&mut self, state: &mut BootstrapState, now: Timestamp) -> PollResult<AscPullQuerySpec> {
         match self.state {
             DependencyState::Initial => {
                 self.stats
@@ -37,7 +38,7 @@ impl BootstrapPromise<AscPullQuerySpec> for DependencyRequester {
                 self.state = DependencyState::WaitChannel;
                 PollResult::Progress
             }
-            DependencyState::WaitChannel => match self.channel_waiter.poll(state) {
+            DependencyState::WaitChannel => match self.channel_waiter.poll(state, now) {
                 PollResult::Wait => PollResult::Wait,
                 PollResult::Progress => PollResult::Progress,
                 PollResult::Finished(channel) => {
@@ -96,13 +97,14 @@ mod tests {
         let network = test_network();
         let mut requester = create_test_requester(network.clone());
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
         let result = progress(&mut requester, &mut state);
         assert!(matches!(result, PollResult::Wait));
         assert!(matches!(requester.state, DependencyState::WaitChannel));
 
         network.write().unwrap().add_test_channel();
-        let result = requester.poll(&mut state);
+        let result = requester.poll(&mut state, now);
         assert!(matches!(result, PollResult::Progress));
         assert!(matches!(requester.state, DependencyState::WaitBlocking(_)));
     }
@@ -113,6 +115,7 @@ mod tests {
         network.write().unwrap().add_test_channel();
         let mut requester = create_test_requester(network);
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
         let result = progress(&mut requester, &mut state);
         assert!(matches!(result, PollResult::Wait));
@@ -125,7 +128,7 @@ mod tests {
             .candidate_accounts
             .block(account, dependency, Timestamp::new_test_instance());
 
-        let result = requester.poll(&mut state);
+        let result = requester.poll(&mut state, now);
         assert!(matches!(result, PollResult::Finished(_)));
         assert!(matches!(requester.state, DependencyState::Initial));
     }

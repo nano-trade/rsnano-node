@@ -22,6 +22,7 @@ use crate::{
     cementation::ConfirmingSet, ledger_event_processor::LedgerEventProcessorPlugin,
     transport::MessageFlooder,
 };
+use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalBlockBroadcasterConfig {
@@ -76,6 +77,7 @@ pub struct LocalBlockBroadcaster {
     condition: Condvar,
     limiter: Mutex<TokenBucket>,
     message_flooder: Mutex<MessageFlooder>,
+    clock: Arc<SteadyClock>,
 }
 
 impl LocalBlockBroadcaster {
@@ -84,6 +86,7 @@ impl LocalBlockBroadcaster {
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
+        clock: Arc<SteadyClock>,
         message_flooder: MessageFlooder,
         enabled: bool,
     ) -> Self {
@@ -105,6 +108,7 @@ impl LocalBlockBroadcaster {
             }),
             condition: Condvar::new(),
             message_flooder: Mutex::new(message_flooder),
+            clock,
         }
     }
 
@@ -114,8 +118,17 @@ impl LocalBlockBroadcaster {
         let ledger = Arc::new(Ledger::new_null());
         let confirming_set = Arc::new(ConfirmingSet::new_null());
         let message_flooder = MessageFlooder::new_null();
+        let clock = Arc::new(SteadyClock::new_null());
 
-        Self::new(config, stats, ledger, confirming_set, message_flooder, true)
+        Self::new(
+            config,
+            stats,
+            ledger,
+            confirming_set,
+            clock,
+            message_flooder,
+            true,
+        )
     }
 
     pub fn stop(&self) {
@@ -189,7 +202,12 @@ impl LocalBlockBroadcaster {
         drop(guard);
 
         for entry in to_broadcast {
-            while !self.limiter.lock().unwrap().try_consume(1) {
+            while !self
+                .limiter
+                .lock()
+                .unwrap()
+                .try_consume(1, self.clock.now())
+            {
                 guard = self.mutex.lock().unwrap();
                 guard = self
                     .condition

@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    ops::{Add, Sub},
+    ops::{Add, AddAssign, Sub},
     sync::Mutex,
     time::{Duration, Instant},
 };
@@ -112,6 +112,12 @@ impl Add<Duration> for Timestamp {
 
     fn add(self, rhs: Duration) -> Self::Output {
         Self(self.0.add(rhs.as_millis() as i64))
+    }
+}
+
+impl AddAssign<Duration> for Timestamp {
+    fn add_assign(&mut self, rhs: Duration) {
+        *self = *self + rhs
     }
 }
 

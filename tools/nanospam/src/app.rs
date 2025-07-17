@@ -44,6 +44,7 @@ use crate::{
     rate_spec::RateSpec,
 };
 use rsnano_network::token_bucket::TokenBucket;
+use rsnano_nullable_clock::SteadyClock;
 
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
@@ -485,6 +486,7 @@ fn create_blocks(
 ) {
     let mut bps_start = Instant::now();
     let mut limiter = TokenBucket::new(current_bps.load(Ordering::Relaxed));
+    let clock = SteadyClock::default();
 
     while let Some(result) = {
         let mut guard = block_factory.lock().unwrap();
@@ -495,7 +497,7 @@ fn create_blocks(
             continue;
         };
 
-        while !limiter.try_consume(1) {
+        while !limiter.try_consume(1, clock.now()) {
             yield_now();
         }
 

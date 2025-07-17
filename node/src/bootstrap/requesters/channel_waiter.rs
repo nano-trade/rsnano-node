@@ -1,5 +1,6 @@
 use crate::bootstrap::{state::BootstrapState, BootstrapPromise, PollResult};
 use rsnano_network::{token_bucket::TokenBucket, Channel, ChannelId, Network, TrafficType};
+use rsnano_nullable_clock::Timestamp;
 use rsnano_stats::StatsCollection;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
@@ -52,7 +53,11 @@ impl ChannelWaiter {
 }
 
 impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
-    fn poll(&mut self, boot_state: &mut BootstrapState) -> PollResult<Arc<Channel>> {
+    fn poll(
+        &mut self,
+        boot_state: &mut BootstrapState,
+        now: Timestamp,
+    ) -> PollResult<Arc<Channel>> {
         match self.state {
             ChannelWaitState::Initial => {
                 self.state = ChannelWaitState::WaitRunningQueries;
@@ -68,7 +73,7 @@ impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
             }
             ChannelWaitState::WaitLimiter => {
                 // Wait until more requests can be sent
-                if self.limiter.lock().unwrap().try_consume(1) {
+                if self.limiter.lock().unwrap().try_consume(1, now) {
                     self.state = ChannelWaitState::WaitChannel;
                     return PollResult::Progress;
                 }
@@ -142,7 +147,8 @@ mod tests {
         let mut state = BootstrapState::default();
 
         let found = loop {
-            match waiter.poll(&mut state) {
+            let now = Timestamp::new_test_instance();
+            match waiter.poll(&mut state, now) {
                 PollResult::Progress => {}
                 PollResult::Wait => {
                     panic!("Should never wait")
@@ -160,42 +166,44 @@ mod tests {
         let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, 1);
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress)); // initial
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress)); // initial
 
         state
             .running_queries
             .insert(RunningQuery::new_test_instance());
 
-        assert!(matches!(waiter.poll(&mut state), PollResult::Wait));
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Wait));
         assert!(matches!(waiter.state, ChannelWaitState::WaitRunningQueries));
 
-        assert!(matches!(waiter.poll(&mut state), PollResult::Wait));
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Wait));
 
         state.running_queries.clear();
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress));
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress));
     }
 
     #[test]
     fn wait_for_limiter() {
         let network = test_network();
         let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
-        limiter.lock().unwrap().try_consume(TEST_RATE_LIMIT);
+        let now = Timestamp::new_test_instance();
+        limiter.lock().unwrap().try_consume(TEST_RATE_LIMIT, now);
         let mut waiter = ChannelWaiter::new(network, limiter.clone(), MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress)); // initial
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress)); // running queries
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress)); // initial
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress)); // running queries
 
-        let result = waiter.poll(&mut state);
+        let result = waiter.poll(&mut state, now);
         assert!(matches!(result, PollResult::Wait));
         assert!(matches!(waiter.state, ChannelWaitState::WaitLimiter));
 
-        let result = waiter.poll(&mut state);
+        let result = waiter.poll(&mut state, now);
         assert!(matches!(result, PollResult::Wait));
 
         limiter.lock().unwrap().reset();
-        let result = waiter.poll(&mut state);
+        let result = waiter.poll(&mut state, now);
         assert!(matches!(result, PollResult::Progress));
         assert!(matches!(waiter.state, ChannelWaitState::WaitChannel));
     }
@@ -206,16 +214,17 @@ mod tests {
         let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress)); // initial
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress)); // running queries
-        assert!(matches!(waiter.poll(&mut state), PollResult::Progress)); // limiter
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress)); // initial
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress)); // running queries
+        assert!(matches!(waiter.poll(&mut state, now), PollResult::Progress)); // limiter
 
-        let result = waiter.poll(&mut state);
+        let result = waiter.poll(&mut state, now);
         assert!(matches!(result, PollResult::Wait));
         assert!(matches!(waiter.state, ChannelWaitState::WaitChannel));
 
-        let result = waiter.poll(&mut state);
+        let result = waiter.poll(&mut state, now);
         assert!(matches!(result, PollResult::Wait));
     }
 

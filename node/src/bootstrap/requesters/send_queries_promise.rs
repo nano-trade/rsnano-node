@@ -1,6 +1,7 @@
 use super::query_sender::QuerySender;
 use crate::bootstrap::{state::BootstrapState, BootstrapPromise};
 use crate::bootstrap::{AscPullQuerySpec, PollResult};
+use rsnano_nullable_clock::Timestamp;
 
 /// Promise for sending AscPullReq queries
 pub(crate) struct SendQueriesPromise<T>
@@ -27,8 +28,8 @@ impl<T> BootstrapPromise<()> for SendQueriesPromise<T>
 where
     T: BootstrapPromise<AscPullQuerySpec>,
 {
-    fn poll(&mut self, state: &mut BootstrapState) -> PollResult<()> {
-        match self.query_promise.poll(state) {
+    fn poll(&mut self, state: &mut BootstrapState, now: Timestamp) -> PollResult<()> {
+        match self.query_promise.poll(state, now) {
             PollResult::Progress => PollResult::Progress,
             PollResult::Wait => PollResult::Wait,
             PollResult::Finished(spec) => {
@@ -49,8 +50,9 @@ mod tests {
         let mut send_queries =
             SendQueriesPromise::new(StubPromise::new(PollResult::Progress), sender);
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
-        let result = send_queries.poll(&mut state);
+        let result = send_queries.poll(&mut state, now);
 
         assert!(matches!(result, PollResult::Progress));
     }
@@ -60,8 +62,9 @@ mod tests {
         let sender = QuerySender::new_null();
         let mut send_queries = SendQueriesPromise::new(StubPromise::new(PollResult::Wait), sender);
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
-        let result = send_queries.poll(&mut state);
+        let result = send_queries.poll(&mut state, now);
 
         assert!(matches!(result, PollResult::Wait));
     }
@@ -74,8 +77,9 @@ mod tests {
         let mut send_queries =
             SendQueriesPromise::new(StubPromise::new(PollResult::Finished(spec.clone())), sender);
         let mut state = BootstrapState::default();
+        let now = Timestamp::new_test_instance();
 
-        let result = send_queries.poll(&mut state);
+        let result = send_queries.poll(&mut state, now);
 
         assert!(matches!(result, PollResult::Progress));
         assert_eq!(send_tracker.output(), [spec]);
@@ -94,7 +98,11 @@ mod tests {
     }
 
     impl BootstrapPromise<AscPullQuerySpec> for StubPromise {
-        fn poll(&mut self, _state: &mut BootstrapState) -> PollResult<AscPullQuerySpec> {
+        fn poll(
+            &mut self,
+            _state: &mut BootstrapState,
+            _now: Timestamp,
+        ) -> PollResult<AscPullQuerySpec> {
             self.result.take().unwrap()
         }
     }

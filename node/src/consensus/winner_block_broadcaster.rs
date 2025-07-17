@@ -66,7 +66,7 @@ impl WinnerBlockBroadcaster {
             1,
         );
 
-        if !self.rebroadcast_limiter.try_consume(1) {
+        if !self.rebroadcast_limiter.try_consume(1, now) {
             return;
         }
 

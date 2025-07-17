@@ -119,7 +119,7 @@ impl PriorityScheduler {
     pub fn activate_with_info(
         &self,
         any: &impl AnySet,
-        account: &Account,
+        _account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
     ) {

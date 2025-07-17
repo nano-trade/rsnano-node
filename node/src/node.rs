@@ -478,6 +478,7 @@ impl Node {
             config.bootstrap_server.clone(),
             stats.clone(),
             ledger.clone(),
+            steady_clock.clone(),
             message_sender.clone(),
         ));
 
@@ -741,7 +742,8 @@ impl Node {
             ledger.clone(),
         ));
 
-        let mut backlog_scan = BacklogScan::new(global_config.into(), ledger.clone());
+        let mut backlog_scan =
+            BacklogScan::new(global_config.into(), ledger.clone(), steady_clock.clone());
 
         //  TODO: Hook this direclty in the schedulers
         let schedulers_w = Arc::downgrade(&election_schedulers);
@@ -772,6 +774,7 @@ impl Node {
             config.bounded_backlog.clone(),
             ledger.clone(),
             stats.clone(),
+            steady_clock.clone(),
         ));
 
         if config.enable_bounded_backlog {
@@ -838,6 +841,7 @@ impl Node {
             stats.clone(),
             ledger.clone(),
             confirming_set.clone(),
+            steady_clock.clone(),
             message_flooder.clone(),
             !flags.disable_block_processor_republishing,
         ));

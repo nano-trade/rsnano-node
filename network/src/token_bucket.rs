@@ -1,5 +1,4 @@
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use std::sync::Arc;
+use rsnano_nullable_clock::Timestamp;
 
 /**
  * Token bucket based rate limiting. This is suitable for rate limiting ipc/api calls
@@ -13,7 +12,6 @@ use std::sync::Arc;
  * messages, or the cost of API invocations.
  */
 pub struct TokenBucket {
-    clock: Arc<SteadyClock>,
     last_refill: Option<Timestamp>,
     current_size: usize,
     max_token_count: usize,
@@ -26,15 +24,12 @@ pub struct TokenBucket {
 const UNLIMITED: usize = 1_000_000_000;
 
 impl TokenBucket {
-    pub fn builder() -> TokenBucketBuilder {
-        TokenBucketBuilder { clock: None }
-    }
     pub fn new(limit: usize) -> Self {
-        Self::builder().max_rate(limit)
+        Self::with_burst_ratio(limit, 1.0)
     }
 
     pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
-        Self::builder().burst_ratio(limit, limit_burst_ratio)
+        Self::with_refill_rate((limit as f64 * limit_burst_ratio) as usize, limit)
     }
 
     /**
@@ -43,24 +38,15 @@ impl TokenBucket {
      * @param refill_rate Token refill rate, which limits the long term rate (tokens per seconds)
      */
     pub fn with_refill_rate(max_tokens: usize, refill_rate: usize) -> Self {
-        Self::builder().refill_rate(max_tokens, refill_rate)
-    }
-
-    pub fn set_clock(&mut self, clock: Arc<SteadyClock>) {
-        self.clock = clock;
-    }
-
-    fn new2(clock: Arc<SteadyClock>, max_token_count: usize, refill_rate: usize) -> Self {
         let mut result = Self {
-            clock,
             last_refill: None,
-            max_token_count,
+            max_token_count: max_tokens,
             refill_rate,
             current_size: 0,
             smallest_size: 0,
         };
 
-        result.reset_with(max_token_count, refill_rate);
+        result.reset_with(max_tokens, refill_rate);
         result
     }
 
@@ -70,9 +56,9 @@ impl TokenBucket {
      * The default cost is 1 token, but resource intensive operations may request
      * more tokens to be available.
      */
-    pub fn try_consume(&mut self, tokens_required: usize) -> bool {
+    pub fn try_consume(&mut self, tokens_required: usize, now: Timestamp) -> bool {
         debug_assert!(tokens_required <= UNLIMITED);
-        self.refill();
+        self.refill(now);
         let possible = self.current_size >= tokens_required;
         if possible {
             self.current_size -= tokens_required;
@@ -120,8 +106,7 @@ impl TokenBucket {
         self.current_size
     }
 
-    fn refill(&mut self) {
-        let now = self.clock.now();
+    fn refill(&mut self, now: Timestamp) {
         let Some(last_refill) = self.last_refill else {
             self.last_refill = Some(now);
             return;
@@ -138,32 +123,6 @@ impl TokenBucket {
     }
 }
 
-pub struct TokenBucketBuilder {
-    clock: Option<Arc<SteadyClock>>,
-}
-
-impl TokenBucketBuilder {
-    pub fn clock(mut self, clock: Arc<SteadyClock>) -> Self {
-        self.clock = Some(clock);
-        self
-    }
-
-    pub fn max_rate(self, max: usize) -> TokenBucket {
-        self.burst_ratio(max, 1.0)
-    }
-
-    pub fn burst_ratio(self, limit: usize, limit_burst_ratio: f64) -> TokenBucket {
-        self.refill_rate((limit as f64 * limit_burst_ratio) as usize, limit)
-    }
-
-    pub fn refill_rate(self, max_tokens: usize, refill_rate: usize) -> TokenBucket {
-        let clock = self
-            .clock
-            .unwrap_or_else(|| Arc::new(SteadyClock::default()));
-        TokenBucket::new2(clock, max_tokens, refill_rate)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,21 +131,21 @@ mod tests {
     #[test]
     fn basic() {
         let mut bucket = TokenBucket::with_refill_rate(10, 10);
-        let clock = Arc::new(SteadyClock::new_null());
-        bucket.set_clock(clock.clone());
+        let mut now = Timestamp::new_test_instance();
 
         // Initial burst
-        assert_eq!(bucket.try_consume(10), true);
-        assert_eq!(bucket.try_consume(10), false);
+        assert_eq!(bucket.try_consume(10, now), true);
+        assert_eq!(bucket.try_consume(10, now), false);
 
         // With a fill rate of 10 tokens/sec, await 1/3 sec and get 3 tokens
-        clock.advance(Duration::from_millis(300));
-        assert_eq!(bucket.try_consume(3), true);
-        assert_eq!(bucket.try_consume(10), false);
+        now += Duration::from_millis(300);
+
+        assert_eq!(bucket.try_consume(3, now), true);
+        assert_eq!(bucket.try_consume(10, now), false);
 
         // Allow time for the bucket to completely refill and do a full burst
-        clock.advance(Duration::from_secs(1));
-        assert_eq!(bucket.try_consume(10), true);
+        now += Duration::from_secs(1);
+        assert_eq!(bucket.try_consume(10, now), true);
         assert_eq!(bucket.largest_burst(), 10);
     }
 
@@ -195,68 +154,67 @@ mod tests {
         // For the purpose of the test, one token represents 1MB instead of one byte.
         // Allow for 10 mb/s bursts (max bucket size), 5 mb/s long term rate
         let mut bucket = TokenBucket::with_refill_rate(10, 5);
-        let clock = Arc::new(SteadyClock::new_null());
-        bucket.set_clock(clock.clone());
+        let mut now = Timestamp::new_test_instance();
 
         // Initial burst of 10 mb/s over two calls
-        assert_eq!(bucket.try_consume(5), true);
+        assert_eq!(bucket.try_consume(5, now), true);
         assert_eq!(bucket.largest_burst(), 5);
-        assert_eq!(bucket.try_consume(5), true);
+        assert_eq!(bucket.try_consume(5, now), true);
         assert_eq!(bucket.largest_burst(), 10);
-        assert_eq!(bucket.try_consume(5), false);
+        assert_eq!(bucket.try_consume(5, now), false);
 
         // After 200 ms, the 5 mb/s fillrate means we have 1 mb available
-        clock.advance(Duration::from_millis(200));
-        assert_eq!(bucket.try_consume(1), true);
-        assert_eq!(bucket.try_consume(1), false);
+        now += Duration::from_millis(200);
+        assert_eq!(bucket.try_consume(1, now), true);
+        assert_eq!(bucket.try_consume(1, now), false);
     }
 
     #[test]
     fn reset() {
         let mut bucket = TokenBucket::with_refill_rate(0, 0);
-        let clock = Arc::new(SteadyClock::new_null());
-        bucket.set_clock(clock.clone());
+        let mut now = Timestamp::new_test_instance();
 
         // consume lots of tokens, buckets should be unlimited
-        assert!(bucket.try_consume(1000000));
-        assert!(bucket.try_consume(1000000));
+        assert!(bucket.try_consume(1000000, now));
+        assert!(bucket.try_consume(1000000, now));
 
         // set bucket to be limited
         bucket.reset_with(1000, 1000);
-        assert_eq!(bucket.try_consume(1001), false);
-        assert_eq!(bucket.try_consume(1000), true);
-        assert_eq!(bucket.try_consume(1000), false);
-        clock.advance(Duration::from_millis(2));
-        assert_eq!(bucket.try_consume(2), true);
+        assert_eq!(bucket.try_consume(1001, now), false);
+        assert_eq!(bucket.try_consume(1000, now), true);
+        assert_eq!(bucket.try_consume(1000, now), false);
+        now += Duration::from_millis(2);
+        assert_eq!(bucket.try_consume(2, now), true);
 
         // reduce the limit
         bucket.reset_with(100, 100 * 1000);
-        assert_eq!(bucket.try_consume(101), false);
-        assert_eq!(bucket.try_consume(100), true);
-        clock.advance(Duration::from_millis(1));
-        assert_eq!(bucket.try_consume(100), true);
+        assert_eq!(bucket.try_consume(101, now), false);
+        assert_eq!(bucket.try_consume(100, now), true);
+        now += Duration::from_millis(1);
+        assert_eq!(bucket.try_consume(100, now), true);
 
         // increase the limit
         bucket.reset_with(2000, 1);
-        assert_eq!(bucket.try_consume(2001), false);
-        assert_eq!(bucket.try_consume(2000), true);
+        assert_eq!(bucket.try_consume(2001, now), false);
+        assert_eq!(bucket.try_consume(2000, now), true);
 
         // back to unlimited
         bucket.reset_with(0, 0);
-        assert_eq!(bucket.try_consume(1000000), true);
-        assert_eq!(bucket.try_consume(1000000), true);
+        assert_eq!(bucket.try_consume(1000000, now), true);
+        assert_eq!(bucket.try_consume(1000000, now), true);
     }
 
     #[test]
     fn unlimited_rate() {
         let mut bucket = TokenBucket::with_refill_rate(0, 0);
-        assert_eq!(bucket.try_consume(5), true);
+        let now = Timestamp::new_test_instance();
+        assert_eq!(bucket.try_consume(5, now), true);
         assert_eq!(bucket.largest_burst(), 5);
-        assert_eq!(bucket.try_consume(1_000_000_000), true);
+        assert_eq!(bucket.try_consume(1_000_000_000, now), true);
         assert_eq!(bucket.largest_burst(), 1_000_000_000);
 
         // With unlimited tokens, consuming always succeed
-        assert_eq!(bucket.try_consume(1_000_000_000), true);
+        assert_eq!(bucket.try_consume(1_000_000_000, now), true);
         assert_eq!(bucket.largest_burst(), 1_000_000_000);
     }
 
@@ -264,20 +222,17 @@ mod tests {
     fn busy_spin() {
         // Bucket should refill at a rate of 1 token per second
         let mut bucket = TokenBucket::with_refill_rate(1, 1);
-        let clock = Arc::new(SteadyClock::new_null());
-        bucket.set_clock(clock.clone());
+        let mut now = Timestamp::new_test_instance();
 
         // Run a very tight loop for 5 seconds + a bit of wiggle room
         let mut counter = 0;
-        let start = clock.now();
-        let mut now = start;
+        let start = now;
         while now < start + Duration::from_millis(5500) {
-            if bucket.try_consume(1) {
+            if bucket.try_consume(1, now) {
                 counter += 1;
             }
 
-            clock.advance(Duration::from_millis(250));
-            now = clock.now();
+            now += Duration::from_millis(250);
         }
 
         // Bucket starts fully refilled, therefore we see 1 additional request

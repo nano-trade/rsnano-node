@@ -76,6 +76,7 @@ impl Requesters {
             state: self.state.clone(),
             throttle_wait: self.config.throttle_wait,
             state_changed: self.state_changed.clone(),
+            clock: self.clock.clone(),
         });
 
         let frontiers = if self.config.enable_frontier_scan {

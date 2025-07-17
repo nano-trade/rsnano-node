@@ -18,6 +18,7 @@ use super::{
     backlog_scan::UnconfirmedInfo,
 };
 use crate::consensus::election_schedulers::priority::Bucketing;
+use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {
@@ -49,6 +50,7 @@ impl BoundedBacklog {
         config: BoundedBacklogConfig,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         let backlog_impl = Arc::new(BoundedBacklogImpl {
             condition: Condvar::new(),
@@ -64,6 +66,7 @@ impl BoundedBacklog {
             config,
             stats,
             ledger,
+            clock,
             can_roll_back: RwLock::new(Box::new(|_| true)),
         });
 
@@ -80,8 +83,9 @@ impl BoundedBacklog {
         let config = BoundedBacklogConfig::default();
         let ledger = Arc::new(Ledger::new_null());
         let stats = Arc::new(Stats::default());
+        let clock = Arc::new(SteadyClock::new_null());
 
-        Self::new(bucketing, config, ledger, stats)
+        Self::new(bucketing, config, ledger, stats, clock)
     }
 
     pub fn start(&self) {
@@ -251,6 +255,7 @@ struct BoundedBacklogImpl {
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
     can_roll_back: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
+    clock: Arc<SteadyClock>,
 }
 
 impl BoundedBacklogImpl {
@@ -348,7 +353,7 @@ impl BoundedBacklogImpl {
                     .scan_limiter
                     .lock()
                     .unwrap()
-                    .try_consume(self.config.batch_size)
+                    .try_consume(self.config.batch_size, self.clock.now())
                 {
                     guard = self
                         .condition

@@ -15,9 +15,10 @@ pub use bootstrapper::*;
 use rsnano_core::{Account, BlockHash};
 use rsnano_messages::{AscPullReqType, FrontiersReqPayload, HashType};
 use rsnano_network::Channel;
+use rsnano_nullable_clock::Timestamp;
 
 pub(self) trait BootstrapPromise<T> {
-    fn poll(&mut self, state: &mut state::BootstrapState) -> PollResult<T>;
+    fn poll(&mut self, state: &mut state::BootstrapState, now: Timestamp) -> PollResult<T>;
 }
 
 pub(self) enum PollResult<T> {
@@ -68,7 +69,8 @@ pub(self) fn progress<T>(
     state: &mut state::BootstrapState,
 ) -> PollResult<T> {
     loop {
-        match requester.poll(state) {
+        let now = Timestamp::new_test_instance();
+        match requester.poll(state, now) {
             PollResult::Progress => {}
             result => return result,
         }

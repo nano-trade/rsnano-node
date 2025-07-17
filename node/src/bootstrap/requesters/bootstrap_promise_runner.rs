@@ -1,4 +1,5 @@
 use crate::bootstrap::{state::BootstrapState, BootstrapPromise, PollResult};
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     cmp::min,
     sync::{Arc, Condvar, Mutex},
@@ -11,6 +12,7 @@ pub(crate) struct BootstrapPromiseRunner {
     pub state: Arc<Mutex<BootstrapState>>,
     pub throttle_wait: Duration,
     pub state_changed: Arc<Condvar>,
+    pub clock: Arc<SteadyClock>,
 }
 
 impl BootstrapPromiseRunner {
@@ -22,7 +24,8 @@ impl BootstrapPromiseRunner {
     {
         let mut interval = Self::INITIAL_INTERVAL;
         loop {
-            match self.progress(&mut promise, interval) {
+            let now = self.clock.now();
+            match self.progress(&mut promise, interval, now) {
                 Ok(result) => return Some(result),
                 Err(i) => interval = i,
             }
@@ -40,7 +43,12 @@ impl BootstrapPromiseRunner {
         }
     }
 
-    fn progress<A, T>(&self, action: &mut A, mut wait_interval: Duration) -> Result<T, Duration>
+    fn progress<A, T>(
+        &self,
+        action: &mut A,
+        mut wait_interval: Duration,
+        now: Timestamp,
+    ) -> Result<T, Duration>
     where
         A: BootstrapPromise<T>,
     {
@@ -49,7 +57,7 @@ impl BootstrapPromiseRunner {
         let mut poll_count: usize = 0;
         loop {
             poll_count = poll_count.overflowing_add(1).0;
-            match action.poll(&mut state) {
+            match action.poll(&mut state, now) {
                 PollResult::Progress => {
                     if state.stopped {
                         return Err(Self::INITIAL_INTERVAL);
@@ -90,6 +98,7 @@ mod tests {
             state: state.clone(),
             throttle_wait: Duration::from_millis(100),
             state_changed: state_changed.clone(),
+            clock: SteadyClock::new_null().into(),
         };
 
         let promise = StubPromise::new();
@@ -120,6 +129,7 @@ mod tests {
             state: state.clone(),
             throttle_wait: Duration::from_millis(100),
             state_changed: state_changed.clone(),
+            clock: SteadyClock::new_null().into(),
         };
 
         let mut promise = StubPromise::new();
@@ -145,7 +155,7 @@ mod tests {
     }
 
     impl BootstrapPromise<i32> for StubPromise {
-        fn poll(&mut self, _state: &mut BootstrapState) -> PollResult<i32> {
+        fn poll(&mut self, _state: &mut BootstrapState, _now: Timestamp) -> PollResult<i32> {
             self.polled.notify(());
             if let Some(result) = self.result.take() {
                 PollResult::Finished(result)

@@ -1,6 +1,7 @@
 use rsnano_core::utils::ContainerInfo;
 
 use crate::{token_bucket::TokenBucket, TrafficType};
+use rsnano_nullable_clock::SteadyClock;
 use std::sync::Mutex;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +25,7 @@ impl Default for BandwidthLimiterConfig {
 }
 
 pub struct BandwidthLimiter {
+    clock: SteadyClock,
     limiter_generic: Mutex<TokenBucket>,
     limiter_bootstrap: Mutex<TokenBucket>,
 }
@@ -31,6 +33,7 @@ pub struct BandwidthLimiter {
 impl BandwidthLimiter {
     pub fn new(config: BandwidthLimiterConfig) -> Self {
         Self {
+            clock: SteadyClock::default(),
             limiter_generic: Mutex::new(TokenBucket::with_burst_ratio(
                 config.generic_limit,
                 config.generic_burst_ratio,
@@ -50,7 +53,7 @@ impl BandwidthLimiter {
         self.select_limiter(limit_type)
             .lock()
             .unwrap()
-            .try_consume(buffer_size)
+            .try_consume(buffer_size, self.clock.now())
     }
 
     fn select_limiter(&self, limit_type: TrafficType) -> &Mutex<TokenBucket> {

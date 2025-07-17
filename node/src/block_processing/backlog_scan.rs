@@ -11,6 +11,7 @@ use std::{
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_network::token_bucket::TokenBucket;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -55,7 +56,11 @@ pub struct BacklogScan {
 }
 
 impl BacklogScan {
-    pub(crate) fn new(config: BacklogScanConfig, ledger: Arc<Ledger>) -> Self {
+    pub(crate) fn new(
+        config: BacklogScanConfig,
+        ledger: Arc<Ledger>,
+        clock: Arc<SteadyClock>,
+    ) -> Self {
         let stats = Arc::new(BacklogScanStats::default());
 
         let flags = Arc::new(Mutex::new(BacklogScanFlags {
@@ -74,6 +79,7 @@ impl BacklogScan {
                 config,
                 flags: flags.clone(),
                 condition: condition.clone(),
+                clock,
             }),
             stats,
             flags,
@@ -168,6 +174,7 @@ struct BacklogScanLoop {
     flags: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
     limiter: Mutex<TokenBucket>,
+    clock: Arc<SteadyClock>,
 }
 
 impl BacklogScanLoop {
@@ -216,7 +223,7 @@ impl BacklogScanLoop {
             .limiter
             .lock()
             .unwrap()
-            .try_consume(self.config.batch_size)
+            .try_consume(self.config.batch_size, self.clock.now())
         {
             lock = self
                 .condition
@@ -344,8 +351,9 @@ mod tests {
                 .account_info(&Account::from(2), &AccountInfo::new_test_instance())
                 .finish(),
         );
+        let clock = Arc::new(SteadyClock::new_null());
 
-        let mut backlog_scan = BacklogScan::new(BacklogScanConfig::default(), ledger);
+        let mut backlog_scan = BacklogScan::new(BacklogScanConfig::default(), ledger, clock);
 
         let found = Arc::new(Mutex::new(Vec::new()));
         let found2 = found.clone();
@@ -385,8 +393,9 @@ mod tests {
                 .account_info(&Account::from(2), &AccountInfo::new_test_instance())
                 .finish(),
         );
+        let clock = Arc::new(SteadyClock::new_null());
 
-        let mut backlog_scan = BacklogScan::new(BacklogScanConfig::default(), ledger);
+        let mut backlog_scan = BacklogScan::new(BacklogScanConfig::default(), ledger, clock);
 
         let found = Arc::new(Mutex::new(Vec::new()));
         let found2 = found.clone();

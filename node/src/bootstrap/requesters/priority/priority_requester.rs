@@ -5,7 +5,7 @@ use std::sync::{
 
 use rsnano_ledger::{BlockSource, Ledger};
 use rsnano_network::Channel;
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{
@@ -76,7 +76,7 @@ enum PriorityState {
 }
 
 impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
-    fn poll(&mut self, state: &mut BootstrapState) -> PollResult<AscPullQuerySpec> {
+    fn poll(&mut self, state: &mut BootstrapState, now: Timestamp) -> PollResult<AscPullQuerySpec> {
         match self.state {
             PriorityState::Initial => {
                 self.stats.loop_count.fetch_add(1, Ordering::Relaxed);
@@ -94,7 +94,7 @@ impl BootstrapPromise<AscPullQuerySpec> for PriorityRequester {
                     PollResult::Wait
                 }
             }
-            PriorityState::WaitChannel => match self.channel_waiter.poll(state) {
+            PriorityState::WaitChannel => match self.channel_waiter.poll(state, now) {
                 PollResult::Progress => PollResult::Progress,
                 PollResult::Wait => PollResult::Wait,
                 PollResult::Finished(channel) => {
