@@ -15,7 +15,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockSource, ConfirmedSet, Ledger, LedgerEvent, ProcessedResult};
 use rsnano_messages::{Message, Publish};
-use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
+use rsnano_network::{token_bucket::TokenBucket, TrafficType};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
 use crate::{
@@ -74,7 +74,7 @@ pub struct LocalBlockBroadcaster {
     enabled: bool,
     mutex: Mutex<LocalBlockBroadcasterData>,
     condition: Condvar,
-    limiter: Mutex<RateLimiter>,
+    limiter: Mutex<TokenBucket>,
     message_flooder: Mutex<MessageFlooder>,
 }
 
@@ -88,7 +88,7 @@ impl LocalBlockBroadcaster {
         enabled: bool,
     ) -> Self {
         Self {
-            limiter: Mutex::new(RateLimiter::with_burst_ratio(
+            limiter: Mutex::new(TokenBucket::with_burst_ratio(
                 config.broadcast_rate_limit,
                 config.broadcast_rate_burst_ratio,
             )),
@@ -189,7 +189,7 @@ impl LocalBlockBroadcaster {
         drop(guard);
 
         for entry in to_broadcast {
-            while !self.limiter.lock().unwrap().should_pass(1) {
+            while !self.limiter.lock().unwrap().try_consume(1) {
                 guard = self.mutex.lock().unwrap();
                 guard = self
                     .condition

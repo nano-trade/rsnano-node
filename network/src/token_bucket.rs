@@ -28,12 +28,20 @@ pub struct TokenBucket {
 const UNLIMITED: usize = 1_000_000_000;
 
 impl TokenBucket {
+    pub fn new(limit: usize) -> Self {
+        Self::with_burst_ratio(limit, 1.0)
+    }
+
+    pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
+        Self::with_refill_rate((limit as f64 * limit_burst_ratio) as usize, limit)
+    }
+
     /**
      * Set up a token bucket.
      * @param max_token_count Maximum number of tokens in this bucket, which limits bursts.
      * @param refill_rate Token refill rate, which limits the long term rate (tokens per seconds)
      */
-    pub fn new(max_token_count: usize, refill_rate: usize) -> Self {
+    pub fn with_refill_rate(max_token_count: usize, refill_rate: usize) -> Self {
         let mut result = Self {
             last_refill: Instant::now(),
             max_token_count,
@@ -125,7 +133,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let mut bucket = TokenBucket::new(10, 10);
+        let mut bucket = TokenBucket::with_refill_rate(10, 10);
 
         // Initial burst
         assert_eq!(bucket.try_consume(10), true);
@@ -146,7 +154,7 @@ mod tests {
     fn network() {
         // For the purpose of the test, one token represents 1MB instead of one byte.
         // Allow for 10 mb/s bursts (max bucket size), 5 mb/s long term rate
-        let mut bucket = TokenBucket::new(10, 5);
+        let mut bucket = TokenBucket::with_refill_rate(10, 5);
 
         // Initial burst of 10 mb/s over two calls
         assert_eq!(bucket.try_consume(5), true);
@@ -163,7 +171,7 @@ mod tests {
 
     #[test]
     fn reset() {
-        let mut bucket = TokenBucket::new(0, 0);
+        let mut bucket = TokenBucket::with_refill_rate(0, 0);
 
         // consume lots of tokens, buckets should be unlimited
         assert!(bucket.try_consume(1000000));
@@ -197,7 +205,7 @@ mod tests {
 
     #[test]
     fn unlimited_rate() {
-        let mut bucket = TokenBucket::new(0, 0);
+        let mut bucket = TokenBucket::with_refill_rate(0, 0);
         assert_eq!(bucket.try_consume(5), true);
         assert_eq!(bucket.largest_burst(), 5);
         assert_eq!(bucket.try_consume(1_000_000_000), true);
@@ -211,7 +219,7 @@ mod tests {
     #[test]
     fn busy_spin() {
         // Bucket should refill at a rate of 1 token per second
-        let mut bucket = TokenBucket::new(1, 1);
+        let mut bucket = TokenBucket::with_refill_rate(1, 1);
 
         // Run a very tight loop for 5 seconds + a bit of wiggle room
         let mut counter = 0;

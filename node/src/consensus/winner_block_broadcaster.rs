@@ -2,7 +2,7 @@ use std::{cmp::max, collections::HashMap, sync::Arc, time::Duration};
 
 use rsnano_core::{Block, BlockHash, Networks, PublicKey};
 use rsnano_messages::{Message, Publish};
-use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
+use rsnano_network::{token_bucket::TokenBucket, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{StatsCollection, StatsSource};
 
@@ -15,7 +15,7 @@ pub(crate) struct WinnerBlockBroadcaster {
     clock: Arc<SteadyClock>,
     broadcast_tracker: BroadcastTracker,
     message_flooder: MessageFlooder,
-    rebroadcast_limiter: RateLimiter,
+    rebroadcast_limiter: TokenBucket,
     broadcast_listener: OutputListenerMt<BlockHash>,
 }
 
@@ -30,7 +30,7 @@ impl WinnerBlockBroadcaster {
             broadcast_tracker: BroadcastTracker::new(network),
             message_flooder,
             // TODO: Make rate limit configurable
-            rebroadcast_limiter: RateLimiter::with_burst_ratio(100, 2.0),
+            rebroadcast_limiter: TokenBucket::with_burst_ratio(100, 2.0),
             broadcast_listener: OutputListenerMt::default(),
         }
     }
@@ -66,7 +66,7 @@ impl WinnerBlockBroadcaster {
             1,
         );
 
-        if !self.rebroadcast_limiter.should_pass(1) {
+        if !self.rebroadcast_limiter.try_consume(1) {
             return;
         }
 

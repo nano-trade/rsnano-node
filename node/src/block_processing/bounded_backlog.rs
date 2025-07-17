@@ -10,7 +10,7 @@ use rsnano_core::{
     Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
 use rsnano_ledger::{AnySet, Ledger, LedgerSet, OwningAnySet, ProcessedResult};
-use rsnano_network::bandwidth_limiter::RateLimiter;
+use rsnano_network::token_bucket::TokenBucket;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
@@ -59,7 +59,7 @@ impl BoundedBacklog {
                 ledger: ledger.clone(),
                 config: config.clone(),
                 bucket_count: bucketing.bucket_count(),
-                scan_limiter: Mutex::new(RateLimiter::new(config.scan_rate)),
+                scan_limiter: Mutex::new(TokenBucket::new(config.scan_rate)),
             }),
             config,
             stats,
@@ -348,7 +348,7 @@ impl BoundedBacklogImpl {
                     .scan_limiter
                     .lock()
                     .unwrap()
-                    .should_pass(self.config.batch_size)
+                    .try_consume(self.config.batch_size)
                 {
                     guard = self
                         .condition
@@ -399,7 +399,7 @@ struct BacklogData {
     ledger: Arc<Ledger>,
     config: BoundedBacklogConfig,
     bucket_count: usize,
-    scan_limiter: Mutex<RateLimiter>,
+    scan_limiter: Mutex<TokenBucket>,
 }
 
 impl BacklogData {

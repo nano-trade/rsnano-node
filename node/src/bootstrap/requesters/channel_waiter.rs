@@ -1,5 +1,5 @@
 use crate::bootstrap::{state::BootstrapState, BootstrapPromise, PollResult};
-use rsnano_network::{bandwidth_limiter::RateLimiter, Channel, ChannelId, Network, TrafficType};
+use rsnano_network::{token_bucket::TokenBucket, Channel, ChannelId, Network, TrafficType};
 use rsnano_stats::StatsCollection;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
@@ -11,7 +11,7 @@ use std::sync::{
 pub(super) struct ChannelWaiter {
     network: Arc<RwLock<Network>>,
     state: ChannelWaitState,
-    limiter: Arc<Mutex<RateLimiter>>,
+    limiter: Arc<Mutex<TokenBucket>>,
     max_requests: usize,
     stats: Arc<ChannelWaiterStats>,
 }
@@ -27,7 +27,7 @@ enum ChannelWaitState {
 impl ChannelWaiter {
     pub fn new(
         network: Arc<RwLock<Network>>,
-        limiter: Arc<Mutex<RateLimiter>>,
+        limiter: Arc<Mutex<TokenBucket>>,
         max_requests: usize,
     ) -> Self {
         Self {
@@ -68,7 +68,7 @@ impl BootstrapPromise<Arc<Channel>> for ChannelWaiter {
             }
             ChannelWaitState::WaitLimiter => {
                 // Wait until more requests can be sent
-                if self.limiter.lock().unwrap().should_pass(1) {
+                if self.limiter.lock().unwrap().try_consume(1) {
                     self.state = ChannelWaitState::WaitChannel;
                     return PollResult::Progress;
                 }

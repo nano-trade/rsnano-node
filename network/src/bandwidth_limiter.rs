@@ -14,7 +14,10 @@ impl RateLimiter {
 
     pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
         Self {
-            bucket: TokenBucket::new((limit as f64 * limit_burst_ratio) as usize, limit),
+            bucket: TokenBucket::with_refill_rate(
+                (limit as f64 * limit_burst_ratio) as usize,
+                limit,
+            ),
         }
     }
 
@@ -56,18 +59,18 @@ impl Default for BandwidthLimiterConfig {
 }
 
 pub struct BandwidthLimiter {
-    limiter_generic: Mutex<RateLimiter>,
-    limiter_bootstrap: Mutex<RateLimiter>,
+    limiter_generic: Mutex<TokenBucket>,
+    limiter_bootstrap: Mutex<TokenBucket>,
 }
 
 impl BandwidthLimiter {
     pub fn new(config: BandwidthLimiterConfig) -> Self {
         Self {
-            limiter_generic: Mutex::new(RateLimiter::with_burst_ratio(
+            limiter_generic: Mutex::new(TokenBucket::with_burst_ratio(
                 config.generic_limit,
                 config.generic_burst_ratio,
             )),
-            limiter_bootstrap: Mutex::new(RateLimiter::with_burst_ratio(
+            limiter_bootstrap: Mutex::new(TokenBucket::with_burst_ratio(
                 config.bootstrap_limit,
                 config.bootstrap_burst_ratio,
             )),
@@ -82,10 +85,10 @@ impl BandwidthLimiter {
         self.select_limiter(limit_type)
             .lock()
             .unwrap()
-            .should_pass(buffer_size)
+            .try_consume(buffer_size)
     }
 
-    fn select_limiter(&self, limit_type: TrafficType) -> &Mutex<RateLimiter> {
+    fn select_limiter(&self, limit_type: TrafficType) -> &Mutex<TokenBucket> {
         match limit_type {
             TrafficType::BootstrapServer => &self.limiter_bootstrap,
             _ => &self.limiter_generic,
@@ -106,22 +109,5 @@ impl BandwidthLimiter {
 impl Default for BandwidthLimiter {
     fn default() -> Self {
         Self::new(Default::default())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mock_instant::thread_local::MockClock;
-    use std::time::Duration;
-
-    #[test]
-    fn test_limit() {
-        let mut limiter = RateLimiter::with_burst_ratio(10, 1.5);
-        assert_eq!(limiter.should_pass(15), true);
-        assert_eq!(limiter.should_pass(1), false);
-        MockClock::advance(Duration::from_millis(100));
-        assert_eq!(limiter.should_pass(1), true);
-        assert_eq!(limiter.should_pass(1), false);
     }
 }

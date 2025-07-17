@@ -16,7 +16,7 @@ use rsnano_messages::{
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
 use rsnano_network::{
-    bandwidth_limiter::RateLimiter, Channel, ChannelId, DeadChannelCleanupStep, TrafficType,
+    token_bucket::TokenBucket, Channel, ChannelId, DeadChannelCleanupStep, TrafficType,
 };
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
@@ -73,7 +73,7 @@ impl BootstrapServer {
             stopped: AtomicBool::new(false),
             queue: Mutex::new(FairQueue::new(move |_| max_queue, |_| 1)),
             message_sender: Mutex::new(message_sender),
-            limiter: Mutex::new(RateLimiter::with_burst_ratio(config.limiter, 3.0)),
+            limiter: Mutex::new(TokenBucket::with_burst_ratio(config.limiter, 3.0)),
         });
 
         Self {
@@ -186,7 +186,7 @@ pub(crate) struct BootstrapResponderImpl {
     queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
     message_sender: Mutex<MessageSender>,
-    limiter: Mutex<RateLimiter>,
+    limiter: Mutex<TokenBucket>,
 }
 
 impl BootstrapResponderImpl {
@@ -202,7 +202,7 @@ impl BootstrapResponderImpl {
 
             // Rate limit the processing
             while !self.stopped.load(Ordering::SeqCst)
-                && !self.limiter.lock().unwrap().should_pass(self.batch_size)
+                && !self.limiter.lock().unwrap().try_consume(self.batch_size)
             {
                 self.stats
                     .inc(StatType::BootstrapServer, DetailType::Cooldown);

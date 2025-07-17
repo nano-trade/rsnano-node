@@ -157,7 +157,7 @@ mod tests {
 
     use rsnano_core::Account;
     use rsnano_ledger::Ledger;
-    use rsnano_network::{bandwidth_limiter::RateLimiter, Network};
+    use rsnano_network::{token_bucket::TokenBucket, Network};
     use rsnano_nullable_clock::SteadyClock;
 
     use super::PriorityRequester;
@@ -227,7 +227,7 @@ mod tests {
     fn create_requester() -> (PriorityRequester, Arc<RwLock<Network>>) {
         let block_processor_queue = Arc::new(BlockProcessorQueue::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
-        let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(1024)));
+        let rate_limiter = Arc::new(Mutex::new(TokenBucket::new(1024)));
         let channel_waiter = ChannelWaiter::new(network.clone(), rate_limiter, 1024);
         let clock = Arc::new(SteadyClock::new_null());
         let ledger = Arc::new(Ledger::new_null());

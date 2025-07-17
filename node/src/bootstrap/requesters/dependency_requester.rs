@@ -64,7 +64,7 @@ mod tests {
     use super::*;
     use crate::bootstrap::progress;
     use rsnano_core::{Account, BlockHash};
-    use rsnano_network::{bandwidth_limiter::RateLimiter, Network};
+    use rsnano_network::{token_bucket::TokenBucket, Network};
     use rsnano_nullable_clock::Timestamp;
     use std::sync::{Mutex, RwLock};
 
@@ -132,7 +132,7 @@ mod tests {
 
     fn create_test_requester(network: Arc<RwLock<Network>>) -> DependencyRequester {
         let stats = Arc::new(Stats::default());
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(1024)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(1024)));
         let channel_waiter = ChannelWaiter::new(network, limiter, 1024);
         DependencyRequester::new(stats, channel_waiter)
     }

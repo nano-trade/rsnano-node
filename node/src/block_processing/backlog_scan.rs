@@ -10,7 +10,7 @@ use std::{
 
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
-use rsnano_network::bandwidth_limiter::RateLimiter;
+use rsnano_network::token_bucket::TokenBucket;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -70,7 +70,7 @@ impl BacklogScan {
                 stats: stats.clone(),
                 unconfirmed_observers: Vec::new(),
                 up_to_date_observers: Vec::new(),
-                limiter: Mutex::new(RateLimiter::new(config.rate_limit)),
+                limiter: Mutex::new(TokenBucket::new(config.rate_limit)),
                 config,
                 flags: flags.clone(),
                 condition: condition.clone(),
@@ -167,7 +167,7 @@ struct BacklogScanLoop {
     config: BacklogScanConfig,
     flags: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
-    limiter: Mutex<RateLimiter>,
+    limiter: Mutex<TokenBucket>,
 }
 
 impl BacklogScanLoop {
@@ -216,7 +216,7 @@ impl BacklogScanLoop {
             .limiter
             .lock()
             .unwrap()
-            .should_pass(self.config.batch_size)
+            .try_consume(self.config.batch_size)
         {
             lock = self
                 .condition

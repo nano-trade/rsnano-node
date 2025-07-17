@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rsnano_core::{Account, BlockHash};
 use rsnano_messages::{AscPullReqType, FrontiersReqPayload};
-use rsnano_network::{bandwidth_limiter::RateLimiter, Channel};
+use rsnano_network::{token_bucket::TokenBucket, Channel};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
@@ -14,7 +14,7 @@ pub(crate) struct FrontierRequester {
     state: FrontierState,
     stats: Arc<Stats>,
     clock: Arc<SteadyClock>,
-    frontiers_limiter: RateLimiter,
+    frontiers_limiter: TokenBucket,
     channel_waiter: ChannelWaiter,
 }
 
@@ -38,7 +38,7 @@ impl FrontierRequester {
             state: FrontierState::Initial,
             stats,
             clock,
-            frontiers_limiter: RateLimiter::new(rate_limit),
+            frontiers_limiter: TokenBucket::new(rate_limit),
             channel_waiter,
         }
     }
@@ -78,7 +78,7 @@ impl BootstrapPromise<AscPullQuerySpec> for FrontierRequester {
                 }
             }
             FrontierState::WaitLimiter => {
-                if self.frontiers_limiter.should_pass(1) {
+                if self.frontiers_limiter.try_consume(1) {
                     self.state = FrontierState::WaitAckProcessor;
                     return PollResult::Progress;
                 }

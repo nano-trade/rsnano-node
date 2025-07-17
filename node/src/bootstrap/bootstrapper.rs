@@ -12,7 +12,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{Ledger, ProcessedResult};
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
-use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DeadChannelCleanupStep, Network};
+use rsnano_network::{token_bucket::TokenBucket, ChannelId, DeadChannelCleanupStep, Network};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Sample, StatType, Stats, StatsCollection, StatsSource};
 
@@ -107,7 +107,7 @@ impl Bootstrapper {
         config: BootstrapConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(config.rate_limit)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(config.rate_limit)));
         let state = Arc::new(Mutex::new(BootstrapState::new(config.clone())));
         let state_changed = Arc::new(Condvar::new());
 

@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use clap::Parser;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
     select,
@@ -25,9 +26,11 @@ use rsnano_core::{
     Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, StateBlockArgs,
     WalletId, WorkNonce,
 };
-use rsnano_network::bandwidth_limiter::RateLimiter;
+use rsnano_messages::{Message, MessageSerializer, Publish};
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
+use rsnano_rpc_client::NanoRpcClient;
+use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
 use rsnano_websocket_client::{
     NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
 };
@@ -40,10 +43,7 @@ use crate::{
     handshake::perform_handshake,
     rate_spec::RateSpec,
 };
-use clap::Parser;
-use rsnano_messages::{Message, MessageSerializer, Publish};
-use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
+use rsnano_network::token_bucket::TokenBucket;
 
 const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
@@ -484,7 +484,7 @@ fn create_blocks(
     rate_spec: RateSpec,
 ) {
     let mut bps_start = Instant::now();
-    let mut limiter = RateLimiter::new(current_bps.load(Ordering::Relaxed));
+    let mut limiter = TokenBucket::new(current_bps.load(Ordering::Relaxed));
 
     while let Some(result) = {
         let mut guard = block_factory.lock().unwrap();
@@ -495,7 +495,7 @@ fn create_blocks(
             continue;
         };
 
-        while !limiter.should_pass(1) {
+        while !limiter.try_consume(1) {
             yield_now();
         }
 
