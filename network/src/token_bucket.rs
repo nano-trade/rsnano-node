@@ -26,22 +26,33 @@ pub struct TokenBucket {
 const UNLIMITED: usize = 1_000_000_000;
 
 impl TokenBucket {
+    pub fn builder() -> TokenBucketBuilder {
+        TokenBucketBuilder { clock: None }
+    }
     pub fn new(limit: usize) -> Self {
-        Self::with_burst_ratio(limit, 1.0)
+        Self::builder().max_rate(limit)
     }
 
     pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
-        Self::with_refill_rate((limit as f64 * limit_burst_ratio) as usize, limit)
+        Self::builder().burst_ratio(limit, limit_burst_ratio)
     }
 
     /**
      * Set up a token bucket.
-     * @param max_token_count Maximum number of tokens in this bucket, which limits bursts.
+     * @param max_tokens Maximum number of tokens in this bucket, which limits bursts.
      * @param refill_rate Token refill rate, which limits the long term rate (tokens per seconds)
      */
-    pub fn with_refill_rate(max_token_count: usize, refill_rate: usize) -> Self {
+    pub fn with_refill_rate(max_tokens: usize, refill_rate: usize) -> Self {
+        Self::builder().refill_rate(max_tokens, refill_rate)
+    }
+
+    pub fn set_clock(&mut self, clock: Arc<SteadyClock>) {
+        self.clock = clock;
+    }
+
+    fn new2(clock: Arc<SteadyClock>, max_token_count: usize, refill_rate: usize) -> Self {
         let mut result = Self {
-            clock: SteadyClock::default().into(),
+            clock,
             last_refill: None,
             max_token_count,
             refill_rate,
@@ -51,10 +62,6 @@ impl TokenBucket {
 
         result.reset_with(max_token_count, refill_rate);
         result
-    }
-
-    pub fn set_clock(&mut self, clock: Arc<SteadyClock>) {
-        self.clock = clock;
     }
 
     /**
@@ -128,6 +135,32 @@ impl TokenBucket {
                 std::cmp::min(self.current_size + tokens_to_add, self.max_token_count);
             self.last_refill = Some(now);
         }
+    }
+}
+
+pub struct TokenBucketBuilder {
+    clock: Option<Arc<SteadyClock>>,
+}
+
+impl TokenBucketBuilder {
+    pub fn clock(mut self, clock: Arc<SteadyClock>) -> Self {
+        self.clock = Some(clock);
+        self
+    }
+
+    pub fn max_rate(self, max: usize) -> TokenBucket {
+        self.burst_ratio(max, 1.0)
+    }
+
+    pub fn burst_ratio(self, limit: usize, limit_burst_ratio: f64) -> TokenBucket {
+        self.refill_rate((limit as f64 * limit_burst_ratio) as usize, limit)
+    }
+
+    pub fn refill_rate(self, max_tokens: usize, refill_rate: usize) -> TokenBucket {
+        let clock = self
+            .clock
+            .unwrap_or_else(|| Arc::new(SteadyClock::default()));
+        TokenBucket::new2(clock, max_tokens, refill_rate)
     }
 }
 
