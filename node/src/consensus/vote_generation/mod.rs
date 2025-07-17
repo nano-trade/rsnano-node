@@ -1,8 +1,10 @@
 mod block_voter;
+mod cps_limiter;
 mod last_votes;
 mod local_vote_history;
 mod request_aggregator;
 mod request_aggregator_impl;
+mod vote_approver;
 mod vote_generator;
 mod vote_generators;
 mod vote_spacing;

@@ -595,7 +595,6 @@ impl Node {
         let block_voter = Arc::new(BlockVoter::new(
             vote_generators.clone(),
             steady_clock.clone(),
-            block_rates.clone(),
             current_network,
         ));
 
