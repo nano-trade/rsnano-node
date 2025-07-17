@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn initial_state() {
         let network = test_network();
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
         let waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         assert!(matches!(waiter.state, ChannelWaitState::Initial));
     }
@@ -137,7 +137,7 @@ mod tests {
     fn happy_path_no_waiting() {
         let network = test_network();
         let channel = network.write().unwrap().add_test_channel();
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn wait_for_running_queries() {
         let network = test_network();
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, 1);
         let mut state = BootstrapState::default();
 
@@ -179,8 +179,8 @@ mod tests {
     #[test]
     fn wait_for_limiter() {
         let network = test_network();
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
-        limiter.lock().unwrap().should_pass(TEST_RATE_LIMIT);
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
+        limiter.lock().unwrap().try_consume(TEST_RATE_LIMIT);
         let mut waiter = ChannelWaiter::new(network, limiter.clone(), MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn wait_scoring() {
         let network = test_network();
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(TEST_RATE_LIMIT)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(TEST_RATE_LIMIT)));
         let mut waiter = ChannelWaiter::new(network, limiter, MAX_TEST_REQUESTS);
         let mut state = BootstrapState::default();
 

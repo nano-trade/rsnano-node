@@ -39,6 +39,20 @@ impl SteadyClock {
     pub fn now(&self) -> Timestamp {
         Timestamp(self.time_source.now())
     }
+
+    pub fn advance(&self, step: Duration) {
+        match &self.time_source {
+            TimeSource::System(_) => panic!("Only a nulled clock can be advanced!"),
+            TimeSource::Stub(mutex) => {
+                let mut times = mutex.lock().unwrap();
+                if times.len() != 1 {
+                    panic!("Cannot advance because other configured responses exist!")
+                }
+                let val = times.pop_front().unwrap();
+                times.push_back(val + step.as_millis() as i64);
+            }
+        }
+    }
 }
 
 impl Default for SteadyClock {
@@ -172,6 +186,9 @@ mod tests {
             let now1 = clock.now();
             let now2 = clock.now();
             assert_eq!(now1, now2);
+
+            clock.advance(Duration::from_secs(1));
+            assert_eq!(clock.now(), now1 + Duration::from_secs(1));
         }
 
         #[test]
@@ -192,6 +209,18 @@ mod tests {
             assert_eq!(now4, now3 + Duration::from_secs(3));
             assert_eq!(now5, now4);
             assert_eq!(now6, now4);
+        }
+
+        #[test]
+        #[should_panic]
+        fn cannot_advance_when_multiple_responses_configured() {
+            let clock = SteadyClock::new_null_with_offsets([
+                Duration::from_secs(1),
+                Duration::from_secs(10),
+                Duration::from_secs(3),
+            ]);
+
+            clock.advance(Duration::from_secs(1));
         }
     }
 }

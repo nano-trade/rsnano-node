@@ -173,7 +173,7 @@ mod tests {
         let mut state = BootstrapState::default();
 
         // Should wait because rate limit reached
-        requester.frontiers_limiter.should_pass(TEST_RATE_LIMIT);
+        requester.frontiers_limiter.try_consume(TEST_RATE_LIMIT);
 
         let result = progress(&mut requester, &mut state);
         assert!(matches!(result, PollResult::Wait));
@@ -246,7 +246,7 @@ mod tests {
     fn create_test_requester() -> (FrontierRequester, Arc<RwLock<Network>>) {
         let stats = Arc::new(Stats::default());
         let network = Arc::new(RwLock::new(Network::new_test_instance()));
-        let limiter = Arc::new(Mutex::new(RateLimiter::new(1024)));
+        let limiter = Arc::new(Mutex::new(TokenBucket::new(1024)));
         let waiter = ChannelWaiter::new(network.clone(), limiter, 1024);
         let clock = Arc::new(SteadyClock::new_null());
         let requester = FrontierRequester::new(stats.clone(), clock, TEST_RATE_LIMIT, waiter);

@@ -3,41 +3,6 @@ use rsnano_core::utils::ContainerInfo;
 use crate::{token_bucket::TokenBucket, TrafficType};
 use std::sync::Mutex;
 
-pub struct RateLimiter {
-    bucket: TokenBucket,
-}
-
-impl RateLimiter {
-    pub fn new(limit: usize) -> Self {
-        Self::with_burst_ratio(limit, 1.0)
-    }
-
-    pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
-        Self {
-            bucket: TokenBucket::with_refill_rate(
-                (limit as f64 * limit_burst_ratio) as usize,
-                limit,
-            ),
-        }
-    }
-
-    pub fn should_pass(&mut self, message_size: usize) -> bool {
-        self.bucket.try_consume(message_size)
-    }
-
-    pub fn set_limit(&mut self, new_limit: usize) {
-        self.bucket.set_limit(new_limit)
-    }
-
-    pub fn reset(&mut self) {
-        self.bucket.reset()
-    }
-
-    pub fn size(&self) -> usize {
-        self.bucket.size()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct BandwidthLimiterConfig {
     pub generic_limit: usize,

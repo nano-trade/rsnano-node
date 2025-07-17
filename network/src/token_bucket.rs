@@ -1,8 +1,5 @@
-#[cfg(test)]
-use mock_instant::thread_local::Instant;
-use std::time::Duration;
-#[cfg(not(test))]
-use std::time::Instant;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use std::sync::Arc;
 
 /**
  * Token bucket based rate limiting. This is suitable for rate limiting ipc/api calls
@@ -16,7 +13,8 @@ use std::time::Instant;
  * messages, or the cost of API invocations.
  */
 pub struct TokenBucket {
-    last_refill: Instant,
+    clock: Arc<SteadyClock>,
+    last_refill: Option<Timestamp>,
     current_size: usize,
     max_token_count: usize,
 
@@ -43,7 +41,8 @@ impl TokenBucket {
      */
     pub fn with_refill_rate(max_token_count: usize, refill_rate: usize) -> Self {
         let mut result = Self {
-            last_refill: Instant::now(),
+            clock: SteadyClock::default().into(),
+            last_refill: None,
             max_token_count,
             refill_rate,
             current_size: 0,
@@ -52,6 +51,10 @@ impl TokenBucket {
 
         result.reset_with(max_token_count, refill_rate);
         result
+    }
+
+    pub fn set_clock(&mut self, clock: Arc<SteadyClock>) {
+        self.clock = clock;
     }
 
     /**
@@ -97,7 +100,7 @@ impl TokenBucket {
         self.max_token_count = max_token_count;
         self.current_size = max_token_count;
         self.refill_rate = refill_rate;
-        self.last_refill = Instant::now()
+        self.last_refill = None;
     }
 
     /** Returns the largest burst observed */
@@ -111,41 +114,45 @@ impl TokenBucket {
     }
 
     fn refill(&mut self) {
-        let tokens_to_add =
-            (self.elapsed().as_nanos() as f64 / 1e9_f64 * self.refill_rate as f64) as usize;
+        let now = self.clock.now();
+        let Some(last_refill) = self.last_refill else {
+            self.last_refill = Some(now);
+            return;
+        };
+
+        let tokens_to_add = (last_refill.elapsed(now).as_nanos() as f64 / 1e9_f64
+            * self.refill_rate as f64) as usize;
         // Only update if there are any tokens to add
         if tokens_to_add > 0 {
             self.current_size =
                 std::cmp::min(self.current_size + tokens_to_add, self.max_token_count);
-            self.last_refill = Instant::now();
+            self.last_refill = Some(now);
         }
-    }
-
-    fn elapsed(&mut self) -> Duration {
-        Instant::now().duration_since(self.last_refill)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mock_instant::thread_local::MockClock;
+    use std::time::Duration;
 
     #[test]
     fn basic() {
         let mut bucket = TokenBucket::with_refill_rate(10, 10);
+        let clock = Arc::new(SteadyClock::new_null());
+        bucket.set_clock(clock.clone());
 
         // Initial burst
         assert_eq!(bucket.try_consume(10), true);
         assert_eq!(bucket.try_consume(10), false);
 
         // With a fill rate of 10 tokens/sec, await 1/3 sec and get 3 tokens
-        MockClock::advance(Duration::from_millis(300));
+        clock.advance(Duration::from_millis(300));
         assert_eq!(bucket.try_consume(3), true);
         assert_eq!(bucket.try_consume(10), false);
 
         // Allow time for the bucket to completely refill and do a full burst
-        MockClock::advance(Duration::from_secs(1));
+        clock.advance(Duration::from_secs(1));
         assert_eq!(bucket.try_consume(10), true);
         assert_eq!(bucket.largest_burst(), 10);
     }
@@ -155,6 +162,8 @@ mod tests {
         // For the purpose of the test, one token represents 1MB instead of one byte.
         // Allow for 10 mb/s bursts (max bucket size), 5 mb/s long term rate
         let mut bucket = TokenBucket::with_refill_rate(10, 5);
+        let clock = Arc::new(SteadyClock::new_null());
+        bucket.set_clock(clock.clone());
 
         // Initial burst of 10 mb/s over two calls
         assert_eq!(bucket.try_consume(5), true);
@@ -164,7 +173,7 @@ mod tests {
         assert_eq!(bucket.try_consume(5), false);
 
         // After 200 ms, the 5 mb/s fillrate means we have 1 mb available
-        MockClock::advance(Duration::from_millis(200));
+        clock.advance(Duration::from_millis(200));
         assert_eq!(bucket.try_consume(1), true);
         assert_eq!(bucket.try_consume(1), false);
     }
@@ -172,6 +181,8 @@ mod tests {
     #[test]
     fn reset() {
         let mut bucket = TokenBucket::with_refill_rate(0, 0);
+        let clock = Arc::new(SteadyClock::new_null());
+        bucket.set_clock(clock.clone());
 
         // consume lots of tokens, buckets should be unlimited
         assert!(bucket.try_consume(1000000));
@@ -182,14 +193,14 @@ mod tests {
         assert_eq!(bucket.try_consume(1001), false);
         assert_eq!(bucket.try_consume(1000), true);
         assert_eq!(bucket.try_consume(1000), false);
-        MockClock::advance(Duration::from_millis(2));
+        clock.advance(Duration::from_millis(2));
         assert_eq!(bucket.try_consume(2), true);
 
         // reduce the limit
         bucket.reset_with(100, 100 * 1000);
         assert_eq!(bucket.try_consume(101), false);
         assert_eq!(bucket.try_consume(100), true);
-        MockClock::advance(Duration::from_millis(1));
+        clock.advance(Duration::from_millis(1));
         assert_eq!(bucket.try_consume(100), true);
 
         // increase the limit
@@ -220,18 +231,20 @@ mod tests {
     fn busy_spin() {
         // Bucket should refill at a rate of 1 token per second
         let mut bucket = TokenBucket::with_refill_rate(1, 1);
+        let clock = Arc::new(SteadyClock::new_null());
+        bucket.set_clock(clock.clone());
 
         // Run a very tight loop for 5 seconds + a bit of wiggle room
         let mut counter = 0;
-        let start = Instant::now();
+        let start = clock.now();
         let mut now = start;
         while now < start + Duration::from_millis(5500) {
             if bucket.try_consume(1) {
                 counter += 1;
             }
 
-            MockClock::advance(Duration::from_millis(250));
-            now = Instant::now();
+            clock.advance(Duration::from_millis(250));
+            now = clock.now();
         }
 
         // Bucket starts fully refilled, therefore we see 1 additional request
