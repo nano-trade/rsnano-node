@@ -12,5 +12,6 @@ mod vote_spacing;
 pub(crate) use block_voter::*;
 pub use local_vote_history::*;
 pub use request_aggregator::*;
+pub(crate) use vote_approver::*;
 pub use vote_generators::*;
 pub use vote_spacing::VoteSpacing;

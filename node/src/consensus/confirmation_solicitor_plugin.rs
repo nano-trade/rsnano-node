@@ -7,7 +7,7 @@ use super::{
     confirm_req_sender::ConfirmReqSender,
     election::{Election, ElectionState},
     winner_block_broadcaster::WinnerBlockBroadcaster,
-    AecTickerPlugin, BlockVoter, ConfirmationSolicitor,
+    AecTickerPlugin, BlockVoteRequest, BlockVoter, ConfirmationSolicitor,
 };
 use crate::{representatives::OnlineReps, transport::MessageFlooder};
 
@@ -52,18 +52,20 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
         for election in elections {
             match election.state() {
                 ElectionState::Passive => {
-                    self.block_voter.try_vote(
-                        election.winner().hash(),
-                        election.winner().root(),
-                        election.vote_type(),
-                    );
+                    let request = BlockVoteRequest {
+                        block_hash: election.winner().hash(),
+                        root: election.winner().root(),
+                        vote_type: election.vote_type(),
+                    };
+                    self.block_voter.try_vote(request);
                 }
                 ElectionState::Active => {
-                    self.block_voter.try_vote(
-                        election.winner().hash(),
-                        election.winner().root(),
-                        election.vote_type(),
-                    );
+                    let request = BlockVoteRequest {
+                        block_hash: election.winner().hash(),
+                        root: election.winner().root(),
+                        vote_type: election.vote_type(),
+                    };
+                    self.block_voter.try_vote(request);
                     self.winner_block_broadcaster
                         .lock()
                         .unwrap()

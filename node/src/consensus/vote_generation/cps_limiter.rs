@@ -7,6 +7,7 @@ pub(crate) struct CpsLimiter {
 
 impl CpsLimiter {
     pub fn try_vote(&mut self) -> bool {
+        self.call_count += 1;
         // TODO
         true
     }
@@ -27,6 +28,6 @@ mod tests {
         assert_true!(limiter.try_vote());
         assert_eq!(limiter.call_count(), 1);
         assert_true!(limiter.try_vote());
-        assert_eq!(limiter.call_count(), 1);
+        assert_eq!(limiter.call_count(), 2);
     }
 }

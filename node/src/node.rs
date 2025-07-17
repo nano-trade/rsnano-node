@@ -57,7 +57,7 @@ use crate::{
         BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
         ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
         ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory, LocalVotesRemover,
-        RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup, VoteApplier,
+        RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApprover,
         VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
         VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
         VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
@@ -592,10 +592,12 @@ impl Node {
         let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
         let block_rates = block_rate_calculator.rates().clone();
 
+        let vote_approver = VoteApprover::new(current_network);
+
         let block_voter = Arc::new(BlockVoter::new(
             vote_generators.clone(),
             steady_clock.clone(),
-            current_network,
+            vote_approver,
         ));
 
         let vote_applier = VoteApplier::new(
