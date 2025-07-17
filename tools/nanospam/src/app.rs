@@ -127,6 +127,10 @@ struct Args {
     #[arg(long)]
     /// Number of blocks to publish
     blocks: Option<usize>,
+
+    /// Don't wait for a block to get confirmed before publishing the next block
+    #[arg(long, default_value_t = false)]
+    unconfirmed: bool,
 }
 
 #[derive(Default)]
@@ -371,17 +375,19 @@ impl NanoSpamApp {
             .await
             .unwrap();
 
-        ws_client
-            .subscribe(SubscribeArgs {
-                topic: TopicSub::Confirmation(Default::default()),
-                ack: true,
-                id: None,
-            })
-            .await
-            .unwrap();
+        if !args.unconfirmed {
+            ws_client
+                .subscribe(SubscribeArgs {
+                    topic: TopicSub::Confirmation(Default::default()),
+                    ack: true,
+                    id: None,
+                })
+                .await
+                .unwrap();
 
-        // wait for ack
-        ws_client.next().await.unwrap().unwrap();
+            // wait for ack
+            ws_client.next().await.unwrap().unwrap();
+        }
 
         let ws_queue_len = AtomicUsize::new(0);
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
@@ -390,16 +396,18 @@ impl NanoSpamApp {
         info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
-            s.spawn(|| {
-                track_confirmations(
-                    rx_ws_msg,
-                    &delayed_blocks,
-                    &block_factory,
-                    &ws_queue_len,
-                    &mut sum_conf_time,
-                    &current_bps,
-                )
-            });
+            if !args.unconfirmed {
+                s.spawn(|| {
+                    track_confirmations(
+                        rx_ws_msg,
+                        &delayed_blocks,
+                        &block_factory,
+                        &ws_queue_len,
+                        &mut sum_conf_time,
+                        &current_bps,
+                    )
+                });
+            }
             s.spawn(|| {
                 create_blocks(
                     &block_factory,
@@ -433,6 +441,8 @@ impl NanoSpamApp {
                     protocol,
                     &delayed_blocks,
                     cancel_tcp_recv,
+                    args.unconfirmed,
+                    &block_factory,
                 ));
             });
         });
@@ -511,6 +521,8 @@ async fn publish_blocks(
     protocol: ProtocolInfo,
     delayed_blocks: &Mutex<DelayedBlocks>,
     cancel_token: CancellationToken,
+    unconfirmed: bool,
+    block_factory: &Mutex<BlockFactory>,
 ) {
     let mut serializer = MessageSerializer::new(protocol);
     while let Some(block) = rx_block.recv().await {
@@ -518,10 +530,8 @@ async fn publish_blocks(
         let publish = Message::Publish(Publish::new_from_originator(block));
         let buffer = serializer.serialize(&publish);
 
-        delayed_blocks
-            .lock()
-            .unwrap()
-            .published(&hash, Instant::now());
+        let now = Instant::now();
+        delayed_blocks.lock().unwrap().published(&hash, now);
 
         tokio_scoped::scope(|s| {
             for stream in &mut tcp_streams {
@@ -530,6 +540,10 @@ async fn publish_blocks(
                 });
             }
         });
+        if unconfirmed {
+            delayed_blocks.lock().unwrap().confirmed(&hash, now);
+            block_factory.lock().unwrap().confirm(hash);
+        }
     }
     cancel_token.cancel();
 }
