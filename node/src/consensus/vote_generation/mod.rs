@@ -10,6 +10,7 @@ mod vote_generators;
 mod vote_spacing;
 
 pub(crate) use block_voter::*;
+pub(crate) use cps_limiter::*;
 pub use local_vote_history::*;
 pub use request_aggregator::*;
 pub(crate) use vote_approver::*;

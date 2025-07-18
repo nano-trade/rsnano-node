@@ -9,7 +9,7 @@ pub(crate) struct CpsLimiter {
     block_rates: Arc<CurrentBlockRates>,
     cps_limit: f64,
     current_rate: f64,
-    limiter: TokenBucket,
+    vote_rate_limiter: TokenBucket,
     last_adjustment: Option<Timestamp>,
 }
 
@@ -21,27 +21,37 @@ impl CpsLimiter {
             block_rates,
             cps_limit: cps_limit as f64,
             current_rate: cps_limit as f64,
-            limiter: TokenBucket::new(cps_limit),
+            vote_rate_limiter: TokenBucket::new(cps_limit),
             last_adjustment: None,
         }
     }
 
-    pub fn try_vote(&mut self, now: Timestamp) -> bool {
-        // TODO unlimited
-        if self.should_adjust_rate(now) {
-            let cps = self.block_rates.cps() as f64;
-            self.current_rate = calculate_new_limiter_rate(self.current_rate, cps, self.cps_limit);
-            self.limiter.set_limit(self.current_rate as usize);
-        }
-
-        self.limiter.try_consume(1, now)
+    pub fn unlimited() -> Self {
+        Self::new(Arc::new(CurrentBlockRates::default()), 0)
     }
 
-    fn should_adjust_rate(&self, now: Timestamp) -> bool {
+    pub fn try_vote(&mut self, now: Timestamp) -> bool {
+        // TODO unlimited
+
+        if self.should_adjust_vote_rate(now) {
+            self.adjust_vote_rate(now);
+        }
+
+        self.vote_rate_limiter.try_consume(1, now)
+    }
+
+    fn should_adjust_vote_rate(&self, now: Timestamp) -> bool {
         match self.last_adjustment {
             Some(last) => last.elapsed(now) >= Self::RATE_ADJUSTMENT_INTERVAL,
             None => true,
         }
+    }
+
+    fn adjust_vote_rate(&mut self, now: Timestamp) {
+        let cps = self.block_rates.cps() as f64;
+        self.current_rate = calculate_new_limiter_rate(self.current_rate, cps, self.cps_limit);
+        self.vote_rate_limiter.set_limit(self.current_rate as usize);
+        self.last_adjustment = Some(now);
     }
 }
 

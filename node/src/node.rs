@@ -55,12 +55,12 @@ use crate::{
         election_schedulers::{ElectionSchedulers, ElectionSchedulersPlugin},
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
         BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
-        ConfirmationSolicitorPlugin, CurrentRepTiers, DependentElectionsConfirmer, ForkCache,
-        ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory, LocalVotesRemover,
-        RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApprover,
-        VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
-        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
-        VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
+        ConfirmationSolicitorPlugin, CpsLimiter, CurrentRepTiers, DependentElectionsConfirmer,
+        ForkCache, ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory,
+        LocalVotesRemover, RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup,
+        VoteApplier, VoteApprover, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators,
+        VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup,
+        VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
     node_id_key_file::NodeIdKeyFile,
@@ -591,8 +591,10 @@ impl Node {
 
         let block_rate_calculator = BlockRateCalculator::new(steady_clock.clone(), ledger.clone());
         let block_rates = block_rate_calculator.rates().clone();
-
-        let vote_approver = VoteApprover::new(current_network);
+        const CPS_LIMIT: usize = 20;
+        // let cps_limiter = CpsLimiter::new(block_rates.clone(), CPS_LIMIT);
+        let cps_limiter = CpsLimiter::unlimited();
+        let vote_approver = VoteApprover::new(current_network, cps_limiter);
 
         let block_voter = Arc::new(BlockVoter::new(
             vote_generators.clone(),
