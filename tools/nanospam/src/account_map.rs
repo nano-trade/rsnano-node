@@ -159,6 +159,13 @@ impl AccountMap {
         self.unconfirmed.insert(receive_hash, (receiver, None));
     }
 
+    pub fn process_change(&mut self, account: Account, hash: BlockHash) {
+        let state = self.account_states.get_mut(&account).unwrap();
+        state.unconfirmed_frontier = hash;
+        self.confirmed_accounts.remove(&account);
+        self.unconfirmed.insert(hash, (account, None));
+    }
+
     pub fn confirm(&mut self, hash: BlockHash) {
         let Some((account, destination)) = self.unconfirmed.remove(&hash) else {
             return;

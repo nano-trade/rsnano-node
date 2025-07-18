@@ -1,11 +1,12 @@
 use crate::account_map::AccountMap;
 use rand::Rng;
-use rsnano_core::{Amount, Block, BlockHash, StateBlockArgs};
+use rsnano_core::{Amount, Block, BlockHash, Link, PublicKey, StateBlockArgs, WorkNonce};
 
 pub(crate) struct BlockFactory {
     max_blocks: usize,
     created: usize,
     account_map: AccountMap,
+    strategy: SpamStrategy,
 }
 
 pub(crate) enum BlockResult {
@@ -23,18 +24,43 @@ impl BlockResult {
     }
 }
 
+pub(crate) enum SpamStrategy {
+    SendReceive,
+    Change,
+}
+
 impl BlockFactory {
-    pub(crate) fn new(account_map: AccountMap, max_blocks: usize) -> Self {
+    pub(crate) fn new(account_map: AccountMap, max_blocks: usize, strategy: SpamStrategy) -> Self {
         Self {
             max_blocks,
             created: 0,
             account_map,
+            strategy,
         }
     }
 
     pub fn create_next(&mut self) -> Option<BlockResult> {
         if self.max_blocks > 0 && self.created >= self.max_blocks {
             return None;
+        }
+
+        if matches!(self.strategy, SpamStrategy::Change) {
+            let Some(state) = self.account_map.random_account_that_can_send() else {
+                return Some(BlockResult::Waiting);
+            };
+            let block: Block = StateBlockArgs {
+                key: &state.key,
+                previous: state.confirmed_frontier,
+                representative: PublicKey::from_bytes(rand::rng().random()),
+                balance: state.balance,
+                link: Link::zero(),
+                work: WorkNonce::new(0),
+            }
+            .into();
+            self.account_map
+                .process_change(state.key.account(), block.hash());
+            self.created += 1;
+            return Some(BlockResult::Block(block));
         }
 
         if let Some((receiver, send_hash, amount_sent)) = self.account_map.next_receivable() {
@@ -106,12 +132,13 @@ mod tests {
 
     #[test]
     fn initial_send_to_random_account() {
-        let mut block_factory = BlockFactory::new(test_account_map(), MAX_BLOCKS);
+        let mut block_factory =
+            BlockFactory::new(test_account_map(), MAX_BLOCKS, SpamStrategy::SendReceive);
         let block = block_factory.create_next().unwrap().unwrap();
         let account = block.account_field().unwrap();
         let destination = block.destination_or_link();
 
-        assert_eq!(account, AccountMap::initial_spam_key().account());
+        assert_eq!(account, initial_test_key().account());
         assert!(block_factory.account_map.contains(&destination));
         assert!(block_factory
             .account_map
@@ -121,7 +148,8 @@ mod tests {
 
     #[test]
     fn initial_receive() {
-        let mut block_factory = BlockFactory::new(test_account_map(), MAX_BLOCKS);
+        let mut block_factory =
+            BlockFactory::new(test_account_map(), MAX_BLOCKS, SpamStrategy::SendReceive);
         // genesis send
         let send = block_factory.create_next().unwrap().unwrap();
         block_factory.confirm(send.hash());
@@ -136,15 +164,17 @@ mod tests {
     #[ignore = "run manually only"]
     fn benchmark() {
         let mut account_map = AccountMap::default();
-        account_map.add_unopened(AccountMap::initial_spam_key());
-        account_map.add_initial_balance(Amount::nano(100_000_000), 123.into());
+        let initial_key = PrivateKey::new();
+        account_map.add_unopened(initial_key.clone());
+        account_map.set_account_state(initial_key.account(), Amount::nano(100_000_000), 123.into());
         for _ in 1..30_000 {
             account_map.add_unopened(PrivateKey::new());
         }
 
         let block_count = 10_000_000;
 
-        let mut block_factory = BlockFactory::new(account_map, block_count);
+        let mut block_factory =
+            BlockFactory::new(account_map, block_count, SpamStrategy::SendReceive);
 
         let mut start = Instant::now();
         let mut created_batch = 0;
@@ -170,13 +200,22 @@ mod tests {
 
     fn test_account_map() -> AccountMap {
         let mut map = AccountMap::default();
-        map.add_unopened(AccountMap::initial_spam_key());
-        map.add_initial_balance(Amount::nano(100_000_000), BlockHash::from(123));
+        let initial_key = initial_test_key();
+        map.add_unopened(initial_key.clone());
+        map.set_account_state(
+            initial_key.account(),
+            Amount::nano(100_000_000),
+            BlockHash::from(123),
+        );
         map.add_unopened(1.into());
         map.add_unopened(2.into());
         map.add_unopened(3.into());
         map.add_unopened(4.into());
         map.add_unopened(5.into());
         map
+    }
+
+    fn initial_test_key() -> PrivateKey {
+        PrivateKey::from(42)
     }
 }

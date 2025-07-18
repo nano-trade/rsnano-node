@@ -42,7 +42,7 @@ use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 
 use crate::{
     account_map::AccountMap,
-    block_factory::{BlockFactory, BlockResult},
+    block_factory::{BlockFactory, BlockResult, SpamStrategy},
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
     rate_spec::RateSpec,
@@ -141,6 +141,10 @@ struct Args {
     /// Query frontiers of the spam accounts before starting spam
     #[arg(long, default_value_t = false)]
     sync: bool,
+
+    /// Only publish change blocks. This requires --sync
+    #[arg(long, default_value_t = false)]
+    change: bool,
 }
 
 #[derive(Default)]
@@ -506,7 +510,17 @@ impl NanoSpamApp {
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
         let mut sum_conf_time = Duration::ZERO;
 
-        let block_factory = Mutex::new(BlockFactory::new(account_map, args.blocks.unwrap_or(0)));
+        let strategy = if args.change {
+            SpamStrategy::Change
+        } else {
+            SpamStrategy::SendReceive
+        };
+
+        let block_factory = Mutex::new(BlockFactory::new(
+            account_map,
+            args.blocks.unwrap_or(0),
+            strategy,
+        ));
         info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
