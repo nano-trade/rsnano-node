@@ -52,15 +52,32 @@ impl AccountMap {
         &self.account_states.get(&self.all_accounts[0]).unwrap().key
     }
 
-    pub fn add_initial_balance(&mut self, initial_balance: Amount, frontier: BlockHash) {
-        let key = self.initial_key().clone();
-        let state = self.account_states.get_mut(&key.account()).unwrap();
-        state.balance += initial_balance;
+    pub fn accounts(&self) -> &Vec<Account> {
+        &self.all_accounts
+    }
+
+    pub fn set_account_state(&mut self, account: Account, balance: Amount, frontier: BlockHash) {
+        let state = self.account_states.get_mut(&account).unwrap();
+        state.balance = balance;
         state.unconfirmed_frontier = frontier;
         state.confirmed_frontier = frontier;
-        self.confirmed_accounts.insert(key.account());
-        self.active_accounts.insert(key.account());
-        self.active_accounts_vec.push(key.account());
+        self.confirmed_accounts.insert(account);
+        self.active_accounts.insert(account);
+        self.active_accounts_vec.push(account);
+    }
+
+    pub fn add_confirmed_receivable(
+        &mut self,
+        destination: Account,
+        send_hash: BlockHash,
+        amount: Amount,
+    ) {
+        self.receivable
+            .entry(destination)
+            .or_default()
+            .push((send_hash, amount));
+        self.confirmed_receivable
+            .insert((destination, send_hash), amount);
     }
 
     pub fn add_unopened(&mut self, key: PrivateKey) {
@@ -196,6 +213,10 @@ impl AccountMap {
             }
         }
         None
+    }
+
+    pub fn len(&self) -> usize {
+        self.all_accounts.len()
     }
 }
 

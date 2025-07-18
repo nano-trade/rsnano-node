@@ -31,7 +31,10 @@ use rsnano_messages::{Message, MessageSerializer, Publish};
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
+use rsnano_rpc_messages::{
+    AccountsReceivableArgs, AccountsReceivableResponse, ReceiveArgs, SendArgs, WalletAddArgs,
+    WalletRepresentativeSetArgs,
+};
 use rsnano_websocket_client::{
     NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
 };
@@ -209,6 +212,7 @@ impl NanoSpamApp {
             }
         }
 
+        // CONFIGURE NODES
         if !args.attach && !args.sync {
             for i in 0..100 {
                 let mut pr_dir = data_dir.clone();
@@ -221,9 +225,6 @@ impl NanoSpamApp {
                     break;
                 }
             }
-
-            let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
-            let mut genesis_wallet = WalletId::zero();
 
             for i in 0..args.prs {
                 info!(
@@ -258,6 +259,14 @@ impl NanoSpamApp {
                     let rpc_config = RPC_CONFIG.replace("RPC_PORT", &rpc_port(i).to_string());
                     std::fs::write(rpc_config_path, rpc_config).unwrap();
                 }
+            }
+        }
+
+        // START NODES
+        if !args.attach {
+            for i in 0..args.prs {
+                let mut node_dir = data_dir.clone();
+                node_dir.push(format!("pr{i}"));
 
                 let mut cmd = Command::new("rsnano_node");
                 cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
@@ -278,7 +287,14 @@ impl NanoSpamApp {
                 while rpc_client.version().await.is_err() {
                     sleep(Duration::from_millis(100)).await;
                 }
+            }
+        }
 
+        // CREATE WALLETS
+        if !args.attach && !args.sync {
+            let mut genesis_wallet = WalletId::zero();
+            for i in 0..args.prs {
+                let rpc_client = &rpc_clients[i];
                 info!("Creating wallet...");
                 let resp = rpc_client.wallet_create(None).await.unwrap();
                 if i == 0 {
@@ -305,6 +321,7 @@ impl NanoSpamApp {
                         .await
                         .unwrap();
 
+                    let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
                     info!(
                         "Sending Ӿ{} to PR{i} wallet {} ...",
                         pr_balance.format_balance(0),
@@ -377,14 +394,72 @@ impl NanoSpamApp {
 
             wait_until_confirmed(&genesis_rpc, recv.hash).await;
 
-            account_map.add_initial_balance(INITIAL_AMOUNT, genesis_receive.hash());
+            account_map.set_account_state(
+                initial_key.account(),
+                INITIAL_AMOUNT,
+                genesis_receive.hash(),
+            );
         }
 
         if args.setup_only {
             return Ok(());
         }
 
-        let block_factory = Mutex::new(BlockFactory::new(account_map, args.blocks.unwrap_or(0)));
+        // SYNC
+        if args.sync {
+            info!("Syncing account frontiers...");
+            let rpc_client = &rpc_clients[0];
+            let accounts = account_map.accounts().clone();
+            let mut count = 0;
+            for chunk in accounts.chunks(100) {
+                let frontiers = rpc_client
+                    .accounts_frontiers(chunk.into())
+                    .await
+                    .unwrap()
+                    .frontiers
+                    .unwrap();
+
+                let balances = rpc_client
+                    .accounts_balances(chunk.to_vec())
+                    .await
+                    .unwrap()
+                    .balances;
+
+                let AccountsReceivableResponse::Source(receivable) = rpc_client
+                    .accounts_receivable(
+                        AccountsReceivableArgs::build(chunk.to_vec())
+                            .include_source()
+                            .finish(),
+                    )
+                    .await
+                    .unwrap()
+                else {
+                    panic!("not a simple response")
+                };
+
+                for account in chunk {
+                    if let Some(frontier) = frontiers.get(account) {
+                        let balance = balances.get(account).unwrap().balance;
+                        account_map.set_account_state(*account, balance, *frontier);
+                    }
+
+                    if let Some(blocks) = receivable.blocks.get(account) {
+                        for (send_hash, info) in blocks {
+                            account_map.add_confirmed_receivable(*account, *send_hash, info.amount);
+                        }
+                    }
+                }
+
+                count += 1;
+
+                if count % 200 == 0 {
+                    info!(
+                        "Done: {}%",
+                        (count as f64 * 100.0 / account_map.len() as f64 * 100.0) as usize
+                    )
+                }
+            }
+        }
 
         let mut tcp_writers = Vec::new();
         let mut tcp_readers = Vec::new();
@@ -398,11 +473,6 @@ impl NanoSpamApp {
             let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
             tcp_writers.push(tcp_write);
             tcp_readers.push(tcp_read);
-        }
-
-        if args.sync {
-            let rpc_client = &rpc_clients[0];
-            // TODO
         }
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
@@ -436,6 +506,7 @@ impl NanoSpamApp {
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
         let mut sum_conf_time = Duration::ZERO;
 
+        let block_factory = Mutex::new(BlockFactory::new(account_map, args.blocks.unwrap_or(0)));
         info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
