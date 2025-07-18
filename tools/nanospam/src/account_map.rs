@@ -51,6 +51,10 @@ impl AccountMap {
         }
     }
 
+    pub fn private_keys(&self) -> impl Iterator<Item = &PrivateKey> {
+        self.account_states.values().map(|s| &s.key)
+    }
+
     pub fn add_initial_account(&mut self, initial_amount: Amount, frontier: BlockHash) {
         let key = Self::initial_spam_key();
         self.add_unopened(key.clone());

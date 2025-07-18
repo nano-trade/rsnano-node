@@ -1,5 +1,6 @@
 use std::{
-    fs::remove_dir_all,
+    fs::{remove_dir_all, File},
+    io::{BufRead, BufReader, Write},
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
@@ -23,8 +24,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use rsnano_core::{
-    Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, StateBlockArgs,
-    WalletId, WorkNonce,
+    Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, RawKey,
+    StateBlockArgs, WalletId, WorkNonce,
 };
 use rsnano_messages::{Message, MessageSerializer, Publish};
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
@@ -71,6 +72,7 @@ const NODE_CONFIG: &str = r#"
     preconfigured_peers = PRECONF_PEERS
     preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
     database_backend = "lmdb"
+    cps_limit = 0
 
 [node.lmdb]
     sync = "nosync_unsafe"
@@ -177,9 +179,16 @@ impl NanoSpamApp {
         let initial_key = AccountMap::initial_spam_key();
 
         if !args.attach {
-            if data_dir.exists() {
-                info!("Deleting data from previous run: {data_dir:?}...");
-                remove_dir_all(&data_dir).unwrap();
+            for i in 0..100 {
+                let mut pr_dir = data_dir.clone();
+                pr_dir.push(format!("pr{i}"));
+
+                if pr_dir.exists() {
+                    info!("Deleting data from previous run: {pr_dir:?}...");
+                    remove_dir_all(&pr_dir).unwrap();
+                } else {
+                    break;
+                }
             }
 
             let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
@@ -337,15 +346,33 @@ impl NanoSpamApp {
             return Ok(());
         }
 
-        info!("Creating account keys...");
-        let frontier = genesis_rpc
-            .account_info(initial_key.account())
-            .await
-            .unwrap()
-            .frontier;
-
         let mut account_map = AccountMap::default();
-        account_map.fill(SPAM_ACCOUNTS, INITIAL_AMOUNT, frontier);
+
+        let mut account_keys_path = data_dir.clone();
+        account_keys_path.push("account_keys.txt");
+
+        if account_keys_path.exists() {
+            info!("Loading account keys from {account_keys_path:?}");
+            let file = File::open(account_keys_path).unwrap();
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let key = RawKey::decode_hex(line.unwrap()).unwrap();
+                account_map.add_unopened(key.into());
+            }
+        } else {
+            info!("Creating account keys file {account_keys_path:?}");
+            let frontier = genesis_rpc
+                .account_info(initial_key.account())
+                .await
+                .unwrap()
+                .frontier;
+
+            account_map.fill(SPAM_ACCOUNTS, INITIAL_AMOUNT, frontier);
+            let mut file = File::create(account_keys_path).unwrap();
+            for key in account_map.private_keys() {
+                writeln!(file, "{}", key.raw_key().encode_hex()).unwrap();
+            }
+        }
 
         let block_factory = Mutex::new(BlockFactory::new(account_map, args.blocks.unwrap_or(0)));
 
