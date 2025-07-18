@@ -134,6 +134,10 @@ struct Args {
     /// Don't wait for a block to get confirmed before publishing the next block
     #[arg(long, default_value_t = false)]
     unconfirmed: bool,
+
+    /// Query frontiers of the spam accounts before starting spam
+    #[arg(long, default_value_t = false)]
+    sync: bool,
 }
 
 #[derive(Default)]
@@ -173,12 +177,39 @@ impl NanoSpamApp {
         let mut data_dir = dirs::home_dir().unwrap();
         data_dir.push("NanoSpam");
 
-        let genesis_rpc =
-            NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(0)).parse().unwrap());
+        let mut rpc_clients = Vec::new();
+        for i in 0..args.prs {
+            let rpc_client =
+                NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(i)).parse().unwrap());
+            rpc_clients.push(rpc_client);
+        }
 
-        let initial_key = AccountMap::initial_spam_key();
+        let genesis_rpc = &rpc_clients[0];
 
-        if !args.attach {
+        let mut account_map = AccountMap::default();
+
+        let mut account_keys_path = data_dir.clone();
+        account_keys_path.push("account_keys.txt");
+
+        if account_keys_path.exists() {
+            info!("Loading account keys from {account_keys_path:?}");
+            let file = File::open(account_keys_path).unwrap();
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let key = RawKey::decode_hex(line.unwrap()).unwrap();
+                account_map.add_unopened(key.into());
+            }
+        } else {
+            info!("Creating account keys file {account_keys_path:?}");
+
+            account_map.fill(SPAM_ACCOUNTS);
+            let mut file = File::create(account_keys_path).unwrap();
+            for key in account_map.private_keys() {
+                writeln!(file, "{}", key.raw_key().encode_hex()).unwrap();
+            }
+        }
+
+        if !args.attach && !args.sync {
             for i in 0..100 {
                 let mut pr_dir = data_dir.clone();
                 pr_dir.push(format!("pr{i}"));
@@ -242,8 +273,7 @@ impl NanoSpamApp {
                 cmd.spawn().unwrap();
 
                 // Set up wallet
-                let rpc_client =
-                    NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(i)).parse().unwrap());
+                let rpc_client = &rpc_clients[i];
                 info!("Waiting for RPC...");
                 while rpc_client.version().await.is_err() {
                     sleep(Duration::from_millis(100)).await;
@@ -314,6 +344,7 @@ impl NanoSpamApp {
             }
 
             info!("Sending initial spam amount...");
+            let initial_key = account_map.initial_key().clone();
             // Send total spam amount
             let genesis_send = genesis_rpc
                 .send(SendArgs {
@@ -329,7 +360,7 @@ impl NanoSpamApp {
                 .block;
             wait_until_confirmed(&genesis_rpc, genesis_send).await;
             info!("Receiving initial spam amount...");
-            let block: Block = StateBlockArgs {
+            let genesis_receive: Block = StateBlockArgs {
                 key: &initial_key,
                 previous: BlockHash::zero(),
                 representative: initial_key.public_key(),
@@ -338,40 +369,19 @@ impl NanoSpamApp {
                 work: 0.into(),
             }
             .into();
-            let recv = genesis_rpc.process(JsonBlock::from(block)).await.unwrap();
+
+            let recv = genesis_rpc
+                .process(JsonBlock::from(genesis_receive.clone()))
+                .await
+                .unwrap();
+
             wait_until_confirmed(&genesis_rpc, recv.hash).await;
+
+            account_map.add_initial_balance(INITIAL_AMOUNT, genesis_receive.hash());
         }
 
         if args.setup_only {
             return Ok(());
-        }
-
-        let mut account_map = AccountMap::default();
-
-        let mut account_keys_path = data_dir.clone();
-        account_keys_path.push("account_keys.txt");
-
-        if account_keys_path.exists() {
-            info!("Loading account keys from {account_keys_path:?}");
-            let file = File::open(account_keys_path).unwrap();
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                let key = RawKey::decode_hex(line.unwrap()).unwrap();
-                account_map.add_unopened(key.into());
-            }
-        } else {
-            info!("Creating account keys file {account_keys_path:?}");
-            let frontier = genesis_rpc
-                .account_info(initial_key.account())
-                .await
-                .unwrap()
-                .frontier;
-
-            account_map.fill(SPAM_ACCOUNTS, INITIAL_AMOUNT, frontier);
-            let mut file = File::create(account_keys_path).unwrap();
-            for key in account_map.private_keys() {
-                writeln!(file, "{}", key.raw_key().encode_hex()).unwrap();
-            }
         }
 
         let block_factory = Mutex::new(BlockFactory::new(account_map, args.blocks.unwrap_or(0)));
@@ -388,6 +398,11 @@ impl NanoSpamApp {
             let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
             tcp_writers.push(tcp_write);
             tcp_readers.push(tcp_read);
+        }
+
+        if args.sync {
+            let rpc_client = &rpc_clients[0];
+            // TODO
         }
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);

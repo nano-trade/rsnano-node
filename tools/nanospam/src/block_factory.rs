@@ -136,7 +136,8 @@ mod tests {
     #[ignore = "run manually only"]
     fn benchmark() {
         let mut account_map = AccountMap::default();
-        account_map.add_initial_account(Amount::nano(100_000_000), 123.into());
+        account_map.add_unopened(AccountMap::initial_spam_key());
+        account_map.add_initial_balance(Amount::nano(100_000_000), 123.into());
         for _ in 1..30_000 {
             account_map.add_unopened(PrivateKey::new());
         }
@@ -169,7 +170,8 @@ mod tests {
 
     fn test_account_map() -> AccountMap {
         let mut map = AccountMap::default();
-        map.add_initial_account(Amount::nano(100_000_000), BlockHash::from(123));
+        map.add_unopened(AccountMap::initial_spam_key());
+        map.add_initial_balance(Amount::nano(100_000_000), BlockHash::from(123));
         map.add_unopened(1.into());
         map.add_unopened(2.into());
         map.add_unopened(3.into());

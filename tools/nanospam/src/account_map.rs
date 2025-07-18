@@ -37,15 +37,8 @@ impl AccountState {
 }
 
 impl AccountMap {
-    /// The initial account is fixed, because it will receive the initial spam amount
-    pub fn initial_spam_key() -> PrivateKey {
-        PrivateKey::from_bytes(&[1; 32])
-    }
-
-    pub fn fill(&mut self, count: usize, initial_amount: Amount, frontier: BlockHash) {
-        self.add_initial_account(initial_amount, frontier);
-
-        for _ in 1..count {
+    pub fn fill(&mut self, count: usize) {
+        for _ in 0..count {
             let key = PrivateKey::new();
             self.add_unopened(key);
         }
@@ -55,11 +48,14 @@ impl AccountMap {
         self.account_states.values().map(|s| &s.key)
     }
 
-    pub fn add_initial_account(&mut self, initial_amount: Amount, frontier: BlockHash) {
-        let key = Self::initial_spam_key();
-        self.add_unopened(key.clone());
+    pub fn initial_key(&self) -> &PrivateKey {
+        &self.account_states.get(&self.all_accounts[0]).unwrap().key
+    }
+
+    pub fn add_initial_balance(&mut self, initial_balance: Amount, frontier: BlockHash) {
+        let key = self.initial_key().clone();
         let state = self.account_states.get_mut(&key.account()).unwrap();
-        state.balance += initial_amount;
+        state.balance += initial_balance;
         state.unconfirmed_frontier = frontier;
         state.confirmed_frontier = frontier;
         self.confirmed_accounts.insert(key.account());
