@@ -69,6 +69,7 @@ pub struct NodeToml {
     pub fork_cache: Option<ForkCacheToml>,
     pub vote_rebroadcaster: Option<VoteRebroadcasterToml>,
     pub peering_port: Option<u16>,
+    pub cps_limit: Option<u32>,
 }
 
 impl NodeConfig {
@@ -419,6 +420,10 @@ impl NodeConfig {
         if let Some(port) = toml.peering_port {
             self.network.listening_port = port;
         }
+
+        if let Some(limit) = toml.cps_limit {
+            self.cps_limit = limit;
+        }
     }
 }
 
@@ -519,6 +524,7 @@ impl From<&NodeConfig> for NodeToml {
             fork_cache: Some(config.into()),
             vote_rebroadcaster: Some(config.into()),
             peering_port: Some(config.network.listening_port),
+            cps_limit: Some(config.cps_limit),
         }
     }
 }
@@ -627,6 +633,7 @@ mod tests {
                 bootstrap_stale_threshold: Some(42),
                 ..Default::default()
             }),
+            cps_limit: Some(42),
             ..Default::default()
         };
 
@@ -636,12 +643,14 @@ mod tests {
         assert_eq!(cfg.fork_cache_max_size, 222);
         assert_eq!(cfg.fork_cache_max_forks_per_root, 22);
         assert_eq!(cfg.bootstrap_stale_threshold, Duration::from_secs(42));
+        assert_eq!(cfg.cps_limit, 42);
     }
 
     #[test]
     fn convert_config_to_toml() {
         let config = NodeConfig {
             bootstrap_stale_threshold: Duration::from_secs(42),
+            cps_limit: 42,
             ..NodeConfig::new_test_instance()
         };
 
@@ -654,5 +663,6 @@ mod tests {
                 .bootstrap_stale_threshold,
             Some(42)
         );
+        assert_eq!(toml.cps_limit, Some(42));
     }
 }

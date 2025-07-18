@@ -116,6 +116,7 @@ pub struct NodeConfig {
     pub bootstrap_stale_threshold: Duration,
     pub vote_rebroadcaster_max_queue: usize,
     pub rebroadcast_history: RebroadcastHistoryConfig,
+    pub cps_limit: u32,
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
@@ -336,6 +337,7 @@ impl NodeConfig {
             bootstrap_stale_threshold: BootstrapStaleElections::DEFAULT_STALE_THRESHOLD,
             vote_rebroadcaster_max_queue: VoteRebroadcastQueue::DEFAULT_MAX_QUEUE,
             rebroadcast_history: Default::default(),
+            cps_limit: 0,
         }
     }
 

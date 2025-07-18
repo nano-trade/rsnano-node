@@ -30,8 +30,14 @@ impl CpsLimiter {
         Self::new(Arc::new(CurrentBlockRates::default()), 0)
     }
 
+    pub fn is_unlimited(&self) -> bool {
+        self.cps_limit == 0f64
+    }
+
     pub fn try_vote(&mut self, now: Timestamp) -> bool {
-        // TODO unlimited
+        if self.is_unlimited() {
+            return true;
+        }
 
         if self.should_adjust_vote_rate(now) {
             self.adjust_vote_rate(now);
@@ -94,5 +100,14 @@ mod tests {
 
         block_rates.set_cps(1000);
         assert_false!(limiter.try_vote(now));
+    }
+
+    #[test]
+    fn unlimited() {
+        let mut limiter = CpsLimiter::unlimited();
+        let now = Timestamp::new_test_instance();
+        assert_true!(limiter.try_vote(now));
+        assert_true!(limiter.try_vote(now));
+        assert_true!(limiter.try_vote(now));
     }
 }
