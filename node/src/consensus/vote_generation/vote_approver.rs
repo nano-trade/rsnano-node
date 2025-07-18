@@ -21,7 +21,7 @@ impl VoteApprover {
     }
 
     pub fn approve(&mut self, request: &BlockVoteRequest, now: Timestamp) -> bool {
-        if request.vote_type == VoteType::Final {
+        if request.vote_type == VoteType::NonFinal {
             if !self.cps_limiter.try_vote(now) {
                 return false;
             }
