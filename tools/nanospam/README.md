@@ -1,7 +1,7 @@
 # Tool: nanospam
 
 ## Example Usage
-Run a single node spam test, starting at 1 bps. (rsnano_node has to be in $PATH)
+Run a single node spam test, starting at 1 bps and continually increase bps. (rsnano_node has to be in $PATH)
 ```
 nanospam
 ```
