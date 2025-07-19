@@ -1,5 +1,55 @@
 # Tool: nanospam
 
+## Example Usage
+Run a single node spam test, starting at 1 bps. (rsnano_node has to be in $PATH)
+```
+nanospam
+```
+
+Run a single node, publish 1000 blocks at 200 bps and wait until confirmed
+```
+nanospam --blocks 1000 --rate 200
+```
+
+Run a network spam test with 4 principal reps, starting at 1 bps.
+```
+nanospam --prs 4
+```
+
+Run a 4 PR network and start with 1000 bps, then increase by 100 bps every 5 seconds:
+```
+nanospam --prs 4 --rate 1000+100@5s
+```
+
+Publish 1000 blocks to a 4 PR network without ensuring that the previous block got confirmed
+```
+nanospam --prs 4 --rate 1000 --unconfirmed
+```
+
+Test with change blocks, instead of sends/receives
+```
+# Create ledgers with open accounts:
+nanospam --prs 4 --rate 3000 --blocks 50000
+
+# Start change block spam
+nanospam --prs 4 --rate 3000 --blocks 50000 --sync --change --unconfirmed
+```
+
+Only create the node folders in ~/NanoSpam and configure them and create the node wallets, then stop.
+```
+nanospam --prs 4 --setup-only
+```
+
+Reuse the previous node folders and database. Continue spam with the existing databases
+```
+nanospam --prs 4 --rate 1000 --sync
+```
+
+Don't start any nodes, but attach to nodes that have to be running already
+```
+nanospam --prs 4 --rate 1000 --attach --sync
+```
+
 ## Overview
 Nanospam creates random blocks (without PoW) and sends them with increasing BPS to a local test node.
 
@@ -22,13 +72,19 @@ Because PoW is disabled, creating blocks is very fast. On my old and slow laptop
 
 ### Single Node Spam Test
 ```
+
 Usage: nanospam [OPTIONS]
 
 Options:
-      --attach     Attach to an already running node
-      --prs <PRS>  Number of principal representatives [default: 1]
-      --cpp        Use C++ nano_node implementation
-  -h, --help       Print help
+      --prs <PRS>        Number of principal representatives [default: 1]
+      --setup-only       Only create the node config files and set up the wallets, then exit
+      --attach           Attach to an already running node
+      --rate <RATE>      Block rate in the form "1000+50@3s" or "1000"
+      --blocks <BLOCKS>  Number of blocks to publish
+      --unconfirmed      Don't wait for a block to get confirmed before publishing the next block
+      --sync             Query frontiers of the spam accounts before starting spam
+      --change           Only publish change blocks. This requires --sync
+  -h, --help             Print help
 ```
 
 Running it with no arguments will start a single node that is a PR. The node data is in `~/NanoSpam/pr0/`. 
@@ -54,6 +110,10 @@ export NANO_TEST_EPOCH_2="0"
 export NANO_TEST_EPOCH_2_RECV="0"
 ```
 Make sure that the ledger is empty!: `rm ~/NanoSpam/pr0/data.ldb`. _This has to be done before each spam run!_
+
+If you test a network of nano_node, you have to make sure that the nodes are properly connected. 
+If you run the nodes after for example "nanospam --prs 4 --setup-only" you have to issue a keepalive RPC to the 
+nodes, so that they connect.
 
 ## Misc
 If you would like to know how fast your computer can generate blocks on a single core, then run:
