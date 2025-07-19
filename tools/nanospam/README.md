@@ -109,7 +109,6 @@ export NANO_TEST_EPOCH_1="0"
 export NANO_TEST_EPOCH_2="0"
 export NANO_TEST_EPOCH_2_RECV="0"
 ```
-Make sure that the ledger is empty!: `rm ~/NanoSpam/pr0/data.ldb`. _This has to be done before each spam run!_
 
 If you test a network of nano_node, you have to make sure that the nodes are properly connected. 
 If you run the nodes after for example "nanospam --prs 4 --setup-only" you have to issue a keepalive RPC to the 
