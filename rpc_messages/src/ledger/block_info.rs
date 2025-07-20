@@ -7,6 +7,7 @@ impl RpcCommand {
         Self::BlockInfo(BlockInfoArgs {
             hash,
             include_linked_account: None,
+            json_block: true.into(),
         })
     }
 }
@@ -15,6 +16,7 @@ impl RpcCommand {
 pub struct BlockInfoArgs {
     pub hash: BlockHash,
     pub include_linked_account: Option<RpcBool>,
+    pub json_block: RpcBool,
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]

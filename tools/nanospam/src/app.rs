@@ -21,7 +21,7 @@ use tokio::{
     time::sleep,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 use rsnano_core::{
     Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, RawKey,
@@ -145,6 +145,10 @@ struct Args {
     /// Only publish change blocks. This requires --sync
     #[arg(long, default_value_t = false)]
     change: bool,
+
+    /// Run the C++ nano_node (must be in $PATH)
+    #[arg(long, default_value_t = false)]
+    cpp: bool,
 }
 
 #[derive(Default)]
@@ -266,24 +270,45 @@ impl NanoSpamApp {
             }
         }
 
+        let mut node_handles = Vec::new();
+
         // START NODES
         if !args.attach {
             for i in 0..args.prs {
                 let mut node_dir = data_dir.clone();
                 node_dir.push(format!("pr{i}"));
 
-                let mut cmd = Command::new("rsnano_node");
-                cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                    .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                    .arg("--network")
-                    .arg("test")
-                    .arg("--data-path")
-                    .arg(&node_dir)
-                    .arg("node")
-                    .arg("run")
-                    .stdout(Stdio::null());
+                let mut cmd = if args.cpp {
+                    let mut cmd = Command::new("nano_node");
+                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                        .env("NANO_TEST_EPOCH_1", "0")
+                        .env("NANO_TEST_EPOCH_2", "0")
+                        .env("NANO_TEST_EPOCH_2_RECV", "0")
+                        .arg("--network")
+                        .arg("test")
+                        .arg("--data_path")
+                        .arg(&node_dir)
+                        .arg("--daemon")
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null());
+                    cmd
+                } else {
+                    let mut cmd = Command::new("rsnano_node");
+                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                        .arg("--network")
+                        .arg("test")
+                        .arg("--data-path")
+                        .arg(&node_dir)
+                        .arg("node")
+                        .arg("run")
+                        .stdout(Stdio::null());
+                    cmd
+                };
+
                 info!("Starting node: {cmd:?}");
-                cmd.spawn().unwrap();
+                node_handles.push(cmd.spawn().unwrap());
 
                 // Set up wallet
                 let rpc_client = &rpc_clients[i];
@@ -291,6 +316,23 @@ impl NanoSpamApp {
                 while rpc_client.version().await.is_err() {
                     sleep(Duration::from_millis(100)).await;
                 }
+            }
+
+            if args.cpp {
+                // Send keepalives so that nano_node connects (their preconfigured peers don't allow ports)!
+                info!("Sending keepalives...");
+                for i in 0..args.prs {
+                    for k in 0..args.prs {
+                        if k != i {
+                            rpc_clients[i]
+                                .keepalive("::1", peering_port(k))
+                                .await
+                                .unwrap();
+                        }
+                    }
+                }
+                // Give time to connect
+                sleep(Duration::from_secs(5)).await;
             }
         }
 
@@ -346,16 +388,20 @@ impl NanoSpamApp {
                     wait_until_confirmed(&rpc_client, send_hash).await;
 
                     info!("Receiving...");
-                    let recv_hash = rpc_client
+                    // trigger wallet receive to speed things up
+                    let _ = rpc_client
                         .receive(ReceiveArgs {
                             wallet: resp.wallet,
                             account: pr_key.account(),
                             block: send_hash,
                             work: Some(WorkNonce::new(0)),
                         })
+                        .await;
+                    let recv_hash = rpc_client
+                        .account_info(pr_key.account())
                         .await
                         .unwrap()
-                        .block;
+                        .frontier;
                     wait_until_confirmed(&rpc_client, recv_hash).await;
                     info!("DONE");
                     info!(
@@ -581,6 +627,10 @@ impl NanoSpamApp {
         info!("Confirmation rate: {cps} cps");
         let conf_time = sum_conf_time.as_millis() / created_blocks as u128;
         info!("Average conf time: {conf_time} ms");
+
+        for mut child in node_handles {
+            child.kill().unwrap();
+        }
         Ok(())
     }
 
@@ -796,13 +846,19 @@ fn genesis_key() -> PrivateKey {
 }
 
 async fn wait_until_confirmed(rpc_client: &NanoRpcClient, hash: BlockHash) {
-    info!("Waiting for confirmation...");
+    info!("Waiting for confirmation for {hash}");
     loop {
-        if let Ok(info) = rpc_client.block_info(hash).await {
-            if info.confirmed.inner() {
-                break;
+        match rpc_client.block_info(hash).await {
+            Ok(info) => {
+                if info.confirmed.inner() {
+                    break;
+                }
+            }
+            Err(e) => {
+                warn!("Got error: {e:?}")
             }
         }
+
         sleep(Duration::from_millis(100)).await;
     }
 }
