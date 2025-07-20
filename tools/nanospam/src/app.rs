@@ -74,7 +74,7 @@ const NODE_CONFIG: &str = r#"
     enable_voting = true
     preconfigured_peers = PRECONF_PEERS
     preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
-    database_backend = "lmdb"
+    database_backend = "DB_BACKEND"
     cps_limit = 0
 
 [node.lmdb]
@@ -149,6 +149,10 @@ struct Args {
     /// Run the C++ nano_node (must be in $PATH)
     #[arg(long, default_value_t = false)]
     cpp: bool,
+
+    /// Use RocksDB (works only for nano_node)
+    #[arg(long, default_value_t = false)]
+    rocksdb: bool,
 }
 
 #[derive(Default)]
@@ -256,7 +260,8 @@ impl NanoSpamApp {
                     let node_config = NODE_CONFIG
                         .replace("PEERING_PORT", &peering_port(i).to_string())
                         .replace("WS_PORT", &websocket_port(i).to_string())
-                        .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i));
+                        .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i))
+                        .replace("DB_BACKEND", if args.rocksdb { "rocksdb" } else { "lmdb" });
                     std::fs::write(node_config_path, node_config).unwrap();
                 }
 
