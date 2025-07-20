@@ -155,6 +155,18 @@ impl NanoRpcClient {
                 result,
             )?))
         } else if source {
+            let Value::Object(obj) = &result else {
+                panic!("not an object")
+            };
+            if let Some(blocks) = obj.get("blocks") {
+                if matches!(blocks, Value::String(_)) {
+                    return Ok(AccountsReceivableResponse::Source(
+                        AccountsReceivableSource {
+                            blocks: Default::default(),
+                        },
+                    ));
+                }
+            }
             Ok(AccountsReceivableResponse::Source(serde_json::from_value(
                 result,
             )?))
