@@ -4,6 +4,7 @@ mod confirmation_tracker;
 mod domain;
 mod frontiers_sync;
 mod handshake;
+mod high_prio_check;
 mod setup;
 mod wallets_factory;
 

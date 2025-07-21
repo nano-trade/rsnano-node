@@ -34,6 +34,7 @@ use crate::{
     domain::{BlockFactory, BlockResult, DelayedBlocks, RateSpec, SpamStrategy},
     frontiers_sync::sync_frontiers,
     handshake::perform_handshake,
+    high_prio_check::HighPrioCheck,
     setup::{
         configure_nodes, create_account_map, get_genesis_hash, peering_port, rpc_port, start_nodes,
     },
@@ -126,6 +127,7 @@ impl NanoSpamApp {
                 NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(i)).parse().unwrap());
             rpc_clients.push(rpc_client);
         }
+        let genesis_rpc = &rpc_clients[0];
 
         let mut node_handles = Vec::new();
 
@@ -133,9 +135,12 @@ impl NanoSpamApp {
             node_handles = start_nodes(&args, data_dir, &rpc_clients).await
         }
 
+        let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
+        let mut high_prio_check = HighPrioCheck::new(tx_block.clone(), genesis_rpc);
+
         if !args.attach && !args.sync {
-            let genesis_rpc = &rpc_clients[0];
             create_wallets(&args, &rpc_clients, genesis_rpc, &mut account_map).await;
+            high_prio_check.create_prio_accounts().await?;
         }
 
         if args.setup_only {
@@ -144,6 +149,7 @@ impl NanoSpamApp {
 
         if args.sync {
             sync_frontiers(&rpc_clients, &mut account_map).await;
+            high_prio_check.sync_accounts().await?;
         }
 
         let mut tcp_writers = Vec::new();
@@ -160,7 +166,6 @@ impl NanoSpamApp {
             tcp_readers.push(tcp_read);
         }
 
-        let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
         let tx_block_clone = tx_block.clone();
         let delayed_blocks = Mutex::new(DelayedBlocks::new());
         let cancel_tcp_recv = CancellationToken::new();
@@ -189,6 +194,7 @@ impl NanoSpamApp {
             args.blocks.unwrap_or(0),
             strategy,
         ));
+
         info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
@@ -235,6 +241,7 @@ impl NanoSpamApp {
                     args.unconfirmed,
                     &block_factory,
                 ));
+                scope.spawn(high_prio_check.run());
             });
         });
         let duration_secs = started.elapsed().as_secs_f64();
