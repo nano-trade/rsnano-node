@@ -6,6 +6,7 @@ mod delayed_blocks;
 mod frontiers_sync;
 mod handshake;
 mod node_config;
+mod node_launcher;
 mod rate_spec;
 mod wallets_factory;
 
