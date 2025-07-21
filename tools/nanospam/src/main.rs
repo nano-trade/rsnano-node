@@ -1,6 +1,5 @@
 mod account_map_factory;
 mod app;
-mod block_factory;
 mod delayed_blocks;
 mod domain;
 mod frontiers_sync;
