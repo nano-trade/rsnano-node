@@ -17,11 +17,11 @@ use rsnano_websocket_messages::MessageEnvelope;
 
 use crate::setup::websocket_port;
 
-pub(crate) struct ConfirmationMonitor {
+pub(crate) struct ConfirmationReceiver {
     ws_client: NanoWebSocketClient,
 }
 
-impl ConfirmationMonitor {
+impl ConfirmationReceiver {
     pub async fn connect() -> anyhow::Result<Self> {
         let mut ws_client = NanoWebSocketClientFactory::default()
             .connect(&format!("ws://[::1]:{}", websocket_port(0)))
