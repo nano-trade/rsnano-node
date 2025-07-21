@@ -3,11 +3,12 @@ mod account_map_factory;
 mod app;
 mod block_factory;
 mod delayed_blocks;
+mod domain;
 mod frontiers_sync;
 mod handshake;
 mod node_config;
 mod node_launcher;
-mod rate_spec;
+mod setup;
 mod wallets_factory;
 
 use app::NanoSpamApp;

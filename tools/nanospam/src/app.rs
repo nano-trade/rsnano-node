@@ -35,11 +35,11 @@ use crate::{
     account_map_factory::create_account_map,
     block_factory::{BlockFactory, BlockResult, SpamStrategy},
     delayed_blocks::DelayedBlocks,
+    domain::RateSpec,
     frontiers_sync::sync_frontiers,
     handshake::perform_handshake,
     node_config::{configure_nodes, genesis_key, peering_port, rpc_port, GENESIS_BLOCK},
     node_launcher::start_nodes,
-    rate_spec::RateSpec,
     wallets_factory::create_wallets,
 };
 
