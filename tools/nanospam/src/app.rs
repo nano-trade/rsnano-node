@@ -1,6 +1,4 @@
 use std::{
-    fs::File,
-    io::{BufRead, BufReader, Write},
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
     sync::{
@@ -24,8 +22,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use rsnano_core::{
-    Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, RawKey,
-    StateBlockArgs, WalletId, WorkNonce,
+    Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, StateBlockArgs,
+    WalletId, WorkNonce,
 };
 use rsnano_messages::{Message, MessageSerializer, Publish};
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
@@ -42,6 +40,7 @@ use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 
 use crate::{
     account_map::AccountMap,
+    account_map_factory::create_account_map,
     block_factory::{BlockFactory, BlockResult, SpamStrategy},
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
@@ -51,7 +50,6 @@ use crate::{
 use rsnano_network::token_bucket::TokenBucket;
 use rsnano_nullable_clock::SteadyClock;
 
-const SPAM_ACCOUNTS: usize = 500_000;
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 const DEFAULT_RATE: &str = "1+50@3s";
@@ -479,32 +477,6 @@ async fn start_nodes(
         sleep(Duration::from_secs(5)).await;
     }
     children
-}
-
-fn create_account_map(data_dir: &std::path::PathBuf) -> AccountMap {
-    let mut account_map = AccountMap::default();
-
-    let mut account_keys_path = data_dir.clone();
-    account_keys_path.push("account_keys.txt");
-
-    if account_keys_path.exists() {
-        info!("Loading account keys from {account_keys_path:?}");
-        let file = File::open(account_keys_path).unwrap();
-        let reader = BufReader::new(file);
-        for line in reader.lines() {
-            let key = RawKey::decode_hex(line.unwrap()).unwrap();
-            account_map.add_unopened(key.into());
-        }
-    } else {
-        info!("Creating account keys file {account_keys_path:?}");
-
-        account_map.fill(SPAM_ACCOUNTS);
-        let mut file = File::create(account_keys_path).unwrap();
-        for key in account_map.private_keys() {
-            writeln!(file, "{}", key.raw_key().encode_hex()).unwrap();
-        }
-    }
-    account_map
 }
 
 fn create_blocks(
