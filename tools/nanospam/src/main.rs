@@ -1,5 +1,5 @@
 mod app;
-mod delayed_blocks;
+mod confirmation_monitor;
 mod domain;
 mod frontiers_sync;
 mod handshake;
@@ -10,5 +10,5 @@ use app::NanoSpamApp;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> anyhow::Result<()> {
-    NanoSpamApp::default().run().await
+    NanoSpamApp::default().run(std::env::args()).await
 }

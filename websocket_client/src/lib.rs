@@ -15,10 +15,13 @@ use tokio_tungstenite::tungstenite::Utf8Bytes;
 pub type WsError = tokio_tungstenite::tungstenite::Error;
 pub type Message = tokio_tungstenite::tungstenite::Message;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Websocket error: {0}")]
     WebSocketErr(WsError),
+    #[error("Invalid message")]
     InvalidMessage,
+    #[error("Invalid JSON: {0}")]
     InvalidJson(serde_json::Error),
 }
 
@@ -55,6 +58,12 @@ pub struct NanoWebSocketClient {
 impl NanoWebSocketClient {
     pub fn new(stream: WebSocketStream) -> Self {
         Self { stream }
+    }
+
+    pub fn new_null() -> Self {
+        Self {
+            stream: WebSocketStream::new_null(),
+        }
     }
 
     pub async fn subscribe(&mut self, args: SubscribeArgs<'_>) -> Result<(), Error> {
@@ -139,31 +148,58 @@ pub struct WebSocketStreamFactory {}
 impl WebSocketStreamFactory {
     pub async fn connect(&self, endpoint: &str) -> Result<WebSocketStream, WsError> {
         let stream = tokio_tungstenite::connect_async(endpoint).await?.0;
-        Ok(WebSocketStream { stream })
+        Ok(WebSocketStream {
+            stream: WsStreamImpl::Tungstenite(stream),
+        })
     }
 }
 
 pub struct WebSocketStream {
-    stream: tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>,
+    stream: WsStreamImpl,
+}
+
+impl WebSocketStream {
+    pub fn new_null() -> Self {
+        Self {
+            stream: WsStreamImpl::Stub,
+        }
+    }
+}
+
+enum WsStreamImpl {
+    Tungstenite(tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>),
+    Stub,
 }
 
 impl Sink<Message> for WebSocketStream {
     type Error = WsError;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        unsafe { self.map_unchecked_mut(|i| &mut i.stream) }.poll_ready(cx)
+        match &mut self.get_mut().stream {
+            WsStreamImpl::Tungstenite(stream) => Pin::new(stream).poll_ready(cx),
+            WsStreamImpl::Stub => Poll::Pending,
+        }
     }
 
     fn start_send(self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
-        unsafe { self.map_unchecked_mut(|i| &mut i.stream) }.start_send(item)
+        match &mut self.get_mut().stream {
+            WsStreamImpl::Tungstenite(stream) => Pin::new(stream).start_send(item),
+            WsStreamImpl::Stub => Ok(()),
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        unsafe { self.map_unchecked_mut(|i| &mut i.stream) }.poll_flush(cx)
+        match &mut self.get_mut().stream {
+            WsStreamImpl::Tungstenite(stream) => Pin::new(stream).poll_flush(cx),
+            WsStreamImpl::Stub => Poll::Ready(Ok(())),
+        }
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        unsafe { self.map_unchecked_mut(|i| &mut i.stream) }.poll_close(cx)
+        match &mut self.get_mut().stream {
+            WsStreamImpl::Tungstenite(stream) => Pin::new(stream).poll_close(cx),
+            WsStreamImpl::Stub => Poll::Ready(Ok(())),
+        }
     }
 }
 
@@ -171,7 +207,10 @@ impl Stream for WebSocketStream {
     type Item = Result<Message, WsError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        unsafe { self.map_unchecked_mut(|i| &mut i.stream) }.poll_next(cx)
+        match &mut self.get_mut().stream {
+            WsStreamImpl::Tungstenite(stream) => Pin::new(stream).poll_next(cx),
+            WsStreamImpl::Stub => Poll::Pending,
+        }
     }
 }
 

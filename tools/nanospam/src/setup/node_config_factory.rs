@@ -2,7 +2,7 @@ use std::fs::remove_dir_all;
 
 use tracing::info;
 
-use rsnano_core::PrivateKey;
+use rsnano_core::{Block, BlockHash, PrivateKey};
 
 use crate::app::Args;
 
@@ -148,4 +148,9 @@ pub(crate) fn pr_key(node_id: usize) -> PrivateKey {
 
 pub(crate) fn genesis_key() -> PrivateKey {
     PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
+}
+
+pub(crate) fn get_genesis_hash() -> BlockHash {
+    let genesis_block: Block = serde_json::from_str(GENESIS_BLOCK).unwrap();
+    genesis_block.hash()
 }

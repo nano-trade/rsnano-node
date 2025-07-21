@@ -1,8 +1,9 @@
 use std::{
+    ffi::OsString,
     net::{Ipv6Addr, SocketAddrV6},
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc::{Receiver, Sender},
+        mpsc::Receiver,
         Mutex,
     },
     thread::yield_now,
@@ -26,19 +27,15 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_websocket_client::{
-    NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
-};
 use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 
 use crate::{
-    delayed_blocks::DelayedBlocks,
-    domain::{BlockFactory, BlockResult, RateSpec, SpamStrategy},
+    confirmation_monitor::ConfirmationMonitor,
+    domain::{BlockFactory, BlockResult, DelayedBlocks, RateSpec, SpamStrategy},
     frontiers_sync::sync_frontiers,
     handshake::perform_handshake,
     setup::{
-        configure_nodes, create_account_map, genesis_key, peering_port, rpc_port, start_nodes,
-        GENESIS_BLOCK,
+        configure_nodes, create_account_map, get_genesis_hash, peering_port, rpc_port, start_nodes,
     },
     wallets_factory::create_wallets,
 };
@@ -96,14 +93,17 @@ pub(crate) struct NanoSpamApp {
 }
 
 impl NanoSpamApp {
-    pub async fn run(&self) -> anyhow::Result<()> {
+    pub async fn run<I, T>(&self, args: I) -> anyhow::Result<()>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<OsString> + Clone,
+    {
         self.tracing_init.init();
-        let args = Args::parse();
+        let args = Args::try_parse_from(args)?;
 
         let node_id_key = PrivateKey::from(42);
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
-        let genesis_hash = self.get_genesis_hash();
-        let genesis_key = genesis_key();
+        let genesis_hash = get_genesis_hash();
         let rate_spec: RateSpec = args
             .rate
             .as_ref()
@@ -135,14 +135,7 @@ impl NanoSpamApp {
 
         if !args.attach && !args.sync {
             let genesis_rpc = &rpc_clients[0];
-            create_wallets(
-                &args,
-                genesis_key,
-                &rpc_clients,
-                genesis_rpc,
-                &mut account_map,
-            )
-            .await;
+            create_wallets(&args, &rpc_clients, genesis_rpc, &mut account_map).await;
         }
 
         if args.setup_only {
@@ -174,25 +167,12 @@ impl NanoSpamApp {
         let cancel_ws_recv = CancellationToken::new();
         let current_bps = AtomicUsize::new(rate_spec.initial_bps);
 
-        info!("Connecting to websocket...");
-        let mut ws_client = NanoWebSocketClientFactory::default()
-            .connect("ws://[::1]:17078")
-            .await
-            .unwrap();
-
-        if !args.unconfirmed {
-            ws_client
-                .subscribe(SubscribeArgs {
-                    topic: TopicSub::Confirmation(Default::default()),
-                    ack: true,
-                    id: None,
-                })
-                .await
-                .unwrap();
-
-            // wait for ack
-            ws_client.next().await.unwrap().unwrap();
-        }
+        let mut conf_monitor = if !args.unconfirmed {
+            info!("Connecting to websocket...");
+            ConfirmationMonitor::connect().await?
+        } else {
+            ConfirmationMonitor::disabled()
+        };
 
         let ws_queue_len = AtomicUsize::new(0);
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
@@ -235,12 +215,7 @@ impl NanoSpamApp {
             });
 
             tokio_scoped::scope(|scope| {
-                scope.spawn(receive_websocket(
-                    ws_client,
-                    tx_ws_msg,
-                    cancel_ws_recv.clone(),
-                    &ws_queue_len,
-                ));
+                scope.spawn(conf_monitor.run(cancel_ws_recv.clone(), &ws_queue_len, tx_ws_msg));
                 scope.spawn(receive_messages(
                     tcp_readers,
                     protocol,
@@ -274,11 +249,6 @@ impl NanoSpamApp {
             child.kill().unwrap();
         }
         Ok(())
-    }
-
-    fn get_genesis_hash(&self) -> BlockHash {
-        let genesis_block: Block = serde_json::from_str(GENESIS_BLOCK).unwrap();
-        genesis_block.hash()
     }
 }
 
@@ -418,25 +388,6 @@ fn track_confirmations(
             }
         }
     }
-}
-
-async fn receive_websocket(
-    mut ws_client: NanoWebSocketClient,
-    tx_ws_msg: Sender<(MessageEnvelope, Instant)>,
-    cancel_token: CancellationToken,
-    ws_queue_len: &AtomicUsize,
-) {
-    loop {
-        let res = select! {
-            res = ws_client.next() =>  res,
-            _ = cancel_token.cancelled() =>{ break;}
-        };
-
-        let msg = res.unwrap().unwrap();
-        tx_ws_msg.send((msg, Instant::now())).unwrap();
-        ws_queue_len.fetch_add(1, Ordering::Relaxed);
-    }
-    info!("receive websocket finished");
 }
 
 async fn receive_messages(

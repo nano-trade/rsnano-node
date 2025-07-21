@@ -1,9 +1,11 @@
-use rsnano_core::{Block, BlockHash};
-use rustc_hash::FxHashMap;
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
+
+use rustc_hash::FxHashMap;
+
+use rsnano_core::{Block, BlockHash};
 
 const DELAY_LIMIT: Duration = Duration::from_secs(10);
 

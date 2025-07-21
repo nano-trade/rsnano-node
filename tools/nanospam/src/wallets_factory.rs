@@ -3,24 +3,26 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
-use rsnano_core::{
-    Amount, Block, BlockHash, JsonBlock, PrivateKey, StateBlockArgs, WalletId, WorkNonce,
-};
+use rsnano_core::{Amount, Block, BlockHash, JsonBlock, StateBlockArgs, WalletId, WorkNonce};
 use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
 
-use crate::{app::Args, domain::AccountMap, setup::pr_key};
+use crate::{
+    app::Args,
+    domain::AccountMap,
+    setup::{genesis_key, pr_key},
+};
 
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 
 pub(crate) async fn create_wallets(
     args: &Args,
-    genesis_key: PrivateKey,
     rpc_clients: &[NanoRpcClient],
     genesis_rpc: &NanoRpcClient,
     account_map: &mut AccountMap,
 ) {
     let mut genesis_wallet = WalletId::zero();
+    let genesis_key = genesis_key();
     for i in 0..args.prs {
         let rpc_client = &rpc_clients[i];
         info!("Creating wallet...");
