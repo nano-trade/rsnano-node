@@ -9,7 +9,7 @@ use rsnano_core::{
 use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::{ReceiveArgs, SendArgs, WalletAddArgs, WalletRepresentativeSetArgs};
 
-use crate::{app::Args, domain::AccountMap, node_config::pr_key};
+use crate::{app::Args, domain::AccountMap, setup::pr_key};
 
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 

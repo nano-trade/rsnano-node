@@ -32,13 +32,14 @@ use rsnano_websocket_client::{
 use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 
 use crate::{
-    account_map_factory::create_account_map,
     delayed_blocks::DelayedBlocks,
     domain::{BlockFactory, BlockResult, RateSpec, SpamStrategy},
     frontiers_sync::sync_frontiers,
     handshake::perform_handshake,
-    node_config::{configure_nodes, genesis_key, peering_port, rpc_port, GENESIS_BLOCK},
-    node_launcher::start_nodes,
+    setup::{
+        configure_nodes, create_account_map, genesis_key, peering_port, rpc_port, start_nodes,
+        GENESIS_BLOCK,
+    },
     wallets_factory::create_wallets,
 };
 
