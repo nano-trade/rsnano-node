@@ -1,5 +1,5 @@
 use std::{
-    fs::{remove_dir_all, File},
+    fs::File,
     io::{BufRead, BufReader, Write},
     net::{Ipv6Addr, SocketAddrV6},
     process::{Command, Stdio},
@@ -45,6 +45,7 @@ use crate::{
     block_factory::{BlockFactory, BlockResult, SpamStrategy},
     delayed_blocks::DelayedBlocks,
     handshake::perform_handshake,
+    node_config::{configure_nodes, peering_port, rpc_port, GENESIS_BLOCK, GENESIS_PRV},
     rate_spec::RateSpec,
 };
 use rsnano_network::token_bucket::TokenBucket;
@@ -55,122 +56,53 @@ const MAX_BUFFERED_BLOCKS: usize = 1024;
 const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 const DEFAULT_RATE: &str = "1+50@3s";
 
-const GENESIS_BLOCK: &str = r#"{
-    "type": "open",
-    "account": "nano_3nroioygg54nusrmyun4woimqex36sp3drnctdt5955uqu47fxbkrxk7n7ne",
-    "source": "D315857CE70C54DE713F6E82E5613BB3A1266C15E28AD2F4338C7BBEC456F532",
-    "representative": "nano_3nroioygg54nusrmyun4woimqex36sp3drnctdt5955uqu47fxbkrxk7n7ne",
-    "signature": "3F6792C2DC623DF2E8643777160AB983B66B337E2478E13D2C3448126A8F4CD8DCCD19803C158A057FA44060AE0EFC09B1C311CB4FBF42F8D240610B38F56E08",
-    "work": "70FEF01F7EC45DEC"
-    }"#;
-
-const GENESIS_PRV: &str = "49643F9B10CA1AA34F9AF8ED4AABD29F436104CCC375974B108534A48EAE3FE1";
-
-const NODE_CONFIG: &str = r#"
-[node]
-    peering_port = PEERING_PORT
-    allow_local_peers = true
-    bandwidth_limit = 0
-    enable_voting = true
-    preconfigured_peers = PRECONF_PEERS
-    preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
-    database_backend = "DB_BACKEND"
-    cps_limit = 0
-
-[node.lmdb]
-    sync = "nosync_unsafe"
-
-[node.bounded_backlog]
-    enable = false
-
-[node.bootstrap_server]
-    # default 500
-    limiter = 500
-
-[node.bootstrap]
-    # default 500
-    rate_limit = 500
-
-    # default 16
-    channel_limit = 64
-
-[node.monitor]
-    interval = 10
-
-[node.websocket]
-    enable = true
-    address = "::1"
-    port = WS_PORT
-
-[rpc]
-    enable = true
-"#;
-
-const RPC_CONFIG: &str = r#"
-address = "::1"
-enable_control = true
-port = RPC_PORT
-"#;
-
 #[derive(Parser, Debug)]
-struct Args {
+pub(crate) struct Args {
     /// Number of principal representatives
     #[arg(long, default_value_t = 1)]
-    prs: usize,
+    pub prs: usize,
 
     /// Only create the node config files and set up the wallets, then exit
     #[arg(long, default_value_t = false)]
-    setup_only: bool,
+    pub setup_only: bool,
 
     /// Attach to an already running node
     #[arg(long, default_value_t = false)]
-    attach: bool,
+    pub attach: bool,
 
     #[arg(long)]
     /// Block rate in the form "1000+50@3s" or "1000"
-    rate: Option<String>,
+    pub rate: Option<String>,
 
     #[arg(long)]
     /// Number of blocks to publish
-    blocks: Option<usize>,
+    pub blocks: Option<usize>,
 
     /// Don't wait for a block to get confirmed before publishing the next block
     #[arg(long, default_value_t = false)]
-    unconfirmed: bool,
+    pub unconfirmed: bool,
 
     /// Query frontiers of the spam accounts before starting spam
     #[arg(long, default_value_t = false)]
-    sync: bool,
+    pub sync: bool,
 
     /// Only publish change blocks. This requires --sync
     #[arg(long, default_value_t = false)]
-    change: bool,
+    pub change: bool,
 
     /// Run the C++ nano_node (must be in $PATH)
     #[arg(long, default_value_t = false)]
-    cpp: bool,
+    pub cpp: bool,
 
     /// Use RocksDB (works only for nano_node)
     #[arg(long, default_value_t = false)]
-    rocksdb: bool,
+    pub rocksdb: bool,
 }
 
 #[derive(Default)]
 pub(crate) struct NanoSpamApp {
     pub tracing_init: TracingInitializer,
     pub tcp_stream_factory: TcpStreamFactory,
-}
-
-fn peering_port(node_id: usize) -> u16 {
-    17075 + (node_id as u16) * 10
-}
-
-fn rpc_port(node_id: usize) -> u16 {
-    17076 + (node_id as u16) * 10
-}
-
-fn websocket_port(node_id: usize) -> u16 {
-    17078 + (node_id as u16) * 10
 }
 
 impl NanoSpamApp {
@@ -192,19 +124,17 @@ impl NanoSpamApp {
         let mut data_dir = dirs::home_dir().unwrap();
         data_dir.push("NanoSpam");
 
+        let mut account_map = create_account_map(&data_dir);
+
+        if !args.attach && !args.sync {
+            configure_nodes(&args, &data_dir);
+        }
+
         let mut rpc_clients = Vec::new();
         for i in 0..args.prs {
             let rpc_client =
                 NanoRpcClient::new(format!("http://[::1]:{}", rpc_port(i)).parse().unwrap());
             rpc_clients.push(rpc_client);
-        }
-
-        let genesis_rpc = &rpc_clients[0];
-
-        let mut account_map = create_account_map(&data_dir);
-
-        if !args.attach && !args.sync {
-            configure_nodes(&args, &data_dir);
         }
 
         let mut node_handles = Vec::new();
@@ -214,6 +144,7 @@ impl NanoSpamApp {
         }
 
         if !args.attach && !args.sync {
+            let genesis_rpc = &rpc_clients[0];
             create_wallets(
                 &args,
                 genesis_key,
@@ -550,54 +481,6 @@ async fn start_nodes(
     children
 }
 
-fn configure_nodes(args: &Args, data_dir: &std::path::PathBuf) {
-    for i in 0..100 {
-        let mut pr_dir = data_dir.clone();
-        pr_dir.push(format!("pr{i}"));
-
-        if pr_dir.exists() {
-            info!("Deleting data from previous run: {pr_dir:?}...");
-            remove_dir_all(&pr_dir).unwrap();
-        } else {
-            break;
-        }
-    }
-
-    for i in 0..args.prs {
-        info!("********************************************************************************");
-        info!("Setting up node PR{i}...");
-
-        let mut node_dir = data_dir.clone();
-        node_dir.push(format!("pr{i}"));
-
-        info!("Creating directory {node_dir:?}");
-        std::fs::create_dir_all(&node_dir).unwrap();
-
-        let mut ledger_path = node_dir.clone();
-        ledger_path.push("data.ldb");
-
-        let mut node_config_path = node_dir.clone();
-        node_config_path.push("config-node.toml");
-        if !node_config_path.exists() {
-            info!("Creating node config file: {node_config_path:?}");
-            let node_config = NODE_CONFIG
-                .replace("PEERING_PORT", &peering_port(i).to_string())
-                .replace("WS_PORT", &websocket_port(i).to_string())
-                .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i))
-                .replace("DB_BACKEND", if args.rocksdb { "rocksdb" } else { "lmdb" });
-            std::fs::write(node_config_path, node_config).unwrap();
-        }
-
-        let mut rpc_config_path = node_dir.clone();
-        rpc_config_path.push("config-rpc.toml");
-        if !rpc_config_path.exists() {
-            info!("Creating rpc config file: {rpc_config_path:?}");
-            let rpc_config = RPC_CONFIG.replace("RPC_PORT", &rpc_port(i).to_string());
-            std::fs::write(rpc_config_path, rpc_config).unwrap();
-        }
-    }
-}
-
 fn create_account_map(data_dir: &std::path::PathBuf) -> AccountMap {
     let mut account_map = AccountMap::default();
 
@@ -622,20 +505,6 @@ fn create_account_map(data_dir: &std::path::PathBuf) -> AccountMap {
         }
     }
     account_map
-}
-
-fn preconfigured_peers(prs: usize, current_pr: usize) -> String {
-    let mut result = String::new();
-    result.push('[');
-    for i in 0..prs {
-        if i == current_pr {
-            continue;
-        }
-
-        result.push_str(&format!("\"[::1]:{}\",", peering_port(i)));
-    }
-    result.push(']');
-    result
 }
 
 fn create_blocks(
