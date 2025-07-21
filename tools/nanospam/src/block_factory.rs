@@ -1,6 +1,8 @@
-use crate::account_map::AccountMap;
 use rand::Rng;
+
 use rsnano_core::{Amount, Block, BlockHash, Link, PublicKey, StateBlockArgs, WorkNonce};
+
+use crate::domain::AccountMap;
 
 pub(crate) struct BlockFactory {
     max_blocks: usize,

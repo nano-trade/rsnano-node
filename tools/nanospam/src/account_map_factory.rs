@@ -7,7 +7,7 @@ use tracing::info;
 
 use rsnano_core::RawKey;
 
-use crate::account_map::AccountMap;
+use crate::domain::AccountMap;
 
 const SPAM_ACCOUNTS: usize = 500_000;
 

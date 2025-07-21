@@ -3,7 +3,7 @@ use tracing::info;
 use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::{AccountsReceivableArgs, AccountsReceivableResponse};
 
-use crate::account_map::AccountMap;
+use crate::domain::AccountMap;
 
 /// Fetch the latest frontiers from the first node and add them to the account map
 pub(crate) async fn sync_frontiers(rpc_clients: &[NanoRpcClient], account_map: &mut AccountMap) {

@@ -1,4 +1,3 @@
-mod account_map;
 mod account_map_factory;
 mod app;
 mod block_factory;
