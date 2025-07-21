@@ -57,6 +57,7 @@ impl<'a> HighPrioCheck<'a> {
                 .await?;
         }
 
+        info!("Waiting for confirmations...");
         loop {
             let count = self.rpc_client.block_count().await?;
             if count.count.inner() == count.cemented.inner() {
