@@ -201,319 +201,35 @@ impl NanoSpamApp {
 
         let genesis_rpc = &rpc_clients[0];
 
-        let mut account_map = AccountMap::default();
+        let mut account_map = create_account_map(&data_dir);
 
-        let mut account_keys_path = data_dir.clone();
-        account_keys_path.push("account_keys.txt");
-
-        if account_keys_path.exists() {
-            info!("Loading account keys from {account_keys_path:?}");
-            let file = File::open(account_keys_path).unwrap();
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                let key = RawKey::decode_hex(line.unwrap()).unwrap();
-                account_map.add_unopened(key.into());
-            }
-        } else {
-            info!("Creating account keys file {account_keys_path:?}");
-
-            account_map.fill(SPAM_ACCOUNTS);
-            let mut file = File::create(account_keys_path).unwrap();
-            for key in account_map.private_keys() {
-                writeln!(file, "{}", key.raw_key().encode_hex()).unwrap();
-            }
-        }
-
-        // CONFIGURE NODES
         if !args.attach && !args.sync {
-            for i in 0..100 {
-                let mut pr_dir = data_dir.clone();
-                pr_dir.push(format!("pr{i}"));
-
-                if pr_dir.exists() {
-                    info!("Deleting data from previous run: {pr_dir:?}...");
-                    remove_dir_all(&pr_dir).unwrap();
-                } else {
-                    break;
-                }
-            }
-
-            for i in 0..args.prs {
-                info!(
-                    "********************************************************************************"
-                );
-                info!("Setting up node PR{i}...");
-
-                let mut node_dir = data_dir.clone();
-                node_dir.push(format!("pr{i}"));
-
-                info!("Creating directory {node_dir:?}");
-                std::fs::create_dir_all(&node_dir).unwrap();
-
-                let mut ledger_path = node_dir.clone();
-                ledger_path.push("data.ldb");
-
-                let mut node_config_path = node_dir.clone();
-                node_config_path.push("config-node.toml");
-                if !node_config_path.exists() {
-                    info!("Creating node config file: {node_config_path:?}");
-                    let node_config = NODE_CONFIG
-                        .replace("PEERING_PORT", &peering_port(i).to_string())
-                        .replace("WS_PORT", &websocket_port(i).to_string())
-                        .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i))
-                        .replace("DB_BACKEND", if args.rocksdb { "rocksdb" } else { "lmdb" });
-                    std::fs::write(node_config_path, node_config).unwrap();
-                }
-
-                let mut rpc_config_path = node_dir.clone();
-                rpc_config_path.push("config-rpc.toml");
-                if !rpc_config_path.exists() {
-                    info!("Creating rpc config file: {rpc_config_path:?}");
-                    let rpc_config = RPC_CONFIG.replace("RPC_PORT", &rpc_port(i).to_string());
-                    std::fs::write(rpc_config_path, rpc_config).unwrap();
-                }
-            }
+            configure_nodes(&args, &data_dir);
         }
 
         let mut node_handles = Vec::new();
 
-        // START NODES
         if !args.attach {
-            for i in 0..args.prs {
-                let mut node_dir = data_dir.clone();
-                node_dir.push(format!("pr{i}"));
-
-                let mut cmd = if args.cpp {
-                    let mut cmd = Command::new("nano_node");
-                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                        .env("NANO_TEST_EPOCH_1", "0")
-                        .env("NANO_TEST_EPOCH_2", "0")
-                        .env("NANO_TEST_EPOCH_2_RECV", "0")
-                        .arg("--network")
-                        .arg("test")
-                        .arg("--data_path")
-                        .arg(&node_dir)
-                        .arg("--daemon")
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null());
-                    cmd
-                } else {
-                    let mut cmd = Command::new("rsnano_node");
-                    cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
-                        .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
-                        .arg("--network")
-                        .arg("test")
-                        .arg("--data-path")
-                        .arg(&node_dir)
-                        .arg("node")
-                        .arg("run")
-                        .stdout(Stdio::null());
-                    cmd
-                };
-
-                info!("Starting node: {cmd:?}");
-                node_handles.push(cmd.spawn().unwrap());
-
-                // Set up wallet
-                let rpc_client = &rpc_clients[i];
-                info!("Waiting for RPC...");
-                while rpc_client.version().await.is_err() {
-                    sleep(Duration::from_millis(100)).await;
-                }
-            }
-
-            if args.cpp {
-                // Send keepalives so that nano_node connects (their preconfigured peers don't allow ports)!
-                info!("Sending keepalives...");
-                for i in 0..args.prs {
-                    for k in 0..args.prs {
-                        if k != i {
-                            rpc_clients[i]
-                                .keepalive("::1", peering_port(k))
-                                .await
-                                .unwrap();
-                        }
-                    }
-                }
-                // Give time to connect
-                sleep(Duration::from_secs(5)).await;
-            }
+            node_handles = start_nodes(&args, data_dir, &rpc_clients).await
         }
 
-        // CREATE WALLETS
         if !args.attach && !args.sync {
-            let mut genesis_wallet = WalletId::zero();
-            for i in 0..args.prs {
-                let rpc_client = &rpc_clients[i];
-                info!("Creating wallet...");
-                let resp = rpc_client.wallet_create(None).await.unwrap();
-                if i == 0 {
-                    genesis_wallet = resp.wallet;
-                }
-                let pr_key = pr_key(i);
-                rpc_client
-                    .wallet_add(WalletAddArgs {
-                        wallet: resp.wallet,
-                        key: pr_key.raw_key(),
-                        work: None,
-                    })
-                    .await
-                    .unwrap();
-
-                if i > 0 {
-                    info!("Setting default representative...");
-                    rpc_client
-                        .wallet_representative_set(WalletRepresentativeSetArgs {
-                            wallet: resp.wallet,
-                            representative: pr_key.account(),
-                            update_existing_accounts: Some(false.into()),
-                        })
-                        .await
-                        .unwrap();
-
-                    let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
-                    info!(
-                        "Sending Ӿ{} to PR{i} wallet {} ...",
-                        pr_balance.format_balance(0),
-                        pr_key.account().encode_account()
-                    );
-                    let send_hash = genesis_rpc
-                        .send(SendArgs {
-                            wallet: genesis_wallet,
-                            source: genesis_key.account(),
-                            destination: pr_key.account(),
-                            amount: pr_balance,
-                            work: Some(WorkNonce::new(0)),
-                            id: None,
-                        })
-                        .await
-                        .unwrap()
-                        .block;
-                    wait_until_confirmed(&rpc_client, send_hash).await;
-
-                    info!("Receiving...");
-                    // trigger wallet receive to speed things up
-                    let _ = rpc_client
-                        .receive(ReceiveArgs {
-                            wallet: resp.wallet,
-                            account: pr_key.account(),
-                            block: send_hash,
-                            work: Some(WorkNonce::new(0)),
-                        })
-                        .await;
-                    let recv_hash = rpc_client
-                        .account_info(pr_key.account())
-                        .await
-                        .unwrap()
-                        .frontier;
-                    wait_until_confirmed(&rpc_client, recv_hash).await;
-                    info!("DONE");
-                    info!(
-                        "********************************************************************************"
-                    );
-                }
-            }
-
-            info!("Sending initial spam amount...");
-            let initial_key = account_map.initial_key().clone();
-            // Send total spam amount
-            let genesis_send = genesis_rpc
-                .send(SendArgs {
-                    wallet: genesis_wallet,
-                    source: genesis_key.account(),
-                    destination: initial_key.account(),
-                    amount: INITIAL_AMOUNT,
-                    work: Some(0.into()),
-                    id: None,
-                })
-                .await
-                .unwrap()
-                .block;
-            wait_until_confirmed(&genesis_rpc, genesis_send).await;
-            info!("Receiving initial spam amount...");
-            let genesis_receive: Block = StateBlockArgs {
-                key: &initial_key,
-                previous: BlockHash::zero(),
-                representative: initial_key.public_key(),
-                balance: INITIAL_AMOUNT,
-                link: genesis_send.into(),
-                work: 0.into(),
-            }
-            .into();
-
-            let recv = genesis_rpc
-                .process(JsonBlock::from(genesis_receive.clone()))
-                .await
-                .unwrap();
-
-            wait_until_confirmed(&genesis_rpc, recv.hash).await;
-
-            account_map.set_account_state(
-                initial_key.account(),
-                INITIAL_AMOUNT,
-                genesis_receive.hash(),
-            );
+            create_wallets(
+                &args,
+                genesis_key,
+                &rpc_clients,
+                genesis_rpc,
+                &mut account_map,
+            )
+            .await;
         }
 
         if args.setup_only {
             return Ok(());
         }
 
-        // SYNC
         if args.sync {
-            info!("Syncing account frontiers...");
-            let rpc_client = &rpc_clients[0];
-            let accounts = account_map.accounts().clone();
-            let mut count = 0;
-            for chunk in accounts.chunks(100) {
-                let frontiers = rpc_client
-                    .accounts_frontiers(chunk.into())
-                    .await
-                    .unwrap()
-                    .frontiers
-                    .unwrap();
-
-                let balances = rpc_client
-                    .accounts_balances(chunk.to_vec())
-                    .await
-                    .unwrap()
-                    .balances;
-
-                let AccountsReceivableResponse::Source(receivable) = rpc_client
-                    .accounts_receivable(
-                        AccountsReceivableArgs::build(chunk.to_vec())
-                            .include_source()
-                            .finish(),
-                    )
-                    .await
-                    .unwrap()
-                else {
-                    panic!("not a simple response")
-                };
-
-                for account in chunk {
-                    if let Some(frontier) = frontiers.get(account) {
-                        let balance = balances.get(account).unwrap().balance;
-                        account_map.set_account_state(*account, balance, *frontier);
-                    }
-
-                    if let Some(blocks) = receivable.blocks.get(account) {
-                        for (send_hash, info) in blocks {
-                            account_map.add_confirmed_receivable(*account, *send_hash, info.amount);
-                        }
-                    }
-                }
-
-                count += 1;
-
-                if count % 200 == 0 {
-                    info!(
-                        "Done: {}%",
-                        (count as f64 * 100.0 / account_map.len() as f64 * 100.0) as usize
-                    )
-                }
-            }
+            sync_frontiers(&rpc_clients, &mut account_map).await;
         }
 
         let mut tcp_writers = Vec::new();
@@ -643,6 +359,269 @@ impl NanoSpamApp {
         let genesis_block: Block = serde_json::from_str(GENESIS_BLOCK).unwrap();
         genesis_block.hash()
     }
+}
+
+async fn create_wallets(
+    args: &Args,
+    genesis_key: PrivateKey,
+    rpc_clients: &[NanoRpcClient],
+    genesis_rpc: &NanoRpcClient,
+    account_map: &mut AccountMap,
+) {
+    let mut genesis_wallet = WalletId::zero();
+    for i in 0..args.prs {
+        let rpc_client = &rpc_clients[i];
+        info!("Creating wallet...");
+        let resp = rpc_client.wallet_create(None).await.unwrap();
+        if i == 0 {
+            genesis_wallet = resp.wallet;
+        }
+        let pr_key = pr_key(i);
+        rpc_client
+            .wallet_add(WalletAddArgs {
+                wallet: resp.wallet,
+                key: pr_key.raw_key(),
+                work: None,
+            })
+            .await
+            .unwrap();
+
+        if i > 0 {
+            info!("Setting default representative...");
+            rpc_client
+                .wallet_representative_set(WalletRepresentativeSetArgs {
+                    wallet: resp.wallet,
+                    representative: pr_key.account(),
+                    update_existing_accounts: Some(false.into()),
+                })
+                .await
+                .unwrap();
+
+            let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
+            info!(
+                "Sending Ӿ{} to PR{i} wallet {} ...",
+                pr_balance.format_balance(0),
+                pr_key.account().encode_account()
+            );
+            let send_hash = genesis_rpc
+                .send(SendArgs {
+                    wallet: genesis_wallet,
+                    source: genesis_key.account(),
+                    destination: pr_key.account(),
+                    amount: pr_balance,
+                    work: Some(WorkNonce::new(0)),
+                    id: None,
+                })
+                .await
+                .unwrap()
+                .block;
+            wait_until_confirmed(&rpc_client, send_hash).await;
+
+            info!("Receiving...");
+            // trigger wallet receive to speed things up
+            let _ = rpc_client
+                .receive(ReceiveArgs {
+                    wallet: resp.wallet,
+                    account: pr_key.account(),
+                    block: send_hash,
+                    work: Some(WorkNonce::new(0)),
+                })
+                .await;
+            let recv_hash = rpc_client
+                .account_info(pr_key.account())
+                .await
+                .unwrap()
+                .frontier;
+            wait_until_confirmed(&rpc_client, recv_hash).await;
+            info!("DONE");
+            info!(
+                "********************************************************************************"
+            );
+        }
+    }
+
+    info!("Sending initial spam amount...");
+    let initial_key = account_map.initial_key().clone();
+    // Send total spam amount
+    let genesis_send = genesis_rpc
+        .send(SendArgs {
+            wallet: genesis_wallet,
+            source: genesis_key.account(),
+            destination: initial_key.account(),
+            amount: INITIAL_AMOUNT,
+            work: Some(0.into()),
+            id: None,
+        })
+        .await
+        .unwrap()
+        .block;
+    wait_until_confirmed(&genesis_rpc, genesis_send).await;
+    info!("Receiving initial spam amount...");
+    let genesis_receive: Block = StateBlockArgs {
+        key: &initial_key,
+        previous: BlockHash::zero(),
+        representative: initial_key.public_key(),
+        balance: INITIAL_AMOUNT,
+        link: genesis_send.into(),
+        work: 0.into(),
+    }
+    .into();
+
+    let recv = genesis_rpc
+        .process(JsonBlock::from(genesis_receive.clone()))
+        .await
+        .unwrap();
+
+    wait_until_confirmed(&genesis_rpc, recv.hash).await;
+
+    account_map.set_account_state(
+        initial_key.account(),
+        INITIAL_AMOUNT,
+        genesis_receive.hash(),
+    );
+}
+
+async fn start_nodes(
+    args: &Args,
+    data_dir: std::path::PathBuf,
+    rpc_clients: &[NanoRpcClient],
+) -> Vec<std::process::Child> {
+    let mut children = Vec::new();
+    for i in 0..args.prs {
+        let mut node_dir = data_dir.clone();
+        node_dir.push(format!("pr{i}"));
+
+        let mut cmd = if args.cpp {
+            let mut cmd = Command::new("nano_node");
+            cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                .env("NANO_TEST_EPOCH_1", "0")
+                .env("NANO_TEST_EPOCH_2", "0")
+                .env("NANO_TEST_EPOCH_2_RECV", "0")
+                .arg("--network")
+                .arg("test")
+                .arg("--data_path")
+                .arg(&node_dir)
+                .arg("--daemon")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            cmd
+        } else {
+            let mut cmd = Command::new("rsnano_node");
+            cmd.env("NANO_TEST_GENESIS_BLOCK", GENESIS_BLOCK)
+                .env("NANO_TEST_GENESIS_PRV ", GENESIS_PRV)
+                .arg("--network")
+                .arg("test")
+                .arg("--data-path")
+                .arg(&node_dir)
+                .arg("node")
+                .arg("run")
+                .stdout(Stdio::null());
+            cmd
+        };
+
+        info!("Starting node: {cmd:?}");
+        children.push(cmd.spawn().unwrap());
+
+        // Set up wallet
+        let rpc_client = &rpc_clients[i];
+        info!("Waiting for RPC...");
+        while rpc_client.version().await.is_err() {
+            sleep(Duration::from_millis(100)).await;
+        }
+    }
+
+    if args.cpp {
+        // Send keepalives so that nano_node connects (their preconfigured peers don't allow ports)!
+        info!("Sending keepalives...");
+        for i in 0..args.prs {
+            for k in 0..args.prs {
+                if k != i {
+                    rpc_clients[i]
+                        .keepalive("::1", peering_port(k))
+                        .await
+                        .unwrap();
+                }
+            }
+        }
+        // Give time to connect
+        sleep(Duration::from_secs(5)).await;
+    }
+    children
+}
+
+fn configure_nodes(args: &Args, data_dir: &std::path::PathBuf) {
+    for i in 0..100 {
+        let mut pr_dir = data_dir.clone();
+        pr_dir.push(format!("pr{i}"));
+
+        if pr_dir.exists() {
+            info!("Deleting data from previous run: {pr_dir:?}...");
+            remove_dir_all(&pr_dir).unwrap();
+        } else {
+            break;
+        }
+    }
+
+    for i in 0..args.prs {
+        info!("********************************************************************************");
+        info!("Setting up node PR{i}...");
+
+        let mut node_dir = data_dir.clone();
+        node_dir.push(format!("pr{i}"));
+
+        info!("Creating directory {node_dir:?}");
+        std::fs::create_dir_all(&node_dir).unwrap();
+
+        let mut ledger_path = node_dir.clone();
+        ledger_path.push("data.ldb");
+
+        let mut node_config_path = node_dir.clone();
+        node_config_path.push("config-node.toml");
+        if !node_config_path.exists() {
+            info!("Creating node config file: {node_config_path:?}");
+            let node_config = NODE_CONFIG
+                .replace("PEERING_PORT", &peering_port(i).to_string())
+                .replace("WS_PORT", &websocket_port(i).to_string())
+                .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i))
+                .replace("DB_BACKEND", if args.rocksdb { "rocksdb" } else { "lmdb" });
+            std::fs::write(node_config_path, node_config).unwrap();
+        }
+
+        let mut rpc_config_path = node_dir.clone();
+        rpc_config_path.push("config-rpc.toml");
+        if !rpc_config_path.exists() {
+            info!("Creating rpc config file: {rpc_config_path:?}");
+            let rpc_config = RPC_CONFIG.replace("RPC_PORT", &rpc_port(i).to_string());
+            std::fs::write(rpc_config_path, rpc_config).unwrap();
+        }
+    }
+}
+
+fn create_account_map(data_dir: &std::path::PathBuf) -> AccountMap {
+    let mut account_map = AccountMap::default();
+
+    let mut account_keys_path = data_dir.clone();
+    account_keys_path.push("account_keys.txt");
+
+    if account_keys_path.exists() {
+        info!("Loading account keys from {account_keys_path:?}");
+        let file = File::open(account_keys_path).unwrap();
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let key = RawKey::decode_hex(line.unwrap()).unwrap();
+            account_map.add_unopened(key.into());
+        }
+    } else {
+        info!("Creating account keys file {account_keys_path:?}");
+
+        account_map.fill(SPAM_ACCOUNTS);
+        let mut file = File::create(account_keys_path).unwrap();
+        for key in account_map.private_keys() {
+            writeln!(file, "{}", key.raw_key().encode_hex()).unwrap();
+        }
+    }
+    account_map
 }
 
 fn preconfigured_peers(prs: usize, current_pr: usize) -> String {
@@ -865,5 +844,60 @@ async fn wait_until_confirmed(rpc_client: &NanoRpcClient, hash: BlockHash) {
         }
 
         sleep(Duration::from_millis(100)).await;
+    }
+}
+
+async fn sync_frontiers(rpc_clients: &[NanoRpcClient], account_map: &mut AccountMap) {
+    info!("Syncing account frontiers...");
+    let rpc_client = &rpc_clients[0];
+    let accounts = account_map.accounts().clone();
+    let mut count = 0;
+    for chunk in accounts.chunks(100) {
+        let frontiers = rpc_client
+            .accounts_frontiers(chunk.into())
+            .await
+            .unwrap()
+            .frontiers
+            .unwrap();
+
+        let balances = rpc_client
+            .accounts_balances(chunk.to_vec())
+            .await
+            .unwrap()
+            .balances;
+
+        let AccountsReceivableResponse::Source(receivable) = rpc_client
+            .accounts_receivable(
+                AccountsReceivableArgs::build(chunk.to_vec())
+                    .include_source()
+                    .finish(),
+            )
+            .await
+            .unwrap()
+        else {
+            panic!("not a simple response")
+        };
+
+        for account in chunk {
+            if let Some(frontier) = frontiers.get(account) {
+                let balance = balances.get(account).unwrap().balance;
+                account_map.set_account_state(*account, balance, *frontier);
+            }
+
+            if let Some(blocks) = receivable.blocks.get(account) {
+                for (send_hash, info) in blocks {
+                    account_map.add_confirmed_receivable(*account, *send_hash, info.amount);
+                }
+            }
+        }
+
+        count += 1;
+
+        if count % 200 == 0 {
+            info!(
+                "Done: {}%",
+                (count as f64 * 100.0 / account_map.len() as f64 * 100.0) as usize
+            )
+        }
     }
 }
