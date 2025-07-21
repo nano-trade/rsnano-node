@@ -19,39 +19,34 @@ use tokio::{
     time::sleep,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::info;
 
-use rsnano_core::{
-    Amount, Block, BlockHash, JsonBlock, Networks, PrivateKey, ProtocolInfo, StateBlockArgs,
-    WalletId, WorkNonce,
-};
+use rsnano_core::{Block, BlockHash, Networks, PrivateKey, ProtocolInfo};
 use rsnano_messages::{Message, MessageSerializer, Publish};
+use rsnano_network::token_bucket::TokenBucket;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use rsnano_nullable_tracing_subscriber::TracingInitializer;
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{
-    AccountsReceivableArgs, AccountsReceivableResponse, ReceiveArgs, SendArgs, WalletAddArgs,
-    WalletRepresentativeSetArgs,
-};
 use rsnano_websocket_client::{
     NanoWebSocketClient, NanoWebSocketClientFactory, SubscribeArgs, TopicSub,
 };
 use rsnano_websocket_messages::{BlockConfirmed, MessageEnvelope, Topic};
 
 use crate::{
-    account_map::AccountMap,
     account_map_factory::create_account_map,
     block_factory::{BlockFactory, BlockResult, SpamStrategy},
     delayed_blocks::DelayedBlocks,
+    frontiers_sync::sync_frontiers,
     handshake::perform_handshake,
-    node_config::{configure_nodes, peering_port, rpc_port, GENESIS_BLOCK, GENESIS_PRV},
+    node_config::{
+        configure_nodes, genesis_key, peering_port, rpc_port, GENESIS_BLOCK, GENESIS_PRV,
+    },
     rate_spec::RateSpec,
+    wallets_factory::create_wallets,
 };
-use rsnano_network::token_bucket::TokenBucket;
-use rsnano_nullable_clock::SteadyClock;
 
 const MAX_BUFFERED_BLOCKS: usize = 1024;
-const INITIAL_AMOUNT: Amount = Amount::nano(100_000_000);
 const DEFAULT_RATE: &str = "1+50@3s";
 
 #[derive(Parser, Debug)]
@@ -288,126 +283,6 @@ impl NanoSpamApp {
         let genesis_block: Block = serde_json::from_str(GENESIS_BLOCK).unwrap();
         genesis_block.hash()
     }
-}
-
-async fn create_wallets(
-    args: &Args,
-    genesis_key: PrivateKey,
-    rpc_clients: &[NanoRpcClient],
-    genesis_rpc: &NanoRpcClient,
-    account_map: &mut AccountMap,
-) {
-    let mut genesis_wallet = WalletId::zero();
-    for i in 0..args.prs {
-        let rpc_client = &rpc_clients[i];
-        info!("Creating wallet...");
-        let resp = rpc_client.wallet_create(None).await.unwrap();
-        if i == 0 {
-            genesis_wallet = resp.wallet;
-        }
-        let pr_key = pr_key(i);
-        rpc_client
-            .wallet_add(WalletAddArgs {
-                wallet: resp.wallet,
-                key: pr_key.raw_key(),
-                work: None,
-            })
-            .await
-            .unwrap();
-
-        if i > 0 {
-            info!("Setting default representative...");
-            rpc_client
-                .wallet_representative_set(WalletRepresentativeSetArgs {
-                    wallet: resp.wallet,
-                    representative: pr_key.account(),
-                    update_existing_accounts: Some(false.into()),
-                })
-                .await
-                .unwrap();
-
-            let pr_balance = (Amount::MAX - INITIAL_AMOUNT) / args.prs as u128;
-            info!(
-                "Sending Ӿ{} to PR{i} wallet {} ...",
-                pr_balance.format_balance(0),
-                pr_key.account().encode_account()
-            );
-            let send_hash = genesis_rpc
-                .send(SendArgs {
-                    wallet: genesis_wallet,
-                    source: genesis_key.account(),
-                    destination: pr_key.account(),
-                    amount: pr_balance,
-                    work: Some(WorkNonce::new(0)),
-                    id: None,
-                })
-                .await
-                .unwrap()
-                .block;
-            wait_until_confirmed(&rpc_client, send_hash).await;
-
-            info!("Receiving...");
-            // trigger wallet receive to speed things up
-            let _ = rpc_client
-                .receive(ReceiveArgs {
-                    wallet: resp.wallet,
-                    account: pr_key.account(),
-                    block: send_hash,
-                    work: Some(WorkNonce::new(0)),
-                })
-                .await;
-            let recv_hash = rpc_client
-                .account_info(pr_key.account())
-                .await
-                .unwrap()
-                .frontier;
-            wait_until_confirmed(&rpc_client, recv_hash).await;
-            info!("DONE");
-            info!(
-                "********************************************************************************"
-            );
-        }
-    }
-
-    info!("Sending initial spam amount...");
-    let initial_key = account_map.initial_key().clone();
-    // Send total spam amount
-    let genesis_send = genesis_rpc
-        .send(SendArgs {
-            wallet: genesis_wallet,
-            source: genesis_key.account(),
-            destination: initial_key.account(),
-            amount: INITIAL_AMOUNT,
-            work: Some(0.into()),
-            id: None,
-        })
-        .await
-        .unwrap()
-        .block;
-    wait_until_confirmed(&genesis_rpc, genesis_send).await;
-    info!("Receiving initial spam amount...");
-    let genesis_receive: Block = StateBlockArgs {
-        key: &initial_key,
-        previous: BlockHash::zero(),
-        representative: initial_key.public_key(),
-        balance: INITIAL_AMOUNT,
-        link: genesis_send.into(),
-        work: 0.into(),
-    }
-    .into();
-
-    let recv = genesis_rpc
-        .process(JsonBlock::from(genesis_receive.clone()))
-        .await
-        .unwrap();
-
-    wait_until_confirmed(&genesis_rpc, recv.hash).await;
-
-    account_map.set_account_state(
-        initial_key.account(),
-        INITIAL_AMOUNT,
-        genesis_receive.hash(),
-    );
 }
 
 async fn start_nodes(
@@ -655,90 +530,5 @@ async fn receive_messages(
             }
             set.join_all().await;
         } => {}
-    }
-}
-
-fn pr_key(node_id: usize) -> PrivateKey {
-    if node_id == 0 {
-        genesis_key()
-    } else {
-        PrivateKey::from(node_id as u64)
-    }
-}
-
-fn genesis_key() -> PrivateKey {
-    PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
-}
-
-async fn wait_until_confirmed(rpc_client: &NanoRpcClient, hash: BlockHash) {
-    info!("Waiting for confirmation for {hash}");
-    loop {
-        match rpc_client.block_info(hash).await {
-            Ok(info) => {
-                if info.confirmed.inner() {
-                    break;
-                }
-            }
-            Err(e) => {
-                warn!("Got error: {e:?}")
-            }
-        }
-
-        sleep(Duration::from_millis(100)).await;
-    }
-}
-
-async fn sync_frontiers(rpc_clients: &[NanoRpcClient], account_map: &mut AccountMap) {
-    info!("Syncing account frontiers...");
-    let rpc_client = &rpc_clients[0];
-    let accounts = account_map.accounts().clone();
-    let mut count = 0;
-    for chunk in accounts.chunks(100) {
-        let frontiers = rpc_client
-            .accounts_frontiers(chunk.into())
-            .await
-            .unwrap()
-            .frontiers
-            .unwrap();
-
-        let balances = rpc_client
-            .accounts_balances(chunk.to_vec())
-            .await
-            .unwrap()
-            .balances;
-
-        let AccountsReceivableResponse::Source(receivable) = rpc_client
-            .accounts_receivable(
-                AccountsReceivableArgs::build(chunk.to_vec())
-                    .include_source()
-                    .finish(),
-            )
-            .await
-            .unwrap()
-        else {
-            panic!("not a simple response")
-        };
-
-        for account in chunk {
-            if let Some(frontier) = frontiers.get(account) {
-                let balance = balances.get(account).unwrap().balance;
-                account_map.set_account_state(*account, balance, *frontier);
-            }
-
-            if let Some(blocks) = receivable.blocks.get(account) {
-                for (send_hash, info) in blocks {
-                    account_map.add_confirmed_receivable(*account, *send_hash, info.amount);
-                }
-            }
-        }
-
-        count += 1;
-
-        if count % 200 == 0 {
-            info!(
-                "Done: {}%",
-                (count as f64 * 100.0 / account_map.len() as f64 * 100.0) as usize
-            )
-        }
     }
 }

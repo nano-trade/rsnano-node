@@ -1,6 +1,10 @@
-use crate::app::Args;
 use std::fs::remove_dir_all;
+
 use tracing::info;
+
+use rsnano_core::PrivateKey;
+
+use crate::app::Args;
 
 pub(crate) const GENESIS_BLOCK: &str = r#"{
     "type": "open",
@@ -132,4 +136,16 @@ pub(crate) fn rpc_port(node_id: usize) -> u16 {
 
 pub(crate) fn websocket_port(node_id: usize) -> u16 {
     17078 + (node_id as u16) * 10
+}
+
+pub(crate) fn pr_key(node_id: usize) -> PrivateKey {
+    if node_id == 0 {
+        genesis_key()
+    } else {
+        PrivateKey::from(node_id as u64)
+    }
+}
+
+pub(crate) fn genesis_key() -> PrivateKey {
+    PrivateKey::from_hex_str(GENESIS_PRV).unwrap()
 }
