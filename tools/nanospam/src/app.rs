@@ -88,11 +88,15 @@ pub(crate) struct Args {
 
     /// Disable sending a high priority block every 10s
     #[arg(long, default_value_t = false)]
-    pub disable_prio: bool,
+    pub no_prio: bool,
 
     /// Limit confirmations per second
     #[arg(long, default_value_t = 0)]
     pub cps_limit: u32,
+
+    /// Don't kill the node processes on exit
+    #[arg(long, default_value_t = false)]
+    pub no_kill: bool,
 }
 
 #[derive(Default)]
@@ -233,7 +237,7 @@ impl NanoSpamApp {
             });
 
             tokio_scoped::scope(|scope| {
-                if !args.disable_prio {
+                if !args.no_prio {
                     scope.spawn(high_prio_check.run(cancel_block_creation, tx_block_clone.clone()));
                 }
                 scope.spawn(conf_receiver.run(cancel_ws_recv.clone(), &ws_queue_len, tx_ws_msg));
@@ -267,8 +271,10 @@ impl NanoSpamApp {
         let conf_time = sum_conf_time.as_millis() / created_blocks as u128;
         info!("Average conf time: {conf_time} ms");
 
-        for mut child in node_handles {
-            child.kill().unwrap();
+        if !args.no_kill {
+            for mut child in node_handles {
+                child.kill().unwrap();
+            }
         }
         Ok(())
     }
