@@ -128,6 +128,7 @@ impl NanoSpamApp {
             rpc_clients.push(rpc_client);
         }
         let genesis_rpc = &rpc_clients[0];
+        let delayed_blocks = Mutex::new(DelayedBlocks::new());
 
         let mut node_handles = Vec::new();
 
@@ -136,13 +137,14 @@ impl NanoSpamApp {
         }
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
-        let mut high_prio_check = HighPrioCheck::new(tx_block.clone());
+        let mut high_prio_check =
+            HighPrioCheck::new(tx_block.clone(), genesis_rpc, &delayed_blocks);
 
         if !args.attach && !args.sync {
             let genesis_wallet_id =
                 create_wallets(&args, &rpc_clients, genesis_rpc, &mut account_map).await;
             high_prio_check
-                .create_prio_accounts(genesis_rpc, genesis_wallet_id)
+                .create_prio_accounts(genesis_wallet_id)
                 .await?;
         }
 
@@ -170,7 +172,7 @@ impl NanoSpamApp {
         }
 
         let tx_block_clone = tx_block.clone();
-        let delayed_blocks = Mutex::new(DelayedBlocks::new());
+        let cancel_block_creation = CancellationToken::new();
         let cancel_tcp_recv = CancellationToken::new();
         let cancel_ws_recv = CancellationToken::new();
         let current_bps = AtomicUsize::new(rate_spec.initial_bps);
@@ -213,6 +215,8 @@ impl NanoSpamApp {
                     )
                 });
             }
+
+            let cancel_blk = cancel_block_creation.clone();
             s.spawn(|| {
                 create_blocks(
                     &block_factory,
@@ -220,6 +224,7 @@ impl NanoSpamApp {
                     &delayed_blocks,
                     &current_bps,
                     rate_spec,
+                    cancel_blk,
                 )
             });
 
@@ -244,7 +249,7 @@ impl NanoSpamApp {
                     args.unconfirmed,
                     &block_factory,
                 ));
-                scope.spawn(high_prio_check.run());
+                scope.spawn(high_prio_check.run(cancel_block_creation));
             });
         });
         let duration_secs = started.elapsed().as_secs_f64();
@@ -268,6 +273,7 @@ fn create_blocks(
     delayed_blocks: &Mutex<DelayedBlocks>,
     current_bps: &AtomicUsize,
     rate_spec: RateSpec,
+    cancel_token: CancellationToken,
 ) {
     let mut bps_start = Instant::now();
     let mut limiter = TokenBucket::new(current_bps.load(Ordering::Relaxed));
@@ -300,6 +306,7 @@ fn create_blocks(
         }
     }
     delayed_blocks.lock().unwrap().finished();
+    cancel_token.cancel()
 }
 
 async fn publish_blocks(
