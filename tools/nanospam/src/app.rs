@@ -34,7 +34,7 @@ use crate::{
     domain::{BlockFactory, BlockResult, DelayedBlocks, RateSpec, SpamStrategy},
     frontiers_sync::sync_frontiers,
     handshake::perform_handshake,
-    high_prio_check::HighPrioCheck,
+    high_prio_check::{HighPrioCheck, HighPrioTracker},
     setup::{
         configure_nodes, create_account_map, get_genesis_hash, peering_port, rpc_port, start_nodes,
     },
@@ -137,8 +137,13 @@ impl NanoSpamApp {
         }
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
-        let mut high_prio_check =
-            HighPrioCheck::new(tx_block.clone(), genesis_rpc, &delayed_blocks);
+        let high_prio_tracker = Mutex::new(HighPrioTracker::default());
+        let mut high_prio_check = HighPrioCheck::new(
+            tx_block.clone(),
+            genesis_rpc,
+            &delayed_blocks,
+            &high_prio_tracker,
+        );
 
         if !args.attach && !args.sync {
             let genesis_wallet_id =
@@ -203,18 +208,18 @@ impl NanoSpamApp {
         info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
-            if !args.unconfirmed {
-                s.spawn(|| {
-                    track_confirmations(
-                        rx_ws_msg,
-                        &delayed_blocks,
-                        &block_factory,
-                        &ws_queue_len,
-                        &mut sum_conf_time,
-                        &current_bps,
-                    )
-                });
-            }
+            s.spawn(|| {
+                track_confirmations(
+                    rx_ws_msg,
+                    &delayed_blocks,
+                    &block_factory,
+                    &ws_queue_len,
+                    &mut sum_conf_time,
+                    &current_bps,
+                    !args.unconfirmed,
+                    &high_prio_tracker,
+                )
+            });
 
             let cancel_blk = cancel_block_creation.clone();
             s.spawn(|| {
@@ -248,6 +253,7 @@ impl NanoSpamApp {
                     cancel_tcp_recv,
                     args.unconfirmed,
                     &block_factory,
+                    &high_prio_tracker,
                 ));
                 scope.spawn(high_prio_check.run(cancel_block_creation));
             });
@@ -317,6 +323,7 @@ async fn publish_blocks(
     cancel_token: CancellationToken,
     unconfirmed: bool,
     block_factory: &Mutex<BlockFactory>,
+    prio_tracker: &Mutex<HighPrioTracker>,
 ) {
     let mut serializer = MessageSerializer::new(protocol);
     while let Some(block) = rx_block.recv().await {
@@ -338,6 +345,7 @@ async fn publish_blocks(
             delayed_blocks.lock().unwrap().confirmed(&hash, now);
             block_factory.lock().unwrap().confirm(hash);
         }
+        prio_tracker.lock().unwrap().published(hash);
     }
     cancel_token.cancel();
 }

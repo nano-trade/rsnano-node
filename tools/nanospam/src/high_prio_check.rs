@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::anyhow;
@@ -27,7 +27,7 @@ pub(crate) struct HighPrioCheck<'a> {
     delayed_blocks: &'a Mutex<DelayedBlocks>,
     /// prio account => key + frontier hash + height
     accounts: HashMap<Account, (PrivateKey, BlockHash, u64)>,
-    enqueued: HashSet<BlockHash>,
+    tracker: &'a Mutex<HighPrioTracker>,
 }
 
 impl<'a> HighPrioCheck<'a> {
@@ -35,6 +35,7 @@ impl<'a> HighPrioCheck<'a> {
         tx_block: Sender<Block>,
         rpc_client: &'a NanoRpcClient,
         delayed_blocks: &'a Mutex<DelayedBlocks>,
+        tracker: &'a Mutex<HighPrioTracker>,
     ) -> Self {
         Self {
             tx_block: Some(tx_block),
@@ -43,7 +44,7 @@ impl<'a> HighPrioCheck<'a> {
             accounts: prio_account_keys()
                 .map(|k| (k.account(), (k, BlockHash::zero(), 0)))
                 .collect(),
-            enqueued: HashSet::new(),
+            tracker,
         }
     }
 
@@ -151,6 +152,9 @@ impl<'a> HighPrioCheck<'a> {
                 work: 0.into(),
             }
             .into();
+
+            let account = key.account();
+
             {
                 let mut delayed = self.delayed_blocks.lock().unwrap();
                 if delayed.is_finished() {
@@ -159,8 +163,12 @@ impl<'a> HighPrioCheck<'a> {
                 delayed.insert(block.clone());
             }
 
-            self.enqueued.insert(block.hash());
+            let hash = block.hash();
+            self.tracker.lock().unwrap().enqueued(hash);
             self.tx_block.as_ref().unwrap().send(block).await.unwrap();
+            let (_, frontier, height) = self.accounts.get_mut(&account).unwrap();
+            *frontier = hash;
+            *height += 1;
         }
 
         drop(self.tx_block.take());
@@ -173,4 +181,32 @@ fn prio_account_keys() -> impl Iterator<Item = PrivateKey> {
 
 fn account_key(index: usize) -> PrivateKey {
     RawKey::from((1000 + index) as u64).into()
+}
+
+#[derive(Default)]
+pub(crate) struct HighPrioTracker {
+    enqueued: HashSet<BlockHash>,
+    published: HashMap<BlockHash, Instant>,
+}
+
+impl HighPrioTracker {
+    pub(crate) fn enqueued(&mut self, hash: BlockHash) {
+        self.enqueued.insert(hash);
+    }
+
+    pub(crate) fn published(&mut self, hash: BlockHash) {
+        if self.enqueued.remove(&hash) {
+            self.published.insert(hash, Instant::now());
+            info!("High prio block published: {hash}");
+        }
+    }
+
+    pub(crate) fn confirmed(&mut self, hash: BlockHash) {
+        if let Some(published) = self.published.remove(&hash) {
+            info!(
+                "High prio block confirmed: {hash}. Conf time: {} ms",
+                published.elapsed().as_millis()
+            );
+        }
+    }
 }
