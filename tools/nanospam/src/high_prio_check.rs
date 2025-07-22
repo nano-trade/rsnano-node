@@ -17,12 +17,11 @@ use rsnano_rpc_client::NanoRpcClient;
 use rsnano_rpc_messages::SendArgs;
 use tokio_util::sync::CancellationToken;
 
-const PRIO_ACCOUNTS: usize = 10;
+const PRIO_ACCOUNTS: usize = 20;
 const INITIAL_ACCOUNT_BALANCE: Amount = Amount::millinano(1500); // bucket 16
 
 /// Periodically publishes a high priority block and tracks confirmation time
 pub(crate) struct HighPrioCheck<'a> {
-    tx_block: Option<Sender<Block>>,
     rpc_client: &'a NanoRpcClient,
     delayed_blocks: &'a Mutex<DelayedBlocks>,
     /// prio account => key + frontier hash + height
@@ -32,13 +31,11 @@ pub(crate) struct HighPrioCheck<'a> {
 
 impl<'a> HighPrioCheck<'a> {
     pub(crate) fn new(
-        tx_block: Sender<Block>,
         rpc_client: &'a NanoRpcClient,
         delayed_blocks: &'a Mutex<DelayedBlocks>,
         tracker: &'a Mutex<HighPrioTracker>,
     ) -> Self {
         Self {
-            tx_block: Some(tx_block),
             rpc_client,
             delayed_blocks,
             accounts: prio_account_keys()
@@ -49,6 +46,7 @@ impl<'a> HighPrioCheck<'a> {
     }
 
     pub(crate) async fn create_prio_accounts(&mut self, wallet_id: WalletId) -> anyhow::Result<()> {
+        info!("Creating high priority accounts...");
         let account = self
             .rpc_client
             .account_list(wallet_id)
@@ -63,11 +61,8 @@ impl<'a> HighPrioCheck<'a> {
             .values()
             .map(|(key, _, _)| key.clone())
             .collect();
+
         for key in keys {
-            info!(
-                "Creating high prio account: {}",
-                key.account().encode_account()
-            );
             let send_block = self
                 .rpc_client
                 .send(SendArgs {
@@ -128,14 +123,12 @@ impl<'a> HighPrioCheck<'a> {
         Ok(())
     }
 
-    pub(crate) async fn run(&mut self, cancel_token: CancellationToken) {
+    pub(crate) async fn run(&mut self, cancel_token: CancellationToken, tx_block: Sender<Block>) {
         loop {
             select! {
                 _ = cancel_token.cancelled() => { break;},
                 _ =sleep(Duration::from_secs(10)) => {}
             }
-
-            info!("Creating high prio block...");
 
             let (key, frontier, height) = self
                 .accounts
@@ -165,13 +158,11 @@ impl<'a> HighPrioCheck<'a> {
 
             let hash = block.hash();
             self.tracker.lock().unwrap().enqueued(hash);
-            self.tx_block.as_ref().unwrap().send(block).await.unwrap();
+            tx_block.send(block).await.unwrap();
             let (_, frontier, height) = self.accounts.get_mut(&account).unwrap();
             *frontier = hash;
             *height += 1;
         }
-
-        drop(self.tx_block.take());
     }
 }
 

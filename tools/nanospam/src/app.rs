@@ -85,6 +85,14 @@ pub(crate) struct Args {
     /// Use RocksDB (works only for nano_node)
     #[arg(long, default_value_t = false)]
     pub rocksdb: bool,
+
+    /// Disable sending a high priority block every 10s
+    #[arg(long, default_value_t = false)]
+    pub disable_prio: bool,
+
+    /// Limit confirmations per second
+    #[arg(long, default_value_t = 0)]
+    pub cps_limit: u32,
 }
 
 #[derive(Default)]
@@ -138,12 +146,8 @@ impl NanoSpamApp {
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
         let high_prio_tracker = Mutex::new(HighPrioTracker::default());
-        let mut high_prio_check = HighPrioCheck::new(
-            tx_block.clone(),
-            genesis_rpc,
-            &delayed_blocks,
-            &high_prio_tracker,
-        );
+        let mut high_prio_check =
+            HighPrioCheck::new(genesis_rpc, &delayed_blocks, &high_prio_tracker);
 
         if !args.attach && !args.sync {
             let genesis_wallet_id =
@@ -182,13 +186,6 @@ impl NanoSpamApp {
         let cancel_ws_recv = CancellationToken::new();
         let current_bps = AtomicUsize::new(rate_spec.initial_bps);
 
-        let mut conf_receiver = if !args.unconfirmed {
-            info!("Connecting to websocket...");
-            ConfirmationReceiver::connect().await?
-        } else {
-            ConfirmationReceiver::disabled()
-        };
-
         let ws_queue_len = AtomicUsize::new(0);
         let (tx_ws_msg, rx_ws_msg) = std::sync::mpsc::channel::<(MessageEnvelope, Instant)>();
         let mut sum_conf_time = Duration::ZERO;
@@ -205,6 +202,8 @@ impl NanoSpamApp {
             strategy,
         ));
 
+        info!("Connecting to websocket...");
+        let mut conf_receiver = ConfirmationReceiver::connect().await?;
         info!("Starting with {} BPS", current_bps.load(Ordering::Relaxed));
         let started = Instant::now();
         std::thread::scope(|s| {
@@ -234,6 +233,9 @@ impl NanoSpamApp {
             });
 
             tokio_scoped::scope(|scope| {
+                if !args.disable_prio {
+                    scope.spawn(high_prio_check.run(cancel_block_creation, tx_block_clone.clone()));
+                }
                 scope.spawn(conf_receiver.run(cancel_ws_recv.clone(), &ws_queue_len, tx_ws_msg));
                 scope.spawn(receive_messages(
                     tcp_readers,
@@ -255,7 +257,6 @@ impl NanoSpamApp {
                     &block_factory,
                     &high_prio_tracker,
                 ));
-                scope.spawn(high_prio_check.run(cancel_block_creation));
             });
         });
         let duration_secs = started.elapsed().as_secs_f64();

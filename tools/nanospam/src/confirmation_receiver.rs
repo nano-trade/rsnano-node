@@ -44,12 +44,6 @@ impl ConfirmationReceiver {
         Ok(Self { ws_client })
     }
 
-    pub fn disabled() -> Self {
-        Self {
-            ws_client: NanoWebSocketClient::new_null(),
-        }
-    }
-
     pub async fn run(
         &mut self,
         cancel_token: CancellationToken,

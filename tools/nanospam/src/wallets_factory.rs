@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tokio::time::sleep;
-use tracing::{info, warn};
+use tracing::{debug, info};
 
 use rsnano_core::{Amount, Block, BlockHash, JsonBlock, StateBlockArgs, WalletId, WorkNonce};
 use rsnano_rpc_client::NanoRpcClient;
@@ -147,7 +147,7 @@ async fn wait_until_confirmed(rpc_client: &NanoRpcClient, hash: BlockHash) {
                 }
             }
             Err(e) => {
-                warn!("Got error: {e:?}")
+                debug!("Got error: {e:?}")
             }
         }
 

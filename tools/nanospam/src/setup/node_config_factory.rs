@@ -27,7 +27,7 @@ pub(crate) const NODE_CONFIG: &str = r#"
     preconfigured_peers = PRECONF_PEERS
     preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
     database_backend = "DB_BACKEND"
-    cps_limit = 0
+    cps_limit = CPS_LIMIT
 
 [node.lmdb]
     sync = "nosync_unsafe"
@@ -98,7 +98,8 @@ pub(crate) fn configure_nodes(args: &Args, data_dir: &std::path::PathBuf) {
                 .replace("PEERING_PORT", &peering_port(i).to_string())
                 .replace("WS_PORT", &websocket_port(i).to_string())
                 .replace("PRECONF_PEERS", &preconfigured_peers(args.prs, i))
-                .replace("DB_BACKEND", if args.rocksdb { "rocksdb" } else { "lmdb" });
+                .replace("DB_BACKEND", if args.rocksdb { "rocksdb" } else { "lmdb" })
+                .replace("CPS_LIMIT", &args.cps_limit.to_string());
             std::fs::write(node_config_path, node_config).unwrap();
         }
 
