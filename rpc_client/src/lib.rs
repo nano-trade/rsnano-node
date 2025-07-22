@@ -313,11 +313,6 @@ impl NanoRpcClient {
         self.request(&RpcCommand::account_list(wallet)).await
     }
 
-    pub async fn wallet_list(&self) -> Result<Vec<WalletId>> {
-        let result: Result<WalletListResponse> = self.request(&RpcCommand::WalletList).await;
-        result.map(|i| i.wallets)
-    }
-
     pub async fn wallet_create(&self, seed: Option<RawKey>) -> Result<WalletCreateResponse> {
         self.request(&RpcCommand::wallet_create(seed)).await
     }

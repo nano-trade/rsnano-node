@@ -136,11 +136,14 @@ impl NanoSpamApp {
         }
 
         let (tx_block, rx_block) = mpsc::channel::<Block>(MAX_BUFFERED_BLOCKS);
-        let mut high_prio_check = HighPrioCheck::new(tx_block.clone(), genesis_rpc);
+        let mut high_prio_check = HighPrioCheck::new(tx_block.clone());
 
         if !args.attach && !args.sync {
-            create_wallets(&args, &rpc_clients, genesis_rpc, &mut account_map).await;
-            high_prio_check.create_prio_accounts().await?;
+            let genesis_wallet_id =
+                create_wallets(&args, &rpc_clients, genesis_rpc, &mut account_map).await;
+            high_prio_check
+                .create_prio_accounts(genesis_rpc, genesis_wallet_id)
+                .await?;
         }
 
         if args.setup_only {

@@ -20,7 +20,7 @@ pub(crate) async fn create_wallets(
     rpc_clients: &[NanoRpcClient],
     genesis_rpc: &NanoRpcClient,
     account_map: &mut AccountMap,
-) {
+) -> WalletId {
     let mut genesis_wallet = WalletId::zero();
     let genesis_key = genesis_key();
     for i in 0..args.prs {
@@ -133,6 +133,8 @@ pub(crate) async fn create_wallets(
         INITIAL_AMOUNT,
         genesis_receive.hash(),
     );
+
+    genesis_wallet
 }
 
 async fn wait_until_confirmed(rpc_client: &NanoRpcClient, hash: BlockHash) {

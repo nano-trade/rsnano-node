@@ -89,7 +89,6 @@ pub enum RpcCommand {
     BootstrapAny(BootstrapAnyArgs),
     BootstrapLazy(BootstrapLazyArgs),
     WalletCreate(WalletCreateArgs),
-    WalletList,
     WalletAdd(WalletAddArgs),
     WalletContains(WalletWithAccountArgs),
     WalletDestroy(WalletRpcMessage),

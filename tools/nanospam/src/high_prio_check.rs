@@ -1,36 +1,29 @@
-use anyhow::anyhow;
-use rsnano_core::{Amount, Block, PrivateKey, RawKey};
-use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::SendArgs;
 use std::time::Duration;
+
+use anyhow::anyhow;
 use tokio::{sync::mpsc::Sender, time::sleep};
 use tracing::info;
 
+use rsnano_core::{Amount, Block, PrivateKey, RawKey, WalletId};
+use rsnano_rpc_client::NanoRpcClient;
+use rsnano_rpc_messages::SendArgs;
+
 /// Periodically publishes a high priority block and tracks confirmation time
-pub(crate) struct HighPrioCheck<'a> {
+pub(crate) struct HighPrioCheck {
     tx_block: Sender<Block>,
-    rpc_client: &'a NanoRpcClient,
 }
 
-impl<'a> HighPrioCheck<'a> {
-    pub(crate) fn new(tx_block: Sender<Block>, rpc_client: &'a NanoRpcClient) -> Self {
-        Self {
-            tx_block,
-            rpc_client,
-        }
+impl HighPrioCheck {
+    pub(crate) fn new(tx_block: Sender<Block>) -> Self {
+        Self { tx_block }
     }
 
-    pub(crate) async fn create_prio_accounts(&self) -> anyhow::Result<()> {
-        let wallet_id = self
-            .rpc_client
-            .wallet_list()
-            .await?
-            .first()
-            .cloned()
-            .ok_or_else(|| anyhow!("No wallet id found"))?;
-
-        let account = self
-            .rpc_client
+    pub(crate) async fn create_prio_accounts(
+        &self,
+        rpc_client: &NanoRpcClient,
+        wallet_id: WalletId,
+    ) -> anyhow::Result<()> {
+        let account = rpc_client
             .account_list(wallet_id)
             .await?
             .accounts
@@ -45,7 +38,7 @@ impl<'a> HighPrioCheck<'a> {
                 i,
                 key.account().encode_account()
             );
-            self.rpc_client
+            rpc_client
                 .send(SendArgs {
                     wallet: wallet_id,
                     source: account,
@@ -59,7 +52,7 @@ impl<'a> HighPrioCheck<'a> {
 
         info!("Waiting for confirmations...");
         loop {
-            let count = self.rpc_client.block_count().await?;
+            let count = rpc_client.block_count().await?;
             if count.count.inner() == count.cemented.inner() {
                 break;
             }

@@ -11,10 +11,4 @@ impl RpcCommandHandler {
             .insert_adhoc2(&args.wallet, &args.key, generate_work)?;
         Ok(AccountResponse::new(pub_key.as_account()))
     }
-
-    pub(crate) fn wallet_list(&self) -> WalletListResponse {
-        WalletListResponse {
-            wallets: self.node.wallets.wallet_ids(),
-        }
-    }
 }
