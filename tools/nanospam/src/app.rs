@@ -177,7 +177,7 @@ impl NanoSpamApp {
         let cancel_ws_recv = CancellationToken::new();
         let current_bps = AtomicUsize::new(rate_spec.initial_bps);
 
-        let mut conf_monitor = if !args.unconfirmed {
+        let mut conf_receiver = if !args.unconfirmed {
             info!("Connecting to websocket...");
             ConfirmationReceiver::connect().await?
         } else {
@@ -229,7 +229,7 @@ impl NanoSpamApp {
             });
 
             tokio_scoped::scope(|scope| {
-                scope.spawn(conf_monitor.run(cancel_ws_recv.clone(), &ws_queue_len, tx_ws_msg));
+                scope.spawn(conf_receiver.run(cancel_ws_recv.clone(), &ws_queue_len, tx_ws_msg));
                 scope.spawn(receive_messages(
                     tcp_readers,
                     protocol,
@@ -306,7 +306,7 @@ fn create_blocks(
         }
     }
     delayed_blocks.lock().unwrap().finished();
-    cancel_token.cancel()
+    cancel_token.cancel();
 }
 
 async fn publish_blocks(

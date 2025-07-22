@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Mutex,
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use tokio::{select, sync::mpsc::Sender, time::sleep};
@@ -18,11 +22,12 @@ const INITIAL_ACCOUNT_BALANCE: Amount = Amount::millinano(1500); // bucket 16
 
 /// Periodically publishes a high priority block and tracks confirmation time
 pub(crate) struct HighPrioCheck<'a> {
-    tx_block: Sender<Block>,
+    tx_block: Option<Sender<Block>>,
     rpc_client: &'a NanoRpcClient,
     delayed_blocks: &'a Mutex<DelayedBlocks>,
     /// prio account => key + frontier hash + height
     accounts: HashMap<Account, (PrivateKey, BlockHash, u64)>,
+    enqueued: HashSet<BlockHash>,
 }
 
 impl<'a> HighPrioCheck<'a> {
@@ -32,12 +37,13 @@ impl<'a> HighPrioCheck<'a> {
         delayed_blocks: &'a Mutex<DelayedBlocks>,
     ) -> Self {
         Self {
-            tx_block,
+            tx_block: Some(tx_block),
             rpc_client,
             delayed_blocks,
             accounts: prio_account_keys()
                 .map(|k| (k.account(), (k, BlockHash::zero(), 0)))
                 .collect(),
+            enqueued: HashSet::new(),
         }
     }
 
@@ -124,7 +130,7 @@ impl<'a> HighPrioCheck<'a> {
     pub(crate) async fn run(&mut self, cancel_token: CancellationToken) {
         loop {
             select! {
-                _ = cancel_token.cancelled() => { return;},
+                _ = cancel_token.cancelled() => { break;},
                 _ =sleep(Duration::from_secs(10)) => {}
             }
 
@@ -148,13 +154,16 @@ impl<'a> HighPrioCheck<'a> {
             {
                 let mut delayed = self.delayed_blocks.lock().unwrap();
                 if delayed.is_finished() {
-                    return;
+                    break;
                 }
                 delayed.insert(block.clone());
             }
 
-            self.tx_block.send(block).await.unwrap();
+            self.enqueued.insert(block.hash());
+            self.tx_block.as_ref().unwrap().send(block).await.unwrap();
         }
+
+        drop(self.tx_block.take());
     }
 }
 
