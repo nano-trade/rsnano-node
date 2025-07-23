@@ -41,6 +41,13 @@ impl BucketElections {
             .unwrap_or_default()
     }
 
+    pub fn lowest_priority(&self) -> TimePriority {
+        self.by_priority
+            .first_key_value()
+            .map(|(prio, _)| *prio)
+            .unwrap_or_default()
+    }
+
     pub fn len(&self) -> usize {
         self.sequenced.len()
     }

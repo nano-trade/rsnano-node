@@ -13,6 +13,7 @@ pub struct PriorityBucketConfig {
     /// Number of guaranteed slots per bucket available for election activation.
     pub reserved_elections: usize,
 
+    // TODO remove
     /// Maximum number of slots per bucket available for election activation if the active election count is below the configured limit. (node.active_elections.size)
     pub max_elections: usize,
 }
@@ -56,6 +57,10 @@ impl Bucket {
         self.elections.len()
     }
 
+    pub fn blocks(&self) -> impl Iterator<Item = &SavedBlock> {
+        self.block_queue.iter().map(|i| &i.block)
+    }
+
     pub fn insert(
         &mut self,
         priority: BlockPriority,
@@ -86,26 +91,18 @@ impl Bucket {
 
         let candidate_prio = highest_block.priority.time;
         let active_elections = self.elections.len();
-        let highest_election = self.elections.highest_priority();
+        let lowest_election = self.elections.lowest_priority();
+        let can_reprioritize = candidate_prio > lowest_election;
 
-        if self.election_slots_available(active_elections) {
-            aec_vacancy > 0
-        } else if active_elections > 0 {
-            // Compare to equal to drain duplicates
-            if candidate_prio >= highest_election {
-                // Bound number of reprioritizations
-                active_elections < self.config.max_elections * 2
-            } else {
-                false
-            }
-        } else {
-            false
+        if can_reprioritize {
+            return true;
         }
-    }
 
-    fn election_slots_available(&self, started_elections: usize) -> bool {
-        started_elections < self.config.reserved_elections
-            || started_elections < self.config.max_elections
+        if active_elections >= self.config.reserved_elections {
+            return false;
+        }
+
+        aec_vacancy > 0 // cooldown check. TODO: check for cooldown explicitly
     }
 
     fn election_overfill(&self, aec_vacancy: i64) -> bool {
@@ -118,15 +115,11 @@ impl Bucket {
         }
     }
 
-    pub fn blocks(&self) -> impl Iterator<Item = &SavedBlock> {
-        self.block_queue.iter().map(|i| &i.block)
-    }
+    pub fn activate(&mut self, aec_vacancy: i64) -> Option<AecInsertRequest> {
+        if !self.available(aec_vacancy) {
+            return None;
+        }
 
-    pub fn remove_election(&mut self, root: &QualifiedRoot) {
-        self.elections.erase(root);
-    }
-
-    pub fn activate(&mut self) -> Option<AecInsertRequest> {
         let Some(top) = self.block_queue.pop_highest_prio() else {
             return None; // Not activated;
         };
@@ -155,6 +148,10 @@ impl Bucket {
         self.elections
             .entry_with_lowest_priority()
             .map(|i| i.root.clone())
+    }
+
+    pub fn remove_election(&mut self, root: &QualifiedRoot) {
+        self.elections.erase(root);
     }
 }
 

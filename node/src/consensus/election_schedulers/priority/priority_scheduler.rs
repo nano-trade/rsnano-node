@@ -226,19 +226,18 @@ impl PriorityScheduler {
             inserted = false;
             for bucket in buckets.iter_mut().rev() {
                 let aec_vacancy = aec.vacancy();
-                if bucket.available(aec_vacancy) {
-                    if let Some(insert_req) = bucket.activate() {
-                        let root = insert_req.block.qualified_root();
+                if let Some(insert_req) = bucket.activate(aec_vacancy) {
+                    let root = insert_req.block.qualified_root();
 
-                        let result = aec.insert(insert_req, now);
+                    let result = aec.insert(insert_req, now);
 
-                        let inserted = result.is_ok();
-                        if !inserted {
-                            bucket.remove_election(&root);
-                        }
-
-                        self.update_stats(result);
+                    let inserted = result.is_ok();
+                    if !inserted {
+                        bucket.remove_election(&root);
+                        // TODO: How does the block get reenqueued?
                     }
+
+                    self.update_stats(result);
                 }
             }
         }
