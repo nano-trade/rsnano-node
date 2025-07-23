@@ -92,7 +92,10 @@ impl Bucket {
         let candidate_prio = highest_block.priority.time;
         let active_elections = self.elections.len();
         let lowest_election = self.elections.lowest_priority();
-        let can_reprioritize = candidate_prio > lowest_election;
+
+        let can_reprioritize = lowest_election
+            .map(|lowest| candidate_prio > lowest)
+            .unwrap_or(false);
 
         if can_reprioritize {
             return true;
@@ -103,16 +106,6 @@ impl Bucket {
         }
 
         aec_vacancy > 0 // cooldown check. TODO: check for cooldown explicitly
-    }
-
-    fn election_overfill(&self, aec_vacancy: i64) -> bool {
-        if self.elections.len() < self.config.reserved_elections {
-            false
-        } else if self.elections.len() < self.config.max_elections {
-            aec_vacancy < 0
-        } else {
-            true
-        }
     }
 
     pub fn activate(
@@ -147,20 +140,6 @@ impl Bucket {
             AecInsertRequest::new_priority(block, priority),
             election_to_remove,
         ))
-    }
-
-    pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {
-        if self.election_overfill(aec_vacancy) {
-            self.root_of_lowest_prio_election()
-        } else {
-            None
-        }
-    }
-
-    fn root_of_lowest_prio_election(&self) -> Option<QualifiedRoot> {
-        self.elections
-            .entry_with_lowest_priority()
-            .map(|i| i.root.clone())
     }
 
     pub fn remove_election(&mut self, root: &QualifiedRoot) {

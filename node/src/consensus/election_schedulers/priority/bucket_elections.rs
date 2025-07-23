@@ -34,17 +34,8 @@ impl BucketElections {
         self.erase(&root)
     }
 
-    pub fn entry_with_lowest_priority(&self) -> Option<&BucketElection> {
-        self.by_priority
-            .first_key_value()
-            .and_then(|(_, roots)| self.by_root.get(&roots[0]))
-    }
-
-    pub fn lowest_priority(&self) -> TimePriority {
-        self.by_priority
-            .first_key_value()
-            .map(|(prio, _)| *prio)
-            .unwrap_or_default()
+    pub fn lowest_priority(&self) -> Option<TimePriority> {
+        self.by_priority.first_key_value().map(|(prio, _)| *prio)
     }
 
     pub fn len(&self) -> usize {
@@ -77,7 +68,7 @@ mod tests {
         let elections = BucketElections::default();
         assert_eq!(elections.len(), 0);
         assert_eq!(elections.entry_with_lowest_priority(), None);
-        assert_eq!(elections.lowest_priority(), TimePriority::MIN);
+        assert_eq!(elections.lowest_priority(), None);
     }
 
     #[test]
@@ -91,7 +82,7 @@ mod tests {
         elections.insert(entry.clone());
 
         assert_eq!(elections.len(), 1);
-        assert_eq!(elections.lowest_priority(), entry.priority);
+        assert_eq!(elections.lowest_priority(), Some(entry.priority));
         assert_eq!(
             elections.entry_with_lowest_priority().unwrap().root,
             entry.root
