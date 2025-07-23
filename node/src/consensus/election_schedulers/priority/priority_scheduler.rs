@@ -107,7 +107,7 @@ impl PriorityScheduler {
             let conf_info = any.confirmed().get_conf_info(account).unwrap_or_default();
 
             if conf_info.height < account_info.block_count {
-                self.activate_with_info(any, account, &account_info, &conf_info);
+                self.activate_with_info(any, &account_info, &conf_info);
                 return;
             }
         };
@@ -119,7 +119,6 @@ impl PriorityScheduler {
     pub fn activate_with_info(
         &self,
         any: &impl AnySet,
-        _account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
     ) {

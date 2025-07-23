@@ -31,7 +31,7 @@ impl Default for PriorityBucketConfig {
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
     config: PriorityBucketConfig,
-    queue: OrderedBlocks,
+    block_queue: OrderedBlocks,
     elections: BucketElections,
 }
 
@@ -39,22 +39,52 @@ impl Bucket {
     pub fn new(config: PriorityBucketConfig) -> Self {
         Self {
             config,
-            queue: Default::default(),
+            block_queue: Default::default(),
             elections: Default::default(),
         }
     }
 
     pub fn contains(&self, hash: &BlockHash) -> bool {
-        self.queue.contains(hash)
+        self.block_queue.contains(hash)
+    }
+
+    pub fn len(&self) -> usize {
+        self.block_queue.len()
+    }
+
+    pub fn election_count(&self) -> usize {
+        self.elections.len()
+    }
+
+    pub fn insert(
+        &mut self,
+        priority: BlockPriority,
+        block: SavedBlock,
+    ) -> Result<BlockEviction, BucketInsertError> {
+        let hash = block.hash();
+        let inserted = self.block_queue.insert(BlockEntry::new(block, priority));
+        if !inserted {
+            return Err(BucketInsertError::Duplicate);
+        }
+
+        if self.block_queue.len() > self.config.max_blocks {
+            let removed = self.block_queue.pop_lowest_prio().unwrap();
+            if removed.block.hash() == hash {
+                return Err(BucketInsertError::PriorityTooLow);
+            }
+            Ok(BlockEviction::Evicted)
+        } else {
+            Ok(BlockEviction::None)
+        }
     }
 
     pub fn available(&self, aec_vacancy: i64) -> bool {
-        let Some(highest) = self.queue.highest_prio() else {
+        let Some(highest_block) = self.block_queue.highest_prio() else {
             // No blocks enqueued
             return false;
         };
 
-        let candidate_prio = highest.priority.time;
+        let candidate_prio = highest_block.priority.time;
         let active_elections = self.elections.len();
         let highest_election = self.elections.highest_priority();
 
@@ -88,46 +118,8 @@ impl Bucket {
         }
     }
 
-    pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {
-        if self.election_overfill(aec_vacancy) {
-            self.root_of_lowest_prio_election()
-        } else {
-            None
-        }
-    }
-
-    pub fn insert(
-        &mut self,
-        priority: BlockPriority,
-        block: SavedBlock,
-    ) -> Result<BlockEviction, BucketInsertError> {
-        let hash = block.hash();
-        let inserted = self.queue.insert(BlockEntry::new(block, priority));
-        if !inserted {
-            return Err(BucketInsertError::Duplicate);
-        }
-
-        if self.queue.len() > self.config.max_blocks {
-            let removed = self.queue.pop_lowest_prio().unwrap();
-            if removed.block.hash() == hash {
-                return Err(BucketInsertError::PriorityTooLow);
-            }
-            Ok(BlockEviction::Evicted)
-        } else {
-            Ok(BlockEviction::None)
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.queue.len()
-    }
-
-    pub fn election_count(&self) -> usize {
-        self.elections.len()
-    }
-
     pub fn blocks(&self) -> impl Iterator<Item = &SavedBlock> {
-        self.queue.iter().map(|i| &i.block)
+        self.block_queue.iter().map(|i| &i.block)
     }
 
     pub fn remove_election(&mut self, root: &QualifiedRoot) {
@@ -135,7 +127,7 @@ impl Bucket {
     }
 
     pub fn activate(&mut self) -> Option<AecInsertRequest> {
-        let Some(top) = self.queue.pop_highest_prio() else {
+        let Some(top) = self.block_queue.pop_highest_prio() else {
             return None; // Not activated;
         };
 
@@ -149,6 +141,14 @@ impl Bucket {
         });
 
         Some(AecInsertRequest::new_priority(block, priority))
+    }
+
+    pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {
+        if self.election_overfill(aec_vacancy) {
+            self.root_of_lowest_prio_election()
+        } else {
+            None
+        }
     }
 
     fn root_of_lowest_prio_election(&self) -> Option<QualifiedRoot> {

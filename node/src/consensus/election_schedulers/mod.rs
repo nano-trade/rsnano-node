@@ -142,7 +142,7 @@ impl ElectionSchedulers {
     ) {
         self.optimistic.activate(account, account_info, conf_info);
         self.priority
-            .activate_with_info(any, account, account_info, conf_info);
+            .activate_with_info(any, account_info, conf_info);
     }
 
     pub fn activate_accounts_with_fresh_blocks(&self, processed: &[ProcessedResult]) {
