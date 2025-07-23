@@ -226,8 +226,13 @@ impl PriorityScheduler {
             inserted = false;
             for bucket in buckets.iter_mut().rev() {
                 let aec_vacancy = aec.vacancy();
-                if let Some(insert_req) = bucket.activate(aec_vacancy) {
+                if let Some((insert_req, remove_req)) = bucket.activate(aec_vacancy) {
                     let root = insert_req.block.qualified_root();
+
+                    if let Some(root) = remove_req {
+                        aec.erase(&root);
+                        // TODO: reenqueue this block?
+                    }
 
                     let result = aec.insert(insert_req, now);
 
