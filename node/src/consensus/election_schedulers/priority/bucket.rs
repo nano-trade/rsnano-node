@@ -115,7 +115,10 @@ impl Bucket {
         }
     }
 
-    pub fn activate(&mut self, aec_vacancy: i64) -> Option<AecInsertRequest> {
+    pub fn activate(
+        &mut self,
+        aec_vacancy: i64,
+    ) -> Option<(AecInsertRequest, Option<QualifiedRoot>)> {
         if !self.available(aec_vacancy) {
             return None;
         }
@@ -128,12 +131,22 @@ impl Bucket {
         let priority = top.priority;
         let root = block.qualified_root();
 
+        let election_to_remove = if self.elections.len() >= self.config.reserved_elections {
+            let low_prio_election = self.elections.pop_lowest_priority().unwrap();
+            Some(low_prio_election.root)
+        } else {
+            None
+        };
+
         self.elections.insert(BucketElection {
             root,
             priority: priority.time,
         });
 
-        Some(AecInsertRequest::new_priority(block, priority))
+        Some((
+            AecInsertRequest::new_priority(block, priority),
+            election_to_remove,
+        ))
     }
 
     pub fn election_to_cancel(&self, aec_vacancy: i64) -> Option<QualifiedRoot> {

@@ -22,23 +22,22 @@ impl BucketElections {
         let priority = entry.priority;
         let old = self.by_root.insert(root.clone(), entry);
         if let Some(old) = old {
-            self.erase_indices(old);
+            self.erase_indices(&old);
         }
         self.sequenced.push(root.clone());
         self.by_priority.entry(priority).or_default().push(root);
+    }
+
+    pub fn pop_lowest_priority(&mut self) -> Option<BucketElection> {
+        let (_, roots) = self.by_priority.first_key_value()?;
+        let root = roots[0].clone();
+        self.erase(&root)
     }
 
     pub fn entry_with_lowest_priority(&self) -> Option<&BucketElection> {
         self.by_priority
             .first_key_value()
             .and_then(|(_, roots)| self.by_root.get(&roots[0]))
-    }
-
-    pub fn highest_priority(&self) -> TimePriority {
-        self.by_priority
-            .last_key_value()
-            .map(|(prio, _)| *prio)
-            .unwrap_or_default()
     }
 
     pub fn lowest_priority(&self) -> TimePriority {
@@ -52,13 +51,13 @@ impl BucketElections {
         self.sequenced.len()
     }
 
-    pub fn erase(&mut self, root: &QualifiedRoot) {
-        if let Some(entry) = self.by_root.remove(root) {
-            self.erase_indices(entry)
-        }
+    pub fn erase(&mut self, root: &QualifiedRoot) -> Option<BucketElection> {
+        let entry = self.by_root.remove(root)?;
+        self.erase_indices(&entry);
+        Some(entry)
     }
 
-    fn erase_indices(&mut self, entry: BucketElection) {
+    fn erase_indices(&mut self, entry: &BucketElection) {
         let keys = self.by_priority.get_mut(&entry.priority).unwrap();
         if keys.len() == 1 {
             self.by_priority.remove(&entry.priority);
@@ -78,7 +77,7 @@ mod tests {
         let elections = BucketElections::default();
         assert_eq!(elections.len(), 0);
         assert_eq!(elections.entry_with_lowest_priority(), None);
-        assert_eq!(elections.highest_priority(), TimePriority::MIN);
+        assert_eq!(elections.lowest_priority(), TimePriority::MIN);
     }
 
     #[test]
@@ -92,7 +91,7 @@ mod tests {
         elections.insert(entry.clone());
 
         assert_eq!(elections.len(), 1);
-        assert_eq!(elections.highest_priority(), entry.priority);
+        assert_eq!(elections.lowest_priority(), entry.priority);
         assert_eq!(
             elections.entry_with_lowest_priority().unwrap().root,
             entry.root
