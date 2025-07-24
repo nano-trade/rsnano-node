@@ -28,6 +28,7 @@ tokio-util = "0.7.15"
 dirs = "6.0.0"
 clap = { version = "4.5.40", features = ["derive"] }
 rustc-hash = "2.1.1"
+num-format = "0.4.4"
 
 [dev-dependencies]
 ntest = "0.9.3"

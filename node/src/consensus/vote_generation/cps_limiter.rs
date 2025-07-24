@@ -14,7 +14,7 @@ pub(crate) struct CpsLimiter {
 }
 
 impl CpsLimiter {
-    const RATE_ADJUSTMENT_INTERVAL: Duration = Duration::from_secs(15);
+    const RATE_ADJUSTMENT_INTERVAL: Duration = Duration::from_secs(30);
 
     pub(crate) fn new(block_rates: Arc<CurrentBlockRates>, cps_limit: usize) -> Self {
         Self {
@@ -67,7 +67,7 @@ fn calculate_new_limiter_rate(current_rate: f64, cps: f64, cps_limit: f64) -> f6
     let max = cps_limit * 100.0;
 
     // The lower limit is introduced, so that CPS rate recovers quicker after a sharp drop
-    let min = (cps_limit * 0.3).max(1.0);
+    let min = (cps_limit * 0.5).max(1.0);
 
     // Adjustment factor for token buckent increase/decrease
     const ALPHA: f64 = 0.2;

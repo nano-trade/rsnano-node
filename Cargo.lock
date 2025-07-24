@@ -2861,6 +2861,7 @@ dependencies = [
  "clap",
  "dirs",
  "ntest",
+ "num-format",
  "rand 0.9.1",
  "rsnano_core",
  "rsnano_messages",

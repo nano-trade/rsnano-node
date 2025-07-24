@@ -4,7 +4,6 @@ use std::{
         Arc, Condvar, LazyLock, Mutex, RwLock,
     },
     thread::JoinHandle,
-    time::Duration,
 };
 
 use rsnano_core::{
@@ -29,7 +28,6 @@ pub struct PriorityScheduler {
     bucketing: Bucketing,
     buckets: Mutex<Vec<Bucket>>,
     thread: Mutex<Option<JoinHandle<()>>>,
-    cleanup_thread: Mutex<Option<JoinHandle<()>>>,
     bucket_stats: BucketStats,
     clock: Arc<SteadyClock>,
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
@@ -54,7 +52,6 @@ impl PriorityScheduler {
 
         Self {
             thread: Mutex::new(None),
-            cleanup_thread: Mutex::new(None),
             stopped: Mutex::new(false),
             condition: Condvar::new(),
             buckets: Mutex::new(buckets),
@@ -80,10 +77,6 @@ impl PriorityScheduler {
         *self.stopped.lock().unwrap() = true;
         self.condition.notify_all();
         let handle = self.thread.lock().unwrap().take();
-        if let Some(handle) = handle {
-            handle.join().unwrap();
-        }
-        let handle = self.cleanup_thread.lock().unwrap().take();
         if let Some(handle) = handle {
             handle.join().unwrap();
         }
@@ -226,19 +219,25 @@ impl PriorityScheduler {
             inserted = false;
             for bucket in buckets.iter_mut().rev() {
                 let aec_vacancy = aec.vacancy();
-                if bucket.available(aec_vacancy) {
-                    if let Some(insert_req) = bucket.activate() {
-                        let root = insert_req.block.qualified_root();
-
-                        let result = aec.insert(insert_req, now);
-
-                        let inserted = result.is_ok();
-                        if !inserted {
-                            bucket.remove_election(&root);
-                        }
-
-                        self.update_stats(result);
+                if let Some((insert_req, remove_req)) = bucket.activate(aec_vacancy) {
+                    if let Some(root) = remove_req {
+                        // TODO aec.replace(old, new);
+                        aec.erase(&root);
+                        self.bucket_stats.replaced.fetch_add(1, Ordering::Relaxed);
+                        // TODO stats
+                        // TODO: reenqueue this block?
                     }
+
+                    let root = insert_req.block.qualified_root();
+                    let result = aec.insert(insert_req, now);
+
+                    let inserted = result.is_ok();
+                    if !inserted {
+                        bucket.remove_election(&root);
+                        // TODO: How does the block get reenqueued?
+                    }
+
+                    self.update_stats(result);
                 }
             }
         }
@@ -262,35 +261,6 @@ impl PriorityScheduler {
                     .fetch_add(1, Ordering::Relaxed);
             }
             Err(AecInsertError::Stopped) => {}
-        }
-    }
-
-    fn run_cleanup(&self) {
-        let mut stopped = self.stopped.lock().unwrap();
-        while !*stopped {
-            stopped = self
-                .condition
-                .wait_timeout_while(stopped, Duration::from_secs(1), |s| !*s)
-                .unwrap()
-                .0;
-
-            if !*stopped {
-                drop(stopped);
-                self.stats
-                    .inc(StatType::ElectionScheduler, DetailType::Cleanup);
-                {
-                    let mut buckets = self.buckets.lock().unwrap();
-                    let mut aec = self.active_elections.write().unwrap();
-                    for bucket in buckets.iter_mut() {
-                        if let Some(root) = bucket.election_to_cancel(aec.vacancy()) {
-                            aec.cancel(&root);
-                            self.bucket_stats.cancelled.fetch_add(1, Ordering::Relaxed);
-                        }
-                    }
-                }
-
-                stopped = self.stopped.lock().unwrap();
-            }
         }
     }
 
@@ -336,7 +306,6 @@ impl Drop for PriorityScheduler {
     fn drop(&mut self) {
         // Thread must be stopped before destruction
         debug_assert!(self.thread.lock().unwrap().is_none());
-        debug_assert!(self.cleanup_thread.lock().unwrap().is_none());
     }
 }
 
@@ -347,7 +316,6 @@ pub trait PrioritySchedulerExt {
 impl PrioritySchedulerExt for Arc<PriorityScheduler> {
     fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
-        debug_assert!(self.cleanup_thread.lock().unwrap().is_none());
 
         let self_l = Arc::clone(&self);
         *self.thread.lock().unwrap() = Some(
@@ -355,16 +323,6 @@ impl PrioritySchedulerExt for Arc<PriorityScheduler> {
                 .name("Sched Priority".to_string())
                 .spawn(Box::new(move || {
                     self_l.run();
-                }))
-                .unwrap(),
-        );
-
-        let self_l = Arc::clone(&self);
-        *self.cleanup_thread.lock().unwrap() = Some(
-            std::thread::Builder::new()
-                .name("Sched Priority Clean".to_string())
-                .spawn(Box::new(move || {
-                    self_l.run_cleanup();
                 }))
                 .unwrap(),
         );
