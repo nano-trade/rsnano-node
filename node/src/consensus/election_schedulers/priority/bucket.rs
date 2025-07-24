@@ -124,6 +124,10 @@ impl Bucket {
         let priority = top.priority;
         let root = block.qualified_root();
 
+        if self.elections.contains(&root) {
+            return None;
+        }
+
         let election_to_remove = if self.elections.len() >= self.config.reserved_elections {
             let low_prio_election = self.elections.pop_lowest_priority().unwrap();
             Some(low_prio_election.root)

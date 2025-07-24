@@ -4,7 +4,6 @@ use std::{
         Arc, Condvar, LazyLock, Mutex, RwLock,
     },
     thread::JoinHandle,
-    time::Duration,
 };
 
 use rsnano_core::{

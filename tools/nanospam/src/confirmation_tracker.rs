@@ -16,6 +16,7 @@ use crate::{
     domain::{BlockFactory, DelayedBlocks},
     high_prio_check::HighPrioTracker,
 };
+use num_format::{Locale, ToFormattedString};
 
 pub(crate) fn track_confirmations(
     rx_ws_msg: Receiver<(MessageEnvelope, Instant)>,
@@ -64,7 +65,10 @@ pub(crate) fn track_confirmations(
                 };
                 let bps = current_bps.load(Ordering::Relaxed);
                 info!(
-                        "Confirmed {confirmed} blocks ({total} total) | {bps} bps | {cps} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}"
+                        "Confirmed {} blocks | {} bps | {} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}",
+                        total.to_formatted_string(&Locale::en),
+                        bps.to_formatted_string(&Locale::en),
+                        cps.to_formatted_string(&Locale::en),
                     );
                 confirmed = 0;
                 start = Instant::now();

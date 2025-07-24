@@ -12,11 +12,14 @@ pub(super) struct BucketElection {
 #[derive(Default)]
 pub(super) struct BucketElections {
     by_root: HashMap<QualifiedRoot, BucketElection>,
-    sequenced: Vec<QualifiedRoot>,
     by_priority: BTreeMap<TimePriority, Vec<QualifiedRoot>>,
 }
 
 impl BucketElections {
+    pub fn contains(&self, root: &QualifiedRoot) -> bool {
+        self.by_root.contains_key(root)
+    }
+
     pub fn insert(&mut self, entry: BucketElection) {
         let root = entry.root.clone();
         let priority = entry.priority;
@@ -24,7 +27,6 @@ impl BucketElections {
         if let Some(old) = old {
             self.erase_indices(&old);
         }
-        self.sequenced.push(root.clone());
         self.by_priority.entry(priority).or_default().push(root);
     }
 
@@ -39,7 +41,7 @@ impl BucketElections {
     }
 
     pub fn len(&self) -> usize {
-        self.sequenced.len()
+        self.by_root.len()
     }
 
     pub fn erase(&mut self, root: &QualifiedRoot) -> Option<BucketElection> {
@@ -55,7 +57,6 @@ impl BucketElections {
         } else {
             keys.retain(|i| *i != entry.root);
         }
-        self.sequenced.retain(|i| *i != entry.root);
     }
 }
 
