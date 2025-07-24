@@ -1,3 +1,4 @@
+mod aec_voter;
 mod block_voter;
 mod cps_limiter;
 mod last_votes;
@@ -9,6 +10,7 @@ mod vote_generator;
 mod vote_generators;
 mod vote_spacing;
 
+pub(crate) use aec_voter::*;
 pub(crate) use block_voter::*;
 pub(crate) use cps_limiter::*;
 pub use local_vote_history::*;

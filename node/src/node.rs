@@ -54,13 +54,14 @@ use crate::{
         election::ConfirmedElection,
         election_schedulers::{ElectionSchedulers, ElectionSchedulersPlugin},
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
-        BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
-        ConfirmationSolicitorPlugin, CpsLimiter, CurrentRepTiers, DependentElectionsConfirmer,
-        ForkCache, ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory,
-        LocalVotesRemover, RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup,
-        VoteApplier, VoteApprover, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators,
-        VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup,
-        VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
+        AecVoter, BlockVoter, BootstrapElectionActivator, BootstrapStaleElections,
+        ConfirmReqSender, ConfirmationSolicitorPlugin, CpsLimiter, CurrentRepTiers,
+        DependentElectionsConfirmer, ForkCache, ForkCacheUpdater, ForkProcessor,
+        ForkProcessorPlugin, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApprover, VoteBroadcaster,
+        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
+        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
+        WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
     node_id_key_file::NodeIdKeyFile,
@@ -167,6 +168,7 @@ pub struct Node {
     winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
     block_rate_calculator: TimerThread<BlockRateCalculator>,
     pub block_rates: Arc<CurrentBlockRates>,
+    aec_voter: TimerThread<AecVoter>,
 }
 
 pub(crate) struct NodeArgs {
@@ -1185,6 +1187,8 @@ impl Node {
             active_elections: active_elections.clone(),
             vote_cache: vote_cache.clone(),
         });
+
+        let aec_voter = AecVoter::new(active_elections.clone());
         ledger_event_processor_plugins
             .push(Box::new(ForkProcessorPlugin::new(fork_processor.clone())));
 
@@ -1367,6 +1371,7 @@ impl Node {
             winner_block_broadcaster,
             block_rate_calculator: TimerThread::new("Blk rate", block_rate_calculator),
             block_rates,
+            aec_voter: TimerThread::new("AEC voter", aec_voter),
         }
     }
 
@@ -1578,6 +1583,7 @@ impl Node {
 
         self.network_threads.lock().unwrap().start();
         self.message_processor.lock().unwrap().start();
+        self.aec_voter.start(Duration::from_millis(10));
 
         if self.flags.enable_pruning {
             self.ledger_pruning.start();
@@ -1663,6 +1669,7 @@ impl Node {
         info!("Node stopping...");
 
         self.tcp_listener.stop();
+        self.aec_voter.stop();
         self.ledger.stop();
         self.wallet_reps_checker.stop();
         self.online_weight_calculation.stop();
