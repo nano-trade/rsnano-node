@@ -72,7 +72,7 @@ impl ActiveElectionsContainer {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Election> {
-        self.roots.iter_sequenced().map(|i| &i.election)
+        self.roots.iter().map(|i| &i.election)
     }
 
     pub fn insert(

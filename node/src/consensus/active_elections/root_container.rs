@@ -14,7 +14,6 @@ pub(crate) struct Entry {
 #[derive(Default)]
 pub(crate) struct RootContainer {
     by_root: HashMap<QualifiedRoot, Entry>,
-    sequenced: Vec<QualifiedRoot>,
     pub vote_router: VoteRouter,
 }
 
@@ -24,9 +23,7 @@ impl RootContainer {
     pub fn insert(&mut self, entry: Entry) {
         let root = entry.root.clone();
         let hash = entry.election.winner().hash();
-        if self.by_root.insert(root.clone(), entry).is_none() {
-            self.sequenced.push(root.clone());
-        }
+        self.by_root.insert(root.clone(), entry);
         self.vote_router.connect(hash, root.clone());
     }
 
@@ -82,23 +79,21 @@ impl RootContainer {
     pub fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
         let erased = self.by_root.remove(root);
         if let Some(entry) = &erased {
-            self.sequenced.retain(|x| x != root);
             self.vote_router.disconnect_election(&entry.election);
         }
         erased
     }
 
     pub fn clear(&mut self) {
-        self.sequenced.clear();
         self.by_root.clear();
     }
 
     pub fn len(&self) -> usize {
-        self.sequenced.len()
+        self.by_root.len()
     }
 
-    pub fn iter_sequenced(&self) -> impl Iterator<Item = &Entry> {
-        self.sequenced.iter().map(|r| self.by_root.get(r).unwrap())
+    pub fn iter(&self) -> impl Iterator<Item = &Entry> {
+        self.by_root.values()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Entry> {
