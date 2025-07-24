@@ -68,7 +68,6 @@ mod tests {
     fn emtpy() {
         let elections = BucketElections::default();
         assert_eq!(elections.len(), 0);
-        assert_eq!(elections.entry_with_lowest_priority(), None);
         assert_eq!(elections.lowest_priority(), None);
     }
 
@@ -84,10 +83,6 @@ mod tests {
 
         assert_eq!(elections.len(), 1);
         assert_eq!(elections.lowest_priority(), Some(entry.priority));
-        assert_eq!(
-            elections.entry_with_lowest_priority().unwrap().root,
-            entry.root
-        );
     }
 
     #[test]
@@ -113,10 +108,7 @@ mod tests {
         elections.insert(entry3.clone());
 
         assert_eq!(elections.len(), 3);
-        assert_eq!(
-            elections.entry_with_lowest_priority().unwrap().root,
-            entry3.root
-        );
+        assert_eq!(elections.lowest_priority(), Some(entry3.priority));
     }
 
     #[test]
