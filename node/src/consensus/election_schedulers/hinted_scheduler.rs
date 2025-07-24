@@ -190,11 +190,12 @@ impl HintedScheduler {
 
                 // Try to insert it into AEC as hinted election
                 let now = self.clock.now();
+                let priority = any.block_priority(&block);
                 let inserted = self
                     .active_elections
                     .write()
                     .unwrap()
-                    .insert(AecInsertRequest::new_hinted(block), now)
+                    .insert(AecInsertRequest::new_hinted(block, priority), now)
                     .is_ok();
 
                 self.stats.inc(

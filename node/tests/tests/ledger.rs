@@ -29,10 +29,7 @@ mod votes {
         let key1 = PrivateKey::new();
         let send1 = lattice.genesis().legacy_send(&key1, 100);
         let send1 = node1.process(send1);
-        node1
-            .election_schedulers
-            .manual
-            .push(send1.clone().into(), None);
+        node1.election_schedulers.manual.push(send1.clone().into());
 
         assert_timely2(|| node1.is_active_root(&send1.qualified_root()));
 

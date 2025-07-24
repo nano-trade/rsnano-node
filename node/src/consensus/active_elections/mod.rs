@@ -80,35 +80,39 @@ pub struct ActiveElectionsInfo {
 pub struct AecInsertRequest {
     pub block: SavedBlock,
     pub behavior: ElectionBehavior,
-    pub priority: Option<BlockPriority>,
+    pub priority: BlockPriority,
 }
 
 impl AecInsertRequest {
-    fn new(block: SavedBlock, behavior: ElectionBehavior) -> Self {
+    pub fn new_hinted(block: SavedBlock, priority: BlockPriority) -> Self {
         Self {
             block,
-            behavior,
-            priority: None,
+            behavior: ElectionBehavior::Hinted,
+            priority,
         }
     }
 
-    pub fn new_hinted(block: SavedBlock) -> Self {
-        Self::new(block, ElectionBehavior::Hinted)
+    pub fn new_optimistic(block: SavedBlock, priority: BlockPriority) -> Self {
+        Self {
+            block,
+            behavior: ElectionBehavior::Optimistic,
+            priority,
+        }
     }
 
-    pub fn new_optimistic(block: SavedBlock) -> Self {
-        Self::new(block, ElectionBehavior::Optimistic)
-    }
-
-    pub fn new_manual(block: SavedBlock) -> Self {
-        Self::new(block, ElectionBehavior::Manual)
+    pub fn new_manual(block: SavedBlock, priority: BlockPriority) -> Self {
+        Self {
+            block,
+            behavior: ElectionBehavior::Manual,
+            priority,
+        }
     }
 
     pub fn new_priority(block: SavedBlock, priority: BlockPriority) -> Self {
         Self {
             block,
             behavior: ElectionBehavior::Priority,
-            priority: Some(priority),
+            priority,
         }
     }
 }

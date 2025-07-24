@@ -81,7 +81,7 @@ pub trait AecTickerPlugin: Send + 'static {
 mod tests {
     use super::*;
     use crate::consensus::AecInsertRequest;
-    use rsnano_core::SavedBlock;
+    use rsnano_core::{utils::BlockPriority, SavedBlock};
     use rsnano_nullable_clock::Timestamp;
     use std::sync::Mutex;
 
@@ -99,7 +99,10 @@ mod tests {
             .active_elections
             .write()
             .unwrap()
-            .insert(AecInsertRequest::new_manual(block.clone()), now)
+            .insert(
+                AecInsertRequest::new_manual(block.clone(), BlockPriority::new_test_instance()),
+                now,
+            )
             .unwrap();
 
         ticker.run(&CancellationToken::new_null());
