@@ -57,7 +57,7 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
                         root: election.winner().root(),
                         vote_type: election.vote_type(),
                     };
-                    self.block_voter.try_vote(request);
+                    //self.block_voter.try_vote(request);
                 }
                 ElectionState::Active => {
                     let request = BlockVoteRequest {
@@ -65,7 +65,7 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
                         root: election.winner().root(),
                         vote_type: election.vote_type(),
                     };
-                    self.block_voter.try_vote(request);
+                    //self.block_voter.try_vote(request);
                     self.winner_block_broadcaster
                         .lock()
                         .unwrap()

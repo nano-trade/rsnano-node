@@ -603,7 +603,7 @@ impl Node {
             info!("Unlimited confirmations per second (CPS)!");
             CpsLimiter::unlimited()
         };
-        let vote_approver = VoteApprover::new(current_network, cps_limiter);
+        let vote_approver = VoteApprover::new(current_network, cps_limiter.clone());
 
         let block_voter = Arc::new(BlockVoter::new(
             vote_generators.clone(),
@@ -1188,7 +1188,13 @@ impl Node {
             vote_cache: vote_cache.clone(),
         });
 
-        let aec_voter = AecVoter::new(active_elections.clone());
+        let aec_voter = AecVoter::new(
+            active_elections.clone(),
+            vote_generators.clone(),
+            steady_clock.clone(),
+            current_network,
+            cps_limiter,
+        );
         ledger_event_processor_plugins
             .push(Box::new(ForkProcessorPlugin::new(fork_processor.clone())));
 
