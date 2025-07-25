@@ -123,7 +123,7 @@ impl ActiveElectionsContainer {
         let upgraded = existing.election.maybe_upgrade_to(request.behavior);
 
         if upgraded {
-            existing.priority = Some(request.priority);
+            existing.priority = request.priority;
             *self.count_by_behavior_mut(previous_behavior) -= 1;
             *self.count_by_behavior_mut(request.behavior) += 1;
             Ok(true)
@@ -140,7 +140,7 @@ impl ActiveElectionsContainer {
         self.roots.insert(Entry {
             root: root.clone(),
             election,
-            priority: Some(request.priority),
+            priority: request.priority,
         });
 
         *self.count_by_behavior_mut(request.behavior) += 1;

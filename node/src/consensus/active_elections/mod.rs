@@ -42,7 +42,7 @@ pub enum AecEvent {
     ElectionConfirmed(ConfirmedElection),
 
     /// Ended ether confirmed or unconfirmed
-    ElectionEnded(Election, Option<BlockPriority>),
+    ElectionEnded(Election, BlockPriority),
 
     BlockAddedToElection(BlockHash),
     BlockDiscarded(Block),

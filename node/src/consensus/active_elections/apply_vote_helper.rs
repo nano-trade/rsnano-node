@@ -192,7 +192,7 @@ mod tests {
         representatives::QuorumSpecs,
     };
     use rsnano_core::{
-        utils::{backpressure_channel, UnixMillisTimestamp},
+        utils::{backpressure_channel, BlockPriority, UnixMillisTimestamp},
         Block, PrivateKey, QualifiedRoot, SavedBlock, StateBlockArgs, Vote,
     };
     use rsnano_ledger::RepWeights;
@@ -401,7 +401,7 @@ mod tests {
             self.roots.insert(Entry {
                 root: self.root.clone(),
                 election,
-                priority: None,
+                priority: BlockPriority::new_test_instance(),
             });
         }
 

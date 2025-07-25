@@ -7,7 +7,7 @@ use rsnano_core::{utils::BlockPriority, BlockHash, QualifiedRoot};
 pub(crate) struct Entry {
     pub root: QualifiedRoot,
     pub election: Election,
-    pub priority: Option<BlockPriority>,
+    pub priority: BlockPriority,
 }
 
 /// Contains elections and their qualified roots

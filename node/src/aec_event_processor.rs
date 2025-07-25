@@ -120,10 +120,8 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                         self.clear_network_filter(block);
                     }
 
-                    if let Some(priority) = priority {
-                        self.election_schedulers
-                            .remove_priority_election(priority, election.qualified_root());
-                    }
+                    self.election_schedulers
+                        .remove_priority_election(priority, election.qualified_root());
                 }
             }
             AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
