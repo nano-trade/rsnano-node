@@ -8,10 +8,10 @@ use crate::{
     block_processing::{BlockContext, BlockProcessorQueue},
     cementation::ConfirmingSet,
     consensus::{
-        aggregate_vote_results, election::VoteType, election_schedulers::ElectionSchedulers,
-        ActiveElectionsContainer, AecCooldownReason, AecEvent, BlockVoteRequest, BlockVoter,
-        BootstrapElectionActivator, ForkProcessor, LocalVotesRemover, ReceivedVote, VoteCache,
-        VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue, WinnerBlockBroadcaster,
+        aggregate_vote_results, election_schedulers::ElectionSchedulers, ActiveElectionsContainer,
+        AecCooldownReason, AecEvent, BootstrapElectionActivator, ForkProcessor, LocalVotesRemover,
+        ReceivedVote, VoteCache, VoteCacheProcessor, VoteProcessor, VoteRebroadcastQueue,
+        WinnerBlockBroadcaster,
     },
     recently_cemented_inserter::RecentlyCementedInserter,
     representatives::{OnlineReps, RepCrawler},
@@ -36,7 +36,6 @@ pub(crate) struct AecEventProcessor {
     pub(crate) election_schedulers: Arc<ElectionSchedulers>,
     pub(crate) network_filter: Arc<NetworkFilter>,
     pub(crate) bootstrap_election_activator: BootstrapElectionActivator,
-    pub(crate) block_voter: Arc<BlockVoter>,
     pub(crate) recently_cemented_inserter: RecentlyCementedInserter,
     pub(crate) vote_rebroadcast_queue: Arc<VoteRebroadcastQueue>,
     pub(crate) block_processor_queue: Arc<BlockProcessorQueue>,
@@ -78,11 +77,6 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
             AecEvent::ElectionStarted(hash, root) => {
                 self.fork_processor.try_add_cached_forks(&root);
                 self.bootstrap_election_activator.election_started(hash);
-                self.block_voter.try_vote(BlockVoteRequest {
-                    block_hash: hash,
-                    root: root.root,
-                    vote_type: VoteType::NonFinal,
-                });
                 self.vote_cache_processor.trigger(hash);
                 if let Some(tx) = &self.node_observer {
                     tx.send(NodeEvent::ElectionStarted(hash)).unwrap();
@@ -120,10 +114,8 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                         self.clear_network_filter(block);
                     }
 
-                    if let Some(priority) = priority {
-                        self.election_schedulers
-                            .remove_priority_election(priority, election.qualified_root());
-                    }
+                    self.election_schedulers
+                        .remove_priority_election(priority, election.qualified_root());
                 }
             }
             AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),
@@ -161,13 +153,6 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     tx.send(NodeEvent::VoteProcessed(vote.vote, result))
                         .unwrap();
                 }
-            }
-            AecEvent::FinalPhaseStarted(hash, root) => {
-                self.block_voter.try_vote(BlockVoteRequest {
-                    block_hash: hash,
-                    root: root.root,
-                    vote_type: VoteType::Final,
-                });
             }
             AecEvent::BlockConfirmed(block, election) => {
                 if let Some(tx) = &self.node_observer {

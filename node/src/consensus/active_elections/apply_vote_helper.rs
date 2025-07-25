@@ -122,7 +122,6 @@ impl<'a> ApplyVoteToElectionHelper<'a> {
 
     pub fn confirm_if_quorum(&mut self) {
         let old_winner = self.election.winner().hash();
-        let old_final = self.election.is_final();
 
         self.election
             .update_tallies(self.args.rep_weights, self.args.quorum_specs.quorum_delta);
@@ -130,10 +129,6 @@ impl<'a> ApplyVoteToElectionHelper<'a> {
         self.notify_winner_changed(old_winner);
 
         if self.election.is_final() {
-            if !old_final {
-                self.final_phase_started();
-            }
-
             if self.election.is_confirmed() {
                 self.election_got_confirmed();
             }
@@ -167,13 +162,6 @@ impl<'a> ApplyVoteToElectionHelper<'a> {
         );
     }
 
-    fn final_phase_started(&self) {
-        self.notify(AecEvent::FinalPhaseStarted(
-            self.election.winner().hash(),
-            self.election.qualified_root().clone(),
-        ));
-    }
-
     fn notify(&self, event: AecEvent) {
         if let Some(o) = self.observer {
             o.send(event).unwrap();
@@ -192,7 +180,7 @@ mod tests {
         representatives::QuorumSpecs,
     };
     use rsnano_core::{
-        utils::{backpressure_channel, UnixMillisTimestamp},
+        utils::{backpressure_channel, BlockPriority, UnixMillisTimestamp},
         Block, PrivateKey, QualifiedRoot, SavedBlock, StateBlockArgs, Vote,
     };
     use rsnano_ledger::RepWeights;
@@ -295,25 +283,6 @@ mod tests {
     }
 
     #[test]
-    fn notify_final_phase_started() {
-        let mut fixture = FixtureForElection::default();
-        fixture
-            .rep_weights
-            .insert(fixture.rep1_key.public_key(), Amount::MAX);
-
-        fixture
-            .apply_vote_from(VoteSource::Live, UnixMillisTimestamp::new(1000))
-            .unwrap();
-
-        assert_eq!(fixture.events.len(), 1);
-        let AecEvent::FinalPhaseStarted(hash, root) = &fixture.events[0] else {
-            panic!("no final phase started event");
-        };
-        assert_eq!(*hash, fixture.block.hash());
-        assert_eq!(*root, fixture.block.qualified_root());
-    }
-
-    #[test]
     fn notify_winner_changed() {
         let block = StateBlockArgs::new_test_instance();
         let key = block.key.clone();
@@ -339,17 +308,12 @@ mod tests {
         fixture.apply_vote(vote).unwrap();
 
         assert_eq!(fixture.election.winner().hash(), fork.hash());
-        assert_eq!(fixture.events.len(), 2);
+        assert_eq!(fixture.events.len(), 1);
         let AecEvent::WinnerChanged(old_winner, new_winner) = &fixture.events[0] else {
             panic!("not a winner changed event");
         };
         assert_eq!(old_winner, &block.hash());
         assert_eq!(new_winner, &fork);
-        let AecEvent::FinalPhaseStarted(hash, root) = &fixture.events[1] else {
-            panic!("no final phase started event");
-        };
-        assert_eq!(*hash, fork.hash());
-        assert_eq!(*root, fork.qualified_root());
     }
 
     #[test]
@@ -361,13 +325,9 @@ mod tests {
 
         fixture.apply_final_vote_from(VoteSource::Live).unwrap();
 
-        assert_eq!(fixture.events.len(), 2);
+        assert_eq!(fixture.events.len(), 1);
 
-        assert!(matches!(
-            fixture.events[0],
-            AecEvent::FinalPhaseStarted(_, _)
-        ));
-        assert!(matches!(fixture.events[1], AecEvent::ElectionConfirmed(_)));
+        assert!(matches!(fixture.events[0], AecEvent::ElectionConfirmed(_)));
     }
 
     // Test helpers:
@@ -401,7 +361,7 @@ mod tests {
             self.roots.insert(Entry {
                 root: self.root.clone(),
                 election,
-                priority: None,
+                priority: BlockPriority::new_test_instance(),
             });
         }
 

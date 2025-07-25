@@ -75,6 +75,10 @@ impl ActiveElectionsContainer {
         self.roots.iter().map(|i| &i.election)
     }
 
+    pub fn iter_bucket(&self, bucket: usize) -> impl Iterator<Item = &Election> {
+        self.roots.iter_bucket(bucket).map(|i| &i.election)
+    }
+
     pub fn insert(
         &mut self,
         request: AecInsertRequest,
@@ -83,10 +87,11 @@ impl ActiveElectionsContainer {
         self.ensure_not_stopped()?;
         self.ensure_not_recently_confirmed(&request)?;
 
-        if !self.try_upgrade_existing_election(&request)? {
-            self.insert_new_election(request, now);
+        if self.try_upgrade_priority_election(&request)? {
+            return Ok(());
         }
 
+        self.insert_new_election(request, now);
         Ok(())
     }
 
@@ -110,25 +115,22 @@ impl ActiveElectionsContainer {
         Ok(())
     }
 
-    fn try_upgrade_existing_election(
+    fn try_upgrade_priority_election(
         &mut self,
         request: &AecInsertRequest,
     ) -> Result<bool, AecInsertError> {
-        let Some(existing) = self.roots.get_mut(&request.block.qualified_root()) else {
-            // Nothing upgraded - it's a new election
-            return Ok(false);
-        };
-
-        let previous_behavior = existing.election.behavior();
-        let upgraded = existing.election.maybe_upgrade_to(request.behavior);
+        let (upgraded, previous_behavior) = self.roots.try_upgrade_to_priority_election(&request);
 
         if upgraded {
-            existing.priority = request.priority;
-            *self.count_by_behavior_mut(previous_behavior) -= 1;
+            *self.count_by_behavior_mut(previous_behavior.unwrap()) -= 1;
             *self.count_by_behavior_mut(request.behavior) += 1;
             Ok(true)
         } else {
-            Err(AecInsertError::Duplicate)
+            if previous_behavior.is_some() {
+                Err(AecInsertError::Duplicate)
+            } else {
+                Ok(false)
+            }
         }
     }
 
@@ -478,7 +480,7 @@ mod tests {
         let request = AecInsertRequest {
             block: SavedBlock::new_test_instance(),
             behavior: ElectionBehavior::Priority,
-            priority: None,
+            priority: BlockPriority::new_test_instance(),
         };
 
         container
@@ -498,7 +500,7 @@ mod tests {
         let request = AecInsertRequest {
             block,
             behavior: ElectionBehavior::Priority,
-            priority: Some(BlockPriority::new_test_instance()),
+            priority: BlockPriority::new_test_instance(),
         };
 
         let now = Timestamp::new_test_instance();

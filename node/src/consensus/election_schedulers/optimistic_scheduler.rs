@@ -220,11 +220,12 @@ impl OptimisticScheduler {
                 // Try to insert it into AEC
                 // We check for AEC vacancy inside our predicate
                 let now = self.clock.now();
+                let priority = any.block_priority(&block);
                 let inserted = self
                     .active_elections
                     .write()
                     .unwrap()
-                    .insert(AecInsertRequest::new_optimistic(block), now)
+                    .insert(AecInsertRequest::new_optimistic(block, priority), now)
                     .is_ok();
 
                 if inserted {

@@ -1,4 +1,34 @@
+use crate::consensus::election::ElectionBehavior;
 use rsnano_core::Amount;
+use std::sync::LazyLock;
+
+static BUCKETING: LazyLock<Bucketing> = LazyLock::new(|| Bucketing::default());
+
+pub fn prio_bucket_index(balance: Amount) -> usize {
+    BUCKETING.bucket_index(balance)
+}
+
+/// Count of the priority buckets
+pub fn prio_bucket_count() -> usize {
+    BUCKETING.bucket_count()
+}
+
+/// Count of priority buckets + extra buckets for optimistic, hinted and manual elections
+pub fn bucket_count() -> usize {
+    const OPTIMISIC_BUCKET: usize = 1;
+    const HINTED_BUCKET: usize = 1;
+    const MANUAL_BUCKET: usize = 1;
+    prio_bucket_count() + OPTIMISIC_BUCKET + HINTED_BUCKET + MANUAL_BUCKET
+}
+
+pub fn bucket_index(behavior: ElectionBehavior, balance: Amount) -> usize {
+    match behavior {
+        ElectionBehavior::Priority => prio_bucket_index(balance),
+        ElectionBehavior::Manual => prio_bucket_count(),
+        ElectionBehavior::Hinted => prio_bucket_count() + 1,
+        ElectionBehavior::Optimistic => prio_bucket_count() + 2,
+    }
+}
 
 #[derive(Clone)]
 pub struct Bucketing {

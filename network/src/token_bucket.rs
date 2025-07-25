@@ -11,6 +11,7 @@ use rsnano_nullable_clock::Timestamp;
  * bucket per session, or one for bandwidth limiting. A token can represent bytes,
  * messages, or the cost of API invocations.
  */
+#[derive(Clone)]
 pub struct TokenBucket {
     last_refill: Option<Timestamp>,
     current_size: usize,

@@ -106,7 +106,7 @@ pub fn system_time_as_seconds(time: SystemTime) -> u64 {
 }
 
 /// Elapsed seconds since UNIX_EPOCH
-#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Default)]
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Default, Hash)]
 pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
@@ -347,7 +347,7 @@ pub trait Runnable: Send {
 }
 
 /// Lower timestamps have a higher priority
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Hash)]
 pub struct TimePriority(UnixTimestamp);
 
 impl TimePriority {
@@ -395,7 +395,7 @@ impl From<TimePriority> for UnixTimestamp {
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Default, PartialOrd, Ord, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Default, PartialOrd, Ord, Debug, Hash)]
 pub struct BlockPriority {
     pub balance: Amount,
     pub time: TimePriority,

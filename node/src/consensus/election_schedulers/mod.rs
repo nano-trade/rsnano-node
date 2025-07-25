@@ -66,6 +66,7 @@ impl ElectionSchedulers {
             stats.clone(),
             active_elections.clone(),
             clock.clone(),
+            ledger.clone(),
         ));
 
         let optimistic = Arc::new(OptimisticScheduler::new(
@@ -163,7 +164,7 @@ impl ElectionSchedulers {
     }
 
     pub fn add_manual(&self, block: SavedBlock) {
-        self.manual.push(block, None);
+        self.manual.push(block);
     }
 
     pub fn activate_successors<'a>(&self, confirmed: impl IntoIterator<Item = &'a SavedBlock>) {

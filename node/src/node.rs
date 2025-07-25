@@ -54,13 +54,13 @@ use crate::{
         election::ConfirmedElection,
         election_schedulers::{ElectionSchedulers, ElectionSchedulersPlugin},
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
-        BlockVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
+        AecVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
         ConfirmationSolicitorPlugin, CpsLimiter, CurrentRepTiers, DependentElectionsConfirmer,
         ForkCache, ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory,
         LocalVotesRemover, RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup,
-        VoteApplier, VoteApprover, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators,
-        VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup,
-        VoteRebroadcastQueue, VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
+        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
     node_id_key_file::NodeIdKeyFile,
@@ -167,6 +167,7 @@ pub struct Node {
     winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
     block_rate_calculator: TimerThread<BlockRateCalculator>,
     pub block_rates: Arc<CurrentBlockRates>,
+    aec_voter: TimerThread<AecVoter>,
 }
 
 pub(crate) struct NodeArgs {
@@ -601,13 +602,6 @@ impl Node {
             info!("Unlimited confirmations per second (CPS)!");
             CpsLimiter::unlimited()
         };
-        let vote_approver = VoteApprover::new(current_network, cps_limiter);
-
-        let block_voter = Arc::new(BlockVoter::new(
-            vote_generators.clone(),
-            steady_clock.clone(),
-            vote_approver,
-        ));
 
         let vote_applier = VoteApplier::new(
             active_elections.clone(),
@@ -780,7 +774,6 @@ impl Node {
         }
 
         let bounded_backlog = Arc::new(BoundedBacklog::new(
-            election_schedulers.priority.bucketing().clone(),
             config.bounded_backlog.clone(),
             ledger.clone(),
             stats.clone(),
@@ -835,7 +828,6 @@ impl Node {
         aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
             message_flooder: message_flooder.clone(),
             online_reps: online_reps.clone(),
-            block_voter: block_voter.clone(),
             winner_block_broadcaster: winner_block_broadcaster.clone(),
             confirm_req_sender,
         });
@@ -1185,6 +1177,14 @@ impl Node {
             active_elections: active_elections.clone(),
             vote_cache: vote_cache.clone(),
         });
+
+        let aec_voter = AecVoter::new(
+            active_elections.clone(),
+            vote_generators.clone(),
+            steady_clock.clone(),
+            current_network,
+            cps_limiter,
+        );
         ledger_event_processor_plugins
             .push(Box::new(ForkProcessorPlugin::new(fork_processor.clone())));
 
@@ -1194,7 +1194,6 @@ impl Node {
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
-            block_voter: block_voter.clone(),
             recently_cemented_inserter,
             vote_cache: vote_cache.clone(),
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),
@@ -1367,6 +1366,7 @@ impl Node {
             winner_block_broadcaster,
             block_rate_calculator: TimerThread::new("Blk rate", block_rate_calculator),
             block_rates,
+            aec_voter: TimerThread::new("AEC voter", aec_voter),
         }
     }
 
@@ -1578,6 +1578,7 @@ impl Node {
 
         self.network_threads.lock().unwrap().start();
         self.message_processor.lock().unwrap().start();
+        self.aec_voter.start(Duration::from_millis(10));
 
         if self.flags.enable_pruning {
             self.ledger_pruning.start();
@@ -1663,6 +1664,7 @@ impl Node {
         info!("Node stopping...");
 
         self.tcp_listener.stop();
+        self.aec_voter.stop();
         self.ledger.stop();
         self.wallet_reps_checker.stop();
         self.online_weight_calculation.stop();

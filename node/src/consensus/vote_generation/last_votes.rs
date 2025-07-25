@@ -20,12 +20,7 @@ impl LastVotes {
         }
     }
 
-    pub fn try_insert(
-        &mut self,
-        block_hash: BlockHash,
-        vote_type: VoteType,
-        now: Timestamp,
-    ) -> bool {
+    pub fn can_vote(&self, block_hash: BlockHash, vote_type: VoteType, now: Timestamp) -> bool {
         let last_vote = self.entries.get(&(block_hash, vote_type));
 
         if let Some(last_vote) = last_vote {
@@ -33,7 +28,11 @@ impl LastVotes {
                 return false;
             }
         }
-        self.entries.insert((block_hash, vote_type), now);
+
         true
+    }
+
+    pub fn voted(&mut self, block_hash: BlockHash, vote_type: VoteType, now: Timestamp) {
+        self.entries.insert((block_hash, vote_type), now);
     }
 }

@@ -9,6 +9,7 @@ use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use crate::consensus::{election::ElectionBehavior, ActiveElectionsContainer, AecInsertRequest};
+use rsnano_ledger::{AnySet, Ledger};
 use rsnano_nullable_clock::SteadyClock;
 
 pub struct ManualScheduler {
@@ -18,6 +19,7 @@ pub struct ManualScheduler {
     stats: Arc<Stats>,
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
+    ledger: Arc<Ledger>,
 }
 
 impl ManualScheduler {
@@ -25,6 +27,7 @@ impl ManualScheduler {
         stats: Arc<Stats>,
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
+        ledger: Arc<Ledger>,
     ) -> Self {
         Self {
             thread: Mutex::new(None),
@@ -32,6 +35,7 @@ impl ManualScheduler {
             stats,
             active_elections,
             clock,
+            ledger,
             mutex: Mutex::new(ManualSchedulerImpl {
                 queue: Default::default(),
                 stopped: false,
@@ -54,17 +58,17 @@ impl ManualScheduler {
             .unwrap()
             .queue
             .iter()
-            .any(|(block, _)| block.hash() == *hash)
+            .any(|block| block.hash() == *hash)
     }
 
     pub fn notify(&self) {
         self.condition.notify_all();
     }
 
-    pub fn push(&self, block: SavedBlock, previous_balance: Option<Amount>) {
+    pub fn push(&self, block: SavedBlock) {
         {
             let mut guard = self.mutex.lock().unwrap();
-            guard.queue.push_back((block, previous_balance));
+            guard.queue.push_back(block);
         }
         self.notify();
     }
@@ -82,18 +86,21 @@ impl ManualScheduler {
                     .inc(StatType::ElectionScheduler, DetailType::Loop);
 
                 if guard.predicate() {
-                    let (block, _previous_balance) = guard.queue.pop_front().unwrap();
+                    let block = guard.queue.pop_front().unwrap();
                     drop(guard);
 
                     let hash = block.hash();
-
+                    let priority = self.ledger.any().block_priority(&block);
                     self.stats
                         .inc(StatType::ElectionScheduler, DetailType::InsertManual);
 
                     let now = self.clock.now();
 
                     let mut aec = self.active_elections.write().unwrap();
-                    if aec.insert(AecInsertRequest::new_manual(block), now).is_ok() {
+                    if aec
+                        .insert(AecInsertRequest::new_manual(block, priority), now)
+                        .is_ok()
+                    {
                         aec.transition_active(&hash);
                     }
                 } else {
@@ -143,7 +150,7 @@ impl ManualSchedulerExt for Arc<ManualScheduler> {
 }
 
 struct ManualSchedulerImpl {
-    queue: VecDeque<(SavedBlock, Option<Amount>)>,
+    queue: VecDeque<SavedBlock>,
     stopped: bool,
 }
 

@@ -2277,7 +2277,7 @@ fn fork_open_flip() {
 
     // give block open1 to node1, manually trigger an election for open1 and ensure it is in the ledger
     let open1 = node1.process(open1);
-    node1.election_schedulers.manual.push(open1.clone(), None);
+    node1.election_schedulers.manual.push(open1.clone());
     assert_timely2(|| node1.is_active_root(&open1.qualified_root()));
     node1
         .active
@@ -2295,7 +2295,7 @@ fn fork_open_flip() {
 
     // ensure open2 is in node2 ledger (and therefore has sideband) and manually trigger an election for open2
     assert_timely2(|| node2.block_exists(&open2.hash()));
-    node2.election_schedulers.manual.push(open2.clone(), None);
+    node2.election_schedulers.manual.push(open2.clone());
     assert_timely2(|| node2.is_active_root(&open2.qualified_root()));
     node2
         .active

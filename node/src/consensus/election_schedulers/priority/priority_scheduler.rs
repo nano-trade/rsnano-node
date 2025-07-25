@@ -15,7 +15,10 @@ use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
-use super::{bucket_stats::BucketStats, Bucket, Bucketing, PriorityBucketConfig};
+use super::{
+    bucket_stats::BucketStats, prio_bucket_count, prio_bucket_index, Bucket, Bucketing,
+    PriorityBucketConfig,
+};
 use crate::consensus::{
     election_schedulers::priority::{BlockEviction, BucketInsertError},
     ActiveElectionsContainer, AecInsertError,
@@ -25,7 +28,6 @@ pub struct PriorityScheduler {
     stopped: Mutex<bool>,
     condition: Condvar,
     stats: Arc<Stats>,
-    bucketing: Bucketing,
     buckets: Mutex<Vec<Bucket>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     bucket_stats: BucketStats,
@@ -42,10 +44,9 @@ impl PriorityScheduler {
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        let bucketing = Bucketing::default();
-        let mut buckets = Vec::with_capacity(bucketing.bucket_count());
-        let mut activations_per_bucket = Vec::with_capacity(bucketing.bucket_count());
-        for _ in 0..bucketing.bucket_count() {
+        let mut buckets = Vec::with_capacity(prio_bucket_count());
+        let mut activations_per_bucket = Vec::with_capacity(prio_bucket_count());
+        for _ in 0..prio_bucket_count() {
             buckets.push(Bucket::new(config.clone()));
             activations_per_bucket.push(AtomicU64::new(0));
         }
@@ -55,7 +56,6 @@ impl PriorityScheduler {
             stopped: Mutex::new(false),
             condition: Condvar::new(),
             buckets: Mutex::new(buckets),
-            bucketing,
             stats,
             bucket_stats: BucketStats::default(),
             clock,
@@ -67,10 +67,6 @@ impl PriorityScheduler {
 
     pub fn track_activate_successors(&self) -> Arc<OutputTrackerMt<SavedBlock>> {
         self.activate_successors_listener.track()
-    }
-
-    pub fn bucketing(&self) -> &Bucketing {
-        &self.bucketing
     }
 
     pub fn stop(&self) {
@@ -169,7 +165,7 @@ impl PriorityScheduler {
         buckets: &'b mut [Bucket],
         priority: Amount,
     ) -> (&'b mut Bucket, usize) {
-        let index = self.bucketing.bucket_index(priority);
+        let index = prio_bucket_index(priority);
         (&mut buckets[index], index)
     }
 

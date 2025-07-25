@@ -5,6 +5,7 @@ use std::{sync::Arc, time::Duration};
 
 /// Limits the amount of created final votes with the goal of
 /// reducing the network confirmation rate to a configured limit
+#[derive(Clone)]
 pub(crate) struct CpsLimiter {
     block_rates: Arc<CurrentBlockRates>,
     cps_limit: f64,
