@@ -1,4 +1,15 @@
 use rsnano_core::Amount;
+use std::sync::LazyLock;
+
+static BUCKETING: LazyLock<Bucketing> = LazyLock::new(|| Bucketing::default());
+
+pub fn bucket_index(balance: Amount) -> usize {
+    BUCKETING.bucket_index(balance)
+}
+
+pub fn bucket_count() -> usize {
+    BUCKETING.bucket_count()
+}
 
 #[derive(Clone)]
 pub struct Bucketing {

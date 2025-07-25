@@ -782,7 +782,6 @@ impl Node {
         }
 
         let bounded_backlog = Arc::new(BoundedBacklog::new(
-            election_schedulers.priority.bucketing().clone(),
             config.bounded_backlog.clone(),
             ledger.clone(),
             stats.clone(),

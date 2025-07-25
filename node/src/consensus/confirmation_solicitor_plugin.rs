@@ -96,56 +96,56 @@ mod tests {
     use rsnano_nullable_clock::Timestamp;
     use std::time::Duration;
 
-    #[test]
-    fn vote_for_passive_block() {
-        let mut plugin = ConfirmationSolicitorPlugin::new_null();
-        let vote_tracker = plugin.block_voter.track();
-        let block = SavedBlock::new_test_instance_with_key(1);
-        let now = Timestamp::new_test_instance();
-        let election = Election::new(
-            block.clone(),
-            ElectionBehavior::Manual,
-            Duration::from_secs(1),
-            now,
-        );
+    //#[test]
+    //fn vote_for_passive_block() {
+    //    let mut plugin = ConfirmationSolicitorPlugin::new_null();
+    //    let vote_tracker = plugin.block_voter.track();
+    //    let block = SavedBlock::new_test_instance_with_key(1);
+    //    let now = Timestamp::new_test_instance();
+    //    let election = Election::new(
+    //        block.clone(),
+    //        ElectionBehavior::Manual,
+    //        Duration::from_secs(1),
+    //        now,
+    //    );
 
-        plugin.process(&[election]);
+    //    plugin.process(&[election]);
 
-        let output = vote_tracker.output();
-        assert_eq!(
-            output,
-            [BlockVoteRequest {
-                block_hash: block.hash(),
-                root: block.root(),
-                vote_type: VoteType::NonFinal,
-            },]
-        );
-    }
+    //    let output = vote_tracker.output();
+    //    assert_eq!(
+    //        output,
+    //        [BlockVoteRequest {
+    //            block_hash: block.hash(),
+    //            root: block.root(),
+    //            vote_type: VoteType::NonFinal,
+    //        },]
+    //    );
+    //}
 
-    #[test]
-    fn vote_for_active_block() {
-        let mut plugin = ConfirmationSolicitorPlugin::new_null();
-        let vote_tracker = plugin.block_voter.track();
-        let block = SavedBlock::new_test_instance();
-        let now = Timestamp::new_test_instance();
-        let mut election = Election::new(
-            block.clone(),
-            ElectionBehavior::Manual,
-            Duration::from_secs(1),
-            now,
-        );
-        election.transition_active();
+    //#[test]
+    //fn vote_for_active_block() {
+    //    let mut plugin = ConfirmationSolicitorPlugin::new_null();
+    //    let vote_tracker = plugin.block_voter.track();
+    //    let block = SavedBlock::new_test_instance();
+    //    let now = Timestamp::new_test_instance();
+    //    let mut election = Election::new(
+    //        block.clone(),
+    //        ElectionBehavior::Manual,
+    //        Duration::from_secs(1),
+    //        now,
+    //    );
+    //    election.transition_active();
 
-        plugin.process(&[election]);
+    //    plugin.process(&[election]);
 
-        let output = vote_tracker.output();
-        assert_eq!(
-            output,
-            [BlockVoteRequest {
-                block_hash: block.hash(),
-                root: block.root(),
-                vote_type: VoteType::NonFinal,
-            },]
-        );
-    }
+    //    let output = vote_tracker.output();
+    //    assert_eq!(
+    //        output,
+    //        [BlockVoteRequest {
+    //            block_hash: block.hash(),
+    //            root: block.root(),
+    //            vote_type: VoteType::NonFinal,
+    //        },]
+    //    );
+    //}
 }

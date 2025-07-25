@@ -17,7 +17,7 @@ use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
 };
-use crate::consensus::election_schedulers::priority::Bucketing;
+use crate::consensus::election_schedulers::priority::{bucket_count, bucket_index};
 use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,12 +41,10 @@ pub struct BoundedBacklog {
     thread: Mutex<Option<JoinHandle<()>>>,
     scan_thread: Mutex<Option<JoinHandle<()>>>,
     backlog_impl: Arc<BoundedBacklogImpl>,
-    bucketing: Bucketing,
 }
 
 impl BoundedBacklog {
     pub(crate) fn new(
-        bucketing: Bucketing,
         config: BoundedBacklogConfig,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
@@ -57,10 +55,10 @@ impl BoundedBacklog {
             mutex: Mutex::new(BacklogData {
                 stopped: false,
                 cool_down: false,
-                index: BacklogIndex::new(bucketing.bucket_count()),
+                index: BacklogIndex::new(bucket_count()),
                 ledger: ledger.clone(),
                 config: config.clone(),
-                bucket_count: bucketing.bucket_count(),
+                bucket_count: bucket_count(),
                 scan_limiter: Mutex::new(TokenBucket::new(config.scan_rate)),
             }),
             config,
@@ -74,18 +72,16 @@ impl BoundedBacklog {
             backlog_impl,
             thread: Mutex::new(None),
             scan_thread: Mutex::new(None),
-            bucketing,
         }
     }
 
     pub fn new_null() -> Self {
-        let bucketing = Bucketing::default();
         let config = BoundedBacklogConfig::default();
         let ledger = Arc::new(Ledger::new_null());
         let stats = Arc::new(Stats::default());
         let clock = Arc::new(SteadyClock::new_null());
 
-        Self::new(bucketing, config, ledger, stats, clock)
+        Self::new(config, ledger, stats, clock)
     }
 
     pub fn start(&self) {
@@ -209,7 +205,7 @@ impl BoundedBacklog {
 
     pub fn insert(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
         let priority = any.block_priority(block);
-        let bucket_index = self.bucketing.bucket_index(priority.balance);
+        let bucket_index = bucket_index(priority.balance);
 
         self.backlog_impl
             .mutex
