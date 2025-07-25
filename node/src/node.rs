@@ -1203,7 +1203,6 @@ impl Node {
             election_schedulers: election_schedulers.clone(),
             network_filter: network_filter.clone(),
             bootstrap_election_activator,
-            block_voter: block_voter.clone(),
             recently_cemented_inserter,
             vote_cache: vote_cache.clone(),
             vote_rebroadcast_queue: vote_rebroadcast_queue.clone(),

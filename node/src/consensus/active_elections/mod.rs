@@ -55,7 +55,6 @@ pub enum AecEvent {
         Amount,
         HashMap<BlockHash, Result<(), VoteError>>,
     ),
-    FinalPhaseStarted(BlockHash, QualifiedRoot),
     Recovered,
 }
 
