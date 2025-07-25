@@ -20,7 +20,24 @@ impl LastVotes {
         }
     }
 
-    pub fn try_insert(
+    pub fn can_vote(&self, block_hash: BlockHash, vote_type: VoteType, now: Timestamp) -> bool {
+        let last_vote = self.entries.get(&(block_hash, vote_type));
+
+        if let Some(last_vote) = last_vote {
+            if last_vote.elapsed(now) < self.vote_broadcast_interval {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn voted(&mut self, block_hash: BlockHash, vote_type: VoteType, now: Timestamp) {
+        self.entries.insert((block_hash, vote_type), now);
+    }
+
+    // TODO delete:
+    pub(crate) fn try_insert(
         &mut self,
         block_hash: BlockHash,
         vote_type: VoteType,

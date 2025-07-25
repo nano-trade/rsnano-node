@@ -75,6 +75,10 @@ impl ActiveElectionsContainer {
         self.roots.iter().map(|i| &i.election)
     }
 
+    pub fn iter_bucket(&self, bucket: usize) -> impl Iterator<Item = &Election> {
+        self.roots.iter_bucket(bucket).map(|i| &i.election)
+    }
+
     pub fn insert(
         &mut self,
         request: AecInsertRequest,

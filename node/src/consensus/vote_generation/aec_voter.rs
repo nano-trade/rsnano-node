@@ -1,15 +1,13 @@
 use super::{last_votes::LastVotes, CpsLimiter, VoteGenerators};
-use crate::consensus::{election::VoteType, ActiveElectionsContainer};
+use crate::consensus::{
+    election::VoteType, election_schedulers::priority::bucket_count, ActiveElectionsContainer,
+};
 use rsnano_core::{
     utils::{CancellationToken, Runnable},
     Networks,
 };
 use rsnano_nullable_clock::SteadyClock;
-use std::{
-    sync::{Arc, RwLock},
-    thread::sleep,
-    time::Duration,
-};
+use std::sync::{Arc, RwLock};
 
 /// Creates votes for blocks within the AEC
 pub(crate) struct AecVoter {
@@ -18,6 +16,7 @@ pub(crate) struct AecVoter {
     clock: Arc<SteadyClock>,
     last_votes: LastVotes,
     cps_limiter: CpsLimiter,
+    current_bucket: usize,
 }
 
 impl AecVoter {
@@ -34,6 +33,7 @@ impl AecVoter {
             clock,
             last_votes: LastVotes::new(network),
             cps_limiter,
+            current_bucket: bucket_count() - 1,
         }
     }
 }
@@ -42,29 +42,41 @@ impl Runnable for AecVoter {
     fn run(&mut self, cancel_token: &CancellationToken) {
         let now = self.clock.now();
         let aec = self.aec.read().unwrap();
-        for election in aec.iter() {
-            if cancel_token.is_cancelled() {
-                return;
-            }
+        let mut voted = true;
+        while voted {
+            voted = false;
+            loop {
+                for election in aec.iter_bucket(self.current_bucket) {
+                    let vote_type = election.vote_type();
+                    let winner_hash = election.winner().hash();
 
-            let vote_type = election.vote_type();
-            let winner_hash = election.winner().hash();
+                    if self.last_votes.can_vote(winner_hash, vote_type, now) {
+                        if vote_type == VoteType::NonFinal && !self.cps_limiter.try_vote(now) {
+                            return;
+                        }
 
-            // TODO insert after voted!
-            if self.last_votes.try_insert(winner_hash, vote_type, now) {
-                self.vote_generators.generate_vote(
-                    &election.qualified_root().root,
-                    &winner_hash,
-                    vote_type,
-                );
+                        self.vote_generators.generate_vote(
+                            &election.qualified_root().root,
+                            &winner_hash,
+                            vote_type,
+                        );
 
-                if vote_type == VoteType::NonFinal {
-                    while !self.cps_limiter.try_vote(self.clock.now())
-                        && !cancel_token.is_cancelled()
-                    {
-                        // TODO drop lock
-                        sleep(Duration::from_millis(1));
+                        self.last_votes.voted(winner_hash, vote_type, now);
+                        voted = true;
+
+                        // Vote for only one election per bucket
+                        break;
                     }
+                }
+                if cancel_token.is_cancelled() {
+                    return;
+                }
+
+                if self.current_bucket == 0 {
+                    self.current_bucket = bucket_count() - 1;
+                    break;
+                } else {
+                    self.current_bucket -= 1;
                 }
             }
         }
