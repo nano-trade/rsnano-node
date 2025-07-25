@@ -50,6 +50,7 @@ impl Runnable for AecVoter {
             let vote_type = election.vote_type();
             let winner_hash = election.winner().hash();
 
+            // TODO insert after voted!
             if self.last_votes.try_insert(winner_hash, vote_type, now) {
                 self.vote_generators.generate_vote(
                     &election.qualified_root().root,
@@ -61,6 +62,7 @@ impl Runnable for AecVoter {
                     while !self.cps_limiter.try_vote(self.clock.now())
                         && !cancel_token.is_cancelled()
                     {
+                        // TODO drop lock
                         sleep(Duration::from_millis(1));
                     }
                 }
