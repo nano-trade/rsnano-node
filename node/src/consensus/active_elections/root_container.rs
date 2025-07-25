@@ -3,9 +3,9 @@ use std::{
     collections::{BTreeSet, HashMap},
 };
 
-use super::vote_router::VoteRouter;
+use super::{vote_router::VoteRouter, AecInsertRequest};
 use crate::consensus::{
-    election::Election,
+    election::{Election, ElectionBehavior},
     election_schedulers::priority::{bucket_count, bucket_index},
 };
 use rsnano_core::{utils::BlockPriority, BlockHash, QualifiedRoot};
@@ -68,7 +68,8 @@ impl RootContainer {
             root: entry.root.clone(),
             priority: entry.priority.clone(),
         };
-        self.buckets[bucket_index(entry.priority.balance)].insert(bucket_entry);
+        self.buckets[bucket_index(entry.election.behavior(), entry.priority.balance)]
+            .insert(bucket_entry);
         self.by_root.insert(root.clone(), entry);
         self.vote_router.connect(hash, root.clone());
     }
@@ -99,6 +100,41 @@ impl RootContainer {
         self.get_mut(&root).map(|i| &mut i.election)
     }
 
+    pub fn try_upgrade_to_priority_election(
+        &mut self,
+        request: &AecInsertRequest,
+    ) -> (bool, Option<ElectionBehavior>) {
+        let root = request.block.qualified_root();
+
+        let Some(entry) = self.get_mut(&root) else {
+            return (false, None);
+        };
+
+        let previous_behavior = entry.election.behavior();
+        if request.behavior != ElectionBehavior::Priority {
+            return (false, Some(previous_behavior));
+        }
+
+        let priority = entry.priority;
+        let upgraded = entry.election.maybe_upgrade_to(ElectionBehavior::Priority);
+        if !upgraded {
+            return (false, Some(previous_behavior));
+        }
+
+        self.buckets[bucket_index(previous_behavior, priority.balance)].remove(&BucketEntry {
+            root: root.clone(),
+            priority,
+        });
+
+        self.buckets[bucket_index(ElectionBehavior::Priority, priority.balance)].insert(
+            BucketEntry {
+                root: root.clone(),
+                priority,
+            },
+        );
+        (true, Some(previous_behavior))
+    }
+
     pub fn drain_filter(&mut self, mut predicate: impl FnMut(&Entry) -> bool) -> Vec<Entry> {
         let to_remove: Vec<_> = self
             .by_root
@@ -126,10 +162,12 @@ impl RootContainer {
         let erased = self.by_root.remove(root);
         if let Some(entry) = &erased {
             self.vote_router.disconnect_election(&entry.election);
-            self.buckets[bucket_index(entry.priority.balance)].remove(&BucketEntry {
-                root: entry.root.clone(),
-                priority: entry.priority,
-            });
+            self.buckets[bucket_index(entry.election.behavior(), entry.priority.balance)].remove(
+                &BucketEntry {
+                    root: entry.root.clone(),
+                    priority: entry.priority,
+                },
+            );
         }
         erased
     }
@@ -149,13 +187,13 @@ impl RootContainer {
         self.by_root.values()
     }
 
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Entry> {
+        self.by_root.values_mut()
+    }
+
     pub fn iter_bucket(&self, bucket: usize) -> impl Iterator<Item = &Entry> {
         self.buckets[bucket]
             .iter()
             .map(|i| self.by_root.get(&i.root).unwrap())
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Entry> {
-        self.by_root.values_mut()
     }
 }

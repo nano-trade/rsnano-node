@@ -17,7 +17,7 @@ use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
 };
-use crate::consensus::election_schedulers::priority::{bucket_count, bucket_index};
+use crate::consensus::election_schedulers::priority::{prio_bucket_count, prio_bucket_index};
 use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,10 +55,10 @@ impl BoundedBacklog {
             mutex: Mutex::new(BacklogData {
                 stopped: false,
                 cool_down: false,
-                index: BacklogIndex::new(bucket_count()),
+                index: BacklogIndex::new(prio_bucket_count()),
                 ledger: ledger.clone(),
                 config: config.clone(),
-                bucket_count: bucket_count(),
+                bucket_count: prio_bucket_count(),
                 scan_limiter: Mutex::new(TokenBucket::new(config.scan_rate)),
             }),
             config,
@@ -205,7 +205,7 @@ impl BoundedBacklog {
 
     pub fn insert(&self, any: &impl AnySet, block: &SavedBlock) -> bool {
         let priority = any.block_priority(block);
-        let bucket_index = bucket_index(priority.balance);
+        let bucket_index = prio_bucket_index(priority.balance);
 
         self.backlog_impl
             .mutex

@@ -16,7 +16,8 @@ use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{DetailType, StatType, Stats, StatsCollection, StatsSource};
 
 use super::{
-    bucket_count, bucket_index, bucket_stats::BucketStats, Bucket, Bucketing, PriorityBucketConfig,
+    bucket_stats::BucketStats, prio_bucket_count, prio_bucket_index, Bucket, Bucketing,
+    PriorityBucketConfig,
 };
 use crate::consensus::{
     election_schedulers::priority::{BlockEviction, BucketInsertError},
@@ -43,9 +44,9 @@ impl PriorityScheduler {
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         clock: Arc<SteadyClock>,
     ) -> Self {
-        let mut buckets = Vec::with_capacity(bucket_count());
-        let mut activations_per_bucket = Vec::with_capacity(bucket_count());
-        for _ in 0..bucket_count() {
+        let mut buckets = Vec::with_capacity(prio_bucket_count());
+        let mut activations_per_bucket = Vec::with_capacity(prio_bucket_count());
+        for _ in 0..prio_bucket_count() {
             buckets.push(Bucket::new(config.clone()));
             activations_per_bucket.push(AtomicU64::new(0));
         }
@@ -164,7 +165,7 @@ impl PriorityScheduler {
         buckets: &'b mut [Bucket],
         priority: Amount,
     ) -> (&'b mut Bucket, usize) {
-        let index = bucket_index(priority);
+        let index = prio_bucket_index(priority);
         (&mut buckets[index], index)
     }
 
