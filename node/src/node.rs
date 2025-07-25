@@ -836,7 +836,7 @@ impl Node {
             BootstrapStaleElections::new(bootstrapper.clone(), steady_clock.clone());
         bootstrap_stale.set_stale_threshold(config.bootstrap_stale_threshold);
         let bootstrap_stale_stats = bootstrap_stale.stats.clone();
-        aec_ticker.add_plugin(bootstrap_stale);
+        aec_ticker.add_plugin2(bootstrap_stale);
 
         let local_block_broadcaster = Arc::new(LocalBlockBroadcaster::new(
             config.local_block_broadcaster.clone(),
@@ -1749,7 +1749,10 @@ impl CompositeNodeEventHandler {
 mod tests {
     use super::*;
     use crate::{
-        consensus::{AecEvent, AecTickerPlugin, BootstrapStaleElections, StaleElectionsStats},
+        consensus::{
+            AecEvent, AecTickerPlugin, AecTickerPlugin2, BootstrapStaleElections,
+            StaleElectionsStats,
+        },
         utils::{TimerStartEvent, TimerStartType},
         NodeBuilder,
     };
@@ -1847,11 +1850,24 @@ mod tests {
 
         assert_has_aec_ticker_plugin::<ConfirmationSolicitorPlugin>(ticker);
 
-        let stale = assert_has_aec_ticker_plugin::<BootstrapStaleElections>(ticker);
+        let stale = assert_has_aec_ticker_plugin2::<BootstrapStaleElections>(ticker);
         assert_eq!(
             stale.get_stale_threshold(),
             config.bootstrap_stale_threshold
         );
+    }
+
+    fn assert_has_aec_ticker_plugin2<T>(ticker: &AecTicker) -> &T
+    where
+        T: AecTickerPlugin2 + 'static,
+    {
+        let plugin = ticker.get_plugin2::<T>();
+        assert!(
+            plugin.is_some(),
+            "AEC ticker plugin missing: {}",
+            type_name::<T>()
+        );
+        plugin.unwrap()
     }
 
     fn assert_has_aec_ticker_plugin<T>(ticker: &AecTicker) -> &T

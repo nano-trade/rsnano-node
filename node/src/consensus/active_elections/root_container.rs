@@ -184,7 +184,7 @@ impl RootContainer {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entry> {
-        self.by_root.values()
+        RoundRobinIterator::new(self)
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Entry> {
@@ -195,5 +195,54 @@ impl RootContainer {
         self.buckets[bucket]
             .iter()
             .map(|i| self.by_root.get(&i.root).unwrap())
+    }
+}
+
+struct RoundRobinIterator<'a> {
+    roots: &'a RootContainer,
+    bucket_iters: Vec<std::collections::btree_set::Iter<'a, BucketEntry>>,
+    current: usize,
+    yielded: bool,
+}
+
+impl<'a> RoundRobinIterator<'a> {
+    fn new(aec: &'a RootContainer) -> Self {
+        let mut bucket_iters = Vec::with_capacity(bucket_count());
+        for bucket in aec.buckets.iter().rev() {
+            if !bucket.is_empty() {
+                bucket_iters.push(bucket.iter())
+            }
+        }
+        Self {
+            roots: aec,
+            bucket_iters,
+            current: 0,
+            yielded: false,
+        }
+    }
+}
+
+impl<'a> Iterator for RoundRobinIterator<'a> {
+    type Item = &'a Entry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current < self.bucket_iters.len() {
+            let item = self.bucket_iters[self.current].next();
+            if item.is_some() {
+                self.yielded = true;
+            }
+
+            self.current += 1;
+            if self.current >= self.bucket_iters.len() && self.yielded {
+                self.current = 0;
+                self.yielded = false;
+            }
+
+            if let Some(item) = item {
+                return self.roots.by_root.get(&item.root);
+            }
+        }
+
+        None
     }
 }

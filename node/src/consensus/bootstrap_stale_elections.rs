@@ -1,4 +1,4 @@
-use super::{election::Election, AecTickerPlugin};
+use super::{election::Election, ActiveElectionsContainer, AecTickerPlugin2};
 use crate::bootstrap::Bootstrapper;
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{StatsCollection, StatsSource};
@@ -61,10 +61,10 @@ impl BootstrapStaleElections {
     }
 }
 
-impl AecTickerPlugin for BootstrapStaleElections {
-    fn process(&mut self, elections: &[Election]) {
+impl AecTickerPlugin2 for BootstrapStaleElections {
+    fn run(&mut self, aec: &mut ActiveElectionsContainer) {
         let now = self.clock.now();
-        for election in elections {
+        for election in aec.iter_round_robin() {
             if self.is_stale(now, election) {
                 self.bootstrap_stale(election);
             }
@@ -94,8 +94,8 @@ impl StatsSource for StaleElectionsStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consensus::election::ElectionBehavior;
-    use rsnano_core::SavedBlock;
+    use crate::consensus::AecInsertRequest;
+    use rsnano_core::{utils::BlockPriority, SavedBlock};
     use tracing_test::traced_test;
 
     #[test]
@@ -103,8 +103,9 @@ mod tests {
         let bootstrapper = Arc::new(Bootstrapper::new_null());
         let clock = Arc::new(SteadyClock::new_null());
         let mut plugin = BootstrapStaleElections::new(bootstrapper.clone(), clock);
+        let mut aec = ActiveElectionsContainer::default();
 
-        plugin.process(&[]);
+        plugin.run(&mut aec);
 
         assert_eq!(bootstrapper.state().candidate_accounts.priority_len(), 0);
         assert_eq!(plugin.stats.bootstrap_stale.load(Ordering::Relaxed), 0);
@@ -116,20 +117,22 @@ mod tests {
         let bootstrapper = Arc::new(Bootstrapper::new_null());
         let clock = Arc::new(SteadyClock::new_null());
         let block = SavedBlock::new_test_instance();
-        let election = Election::new(
-            block,
-            ElectionBehavior::Manual,
-            Duration::from_secs(1),
+        let prio = BlockPriority::new_test_instance();
+        let account = block.account();
+        let mut aec = ActiveElectionsContainer::default();
+        aec.insert(
+            AecInsertRequest::new_priority(block, prio),
             clock.now() - BootstrapStaleElections::DEFAULT_STALE_THRESHOLD,
-        );
-        let mut plugin = BootstrapStaleElections::new(bootstrapper.clone(), clock);
+        )
+        .unwrap();
 
-        plugin.process(&[election.clone()]);
+        let mut plugin = BootstrapStaleElections::new(bootstrapper.clone(), clock);
+        plugin.run(&mut aec);
 
         assert!(bootstrapper
             .state()
             .candidate_accounts
-            .prioritized(&election.account()));
+            .prioritized(&account));
         assert_eq!(plugin.stats.bootstrap_stale.load(Ordering::Relaxed), 1);
         assert!(logs_contain("Bootstrapping account with stale election"))
     }

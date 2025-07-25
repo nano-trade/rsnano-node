@@ -46,6 +46,21 @@ impl AecTicker {
         self.plugins2.push(Box::new(plugin));
     }
 
+    pub fn get_plugin2<T>(&self) -> Option<&T>
+    where
+        T: AecTickerPlugin2 + 'static,
+    {
+        let Some(p) = self
+            .plugins2
+            .iter()
+            .find(|p| (***p).type_id() == TypeId::of::<T>())
+        else {
+            return None;
+        };
+
+        (*p).as_any().downcast_ref::<T>()
+    }
+
     pub fn get_plugin<T>(&self) -> Option<&T>
     where
         T: AecTickerPlugin + 'static,

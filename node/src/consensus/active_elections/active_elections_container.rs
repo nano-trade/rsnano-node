@@ -71,7 +71,7 @@ impl ActiveElectionsContainer {
         &mut self.count_by_behavior[behavior as usize]
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Election> {
+    pub fn iter_round_robin(&self) -> impl Iterator<Item = &Election> {
         self.roots.iter().map(|i| &i.election)
     }
 
@@ -463,7 +463,10 @@ pub struct ApplyVoteArgs<'a> {
 mod tests {
     use super::*;
     use crate::consensus::ReceivedVote;
-    use rsnano_core::{utils::BlockPriority, PrivateKey, Vote, VoteSource};
+    use rsnano_core::{
+        utils::{BlockPriority, TimePriority},
+        PrivateKey, Vote, VoteSource,
+    };
     use std::sync::Arc;
 
     #[test]
@@ -524,8 +527,54 @@ mod tests {
         assert!(container.election_for_block(&block_hash).is_none());
     }
 
+    #[test]
+    fn iter_round_robin() {
+        let block_a = SavedBlock::new_test_instance_with_key(1);
+        let block_b = SavedBlock::new_test_instance_with_key(2);
+        let block_c = SavedBlock::new_test_instance_with_key(3);
+        let block_d = SavedBlock::new_test_instance_with_key(4);
+
+        let prio_a = BlockPriority::new(Amount::nano(1), TimePriority::new(100));
+        let prio_b = BlockPriority::new(Amount::nano(100), TimePriority::new(100));
+        let prio_c = BlockPriority::new(Amount::nano(100), TimePriority::new(99));
+        let prio_d = BlockPriority::new(Amount::nano(1_000_000), TimePriority::new(100));
+
+        test_iter(&[], &[]);
+
+        test_iter(&[(&block_a, prio_a)], &[&block_a]);
+
+        test_iter(
+            &[
+                (&block_d, prio_d),
+                (&block_a, prio_a),
+                (&block_c, prio_c),
+                (&block_b, prio_b),
+            ],
+            &[&block_d, &block_c, &block_a, &block_b],
+        )
+    }
+
     fn test_final_vote(rep_key: &PrivateKey, block_hash: BlockHash) -> ReceivedVote {
         let vote = Arc::new(Vote::new_final(rep_key, vec![block_hash]));
         ReceivedVote::new(vote, VoteSource::Live, None)
+    }
+
+    fn test_iter(blocks: &[(&SavedBlock, BlockPriority)], expected: &[&SavedBlock]) {
+        let mut container = ActiveElectionsContainer::default();
+
+        for (block, prio) in blocks {
+            let request = AecInsertRequest::new_priority((**block).clone(), *prio);
+
+            container
+                .insert(request, Timestamp::new_test_instance())
+                .unwrap();
+        }
+
+        let result: Vec<_> = container
+            .iter_round_robin()
+            .map(|i| i.winner().hash())
+            .collect();
+        let expected: Vec<_> = expected.iter().map(|i| i.hash()).collect();
+        assert_eq!(result, expected);
     }
 }

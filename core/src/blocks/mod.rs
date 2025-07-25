@@ -168,7 +168,7 @@ impl Block {
         let key = key.into();
         StateBlockArgs {
             key: &key,
-            previous: 456.into(),
+            previous: BlockHash::from_bytes(*key.account().as_bytes()),
             representative: 789.into(),
             balance: 420.into(),
             link: 111.into(),
