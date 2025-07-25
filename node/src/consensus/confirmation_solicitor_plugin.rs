@@ -7,14 +7,13 @@ use super::{
     confirm_req_sender::ConfirmReqSender,
     election::{Election, ElectionState},
     winner_block_broadcaster::WinnerBlockBroadcaster,
-    AecTickerPlugin, BlockVoteRequest, BlockVoter, ConfirmationSolicitor,
+    AecTickerPlugin, ConfirmationSolicitor,
 };
 use crate::{representatives::OnlineReps, transport::MessageFlooder};
 
 pub(crate) struct ConfirmationSolicitorPlugin {
     pub(crate) message_flooder: MessageFlooder,
     pub(crate) online_reps: Arc<Mutex<OnlineReps>>,
-    pub(crate) block_voter: Arc<BlockVoter>,
     pub(crate) winner_block_broadcaster: Arc<Mutex<WinnerBlockBroadcaster>>,
     pub(crate) confirm_req_sender: ConfirmReqSender,
 }
@@ -25,7 +24,6 @@ impl ConfirmationSolicitorPlugin {
         Self {
             message_flooder: MessageFlooder::new_null(),
             online_reps: Arc::new(Mutex::new(OnlineReps::new_test_instance())),
-            block_voter: Arc::new(BlockVoter::new_null()),
             winner_block_broadcaster: Arc::new(Mutex::new(WinnerBlockBroadcaster::new_null())),
             confirm_req_sender: ConfirmReqSender::new_null(),
         }
@@ -51,21 +49,8 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
          */
         for election in elections {
             match election.state() {
-                ElectionState::Passive => {
-                    let request = BlockVoteRequest {
-                        block_hash: election.winner().hash(),
-                        root: election.winner().root(),
-                        vote_type: election.vote_type(),
-                    };
-                    //self.block_voter.try_vote(request);
-                }
+                ElectionState::Passive => {}
                 ElectionState::Active => {
-                    let request = BlockVoteRequest {
-                        block_hash: election.winner().hash(),
-                        root: election.winner().root(),
-                        vote_type: election.vote_type(),
-                    };
-                    //self.block_voter.try_vote(request);
                     self.winner_block_broadcaster
                         .lock()
                         .unwrap()
@@ -83,69 +68,4 @@ impl AecTickerPlugin for ConfirmationSolicitorPlugin {
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::consensus::{
-        election::{ElectionBehavior, VoteType},
-        BlockVoteRequest,
-    };
-    use rsnano_core::SavedBlock;
-    use rsnano_nullable_clock::Timestamp;
-    use std::time::Duration;
-
-    //#[test]
-    //fn vote_for_passive_block() {
-    //    let mut plugin = ConfirmationSolicitorPlugin::new_null();
-    //    let vote_tracker = plugin.block_voter.track();
-    //    let block = SavedBlock::new_test_instance_with_key(1);
-    //    let now = Timestamp::new_test_instance();
-    //    let election = Election::new(
-    //        block.clone(),
-    //        ElectionBehavior::Manual,
-    //        Duration::from_secs(1),
-    //        now,
-    //    );
-
-    //    plugin.process(&[election]);
-
-    //    let output = vote_tracker.output();
-    //    assert_eq!(
-    //        output,
-    //        [BlockVoteRequest {
-    //            block_hash: block.hash(),
-    //            root: block.root(),
-    //            vote_type: VoteType::NonFinal,
-    //        },]
-    //    );
-    //}
-
-    //#[test]
-    //fn vote_for_active_block() {
-    //    let mut plugin = ConfirmationSolicitorPlugin::new_null();
-    //    let vote_tracker = plugin.block_voter.track();
-    //    let block = SavedBlock::new_test_instance();
-    //    let now = Timestamp::new_test_instance();
-    //    let mut election = Election::new(
-    //        block.clone(),
-    //        ElectionBehavior::Manual,
-    //        Duration::from_secs(1),
-    //        now,
-    //    );
-    //    election.transition_active();
-
-    //    plugin.process(&[election]);
-
-    //    let output = vote_tracker.output();
-    //    assert_eq!(
-    //        output,
-    //        [BlockVoteRequest {
-    //            block_hash: block.hash(),
-    //            root: block.root(),
-    //            vote_type: VoteType::NonFinal,
-    //        },]
-    //    );
-    //}
 }

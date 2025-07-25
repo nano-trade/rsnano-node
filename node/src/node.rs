@@ -54,14 +54,13 @@ use crate::{
         election::ConfirmedElection,
         election_schedulers::{ElectionSchedulers, ElectionSchedulersPlugin},
         get_bootstrap_weights, log_bootstrap_weights, ActiveElectionsContainer, AecTicker,
-        AecVoter, BlockVoter, BootstrapElectionActivator, BootstrapStaleElections,
-        ConfirmReqSender, ConfirmationSolicitorPlugin, CpsLimiter, CurrentRepTiers,
-        DependentElectionsConfirmer, ForkCache, ForkCacheUpdater, ForkProcessor,
-        ForkProcessorPlugin, LocalVoteHistory, LocalVotesRemover, RepTiersCalculator,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteApprover, VoteBroadcaster,
-        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
-        VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue, VoteRebroadcaster,
-        WalletRepsChecker, WinnerBlockBroadcaster,
+        AecVoter, BootstrapElectionActivator, BootstrapStaleElections, ConfirmReqSender,
+        ConfirmationSolicitorPlugin, CpsLimiter, CurrentRepTiers, DependentElectionsConfirmer,
+        ForkCache, ForkCacheUpdater, ForkProcessor, ForkProcessorPlugin, LocalVoteHistory,
+        LocalVotesRemover, RepTiersCalculator, RequestAggregator, RequestAggregatorCleanup,
+        VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor,
+        VoteProcessorExt, VoteProcessorQueue, VoteProcessorQueueCleanup, VoteRebroadcastQueue,
+        VoteRebroadcaster, WalletRepsChecker, WinnerBlockBroadcaster,
     },
     ledger_event_processor::{LedgerEventProcessor, LedgerEventProcessorPlugin},
     node_id_key_file::NodeIdKeyFile,
@@ -603,13 +602,6 @@ impl Node {
             info!("Unlimited confirmations per second (CPS)!");
             CpsLimiter::unlimited()
         };
-        let vote_approver = VoteApprover::new(current_network, cps_limiter.clone());
-
-        let block_voter = Arc::new(BlockVoter::new(
-            vote_generators.clone(),
-            steady_clock.clone(),
-            vote_approver,
-        ));
 
         let vote_applier = VoteApplier::new(
             active_elections.clone(),
@@ -836,7 +828,6 @@ impl Node {
         aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
             message_flooder: message_flooder.clone(),
             online_reps: online_reps.clone(),
-            block_voter: block_voter.clone(),
             winner_block_broadcaster: winner_block_broadcaster.clone(),
             confirm_req_sender,
         });
