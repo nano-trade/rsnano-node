@@ -19,7 +19,7 @@ pub(crate) struct ConfirmationSolicitorPlugin {
 }
 
 impl ConfirmationSolicitorPlugin {
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn new_null() -> Self {
         Self {
             message_flooder: MessageFlooder::new_null(),

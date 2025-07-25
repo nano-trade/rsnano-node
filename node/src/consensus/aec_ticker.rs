@@ -13,6 +13,7 @@ pub struct AecTicker {
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
     plugins: Vec<Box<dyn AecTickerPlugin>>,
+    plugins2: Vec<Box<dyn AecTickerPlugin2>>,
 }
 
 impl AecTicker {
@@ -24,6 +25,7 @@ impl AecTicker {
             active_elections,
             clock,
             plugins: Vec::new(),
+            plugins2: Vec::new(),
         }
     }
 
@@ -32,11 +34,16 @@ impl AecTicker {
             active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
             clock: Arc::new(SteadyClock::new_null()),
             plugins: Vec::new(),
+            plugins2: Vec::new(),
         }
     }
 
     pub fn add_plugin(&mut self, plugin: impl AecTickerPlugin + 'static) {
         self.plugins.push(Box::new(plugin));
+    }
+
+    pub fn add_plugin2(&mut self, plugin: impl AecTickerPlugin2 + 'static) {
+        self.plugins2.push(Box::new(plugin));
     }
 
     pub fn get_plugin<T>(&self) -> Option<&T>
@@ -57,11 +64,16 @@ impl AecTicker {
 
 impl Runnable for AecTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        let elections = self
-            .active_elections
-            .write()
-            .unwrap()
-            .transition_time(self.clock.now());
+        let elections = {
+            let mut aec = self.active_elections.write().unwrap();
+            let elections = aec.transition_time(self.clock.now());
+
+            for plugin in &mut self.plugins2 {
+                plugin.run(&mut aec);
+            }
+
+            elections
+        };
 
         for plugin in &mut self.plugins {
             plugin.process(&elections);
@@ -71,6 +83,14 @@ impl Runnable for AecTicker {
 
 pub trait AecTickerPlugin: Send + 'static {
     fn process(&mut self, elections: &[Election]);
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+    fn as_any(&self) -> &dyn Any;
+}
+
+pub trait AecTickerPlugin2: Send + 'static {
+    fn run(&mut self, aec: &mut ActiveElectionsContainer);
     fn type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
