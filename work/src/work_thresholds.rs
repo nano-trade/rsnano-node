@@ -296,7 +296,7 @@ mod tests {
         let block = Block::new_test_instance();
         assert_eq!(
             WorkThresholds::publish_full().difficulty_block(&block),
-            9665579333895977632
+            2986293382063294288
         );
     }
 

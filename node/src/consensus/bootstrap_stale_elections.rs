@@ -64,7 +64,7 @@ impl BootstrapStaleElections {
 impl AecTickerPlugin2 for BootstrapStaleElections {
     fn run(&mut self, aec: &mut ActiveElectionsContainer) {
         let now = self.clock.now();
-        for election in aec.iter_round_robin() {
+        for election in aec.iter_round_robin().take(128) {
             if self.is_stale(now, election) {
                 self.bootstrap_stale(election);
             }

@@ -9,7 +9,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub(crate) struct AccountMap {
     pub account_states: FxHashMap<Account, AccountState>,
     all_accounts: Vec<Account>,
-    empty_accounts: FxHashSet<Account>,
     active_accounts: FxHashSet<Account>,
     active_accounts_vec: Vec<Account>,
     confirmed_accounts: FxHashSet<Account>,
@@ -82,7 +81,6 @@ impl AccountMap {
 
     pub fn add_unopened(&mut self, key: PrivateKey) {
         let account = key.account();
-        self.empty_accounts.insert(account);
         self.all_accounts.push(account);
         self.account_states.insert(
             account,

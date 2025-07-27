@@ -19,7 +19,7 @@ impl SteadyClock {
     }
 
     pub fn new_null_with(now: Timestamp) -> Self {
-        Self::new_null_with_offsets([Duration::from_millis(now.0 as u64)])
+        Self::new_null_with_offsets([Duration::from_nanos(now.0 as u64)])
     }
 
     pub fn new_null_with_offsets(offsets: impl IntoIterator<Item = Duration>) -> Self {
@@ -27,7 +27,7 @@ impl SteadyClock {
         let mut nows = VecDeque::new();
         nows.push_back(last);
         for offset in offsets.into_iter() {
-            let now = last + offset.as_millis() as i64;
+            let now = last + offset.as_nanos() as i128;
             nows.push_back(now);
             last = now;
         }
@@ -49,7 +49,7 @@ impl SteadyClock {
                     panic!("Cannot advance because other configured responses exist!")
                 }
                 let val = times.pop_front().unwrap();
-                times.push_back(val + step.as_millis() as i64);
+                times.push_back(val + step.as_nanos() as i128);
             }
         }
     }
@@ -65,13 +65,13 @@ impl Default for SteadyClock {
 
 enum TimeSource {
     System(Instant),
-    Stub(Mutex<VecDeque<i64>>),
+    Stub(Mutex<VecDeque<i128>>),
 }
 
 impl TimeSource {
-    fn now(&self) -> i64 {
+    fn now(&self) -> i128 {
         match self {
-            TimeSource::System(instant) => instant.elapsed().as_millis() as i64,
+            TimeSource::System(instant) => instant.elapsed().as_nanos() as i128,
             TimeSource::Stub(nows) => {
                 let mut guard = nows.lock().unwrap();
                 if guard.len() == 1 {
@@ -84,24 +84,32 @@ impl TimeSource {
     }
 }
 
-const DEFAULT_STUB_DURATION: i64 = 1000 * 60 * 60 * 24 * 365;
+const DEFAULT_STUB_DURATION: i128 = 1000 * 1000 * 1000 * 60 * 60 * 24 * 365;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Hash)]
-pub struct Timestamp(i64);
+pub struct Timestamp(i128);
 
 impl Timestamp {
-    pub const MAX: Self = Self(i64::MAX);
+    pub const MAX: Self = Self(i128::MAX);
+
+    pub const fn new(nanos: i128) -> Self {
+        Self(nanos)
+    }
 
     pub const fn new_test_instance() -> Self {
         Self(DEFAULT_STUB_DURATION)
     }
 
     pub fn elapsed(&self, now: Timestamp) -> Duration {
-        Duration::from_millis(now.0.checked_sub(self.0).unwrap_or_default() as u64)
+        Duration::from_nanos(now.0.checked_sub(self.0).unwrap_or_default() as u64)
     }
 
     pub fn checked_sub(&self, rhs: Duration) -> Option<Self> {
-        self.0.checked_sub(rhs.as_millis() as i64).map(Self)
+        self.0.checked_sub(rhs.as_nanos() as i128).map(Self)
+    }
+
+    pub fn millis(&self) -> i64 {
+        (self.0 / 1_000_000) as i64
     }
 
     pub const DEFAULT_STUB_NOW: Timestamp = Timestamp(DEFAULT_STUB_DURATION);
@@ -111,7 +119,7 @@ impl Add<Duration> for Timestamp {
     type Output = Timestamp;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        Self(self.0.add(rhs.as_millis() as i64))
+        Self(self.0.add(rhs.as_nanos() as i128))
     }
 }
 
@@ -125,7 +133,7 @@ impl Sub<Timestamp> for Timestamp {
     type Output = Duration;
 
     fn sub(self, rhs: Timestamp) -> Self::Output {
-        Duration::from_millis((self.0 - rhs.0) as u64)
+        Duration::from_nanos((self.0 - rhs.0) as u64)
     }
 }
 
@@ -133,19 +141,7 @@ impl Sub<Duration> for Timestamp {
     type Output = Timestamp;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        Self(self.0 - rhs.as_millis() as i64)
-    }
-}
-
-impl From<i64> for Timestamp {
-    fn from(value: i64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<Timestamp> for i64 {
-    fn from(value: Timestamp) -> Self {
-        value.0
+        Self(self.0 - rhs.as_nanos() as i128)
     }
 }
 
@@ -160,15 +156,15 @@ mod tests {
         #[test]
         fn add_duration() {
             assert_eq!(
-                Timestamp::from(1000) + Duration::from_millis(300),
-                Timestamp::from(1300)
+                Timestamp::new(1000000000) + Duration::from_millis(300),
+                Timestamp::new(1300000000)
             );
         }
 
         #[test]
         fn sub() {
             assert_eq!(
-                Timestamp::from(1000) - Timestamp::from(300),
+                Timestamp::new(1000000000) - Timestamp::new(300000000),
                 Duration::from_millis(700)
             );
         }

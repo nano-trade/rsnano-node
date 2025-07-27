@@ -29,14 +29,14 @@ impl NodeMonitor {
     pub fn new(
         ledger: Arc<Ledger>,
         network: Arc<RwLock<Network>>,
-        online_peers: Arc<Mutex<OnlineReps>>,
+        online_reps: Arc<Mutex<OnlineReps>>,
         active_elections: Arc<RwLock<ActiveElectionsContainer>>,
         block_rates: Arc<CurrentBlockRates>,
     ) -> Self {
         Self {
             ledger,
             network,
-            online_reps: online_peers,
+            online_reps,
             active_elections,
             block_rates,
             last_time: None,

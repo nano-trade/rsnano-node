@@ -77,7 +77,7 @@ impl Channel {
             // TODO set protocol version to 0
             protocol_version: AtomicU8::new(protocol_version),
             direction,
-            last_activity: AtomicI64::new(now.into()),
+            last_activity: AtomicI64::new(now.millis()),
             last_bootstrap_attempt: AtomicI64::new(0),
             timeout_seconds: AtomicU64::new(DEFAULT_TIMEOUT),
             timed_out: AtomicBool::new(false),
@@ -169,11 +169,11 @@ impl Channel {
     }
 
     pub fn last_activity(&self) -> Timestamp {
-        self.last_activity.load(Ordering::Relaxed).into()
+        Timestamp::new(self.last_activity.load(Ordering::Relaxed) as i128 * 1_000_000)
     }
 
     pub fn set_last_activity(&self, now: Timestamp) {
-        self.last_activity.store(now.into(), Ordering::Relaxed);
+        self.last_activity.store(now.millis(), Ordering::Relaxed);
     }
 
     pub fn timeout(&self) -> Duration {
@@ -232,12 +232,12 @@ impl Channel {
     }
 
     pub fn last_bootstrap_attempt(&self) -> Timestamp {
-        self.last_bootstrap_attempt.load(Ordering::Relaxed).into()
+        Timestamp::new(self.last_bootstrap_attempt.load(Ordering::Relaxed) as i128 * 1_000_000)
     }
 
     pub fn set_last_bootstrap_attempt(&self, now: Timestamp) {
         self.last_bootstrap_attempt
-            .store(now.into(), Ordering::Relaxed);
+            .store(now.millis(), Ordering::Relaxed);
     }
 
     pub fn should_drop(&self, traffic_type: TrafficType) -> bool {

@@ -825,7 +825,7 @@ impl Node {
 
         let mut aec_ticker = AecTicker::new(active_elections.clone(), steady_clock.clone());
 
-        aec_ticker.add_plugin(ConfirmationSolicitorPlugin {
+        aec_ticker.add_plugin2(ConfirmationSolicitorPlugin {
             message_flooder: message_flooder.clone(),
             online_reps: online_reps.clone(),
             winner_block_broadcaster: winner_block_broadcaster.clone(),
@@ -1578,7 +1578,7 @@ impl Node {
 
         self.network_threads.lock().unwrap().start();
         self.message_processor.lock().unwrap().start();
-        self.aec_voter.start(Duration::from_millis(10));
+        self.aec_voter.start(Duration::from_millis(20));
 
         if self.flags.enable_pruning {
             self.ledger_pruning.start();
@@ -1848,7 +1848,7 @@ mod tests {
         let task = node.aec_ticker.task();
         let ticker = task.as_ref().unwrap();
 
-        assert_has_aec_ticker_plugin::<ConfirmationSolicitorPlugin>(ticker);
+        assert_has_aec_ticker_plugin2::<ConfirmationSolicitorPlugin>(ticker);
 
         let stale = assert_has_aec_ticker_plugin2::<BootstrapStaleElections>(ticker);
         assert_eq!(

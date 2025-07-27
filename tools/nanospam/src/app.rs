@@ -302,7 +302,7 @@ fn create_blocks(
         };
 
         while !limiter.try_consume(1, clock.now()) {
-            yield_now();
+            std::thread::sleep(Duration::from_micros(50));
         }
 
         {

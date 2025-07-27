@@ -84,8 +84,8 @@ impl VoteApplier {
         };
 
         let results = {
-            let rep_weights = self.rep_weights.read();
             let mut active = self.active_elections.write().unwrap();
+            let rep_weights = self.rep_weights.read();
             active.apply_vote(ApplyVoteArgs {
                 vote,
                 rep_weights: &rep_weights,
