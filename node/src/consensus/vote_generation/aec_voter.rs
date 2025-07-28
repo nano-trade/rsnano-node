@@ -4,7 +4,7 @@ use crate::consensus::{
 };
 use rsnano_core::{
     utils::{CancellationToken, Runnable},
-    Networks,
+    BlockHash, Networks, Root,
 };
 use rsnano_nullable_clock::SteadyClock;
 use std::sync::{Arc, RwLock};
@@ -36,6 +36,13 @@ impl AecVoter {
             current_bucket: bucket_count() - 1,
         }
     }
+
+    fn flush(&self, queue: &mut Vec<(Root, BlockHash, VoteType)>) {
+        // TODO: enqueue with one call
+        for (root, hash, vote_type) in queue.drain(..) {
+            self.vote_generators.generate_vote(&root, &hash, vote_type);
+        }
+    }
 }
 
 impl Runnable for AecVoter {
@@ -43,6 +50,7 @@ impl Runnable for AecVoter {
         let now = self.clock.now();
         let aec = self.aec.read().unwrap();
         let mut voted = true;
+        let mut vote_queue = Vec::new();
         while voted {
             voted = false;
             loop {
@@ -52,14 +60,11 @@ impl Runnable for AecVoter {
 
                     if self.last_votes.can_vote(winner_hash, vote_type, now) {
                         if vote_type == VoteType::NonFinal && !self.cps_limiter.try_vote(now) {
+                            self.flush(&mut vote_queue);
                             return;
                         }
 
-                        self.vote_generators.generate_vote(
-                            &election.qualified_root().root,
-                            &winner_hash,
-                            vote_type,
-                        );
+                        vote_queue.push((election.qualified_root().root, winner_hash, vote_type));
 
                         self.last_votes.voted(winner_hash, vote_type, now);
                         voted = true;
@@ -80,5 +85,6 @@ impl Runnable for AecVoter {
                 }
             }
         }
+        self.flush(&mut vote_queue);
     }
 }
