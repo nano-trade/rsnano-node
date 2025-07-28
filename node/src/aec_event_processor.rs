@@ -90,7 +90,7 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     .unwrap()
                     .try_broadcast_winner(&election.winner, &election.votes);
             }
-            AecEvent::ElectionEnded(election, priority) => {
+            AecEvent::ElectionEnded(election) => {
                 self.election_schedulers.notify();
 
                 let now = self.clock.now();
@@ -113,9 +113,6 @@ impl BackpressureEventProcessor<AecEvent> for AecEventProcessor {
                     if !election.is_confirmed() {
                         self.clear_network_filter(block);
                     }
-
-                    self.election_schedulers
-                        .remove_priority_election(priority, election.qualified_root());
                 }
             }
             AecEvent::BlockAddedToElection(hash) => self.vote_cache_processor.trigger(hash),

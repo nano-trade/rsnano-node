@@ -304,7 +304,7 @@ impl ActiveElectionsContainer {
         *self.count_by_behavior_mut(election.behavior()) -= 1;
 
         self.stats.stopped(&entry.election);
-        self.notify(AecEvent::ElectionEnded(entry.election, entry.priority));
+        self.notify(AecEvent::ElectionEnded(entry.election));
     }
 
     /// Dependent elections are implicitly confirmed when their block is confirmed

@@ -7,8 +7,8 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{BlockPriority, ContainerInfo},
-    Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, QualifiedRoot, SavedBlock,
+    utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
+    SavedBlock,
 };
 use rsnano_ledger::{AnySet, ConfirmedSet};
 use rsnano_nullable_clock::SteadyClock;
@@ -238,24 +238,15 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn remove_election(&self, priority: BlockPriority, root: &QualifiedRoot) {
-        let mut buckets = self.buckets.lock().unwrap();
-        let (bucket, _) = self.find_bucket(&mut buckets, priority.balance);
-        bucket.remove_election(root)
-    }
-
     pub fn container_info(&self) -> ContainerInfo {
         let mut bucket_infos = ContainerInfo::builder();
-        let mut election_infos = ContainerInfo::builder();
 
         for (id, bucket) in self.buckets.lock().unwrap().iter().enumerate() {
             bucket_infos = bucket_infos.leaf(id.to_string(), bucket.len(), 0);
-            election_infos = election_infos.leaf(id.to_string(), bucket.election_count(), 0);
         }
 
         ContainerInfo::builder()
             .node("blocks", bucket_infos.finish())
-            .node("elections", election_infos.finish())
             .finish()
     }
 }

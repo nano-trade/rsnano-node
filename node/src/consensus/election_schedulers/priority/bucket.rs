@@ -1,10 +1,9 @@
 use super::{
-    bucket_elections::{BucketElection, BucketElections},
     bucket_stats::BucketStats,
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
 use crate::consensus::{ActiveElectionsContainer, AecInsertError, AecInsertRequest};
-use rsnano_core::{utils::BlockPriority, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{utils::BlockPriority, BlockHash, SavedBlock};
 use rsnano_nullable_clock::Timestamp;
 use std::sync::atomic::Ordering;
 
@@ -35,7 +34,6 @@ impl Default for PriorityBucketConfig {
 pub struct Bucket {
     config: PriorityBucketConfig,
     block_queue: OrderedBlocks,
-    elections: BucketElections,
     bucket_id: usize,
 }
 
@@ -44,7 +42,6 @@ impl Bucket {
         Self {
             config,
             block_queue: Default::default(),
-            elections: Default::default(),
             bucket_id,
         }
     }
@@ -55,10 +52,6 @@ impl Bucket {
 
     pub fn len(&self) -> usize {
         self.block_queue.len()
-    }
-
-    pub fn election_count(&self) -> usize {
-        self.elections.len()
     }
 
     pub fn blocks(&self) -> impl Iterator<Item = &SavedBlock> {
@@ -112,31 +105,6 @@ impl Bucket {
         aec.vacancy() > 0 // cooldown check. TODO: check for cooldown explicitly
     }
 
-    pub fn available(&self, aec_vacancy: i64) -> bool {
-        let Some(highest_block) = self.block_queue.highest_prio() else {
-            // No blocks enqueued
-            return false;
-        };
-
-        let candidate_prio = highest_block.priority.time;
-        let active_elections = self.elections.len();
-        let lowest_election = self.elections.lowest_priority();
-
-        let can_reprioritize = lowest_election
-            .map(|lowest| candidate_prio > lowest)
-            .unwrap_or(false);
-
-        if can_reprioritize {
-            return true;
-        }
-
-        if active_elections >= self.config.reserved_elections {
-            return false;
-        }
-
-        aec_vacancy > 0 // cooldown check. TODO: check for cooldown explicitly
-    }
-
     pub fn activate2(
         &mut self,
         aec: &mut ActiveElectionsContainer,
@@ -185,48 +153,6 @@ impl Bucket {
             Err(AecInsertError::Stopped) => {}
         }
     }
-
-    pub fn activate(
-        &mut self,
-        aec_vacancy: i64,
-    ) -> Option<(AecInsertRequest, Option<QualifiedRoot>)> {
-        if !self.available(aec_vacancy) {
-            return None;
-        }
-
-        let Some(top) = self.block_queue.pop_highest_prio() else {
-            return None; // Not activated;
-        };
-
-        let block = top.block;
-        let priority = top.priority;
-        let root = block.qualified_root();
-
-        if self.elections.contains(&root) {
-            return None;
-        }
-
-        let election_to_remove = if self.elections.len() >= self.config.reserved_elections {
-            let low_prio_election = self.elections.pop_lowest_priority().unwrap();
-            Some(low_prio_election.root)
-        } else {
-            None
-        };
-
-        self.elections.insert(BucketElection {
-            root,
-            priority: priority.time,
-        });
-
-        Some((
-            AecInsertRequest::new_priority(block, priority),
-            election_to_remove,
-        ))
-    }
-
-    pub fn remove_election(&mut self, root: &QualifiedRoot) {
-        self.elections.erase(root);
-    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -257,7 +183,8 @@ mod tests {
 
         assert_eq!(bucket.len(), 0);
         assert_eq!(bucket.contains(&BlockHash::from(1)), false);
-        assert_eq!(bucket.available(123), false);
+        let aec = ActiveElectionsContainer::default();
+        assert_eq!(bucket.available2(&aec), false);
     }
 
     #[test]
@@ -273,7 +200,8 @@ mod tests {
 
         assert_eq!(bucket.len(), 1);
         assert_eq!(bucket.contains(&block.hash()), true);
-        assert_eq!(bucket.available(123), true);
+        let aec = ActiveElectionsContainer::default();
+        assert_eq!(bucket.available2(&aec), true);
     }
 
     #[test]
