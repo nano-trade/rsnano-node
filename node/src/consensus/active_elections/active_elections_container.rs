@@ -225,15 +225,12 @@ impl ActiveElectionsContainer {
     }
 
     /// Returns the current active elections after transitioning
-    pub fn transition_time(&mut self, now: Timestamp) -> Vec<Election> {
+    pub fn transition_time(&mut self, now: Timestamp) {
         self.stats.ticked += 1;
-        let mut copies = Vec::with_capacity(self.roots.len());
         for entry in self.roots.iter_mut() {
             entry.election.transition_time(now);
-            copies.push(entry.election.clone());
         }
         self.erase_ended_elections();
-        copies
     }
 
     pub fn election_for_root(&self, root: &QualifiedRoot) -> Option<&Election> {

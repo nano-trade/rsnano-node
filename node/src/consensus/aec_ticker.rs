@@ -6,14 +6,13 @@ use std::{
 use rsnano_core::utils::{CancellationToken, Runnable};
 use rsnano_nullable_clock::SteadyClock;
 
-use super::{election::Election, ActiveElectionsContainer};
+use super::ActiveElectionsContainer;
 
 /// Every 300ms tries to transitions election state and send votes + blocks
 pub struct AecTicker {
     active_elections: Arc<RwLock<ActiveElectionsContainer>>,
     clock: Arc<SteadyClock>,
     plugins: Vec<Box<dyn AecTickerPlugin>>,
-    plugins2: Vec<Box<dyn AecTickerPlugin2>>,
 }
 
 impl AecTicker {
@@ -25,7 +24,6 @@ impl AecTicker {
             active_elections,
             clock,
             plugins: Vec::new(),
-            plugins2: Vec::new(),
         }
     }
 
@@ -34,31 +32,11 @@ impl AecTicker {
             active_elections: Arc::new(RwLock::new(ActiveElectionsContainer::default())),
             clock: Arc::new(SteadyClock::new_null()),
             plugins: Vec::new(),
-            plugins2: Vec::new(),
         }
     }
 
     pub fn add_plugin(&mut self, plugin: impl AecTickerPlugin + 'static) {
         self.plugins.push(Box::new(plugin));
-    }
-
-    pub fn add_plugin2(&mut self, plugin: impl AecTickerPlugin2 + 'static) {
-        self.plugins2.push(Box::new(plugin));
-    }
-
-    pub fn get_plugin2<T>(&self) -> Option<&T>
-    where
-        T: AecTickerPlugin2 + 'static,
-    {
-        let Some(p) = self
-            .plugins2
-            .iter()
-            .find(|p| (***p).type_id() == TypeId::of::<T>())
-        else {
-            return None;
-        };
-
-        (*p).as_any().downcast_ref::<T>()
     }
 
     pub fn get_plugin<T>(&self) -> Option<&T>
@@ -79,33 +57,19 @@ impl AecTicker {
 
 impl Runnable for AecTicker {
     fn run(&mut self, _cancel_token: &CancellationToken) {
-        let elections = {
+        {
             let mut aec = self.active_elections.write().unwrap();
-            let elections = aec.transition_time(self.clock.now());
-
-            for plugin in &mut self.plugins2 {
-                plugin.run(&mut aec);
-            }
-
-            elections
-        };
+            aec.transition_time(self.clock.now());
+        }
 
         for plugin in &mut self.plugins {
-            plugin.process(&elections);
+            plugin.run(&self.active_elections);
         }
     }
 }
 
 pub trait AecTickerPlugin: Send + 'static {
-    fn process(&mut self, elections: &[Election]);
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-    fn as_any(&self) -> &dyn Any;
-}
-
-pub trait AecTickerPlugin2: Send + 'static {
-    fn run(&mut self, aec: &mut ActiveElectionsContainer);
+    fn run(&mut self, aec: &RwLock<ActiveElectionsContainer>);
     fn type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
@@ -118,7 +82,7 @@ mod tests {
     use crate::consensus::AecInsertRequest;
     use rsnano_core::{utils::BlockPriority, SavedBlock};
     use rsnano_nullable_clock::Timestamp;
-    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
     fn call_plugins() {
@@ -142,15 +106,15 @@ mod tests {
 
         ticker.run(&CancellationToken::new_null());
 
-        assert_eq!(called.lock().unwrap().len(), 1);
+        assert!(called.load(Ordering::Relaxed));
     }
 
     #[derive(Default)]
-    struct StubPlugin(Arc<Mutex<Vec<Election>>>);
+    struct StubPlugin(Arc<AtomicBool>);
 
     impl AecTickerPlugin for StubPlugin {
-        fn process(&mut self, elections: &[Election]) {
-            *self.0.lock().unwrap() = elections.to_vec();
+        fn run(&mut self, _aec: &RwLock<ActiveElectionsContainer>) {
+            self.0.store(true, Ordering::Relaxed);
         }
 
         fn as_any(&self) -> &dyn Any {

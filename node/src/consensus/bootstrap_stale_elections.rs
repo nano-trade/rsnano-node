@@ -1,16 +1,16 @@
-use super::{election::Election, ActiveElectionsContainer, AecTickerPlugin2};
+use super::{election::Election, ActiveElectionsContainer, AecTickerPlugin};
 use crate::bootstrap::Bootstrapper;
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_core::Account;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{StatsCollection, StatsSource};
 use std::{
     any::Any,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, RwLock,
     },
     time::Duration,
 };
-use tracing::debug;
 
 /// If an election isn't confirmed within "stale_threshold", then try to bootstrap
 /// the election account, so that missing dependencies will be pulled
@@ -19,6 +19,7 @@ pub(crate) struct BootstrapStaleElections {
     clock: Arc<SteadyClock>,
     pub stats: Arc<StaleElectionsStats>,
     stale_threshold: Duration,
+    stale_accounts: Vec<Account>,
 }
 
 impl BootstrapStaleElections {
@@ -30,6 +31,7 @@ impl BootstrapStaleElections {
             clock,
             stats: Arc::new(StaleElectionsStats::default()),
             stale_threshold: Self::DEFAULT_STALE_THRESHOLD,
+            stale_accounts: Vec::new(),
         }
     }
 
@@ -42,33 +44,35 @@ impl BootstrapStaleElections {
         self.stale_threshold
     }
 
-    fn is_stale(&mut self, now: Timestamp, election: &Election) -> bool {
-        election.start().elapsed(now) >= self.stale_threshold
-    }
+    fn bootstrap_stale_accounts(&mut self) {
+        let mut state = self.bootstrapper.state();
 
-    fn bootstrap_stale(&mut self, election: &Election) {
-        debug!(
-            account = %election.account().encode_account(),
-            root = ?election.qualified_root(),
-            "Bootstrapping account with stale election");
-
-        self.bootstrapper
-            .state()
-            .candidate_accounts
-            .priority_set_initial(&election.account());
-
-        self.stats.bootstrap_stale.fetch_add(1, Ordering::Relaxed);
+        for account in &self.stale_accounts {
+            state.candidate_accounts.priority_set_initial(account);
+        }
+        self.stats
+            .bootstrap_stale
+            .fetch_add(self.stale_accounts.len() as u64, Ordering::Relaxed);
     }
 }
 
-impl AecTickerPlugin2 for BootstrapStaleElections {
-    fn run(&mut self, aec: &mut ActiveElectionsContainer) {
+impl AecTickerPlugin for BootstrapStaleElections {
+    fn run(&mut self, aec: &RwLock<ActiveElectionsContainer>) {
         let now = self.clock.now();
-        for election in aec.iter_round_robin().take(128) {
-            if self.is_stale(now, election) {
-                self.bootstrap_stale(election);
-            }
-        }
+
+        let is_stale = |election: &&Election| election.start().elapsed(now) >= self.stale_threshold;
+
+        self.stale_accounts.clear();
+        self.stale_accounts.extend(
+            aec.read()
+                .unwrap()
+                .iter_round_robin()
+                .filter(is_stale)
+                .map(|e| e.account())
+                .take(128),
+        );
+
+        self.bootstrap_stale_accounts();
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -103,9 +107,9 @@ mod tests {
         let bootstrapper = Arc::new(Bootstrapper::new_null());
         let clock = Arc::new(SteadyClock::new_null());
         let mut plugin = BootstrapStaleElections::new(bootstrapper.clone(), clock);
-        let mut aec = ActiveElectionsContainer::default();
+        let aec = RwLock::new(ActiveElectionsContainer::default());
 
-        plugin.run(&mut aec);
+        plugin.run(&aec);
 
         assert_eq!(bootstrapper.state().candidate_accounts.priority_len(), 0);
         assert_eq!(plugin.stats.bootstrap_stale.load(Ordering::Relaxed), 0);
@@ -127,7 +131,7 @@ mod tests {
         .unwrap();
 
         let mut plugin = BootstrapStaleElections::new(bootstrapper.clone(), clock);
-        plugin.run(&mut aec);
+        plugin.run(&RwLock::new(aec));
 
         assert!(bootstrapper
             .state()
