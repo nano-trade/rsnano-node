@@ -20,8 +20,8 @@ use super::{
     PriorityBucketConfig,
 };
 use crate::consensus::{
-    election_schedulers::priority::{BlockEviction, BucketInsertError},
-    ActiveElectionsContainer, AecInsertError,
+    election_schedulers::priority::{BucketInsertError, Eviction},
+    ActiveElectionsContainer,
 };
 
 pub struct PriorityScheduler {
@@ -32,7 +32,7 @@ pub struct PriorityScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
     bucket_stats: BucketStats,
     clock: Arc<SteadyClock>,
-    active_elections: Arc<RwLock<ActiveElectionsContainer>>,
+    aec: Arc<RwLock<ActiveElectionsContainer>>,
     activate_successors_listener: OutputListenerMt<SavedBlock>,
     activations_per_bucket: Vec<AtomicU64>,
 }
@@ -46,8 +46,8 @@ impl PriorityScheduler {
     ) -> Self {
         let mut buckets = Vec::with_capacity(prio_bucket_count());
         let mut activations_per_bucket = Vec::with_capacity(prio_bucket_count());
-        for _ in 0..prio_bucket_count() {
-            buckets.push(Bucket::new(config.clone()));
+        for bucket_id in 0..prio_bucket_count() {
+            buckets.push(Bucket::new(config.clone(), bucket_id));
             activations_per_bucket.push(AtomicU64::new(0));
         }
 
@@ -59,7 +59,7 @@ impl PriorityScheduler {
             stats,
             bucket_stats: BucketStats::default(),
             clock,
-            active_elections,
+            aec: active_elections,
             activate_successors_listener: Default::default(),
             activations_per_bucket,
         }
@@ -138,8 +138,8 @@ impl PriorityScheduler {
         };
 
         match insert_result {
-            Ok(BlockEviction::None) => {}
-            Ok(BlockEviction::Evicted) => {
+            Ok(Eviction::None) => {}
+            Ok(Eviction::Evicted) => {
                 self.stats
                     .inc(StatType::ElectionScheduler, DetailType::Evicted);
             }
@@ -177,15 +177,6 @@ impl PriorityScheduler {
         self.len() == 0
     }
 
-    fn predicate(&self) -> bool {
-        let vacancy = self.active_elections.read().unwrap().vacancy();
-        self.buckets
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|b| b.available(vacancy))
-    }
-
     fn run(&self) {
         let mut stopped = self.stopped.lock().unwrap();
         while !*stopped {
@@ -202,61 +193,32 @@ impl PriorityScheduler {
         }
     }
 
+    fn predicate(&self) -> bool {
+        let buckets = self.buckets.lock().unwrap();
+        let aec = self.aec.read().unwrap();
+        buckets.iter().any(|b| b.available2(&aec))
+        //let vacancy = self.aec.read().unwrap().vacancy();
+        //self.buckets
+        //    .lock()
+        //    .unwrap()
+        //    .iter()
+        //    .any(|b| b.available(vacancy))
+    }
+
     fn run_one(&self) {
         self.stats
             .inc(StatType::ElectionScheduler, DetailType::Loop);
 
         let now = self.clock.now();
         let mut buckets = self.buckets.lock().unwrap();
-        let mut aec = self.active_elections.write().unwrap();
+        let mut aec = self.aec.write().unwrap();
         let mut inserted = true;
 
         while inserted {
             inserted = false;
             for bucket in buckets.iter_mut().rev() {
-                let aec_vacancy = aec.vacancy();
-                if let Some((insert_req, remove_req)) = bucket.activate(aec_vacancy) {
-                    if let Some(root) = remove_req {
-                        // TODO aec.replace(old, new);
-                        aec.erase(&root);
-                        self.bucket_stats.replaced.fetch_add(1, Ordering::Relaxed);
-                        // TODO stats
-                        // TODO: reenqueue this block?
-                    }
-
-                    let root = insert_req.block.qualified_root();
-                    let result = aec.insert(insert_req, now);
-
-                    let inserted = result.is_ok();
-                    if !inserted {
-                        bucket.remove_election(&root);
-                        // TODO: How does the block get reenqueued?
-                    }
-
-                    self.update_stats(result);
-                }
+                bucket.activate2(&mut aec, now, &self.bucket_stats);
             }
-        }
-    }
-
-    fn update_stats(&self, result: Result<(), AecInsertError>) {
-        match result {
-            Ok(()) => {
-                self.bucket_stats
-                    .activate_success
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            Err(AecInsertError::Duplicate) => {
-                self.bucket_stats
-                    .activate_failed_duplicate
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            Err(AecInsertError::RecentlyConfirmed) => {
-                self.bucket_stats
-                    .activate_failed_confirmed
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            Err(AecInsertError::Stopped) => {}
         }
     }
 
@@ -381,7 +343,7 @@ mod tests {
         scheduler.activate_successors(&ledger.any(), &send1);
         scheduler.run_one();
 
-        let aec = scheduler.active_elections.read().unwrap();
+        let aec = scheduler.aec.read().unwrap();
         assert!(aec.is_active_hash(&send2.hash()));
         assert!(aec.is_active_hash(&open.hash()));
     }

@@ -1,9 +1,12 @@
 use super::{
     bucket_elections::{BucketElection, BucketElections},
+    bucket_stats::BucketStats,
     ordered_blocks::{BlockEntry, OrderedBlocks},
 };
-use crate::consensus::AecInsertRequest;
+use crate::consensus::{ActiveElectionsContainer, AecInsertError, AecInsertRequest};
 use rsnano_core::{utils::BlockPriority, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_nullable_clock::Timestamp;
+use std::sync::atomic::Ordering;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PriorityBucketConfig {
@@ -29,19 +32,20 @@ impl Default for PriorityBucketConfig {
 }
 
 /// A struct which holds an ordered set of blocks to be scheduled, ordered by their block arrival time
-/// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
     config: PriorityBucketConfig,
     block_queue: OrderedBlocks,
     elections: BucketElections,
+    bucket_id: usize,
 }
 
 impl Bucket {
-    pub fn new(config: PriorityBucketConfig) -> Self {
+    pub fn new(config: PriorityBucketConfig, bucket_id: usize) -> Self {
         Self {
             config,
             block_queue: Default::default(),
             elections: Default::default(),
+            bucket_id,
         }
     }
 
@@ -65,7 +69,7 @@ impl Bucket {
         &mut self,
         priority: BlockPriority,
         block: SavedBlock,
-    ) -> Result<BlockEviction, BucketInsertError> {
+    ) -> Result<Eviction, BucketInsertError> {
         let hash = block.hash();
         let inserted = self.block_queue.insert(BlockEntry::new(block, priority));
         if !inserted {
@@ -77,10 +81,35 @@ impl Bucket {
             if removed.block.hash() == hash {
                 return Err(BucketInsertError::PriorityTooLow);
             }
-            Ok(BlockEviction::Evicted)
+            Ok(Eviction::Evicted)
         } else {
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         }
+    }
+
+    pub fn available2(&self, aec: &ActiveElectionsContainer) -> bool {
+        let Some(highest_block) = self.block_queue.highest_prio() else {
+            // No blocks enqueued
+            return false;
+        };
+
+        let candidate_prio = highest_block.priority.time;
+        let bucket_len = aec.bucket_len(self.bucket_id);
+        let lowest_prio = aec.lowest_priority(self.bucket_id);
+
+        let can_reprioritize = lowest_prio
+            .map(|(_, lowest)| candidate_prio > lowest)
+            .unwrap_or(false);
+
+        if can_reprioritize {
+            return true;
+        }
+
+        if bucket_len >= self.config.reserved_elections {
+            return false;
+        }
+
+        aec.vacancy() > 0 // cooldown check. TODO: check for cooldown explicitly
     }
 
     pub fn available(&self, aec_vacancy: i64) -> bool {
@@ -106,6 +135,55 @@ impl Bucket {
         }
 
         aec_vacancy > 0 // cooldown check. TODO: check for cooldown explicitly
+    }
+
+    pub fn activate2(
+        &mut self,
+        aec: &mut ActiveElectionsContainer,
+        now: Timestamp,
+        stats: &BucketStats,
+    ) {
+        if !self.available2(&aec) {
+            return;
+        }
+
+        let Some(top) = self.block_queue.pop_highest_prio() else {
+            return; // Not activated;
+        };
+
+        let block = top.block;
+        let priority = top.priority;
+        let root = block.qualified_root();
+
+        if aec.find_bucket(&root) == Some(self.bucket_id) {
+            stats
+                .activate_failed_duplicate
+                .fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+
+        if aec.bucket_len(self.bucket_id) >= self.config.reserved_elections {
+            // TODO aec.replace(old, new);
+            aec.erase_lowest_prio_election(self.bucket_id);
+            stats.replaced.fetch_add(1, Ordering::Relaxed);
+        }
+
+        match aec.insert(AecInsertRequest::new_priority(block, priority), now) {
+            Ok(_) => {
+                stats.activate_success.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::RecentlyConfirmed) => {
+                stats
+                    .activate_failed_confirmed
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::Duplicate) => {
+                stats
+                    .activate_failed_duplicate
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            Err(AecInsertError::Stopped) => {}
+        }
     }
 
     pub fn activate(
@@ -152,10 +230,10 @@ impl Bucket {
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum BlockEviction {
-    /// The block was inserted WITHOUT removing another block
+pub enum Eviction {
+    /// Inserted WITHOUT removing a lower priority entry
     None,
-    /// The block was inserted and a block with lower priority got removed
+    /// Inserted and a lower priority entry got removed
     Evicted,
 }
 
@@ -190,7 +268,7 @@ mod tests {
 
         assert_eq!(
             bucket.insert(test_priority(1000), block.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
 
         assert_eq!(bucket.len(), 1);
@@ -206,7 +284,7 @@ mod tests {
 
         assert_eq!(
             bucket.insert(test_priority(1000), block.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
         assert_eq!(
             bucket.insert(test_priority(1000), block),
@@ -225,19 +303,19 @@ mod tests {
         let block3 = SavedBlock::new_test_instance_with_key(4);
         assert_eq!(
             bucket.insert(test_priority(2000), block0.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
         assert_eq!(
             bucket.insert(test_priority(1001), block1.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
         assert_eq!(
             bucket.insert(test_priority(1000), block2.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
         assert_eq!(
             bucket.insert(test_priority(900), block3.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
 
         assert_eq!(bucket.len(), 4);
@@ -267,11 +345,11 @@ mod tests {
 
         assert_eq!(
             bucket.insert(test_priority(2000), block0.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
         assert_eq!(
             bucket.insert(test_priority(900), block1.clone()),
-            Ok(BlockEviction::None)
+            Ok(Eviction::None)
         );
         assert_eq!(
             bucket.insert(test_priority(3000), block2.clone()),
@@ -279,12 +357,12 @@ mod tests {
         );
         assert_eq!(
             bucket.insert(test_priority(1001), block3.clone()),
-            Ok(BlockEviction::Evicted)
+            Ok(Eviction::Evicted)
         ); // Evicts 2000
         assert_eq!(bucket.contains(&block0.hash()), false);
         assert_eq!(
             bucket.insert(test_priority(1000), block0.clone()),
-            Ok(BlockEviction::Evicted)
+            Ok(Eviction::Evicted)
         ); // Evicts 1001
         assert_eq!(bucket.contains(&block3.hash()), false);
 
@@ -309,7 +387,7 @@ mod tests {
     }
 
     fn create_fixture_with(args: FixtureArgs) -> Fixture {
-        let bucket = Bucket::new(args.config);
+        let bucket = Bucket::new(args.config, 1);
 
         Fixture { bucket }
     }

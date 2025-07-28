@@ -8,12 +8,21 @@ use crate::consensus::{
     election::{Election, ElectionBehavior},
     election_schedulers::priority::{bucket_count, bucket_index},
 };
-use rsnano_core::{utils::BlockPriority, BlockHash, QualifiedRoot};
+use rsnano_core::{
+    utils::{BlockPriority, TimePriority},
+    BlockHash, QualifiedRoot,
+};
 
 pub(crate) struct Entry {
     pub root: QualifiedRoot,
     pub election: Election,
     pub priority: BlockPriority,
+}
+
+impl Entry {
+    pub fn bucket(&self) -> usize {
+        bucket_index(self.election.behavior(), self.priority.balance)
+    }
 }
 
 /// Ordered by descending time priority
@@ -68,8 +77,7 @@ impl RootContainer {
             root: entry.root.clone(),
             priority: entry.priority.clone(),
         };
-        self.buckets[bucket_index(entry.election.behavior(), entry.priority.balance)]
-            .insert(bucket_entry);
+        self.buckets[entry.bucket()].insert(bucket_entry);
         self.by_root.insert(root.clone(), entry);
         self.vote_router.connect(hash, root.clone());
     }
@@ -162,12 +170,10 @@ impl RootContainer {
         let erased = self.by_root.remove(root);
         if let Some(entry) = &erased {
             self.vote_router.disconnect_election(&entry.election);
-            self.buckets[bucket_index(entry.election.behavior(), entry.priority.balance)].remove(
-                &BucketEntry {
-                    root: entry.root.clone(),
-                    priority: entry.priority,
-                },
-            );
+            self.buckets[entry.bucket()].remove(&BucketEntry {
+                root: entry.root.clone(),
+                priority: entry.priority,
+            });
         }
         erased
     }
@@ -191,10 +197,24 @@ impl RootContainer {
         self.by_root.values_mut()
     }
 
-    pub fn iter_bucket(&self, bucket: usize) -> impl Iterator<Item = &Entry> {
-        self.buckets[bucket]
+    pub fn iter_bucket(&self, bucket_id: usize) -> impl Iterator<Item = &Entry> {
+        self.buckets[bucket_id]
             .iter()
             .map(|i| self.by_root.get(&i.root).unwrap())
+    }
+
+    pub fn bucket_len(&self, bucket_id: usize) -> usize {
+        self.buckets[bucket_id].len()
+    }
+
+    pub fn lowest_priority(&self, bucket_id: usize) -> Option<(QualifiedRoot, TimePriority)> {
+        self.buckets[bucket_id]
+            .last()
+            .map(|i| (i.root.clone(), i.priority.time))
+    }
+
+    pub fn find_bucket(&self, root: &QualifiedRoot) -> Option<usize> {
+        self.by_root.get(root).map(|i| i.bucket())
     }
 }
 

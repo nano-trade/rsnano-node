@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use rsnano_core::{
-    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
+    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, TimePriority},
     Amount, Block, BlockHash, PublicKey, QualifiedRoot, SavedBlock, VoteError,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -71,12 +71,24 @@ impl ActiveElectionsContainer {
         &mut self.count_by_behavior[behavior as usize]
     }
 
+    pub fn bucket_len(&self, bucket_id: usize) -> usize {
+        self.roots.bucket_len(bucket_id)
+    }
+
+    pub fn find_bucket(&self, root: &QualifiedRoot) -> Option<usize> {
+        self.roots.find_bucket(root)
+    }
+
+    pub fn lowest_priority(&self, bucket_id: usize) -> Option<(QualifiedRoot, TimePriority)> {
+        self.roots.lowest_priority(bucket_id)
+    }
+
     pub fn iter_round_robin(&self) -> impl Iterator<Item = &Election> {
         self.roots.iter().map(|i| &i.election)
     }
 
-    pub fn iter_bucket(&self, bucket: usize) -> impl Iterator<Item = &Election> {
-        self.roots.iter_bucket(bucket).map(|i| &i.election)
+    pub fn iter_bucket(&self, bucket_id: usize) -> impl Iterator<Item = &Election> {
+        self.roots.iter_bucket(bucket_id).map(|i| &i.election)
     }
 
     pub fn insert(
@@ -276,6 +288,13 @@ impl ActiveElectionsContainer {
         };
         self.cleanup_election(entry);
         true
+    }
+
+    pub fn erase_lowest_prio_election(&mut self, bucket_id: usize) {
+        let Some((root, _)) = self.lowest_priority(bucket_id) else {
+            return;
+        };
+        self.erase(&root);
     }
 
     fn cleanup_election(&mut self, entry: Entry) {

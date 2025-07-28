@@ -100,7 +100,6 @@ mod tests {
     use super::*;
     use crate::consensus::AecInsertRequest;
     use rsnano_core::{utils::BlockPriority, SavedBlock};
-    use tracing_test::traced_test;
 
     #[test]
     fn process_empty() {
@@ -116,7 +115,6 @@ mod tests {
     }
 
     #[test]
-    #[traced_test]
     fn bootstrap_stale_election() {
         let bootstrapper = Arc::new(Bootstrapper::new_null());
         let clock = Arc::new(SteadyClock::new_null());
@@ -138,7 +136,6 @@ mod tests {
             .candidate_accounts
             .prioritized(&account));
         assert_eq!(plugin.stats.bootstrap_stale.load(Ordering::Relaxed), 1);
-        assert!(logs_contain("Bootstrapping account with stale election"))
     }
 
     #[test]
