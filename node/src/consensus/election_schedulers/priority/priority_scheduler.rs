@@ -196,7 +196,7 @@ impl PriorityScheduler {
     fn predicate(&self) -> bool {
         let buckets = self.buckets.lock().unwrap();
         let aec = self.aec.read().unwrap();
-        buckets.iter().any(|b| b.available2(&aec))
+        buckets.iter().any(|b| b.available(&aec))
         //let vacancy = self.aec.read().unwrap().vacancy();
         //self.buckets
         //    .lock()
@@ -217,7 +217,7 @@ impl PriorityScheduler {
         while inserted {
             inserted = false;
             for bucket in buckets.iter_mut().rev() {
-                bucket.activate2(&mut aec, now, &self.bucket_stats);
+                bucket.activate(&mut aec, now, &self.bucket_stats);
             }
         }
     }

@@ -80,7 +80,7 @@ impl Bucket {
         }
     }
 
-    pub fn available2(&self, aec: &ActiveElectionsContainer) -> bool {
+    pub fn available(&self, aec: &ActiveElectionsContainer) -> bool {
         let Some(highest_block) = self.block_queue.highest_prio() else {
             // No blocks enqueued
             return false;
@@ -105,13 +105,13 @@ impl Bucket {
         aec.vacancy() > 0 // cooldown check. TODO: check for cooldown explicitly
     }
 
-    pub fn activate2(
+    pub fn activate(
         &mut self,
         aec: &mut ActiveElectionsContainer,
         now: Timestamp,
         stats: &BucketStats,
     ) {
-        if !self.available2(&aec) {
+        if !self.available(&aec) {
             return;
         }
 
@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(bucket.len(), 0);
         assert_eq!(bucket.contains(&BlockHash::from(1)), false);
         let aec = ActiveElectionsContainer::default();
-        assert_eq!(bucket.available2(&aec), false);
+        assert_eq!(bucket.available(&aec), false);
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(bucket.len(), 1);
         assert_eq!(bucket.contains(&block.hash()), true);
         let aec = ActiveElectionsContainer::default();
-        assert_eq!(bucket.available2(&aec), true);
+        assert_eq!(bucket.available(&aec), true);
     }
 
     #[test]
