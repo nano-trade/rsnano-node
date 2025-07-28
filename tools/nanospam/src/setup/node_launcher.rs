@@ -1,6 +1,6 @@
 use crate::{
     app::Args,
-    setup::{peering_port, GENESIS_BLOCK, GENESIS_PRV},
+    setup::{GENESIS_BLOCK, GENESIS_PRV, peering_port},
 };
 use rsnano_rpc_client::NanoRpcClient;
 use std::{

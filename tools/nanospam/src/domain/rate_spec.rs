@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use std::{str::FromStr, time::Duration};
 
 #[derive(Debug, PartialEq, Eq)]

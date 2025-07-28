@@ -19,7 +19,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["net"] }
 anyhow = "1"
 axum = "0.8"
-toml = "0.8"
+toml = "0.9"
 tracing = "0.1"
 itertools = "0.14"
 indexmap = "2"

@@ -142,10 +142,12 @@ mod tests {
 
         assert_eq!(account, initial_test_key().account());
         assert!(block_factory.account_map.contains(&destination));
-        assert!(block_factory
-            .account_map
-            .get_receivable(&destination)
-            .is_some());
+        assert!(
+            block_factory
+                .account_map
+                .get_receivable(&destination)
+                .is_some()
+        );
     }
 
     #[test]

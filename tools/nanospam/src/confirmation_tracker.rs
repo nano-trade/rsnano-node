@@ -1,8 +1,8 @@
 use std::{
     sync::{
+        Mutex,
         atomic::{AtomicUsize, Ordering},
         mpsc::Receiver,
-        Mutex,
     },
     time::{Duration, Instant},
 };
@@ -65,11 +65,11 @@ pub(crate) fn track_confirmations(
                 };
                 let bps = current_bps.load(Ordering::Relaxed);
                 info!(
-                        "Confirmed {} blocks | {} bps | {} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}",
-                        total.to_formatted_string(&Locale::en),
-                        bps.to_formatted_string(&Locale::en),
-                        cps.to_formatted_string(&Locale::en),
-                    );
+                    "Confirmed {} blocks | {} bps | {} cps | avg conf time: {avg_conf_time} ms | ws queue: {len}",
+                    total.to_formatted_string(&Locale::en),
+                    bps.to_formatted_string(&Locale::en),
+                    cps.to_formatted_string(&Locale::en),
+                );
                 confirmed = 0;
                 start = Instant::now();
                 sum_conf_time = Duration::ZERO;

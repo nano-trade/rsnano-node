@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-eframe = "0.31.1"
-egui_extras = "0.31.1"
+eframe = "0.32.0"
+egui_extras = "0.32.0"
 rsnano_nullable_clock = { path = "../../nullables/clock" }
 rsnano_nullable_tracing_subscriber = { path = "../../nullables/tracing_subscriber" }
 rsnano_core = { path = "../../core" }
@@ -20,7 +20,7 @@ num-format = "0.4.4"
 num = "0"
 num-traits = "0"
 num-derive = "0"
-chrono = "0.4.40"
+chrono = "0.4.41"
 strum = "0"
 tracing = "0"
 serde_json = "1"
