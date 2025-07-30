@@ -1,8 +1,8 @@
 use crate::{
     LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv,
     LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore,
-    LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore, LmdbWriteTransaction, WriteQueue,
-    Writer, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
+    LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore, LmdbWriteTransaction, Writer,
+    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::MDB_SUCCESS;
@@ -45,19 +45,18 @@ impl LedgerCache {
 
 pub struct LmdbStore {
     pub env: LmdbEnv,
-    pub write_queue: Arc<WriteQueue>,
     pub cache: Arc<LedgerCache>,
-    pub block: Arc<LmdbBlockStore>,
-    pub account: Arc<LmdbAccountStore>,
-    pub pending: Arc<LmdbPendingStore>,
-    pub pruned: Arc<LmdbPrunedStore>,
+    pub block: LmdbBlockStore,
+    pub account: LmdbAccountStore,
+    pub pending: LmdbPendingStore,
+    pub pruned: LmdbPrunedStore,
     pub rep_weight: Arc<LmdbRepWeightStore>,
-    pub confirmation_height: Arc<LmdbConfirmationHeightStore>,
-    pub final_vote: Arc<LmdbFinalVoteStore>,
+    pub confirmation_height: LmdbConfirmationHeightStore,
     // extract these?
-    pub online_weight: Arc<LmdbOnlineWeightStore>,
-    pub peer: Arc<LmdbPeerStore>,
-    pub version: Arc<LmdbVersionStore>,
+    pub final_vote: LmdbFinalVoteStore,
+    pub online_weight: LmdbOnlineWeightStore,
+    pub peer: LmdbPeerStore,
+    pub version: LmdbVersionStore,
 }
 
 impl LmdbStore {
@@ -69,18 +68,17 @@ impl LmdbStore {
         upgrade_if_needed(&env)?;
 
         Ok(Self {
-            write_queue: env.write_queue.clone(),
             cache: Arc::new(LedgerCache::new()),
-            block: Arc::new(LmdbBlockStore::new(&env)?),
-            account: Arc::new(LmdbAccountStore::new(&env)?),
-            pending: Arc::new(LmdbPendingStore::new(&env)?),
-            online_weight: Arc::new(LmdbOnlineWeightStore::new(&env)?),
-            pruned: Arc::new(LmdbPrunedStore::new(&env)?),
+            block: LmdbBlockStore::new(&env)?,
+            account: LmdbAccountStore::new(&env)?,
+            pending: LmdbPendingStore::new(&env)?,
+            online_weight: LmdbOnlineWeightStore::new(&env)?,
+            pruned: LmdbPrunedStore::new(&env)?,
             rep_weight: Arc::new(LmdbRepWeightStore::new(&env)?),
-            peer: Arc::new(LmdbPeerStore::new(&env)?),
-            confirmation_height: Arc::new(LmdbConfirmationHeightStore::new(&env)?),
-            final_vote: Arc::new(LmdbFinalVoteStore::new(&env)?),
-            version: Arc::new(LmdbVersionStore::new(&env)?),
+            peer: LmdbPeerStore::new(&env)?,
+            confirmation_height: LmdbConfirmationHeightStore::new(&env)?,
+            final_vote: LmdbFinalVoteStore::new(&env)?,
+            version: LmdbVersionStore::new(&env)?,
             env,
         })
     }

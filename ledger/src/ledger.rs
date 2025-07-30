@@ -16,7 +16,7 @@ use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LmdbEnv, LmdbStore,
-    LmdbWriteTransaction, MemoryStats, Transaction,
+    LmdbWriteTransaction, MemoryStats, Transaction, WriteGuard,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -920,6 +920,10 @@ impl Ledger {
 
     pub fn memory_stats(&self) -> anyhow::Result<MemoryStats> {
         self.store.memory_stats()
+    }
+
+    pub fn wait(&self, writer: Writer) -> WriteGuard {
+        self.store.env.write_queue.wait(writer)
     }
 
     pub fn stop(&self) {

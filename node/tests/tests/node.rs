@@ -1913,7 +1913,7 @@ fn rollback_vote_self() {
 
     {
         // The write guard prevents the block processor from performing the rollback
-        let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
+        let _write_guard = node.ledger.wait(Writer::Testing);
 
         // Vote with key to switch the winner
         let vote = Arc::new(Vote::new(

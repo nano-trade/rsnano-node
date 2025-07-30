@@ -1,3 +1,5 @@
+use std::ops::{RangeBounds, RangeFrom};
+
 use rsnano_core::{
     block_priority, utils::BlockPriority, Account, AccountInfo, Amount, Block, BlockHash,
     DependentBlocks, DetailedBlock, PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root,
@@ -6,11 +8,9 @@ use rsnano_core::{
 use rsnano_store_lmdb::{
     LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
 };
-use std::ops::{Deref, RangeBounds, RangeFrom};
-
-use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};
 
 use super::{BorrowingConfirmedSet, ConfirmedSet, LedgerSet};
+use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};
 
 pub trait AnySet: LedgerSet {
     fn should_refresh(&self) -> bool;
@@ -313,7 +313,7 @@ impl<'a> AnySet for OwningAnySet<'a> {
     ) -> AnyReceivableIterator {
         AnyReceivableIterator::new(
             &self.tx,
-            self.store.pending.deref(),
+            &self.store.pending,
             account,
             Some(account),
             hash.inc(),
@@ -563,7 +563,7 @@ impl<'a> AnySet for BorrowingAnySet<'a> {
     ) -> AnyReceivableIterator {
         AnyReceivableIterator::new(
             self.tx,
-            self.store.pending.deref(),
+            &self.store.pending,
             account,
             Some(account),
             hash.inc(),

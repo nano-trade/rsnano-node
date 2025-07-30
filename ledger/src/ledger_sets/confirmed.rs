@@ -124,7 +124,7 @@ impl<'a> BorrowingConfirmedSet<'a> {
     {
         AnyReceivableIterator::<'txn>::new(
             self.tx,
-            self.store.pending.deref(),
+            &self.store.pending,
             account,
             Some(account),
             hash.inc(),

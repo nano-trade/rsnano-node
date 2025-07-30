@@ -26,7 +26,7 @@ fn confirmed_history() {
     start_election(&node, &send1.hash());
     {
         // The write guard prevents the confirmation height processor doing any writes
-        let _write_guard = node.ledger.store.write_queue.wait(Writer::Testing);
+        let _write_guard = node.ledger.wait(Writer::Testing);
 
         // Confirm send1
         node.force_confirm(&send1.hash());
@@ -43,6 +43,7 @@ fn confirmed_history() {
         assert_timely(Duration::from_secs(10), || {
             node.ledger
                 .store
+                .env
                 .write_queue
                 .contains(Writer::ConfirmationHeight)
         });
@@ -66,6 +67,7 @@ fn confirmed_history() {
         !node
             .ledger
             .store
+            .env
             .write_queue
             .contains(Writer::ConfirmationHeight)
     });
