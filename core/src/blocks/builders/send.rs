@@ -85,7 +85,6 @@ impl TestLegacySendBlockBuilder {
         let details = BlockDetails::new(Epoch::Epoch0, true, false, false);
         let sideband = BlockSideband {
             account: Account::from(4),
-            successor: BlockHash::zero(),
             balance: block.balance_field().unwrap(),
             height: 5,
             timestamp: 8.into(),

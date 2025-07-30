@@ -1,5 +1,5 @@
 use rsnano_core::{
-    AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingKey, PrivateKey,
+    AccountInfo, Amount, BlockDetails, BlockSideband, Epoch, PendingKey, PrivateKey,
 };
 
 use crate::{block_insertion::validation::tests::BlockValidationTest, BlockError};
@@ -18,7 +18,6 @@ fn valid_legacy_open_block() {
         BlockSideband {
             height: 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: test.chain.account(),
             balance: Amount::raw(100),
             details: BlockDetails::new(Epoch::Epoch0, false, true, false),

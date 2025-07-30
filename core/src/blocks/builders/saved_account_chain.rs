@@ -333,19 +333,11 @@ impl SavedAccountChain {
         let sideband = BlockSideband {
             height: self.height() + 1,
             timestamp: UnixTimestamp::new(1),
-            successor: BlockHash::zero(),
             account: self.account,
             balance: self.balance,
             details: BlockDetails::new(self.epoch, false, false, false),
             source_epoch,
         };
-
-        if !self.blocks.is_empty() {
-            let previous = self.blocks.last_mut().unwrap();
-            let mut sideband = previous.sideband.clone();
-            sideband.successor = block.hash();
-            previous.set_sideband(sideband);
-        }
 
         if let Some(rep) = block.representative_field() {
             self.representative = rep;

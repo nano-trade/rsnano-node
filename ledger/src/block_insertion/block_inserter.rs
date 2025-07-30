@@ -166,10 +166,7 @@ mod tests {
         let open = TestBlockBuilder::legacy_open()
             .representative(old_representative)
             .build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let open = SavedBlock::new(open, sideband.clone());
 
         let state = TestBlockBuilder::state()
@@ -200,10 +197,7 @@ mod tests {
     #[test]
     fn insert_successor() {
         let open = TestBlockBuilder::legacy_open().build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let open = SavedBlock::new(open, sideband.clone());
 
         let state = TestBlockBuilder::state().previous(open.hash()).build();
@@ -250,10 +244,7 @@ mod tests {
 
     fn legacy_open_block_instructions() -> (Block, BlockInsertInstructions) {
         let block = TestBlockBuilder::legacy_open().build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let account_info = AccountInfo {
             head: block.hash(),
             open_block: block.hash(),
@@ -276,10 +267,7 @@ mod tests {
         let block = TestBlockBuilder::state()
             .previous(BlockHash::zero())
             .build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let account_info = AccountInfo {
             head: block.hash(),
             open_block: block.hash(),
@@ -303,7 +291,6 @@ mod tests {
         block: Block,
     ) -> (Block, BlockInsertInstructions) {
         let sideband = BlockSideband {
-            successor: BlockHash::zero(),
             balance: block.balance_field().unwrap(),
             account: block.account_field().unwrap(),
             ..BlockSideband::new_test_instance()

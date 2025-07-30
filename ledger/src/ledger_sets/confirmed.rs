@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use rsnano_core::{
     Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, PendingInfo, PendingKey,
     SavedBlock,

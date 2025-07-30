@@ -423,16 +423,11 @@ impl SavedBlock {
         BlockSideband {
             height: 2,
             timestamp: 222222.into(),
-            successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),
             details: BlockDetails::new(Epoch::Epoch2, true, false, false),
             source_epoch: Epoch::Epoch0,
         }
-    }
-
-    pub fn set_sideband(&mut self, sideband: BlockSideband) {
-        self.sideband = sideband;
     }
 
     pub fn account(&self) -> Account {

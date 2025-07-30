@@ -116,7 +116,6 @@ impl SavedBlockLatticeBuilder {
         BlockSideband {
             height: new_frontier.height,
             timestamp: self.now,
-            successor: BlockHash::zero(),
             account,
             balance: new_frontier.balance,
             details: BlockDetails::new(Epoch::Epoch0, is_send, is_receive, false), //TODO epoch

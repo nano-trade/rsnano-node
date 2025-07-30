@@ -1,5 +1,5 @@
 use rsnano_core::{
-    AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingInfo, PendingKey,
+    AccountInfo, Amount, BlockDetails, BlockSideband, Epoch, PendingInfo, PendingKey,
 };
 
 use crate::block_insertion::validation::tests::BlockValidationTest;
@@ -48,7 +48,6 @@ fn valid_send_block() {
         BlockSideband {
             height: old_account_info.block_count + 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: send_block.account_field().unwrap(),
             balance: send_block.balance_field().unwrap(),
             details: BlockDetails::new(old_account_info.epoch, true, false, false),

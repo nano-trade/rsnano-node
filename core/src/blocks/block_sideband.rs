@@ -10,8 +10,6 @@ use super::Block;
 pub struct BlockSideband {
     pub height: u64,
     pub timestamp: UnixTimestamp,
-    /// Successor to the current block
-    pub successor: BlockHash,
     pub account: Account,
     pub balance: Amount,
     pub details: BlockDetails,
@@ -23,7 +21,6 @@ impl BlockSideband {
         BlockSideband {
             height: 2,
             timestamp: 222222.into(),
-            successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),
             details: BlockDetails::new(Epoch::Epoch2, false, false, false),
@@ -61,8 +58,6 @@ impl BlockSideband {
     }
 
     pub fn serialize(&self, stream: &mut dyn BufferWriter, block_type: BlockType) {
-        self.successor.serialize(stream);
-
         if block_type != BlockType::State && block_type != BlockType::LegacyOpen {
             self.account.serialize(stream);
         }
@@ -90,7 +85,6 @@ impl BlockSideband {
         let mut result = Self {
             height: 0,
             timestamp: UnixTimestamp::ZERO,
-            successor: BlockHash::zero(),
             account: Account::zero(),
             balance: Amount::zero(),
             details: BlockDetails::new(Epoch::Epoch0, false, false, false),
@@ -105,8 +99,6 @@ impl BlockSideband {
         stream: &mut dyn Stream,
         block_type: BlockType,
     ) -> anyhow::Result<()> {
-        self.successor = BlockHash::deserialize(stream)?;
-
         if block_type != BlockType::State && block_type != BlockType::LegacyOpen {
             self.account = Account::deserialize(stream)?;
         }
@@ -142,7 +134,6 @@ impl BlockSideband {
         Self {
             height: 42,
             timestamp: UnixTimestamp::new(1000),
-            successor: BlockHash::from(3),
             account: Account::from(1),
             balance: Amount::raw(42),
             details: BlockDetails {
@@ -167,7 +158,6 @@ mod tests {
         let sideband = BlockSideband {
             height: 4,
             timestamp: UnixTimestamp::new(5),
-            successor: 2.into(),
             account: 1.into(),
             balance: 3.into(),
             details,

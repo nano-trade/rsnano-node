@@ -109,7 +109,6 @@ pub fn genesis_sideband(genesis_account: Account) -> BlockSideband {
     BlockSideband {
         height: 1,
         timestamp: UnixTimestamp::ZERO,
-        successor: BlockHash::zero(),
         account: genesis_account,
         balance: Amount::MAX,
         details: BlockDetails::new(Epoch::Epoch0, false, false, false),

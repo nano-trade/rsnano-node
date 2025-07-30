@@ -67,7 +67,6 @@ impl TestLegacyOpenBlockBuilder {
         let sideband = BlockSideband {
             height: 1,
             timestamp: UnixTimestamp::new(2),
-            successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: 5.into(),
             details,
