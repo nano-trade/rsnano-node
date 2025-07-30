@@ -29,7 +29,7 @@ impl RpcCommandHandler {
             balance: block.block.balance(),
             height: block.block.height().into(),
             local_timestamp: block.block.timestamp().as_u64().into(),
-            successor: block.block.successor().unwrap_or_default(),
+            successor: any.block_successor(&block.block.hash()).unwrap_or_default(),
             confirmed: block.confirmed.into(),
             contents: block.block.json_representation(),
             subtype: Self::subtype_for(&block.block),

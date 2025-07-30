@@ -26,7 +26,7 @@ impl RpcCommandHandler {
                 let balance = any.block_balance(&hash).unwrap();
                 let height = block.height();
                 let local_timestamp = block.timestamp();
-                let successor = block.successor().unwrap_or_default();
+                let successor = any.block_successor(&block.hash()).unwrap_or_default();
                 let confirmed = any.confirmed().block_exists_or_pruned(&hash);
                 let contents = block.json_representation();
 

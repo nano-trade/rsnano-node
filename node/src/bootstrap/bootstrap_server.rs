@@ -387,7 +387,7 @@ impl BootstrapResponderImpl {
         if !start_block.is_zero() {
             let mut current = any.get_block(&start_block);
             while let Some(c) = current.take() {
-                let successor = c.successor().unwrap_or_default();
+                let successor = any.block_successor(&c.hash()).unwrap_or_default();
                 result.push_back(c.into());
 
                 if result.len() == count {
