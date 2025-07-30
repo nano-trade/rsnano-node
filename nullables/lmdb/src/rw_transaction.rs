@@ -1,4 +1,5 @@
 use super::{ConfiguredDatabase, LmdbDatabase, RoCursor};
+use crate::RwCursor;
 use lmdb::DatabaseFlags;
 use std::sync::{Arc, Mutex};
 
@@ -102,6 +103,13 @@ impl RwTransaction {
         }
     }
 
+    pub fn open_rw_cursor(&mut self, database: LmdbDatabase) -> lmdb::Result<RwCursor> {
+        match &mut self.strategy {
+            RwTransactionStrategy::Real(s) => s.open_rw_cursor(database),
+            RwTransactionStrategy::Nulled(_) => todo!(),
+        }
+    }
+
     pub fn count(&self, database: LmdbDatabase) -> u64 {
         match &self.strategy {
             RwTransactionStrategy::Real(s) => s.count(database.as_real()),
@@ -160,6 +168,11 @@ impl RwTransactionWrapper {
     fn open_ro_cursor(&self, database: LmdbDatabase) -> lmdb::Result<RoCursor> {
         let cursor = lmdb::Transaction::open_ro_cursor(&self.0, database.as_real());
         cursor.map(RoCursor::new)
+    }
+
+    fn open_rw_cursor(&mut self, database: LmdbDatabase) -> lmdb::Result<RwCursor> {
+        let cursor = lmdb::RwTransaction::open_rw_cursor(&mut self.0, database.as_real());
+        cursor.map(RwCursor::new)
     }
 
     fn count(&self, database: lmdb::Database) -> u64 {

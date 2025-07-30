@@ -1,13 +1,3 @@
-use crate::{
-    successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
-    LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore,
-    LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore,
-    LmdbVersionStore, LmdbWriteTransaction, Writer, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
-use lmdb_sys::MDB_SUCCESS;
-use rsnano_core::utils::UnixTimestamp;
-use serde::{Deserialize, Serialize};
 use std::{
     ffi::CString,
     path::{Path, PathBuf},
@@ -16,7 +6,20 @@ use std::{
         Arc,
     },
 };
+
+use lmdb::{DatabaseFlags, WriteFlags};
+use lmdb_sys::MDB_SUCCESS;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
+
+use rsnano_core::utils::UnixTimestamp;
+
+use crate::{
+    successor_store::LmdbSuccessorStore, upgrades::do_upgrades, LmdbAccountStore, LmdbBlockStore,
+    LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore,
+    LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore,
+    LmdbVersionStore, LmdbWriteTransaction, Writer,
+};
 
 pub struct LedgerCache {
     pub confirmed_count: AtomicU64,
@@ -171,37 +174,6 @@ fn copy_table(
     if ro_txn.txn().count(source) != rw_txn.rw_txn_mut().count(target) {
         bail!("table count mismatch");
     }
-    Ok(())
-}
-
-fn do_upgrades(env: &LmdbEnv) -> anyhow::Result<()> {
-    let version_store = LmdbVersionStore::new(env)?;
-    let mut txn = env.tx_begin_write();
-
-    let version = match version_store.get(&txn) {
-        Some(v) => v,
-        None => {
-            let new_version = STORE_VERSION_MINIMUM;
-            info!("Setting db version to {}", new_version);
-            version_store.put(&mut txn, new_version);
-            new_version
-        }
-    };
-
-    if version < STORE_VERSION_MINIMUM {
-        error!("The version of the ledger ({}) is lower than the minimum ({}) which is supported for upgrades. Either upgrade to a v24 node first or delete the ledger.", version, STORE_VERSION_MINIMUM);
-        bail!("version too low");
-    }
-
-    if version > STORE_VERSION_CURRENT {
-        error!(
-            "The version of the ledger ({}) is too high for this node",
-            version
-        );
-        bail!("version too high");
-    }
-
-    // most recent version
     Ok(())
 }
 

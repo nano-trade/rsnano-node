@@ -169,4 +169,33 @@ mod tests {
             BlockSideband::from_stream(&mut stream, BlockType::LegacyReceive).unwrap();
         assert_eq!(deserialized, sideband);
     }
+
+    #[test]
+    fn serialized_size() {
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacySend),
+            80,
+            "legacy send"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacyReceive),
+            96,
+            "legacy receive"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacyOpen),
+            56,
+            "legacy open"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacyChange),
+            96,
+            "legacy change"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::State),
+            50,
+            "legacy state"
+        );
+    }
 }
