@@ -454,14 +454,6 @@ impl SavedBlock {
         self.sideband.details.subtype()
     }
 
-    pub fn successor(&self) -> Option<BlockHash> {
-        if self.sideband.successor.is_zero() {
-            None
-        } else {
-            Some(self.sideband.successor)
-        }
-    }
-
     pub fn epoch(&self) -> Epoch {
         self.sideband.details.epoch
     }

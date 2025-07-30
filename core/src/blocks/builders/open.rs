@@ -95,7 +95,6 @@ mod tests {
         assert_eq!(open.work(), WorkNonce::new(42));
         assert_ne!(*open.signature(), Signature::new());
 
-        assert!(block.successor().is_none());
         assert_eq!(block.balance(), Amount::raw(5));
         assert_eq!(block.height(), 1);
         assert_eq!(block.timestamp(), UnixTimestamp::new(2));
