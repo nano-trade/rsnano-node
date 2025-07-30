@@ -1,8 +1,8 @@
 use crate::{
-    LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv,
-    LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore,
-    LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore, LmdbWriteTransaction, Writer,
-    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
+    successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
+    LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore,
+    LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore,
+    LmdbVersionStore, LmdbWriteTransaction, Writer, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::MDB_SUCCESS;
@@ -52,6 +52,7 @@ pub struct LmdbStore {
     pub pruned: LmdbPrunedStore,
     pub rep_weight: Arc<LmdbRepWeightStore>,
     pub confirmation_height: LmdbConfirmationHeightStore,
+    pub successors: LmdbSuccessorStore,
     // extract these?
     pub final_vote: LmdbFinalVoteStore,
     pub online_weight: LmdbOnlineWeightStore,
@@ -78,6 +79,7 @@ impl LmdbStore {
             peer: LmdbPeerStore::new(&env)?,
             confirmation_height: LmdbConfirmationHeightStore::new(&env)?,
             final_vote: LmdbFinalVoteStore::new(&env)?,
+            successors: LmdbSuccessorStore::new(&env.environment)?,
             version: LmdbVersionStore::new(&env)?,
             env,
         })

@@ -6,12 +6,12 @@ use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
 
 /// Stores the hash of the successor block for a given block hash
-pub struct SuccessorStore {
+pub struct LmdbSuccessorStore {
     database: LmdbDatabase,
     put_listener: OutputListenerMt<(BlockHash, BlockHash)>,
 }
 
-impl SuccessorStore {
+impl LmdbSuccessorStore {
     pub fn new(env: &LmdbEnvironment) -> anyhow::Result<Self> {
         let database = env.create_db(Some(TABLE_NAME), DatabaseFlags::empty())?;
         Ok(Self {
@@ -141,14 +141,14 @@ mod tests {
             .finish()
             .finish();
         let env = LmdbEnv::new(lmdb_env, "/nulled-env");
-        let store = SuccessorStore::new(&env.environment).unwrap();
+        let store = LmdbSuccessorStore::new(&env.environment).unwrap();
         let tx = env.tx_begin_read();
         store.get(&tx, &block_hash);
     }
 
     const TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(42);
 
-    fn create_test_store(entries: &[(BlockHash, BlockHash)]) -> (SuccessorStore, LmdbEnv) {
+    fn create_test_store(entries: &[(BlockHash, BlockHash)]) -> (LmdbSuccessorStore, LmdbEnv) {
         let mut env_builder = LmdbEnvironment::null_builder().database(TABLE_NAME, TEST_DATABASE);
 
         for (block_hash, successor) in entries {
@@ -157,7 +157,7 @@ mod tests {
 
         let lmdb_env = env_builder.finish().finish();
         let env = LmdbEnv::new(lmdb_env, "/nulled-env");
-        let store = SuccessorStore::new(&env.environment).unwrap();
+        let store = LmdbSuccessorStore::new(&env.environment).unwrap();
         (store, env)
     }
 }
