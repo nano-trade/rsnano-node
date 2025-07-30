@@ -472,7 +472,7 @@ pub const STORE_VERSION_MINIMUM: i32 = 24;
 
 /// RsNano uses store versions upwards of 10_000 so that there is a clear
 /// distinction between databases from nano_node and RsNano
-pub const STORE_VERSION_CURRENT: i32 = 10_000;
+pub const STORE_VERSION_CURRENT: i32 = 10_001;
 
 /// The first store version where RsNano is incompatible with nano_node
 pub const FIRST_INCOMPATIBLE_STORE_VERSION: i32 = 10_000;
