@@ -38,6 +38,10 @@ impl LmdbSuccessorStore {
         .unwrap();
     }
 
+    pub fn del(&self, tx: &mut LmdbWriteTransaction, block: &BlockHash) {
+        tx.delete(self.database, block.as_bytes(), None).unwrap();
+    }
+
     pub fn get(&self, tx: &dyn Transaction, block: &BlockHash) -> Option<BlockHash> {
         match tx.get(self.database, block.as_bytes()) {
             Ok(bytes) => BlockHash::from_slice(bytes),
@@ -56,7 +60,7 @@ const TABLE_NAME: &str = "successors";
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LmdbEnv, PutEvent};
+    use crate::{DeleteEvent, LmdbEnv, PutEvent};
 
     #[test]
     fn initialize() {
@@ -144,6 +148,24 @@ mod tests {
         let store = LmdbSuccessorStore::new(&env.environment).unwrap();
         let tx = env.tx_begin_read();
         store.get(&tx, &block_hash);
+    }
+
+    #[test]
+    fn delete() {
+        let (store, env) = create_test_store(&[]);
+        let mut tx = env.tx_begin_write();
+        let delete_tracker = tx.track_deletions();
+
+        let block_hash = BlockHash::from(123);
+        store.del(&mut tx, &block_hash);
+
+        assert_eq!(
+            delete_tracker.output(),
+            vec![DeleteEvent {
+                database: TEST_DATABASE,
+                key: block_hash.as_bytes().to_vec()
+            }]
+        );
     }
 
     const TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(42);

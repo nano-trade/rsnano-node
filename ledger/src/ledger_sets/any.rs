@@ -426,7 +426,7 @@ impl<'a> AnySet for BorrowingAnySet<'a> {
 
     fn block_successor_by_qualified_root(&self, root: &QualifiedRoot) -> Option<BlockHash> {
         if !root.previous.is_zero() {
-            self.store.block.successor(self.tx, &root.previous)
+            self.store.successors.get(self.tx, &root.previous)
         } else {
             self.get_account(&root.root.into()).map(|i| i.open_block)
         }

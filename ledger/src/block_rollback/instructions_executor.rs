@@ -49,6 +49,7 @@ impl<'a> RollbackInstructionsExecutor<'a> {
 
         if let Some(hash) = self.instructions.clear_successor {
             self.ledger.store.block.successor_clear(self.txn, &hash);
+            self.ledger.store.successors.del(self.txn, &hash);
         }
     }
 

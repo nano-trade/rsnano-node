@@ -718,7 +718,7 @@ impl Ledger {
         root: &QualifiedRoot,
     ) -> Option<BlockHash> {
         if !root.previous.is_zero() {
-            self.store.block.successor(tx, &root.previous)
+            self.store.successors.get(tx, &root.previous)
         } else {
             self.store
                 .account
