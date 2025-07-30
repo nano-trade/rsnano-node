@@ -193,7 +193,7 @@ impl ConfiguredPeersDatabaseBuilder {
     }
 
     pub fn peer(mut self, endpoint: SocketAddrV6, time: SystemTime) -> Self {
-        self.database.entries.insert(
+        self.database.insert(
             EndpointBytes::from(endpoint).to_vec(),
             TimeBytes::from(time).to_vec(),
         );

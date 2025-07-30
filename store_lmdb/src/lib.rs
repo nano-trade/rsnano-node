@@ -18,6 +18,7 @@ mod pending_store;
 mod pruned_store;
 mod rep_weight_store;
 mod store;
+mod successor_store;
 mod version_store;
 mod wallet_store;
 mod write_queue;

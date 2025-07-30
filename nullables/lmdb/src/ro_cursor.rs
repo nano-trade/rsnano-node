@@ -93,12 +93,14 @@ impl<'txn> RoCursorStub<'txn> {
             return Err(lmdb::Error::NotFound);
         }
 
-        self.database
-            .entries
-            .iter()
-            .nth(current as usize)
-            .map(|(k, v)| (Some(k.as_slice()), v.as_slice()))
-            .ok_or(lmdb::Error::NotFound)
+        let Some((k, v)) = self.database.entries.iter().nth(current as usize) else {
+            return Err(lmdb::Error::NotFound);
+        };
+
+        match v {
+            Ok(bytes) => Ok((Some(k.as_slice()), bytes.as_slice())),
+            Err(e) => Err(*e),
+        }
     }
 
     fn iter_start(&self) -> Iter<'txn> {
@@ -108,7 +110,7 @@ impl<'txn> RoCursorStub<'txn> {
 
 pub enum Iter<'a> {
     Real(lmdb::Iter<'static>),
-    Stub(btree_map::Iter<'a, Vec<u8>, Vec<u8>>),
+    Stub(btree_map::Iter<'a, Vec<u8>, lmdb::Result<Vec<u8>>>),
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -120,7 +122,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Stub(iter) => iter.next().map(|(k, v)| unsafe {
                 Ok((
                     std::mem::transmute::<&'a [u8], &'static [u8]>(k.as_slice()),
-                    std::mem::transmute::<&'a [u8], &'static [u8]>(v.as_slice()),
+                    std::mem::transmute::<&'a [u8], &'static [u8]>(v.as_ref().unwrap().as_slice()),
                 ))
             }),
         }

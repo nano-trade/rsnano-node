@@ -29,10 +29,8 @@ impl ConfiguredBlockDatabaseBuilder {
     }
 
     pub fn block(mut self, block: &SavedBlock) -> Self {
-        self.database.entries.insert(
-            block.hash().as_bytes().to_vec(),
-            block.serialize_with_sideband(),
-        );
+        self.database
+            .insert(block.hash().as_bytes(), block.serialize_with_sideband());
         self
     }
 

@@ -127,9 +127,7 @@ impl ConfiguredPendingDatabaseBuilder {
     }
 
     pub fn pending(mut self, key: &PendingKey, info: &PendingInfo) -> Self {
-        self.database
-            .entries
-            .insert(key.to_bytes().to_vec(), info.to_bytes().to_vec());
+        self.database.insert(key.to_bytes(), info.to_bytes());
         self
     }
 

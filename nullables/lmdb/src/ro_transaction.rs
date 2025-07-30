@@ -118,7 +118,8 @@ impl RoTransactionStub {
             return Err(lmdb::Error::NotFound);
         };
         match db.entries.get(key) {
-            Some(value) => Ok(value),
+            Some(Ok(bytes)) => Ok(bytes.as_slice()),
+            Some(Err(e)) => Err(*e),
             None => Err(lmdb::Error::NotFound),
         }
     }

@@ -33,7 +33,7 @@ impl NullLmdbEnvBuilder {
 
     pub fn build(self) -> LmdbEnv {
         let env = self.env_builder.finish();
-        LmdbEnv::new(env, "/nulled/ledger.ldb".into())
+        LmdbEnv::new(env, "/nulled/ledger.ldb")
     }
 }
 
@@ -106,13 +106,13 @@ impl LmdbEnv {
         }
     }
 
-    pub fn new(env: LmdbEnvironment, path: PathBuf) -> Self {
+    pub fn new(env: LmdbEnvironment, path: impl Into<PathBuf>) -> Self {
         Self {
             environment: env,
             next_txn_id: AtomicU64::new(0),
             txn_tracker: Arc::new(NullTransactionTracker::new()),
             write_queue: Arc::new(WriteQueue::new()),
-            path,
+            path: path.into(),
         }
     }
 

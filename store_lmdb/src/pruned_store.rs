@@ -83,9 +83,7 @@ impl ConfiguredPrunedDatabaseBuilder {
     }
 
     pub fn pruned(mut self, hash: &BlockHash) -> Self {
-        self.database
-            .entries
-            .insert(hash.as_bytes().to_vec(), Vec::new());
+        self.database.insert(hash.as_bytes(), Vec::new());
         self
     }
 

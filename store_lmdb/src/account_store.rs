@@ -137,9 +137,7 @@ impl ConfiguredAccountDatabaseBuilder {
     }
 
     pub fn account(mut self, account: &Account, info: &AccountInfo) -> Self {
-        self.database
-            .entries
-            .insert(account.as_bytes().to_vec(), info.to_bytes().to_vec());
+        self.database.insert(account.as_bytes(), info.to_bytes());
         self
     }
 

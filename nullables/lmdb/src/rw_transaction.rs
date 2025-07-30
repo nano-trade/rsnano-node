@@ -201,14 +201,15 @@ impl RwTransactionStub {
         let db = self.get_database(database)?;
 
         match db.entries.get(key) {
-            Some(value) => Ok(value),
+            Some(Ok(bytes)) => Ok(bytes.as_slice()),
+            Some(Err(e)) => Err(*e),
             None => Err(lmdb::Error::NotFound),
         }
     }
 
     fn put(&mut self, database: LmdbDatabase, key: &[u8], data: &[u8]) -> lmdb::Result<()> {
         let db = self.get_database_mut(database)?;
-        db.entries.insert(key.to_vec(), data.to_vec());
+        db.insert(key, data);
         Ok(())
     }
 

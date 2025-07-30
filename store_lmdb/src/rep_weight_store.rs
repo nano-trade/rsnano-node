@@ -120,8 +120,7 @@ impl ConfiguredRepWeightDatabaseBuilder {
 
     pub fn entry(mut self, account: PublicKey, weight: Amount) -> Self {
         self.database
-            .entries
-            .insert(account.as_bytes().to_vec(), weight.to_be_bytes().to_vec());
+            .insert(account.as_bytes(), weight.to_be_bytes());
         self
     }
 

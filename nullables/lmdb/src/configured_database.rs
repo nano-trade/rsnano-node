@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 pub struct ConfiguredDatabase {
     pub dbi: LmdbDatabase,
     pub db_name: String,
-    pub entries: BTreeMap<Vec<u8>, Vec<u8>>,
+    pub entries: BTreeMap<Vec<u8>, lmdb::Result<Vec<u8>>>,
 }
 
 pub static EMPTY_DATABASE: ConfiguredDatabase = ConfiguredDatabase::new_empty();
@@ -27,6 +27,10 @@ impl ConfiguredDatabase {
             db_name: String::new(),
             entries: BTreeMap::new(),
         }
+    }
+
+    pub fn insert(&mut self, key: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) {
+        self.entries.insert(key.into(), Ok(value.into()));
     }
 }
 
@@ -62,9 +66,15 @@ impl ConfiguredDatabaseBuilder {
     }
 
     pub fn entry(mut self, key: &[u8], value: &[u8]) -> Self {
-        self.data.entries.insert(key.to_vec(), value.to_vec());
+        self.data.entries.insert(key.to_vec(), Ok(value.to_vec()));
         self
     }
+
+    pub fn error(mut self, key: &[u8], error: lmdb::Error) -> Self {
+        self.data.entries.insert(key.to_vec(), Err(error));
+        self
+    }
+
     pub fn finish(self) -> EnvironmentStubBuilder {
         self.env_builder.configured_database(self.data)
     }
