@@ -3,10 +3,9 @@ use crate::{
     BLOCK_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
-use num_traits::FromPrimitive;
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
-    BlockHash, BlockSideband, BlockType, SavedBlock,
+    BlockHash, SavedBlock,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -69,7 +68,6 @@ impl LmdbBlockStore {
         }
 
         self.raw_put(txn, &block.serialize_with_sideband(), &block.hash());
-        self.update_predecessor(txn, &block);
     }
 
     pub fn exists(&self, transaction: &dyn Transaction, hash: &BlockHash) -> bool {
@@ -134,28 +132,6 @@ impl LmdbBlockStore {
             Err(e) => panic!("Could not load block. {:?}", e),
         }
     }
-
-    /// Update the "successor" value of the block's predecesssor
-    fn update_predecessor(&self, txn: &mut LmdbWriteTransaction, block: &SavedBlock) {
-        if block.previous().is_zero() {
-            return;
-        }
-        let hash = block.hash();
-        let value = self
-            .block_raw_get(txn, &block.previous())
-            .expect("block not found by fill_value");
-        let mut data = value.to_vec();
-        let block_type = BlockType::from_u8(data[0]).unwrap();
-
-        let offset = block_successor_offset(data.len(), block_type);
-        data[offset..offset + hash.as_bytes().len()].copy_from_slice(hash.as_bytes());
-
-        self.raw_put(txn, &data, &block.previous());
-    }
-}
-
-fn block_successor_offset(entry_size: usize, block_type: BlockType) -> usize {
-    entry_size - BlockSideband::serialized_size(block_type)
 }
 
 #[cfg(test)]
