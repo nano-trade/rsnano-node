@@ -1,4 +1,4 @@
-use rsnano_core::{utils::UnixTimestamp, Account, Block, PendingKey, SavedBlock};
+use rsnano_core::{utils::UnixMillisTimestamp, Account, Block, PendingKey, SavedBlock};
 
 use crate::{AnySet, LedgerConstants};
 
@@ -49,7 +49,7 @@ impl<'a> BlockValidatorFactory<'a> {
             any_pending_exists: self.any.receivable_exists(account),
             source_block_exists,
             previous_block,
-            now: UnixTimestamp::now(),
+            now: UnixMillisTimestamp::now(),
         }
     }
 
@@ -96,7 +96,7 @@ mod tests {
         assert_eq!(validator.any_pending_exists, false);
         assert_eq!(validator.source_block_exists, false);
         assert_eq!(validator.previous_block, None);
-        assert!(validator.now >= UnixTimestamp::now());
+        assert!(validator.now >= UnixMillisTimestamp::now());
     }
 
     #[test]

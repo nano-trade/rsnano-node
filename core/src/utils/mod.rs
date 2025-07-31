@@ -198,7 +198,7 @@ impl std::fmt::Debug for UnixTimestamp {
 }
 
 /// Elapsed milliseconds since UNIX_EPOCH
-#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Default)]
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Default, Hash)]
 pub struct UnixMillisTimestamp(u64);
 
 impl UnixMillisTimestamp {
@@ -238,11 +238,32 @@ impl UnixMillisTimestamp {
     pub fn elapsed(&self, now: UnixMillisTimestamp) -> Duration {
         Duration::from_millis(now.0.checked_sub(self.0).unwrap_or(0))
     }
+
+    pub fn utc(&self) -> DateTime<Utc> {
+        let seconds = (self.0 / 1000) as i64;
+        let millis = (self.0 % 1000) as u32;
+        let nanos = millis * 1000 * 1000;
+        Utc.timestamp_opt(seconds, nanos)
+            .latest()
+            .unwrap_or_default()
+    }
 }
 
 impl From<u64> for UnixMillisTimestamp {
     fn from(value: u64) -> Self {
         Self::new(value)
+    }
+}
+
+impl From<UnixMillisTimestamp> for UnixTimestamp {
+    fn from(value: UnixMillisTimestamp) -> Self {
+        Self::new(value.0 / 1000)
+    }
+}
+
+impl From<UnixTimestamp> for UnixMillisTimestamp {
+    fn from(value: UnixTimestamp) -> Self {
+        Self::new(value.0 * 1000)
     }
 }
 
@@ -348,14 +369,14 @@ pub trait Runnable: Send {
 
 /// Lower timestamps have a higher priority
 #[derive(PartialEq, Eq, Copy, Clone, Hash)]
-pub struct TimePriority(UnixTimestamp);
+pub struct TimePriority(UnixMillisTimestamp);
 
 impl TimePriority {
     // highest timestamp means lowest priority!
     pub const MIN: TimePriority = TimePriority::new(u64::MAX);
 
     pub const fn new(timestamp: u64) -> Self {
-        Self(UnixTimestamp::new(timestamp))
+        Self(UnixMillisTimestamp::new(timestamp))
     }
 }
 
@@ -383,13 +404,13 @@ impl std::fmt::Debug for TimePriority {
     }
 }
 
-impl From<UnixTimestamp> for TimePriority {
-    fn from(value: UnixTimestamp) -> Self {
+impl From<UnixMillisTimestamp> for TimePriority {
+    fn from(value: UnixMillisTimestamp) -> Self {
         Self(value)
     }
 }
 
-impl From<TimePriority> for UnixTimestamp {
+impl From<TimePriority> for UnixMillisTimestamp {
     fn from(value: TimePriority) -> Self {
         value.0
     }

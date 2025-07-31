@@ -103,7 +103,7 @@ fn create_successor_table(env: &LmdbEnv) -> Result<(), anyhow::Error> {
 }
 
 fn remove_successor_from_sideband(env: &LmdbEnv) -> Result<(), anyhow::Error> {
-    info!("Removing successor from sideband...");
+    info!("Removing successor from sideband and upgrading timestamp to milliseconds...");
 
     let block_db = env
         .environment

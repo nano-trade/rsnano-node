@@ -33,7 +33,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::{utils::UnixTimestamp, BlockSideband, StateBlockArgs};
+    use crate::{utils::UnixMillisTimestamp, BlockSideband, StateBlockArgs};
 
     #[test]
     fn open_block() {
@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn receive_block() {
-        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_timestamp = UnixMillisTimestamp::new_test_instance();
         let receive_balance = Amount::nano(2000);
 
         let prio = test_block_priority(
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn send_block() {
-        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_timestamp = UnixMillisTimestamp::new_test_instance();
         let prev_balance = Amount::nano(100);
 
         let prio = test_block_priority(
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn full_send() {
-        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_timestamp = UnixMillisTimestamp::new_test_instance();
         let prev_balance = Amount::nano(100);
 
         let prio = test_block_priority(
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn change_block() {
-        let prev_timestamp = UnixTimestamp::new_test_instance();
+        let prev_timestamp = UnixMillisTimestamp::new_test_instance();
         let prev_balance = Amount::nano(100);
 
         let prio = test_block_priority(
@@ -107,8 +107,8 @@ mod tests {
 
     fn test_block_priority(
         balance: Amount,
-        timestamp: UnixTimestamp,
-        previous: Option<(Amount, UnixTimestamp)>,
+        timestamp: UnixMillisTimestamp,
+        previous: Option<(Amount, UnixMillisTimestamp)>,
     ) -> BlockPriority {
         let previous = previous
             .map(|(prev_balance, prev_timestamp)| create_block(prev_balance, prev_timestamp));
@@ -117,7 +117,7 @@ mod tests {
         block_priority(&block, previous.as_ref())
     }
 
-    fn create_block(balance: Amount, timestamp: UnixTimestamp) -> SavedBlock {
+    fn create_block(balance: Amount, timestamp: UnixMillisTimestamp) -> SavedBlock {
         SavedBlock::new(
             StateBlockArgs {
                 balance,

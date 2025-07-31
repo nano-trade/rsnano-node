@@ -20,7 +20,7 @@ impl RpcCommandHandler {
 
                 while timestamp >= modified_since && !hash.is_zero() {
                     if let Some(block) = any.get_block(&hash) {
-                        timestamp = block.timestamp();
+                        timestamp = block.timestamp().into();
 
                         let helper = AccountHistoryHelper {
                             ledger: &self.node.ledger,

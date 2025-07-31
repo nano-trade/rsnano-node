@@ -1,5 +1,5 @@
 use crate::{
-    epoch_v1_link, epoch_v2_link, utils::UnixTimestamp, Account, AccountInfo, Amount, Block,
+    epoch_v1_link, epoch_v2_link, utils::UnixMillisTimestamp, Account, AccountInfo, Amount, Block,
     BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock,
     TestBlockBuilder, TestLegacyChangeBlockBuilder, TestLegacyOpenBlockBuilder,
     TestLegacyReceiveBlockBuilder, TestLegacySendBlockBuilder, TestStateBlockBuilder,
@@ -332,7 +332,7 @@ impl SavedAccountChain {
 
         let sideband = BlockSideband {
             height: self.height() + 1,
-            timestamp: UnixTimestamp::new(1),
+            timestamp: UnixMillisTimestamp::new(1),
             account: self.account,
             balance: self.balance,
             details: BlockDetails::new(self.epoch, false, false, false),

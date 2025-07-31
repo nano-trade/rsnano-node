@@ -15,13 +15,13 @@ use crate::{
     BlockError,
 };
 use rsnano_core::{
-    utils::UnixTimestamp, Account, Amount, Block, Epoch, PendingInfo, SavedAccountChain,
+    utils::UnixMillisTimestamp, Account, Amount, Block, Epoch, PendingInfo, SavedAccountChain,
 };
 
 use super::BlockValidator;
 
 pub(crate) struct BlockValidationTest {
-    pub now: UnixTimestamp,
+    pub now: UnixMillisTimestamp,
     pub chain: SavedAccountChain,
     block: Option<Block>,
     pending_receive: Option<PendingInfo>,
@@ -60,7 +60,7 @@ impl BlockValidationTest {
             chain: SavedAccountChain::new(),
             block: None,
             pending_receive: None,
-            now: UnixTimestamp::new(123456),
+            now: UnixMillisTimestamp::new(123456),
             block_already_exists: false,
             source_block_missing: false,
             previous_block_missing: false,
@@ -163,6 +163,6 @@ fn new_test_validator<'a>(
         pending_receive_info: None,
         any_pending_exists: false,
         source_block_exists: false,
-        now: UnixTimestamp::new(123456),
+        now: UnixMillisTimestamp::new(123456),
     }
 }

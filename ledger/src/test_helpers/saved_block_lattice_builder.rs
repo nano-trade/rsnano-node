@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use rsnano_core::{
-    dev_epoch1_signer, epoch_v1_link, utils::UnixTimestamp, Account, Amount, Block, BlockDetails,
-    BlockHash, BlockSideband, ChangeBlockArgs, Epoch, EpochBlockArgs, Link, OpenBlockArgs,
-    PendingInfo, PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root, SavedBlock,
-    SendBlockArgs, StateBlockArgs, WorkNonce, DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
+    dev_epoch1_signer, epoch_v1_link, utils::UnixMillisTimestamp, Account, Amount, Block,
+    BlockDetails, BlockHash, BlockSideband, ChangeBlockArgs, Epoch, EpochBlockArgs, Link,
+    OpenBlockArgs, PendingInfo, PendingKey, PrivateKey, PublicKey, ReceiveBlockArgs, Root,
+    SavedBlock, SendBlockArgs, StateBlockArgs, WorkNonce, DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
 };
 use rsnano_work::{dev_difficulty, WorkPool};
 
@@ -12,7 +12,7 @@ pub struct SavedBlockLatticeBuilder {
     accounts: HashMap<Account, Frontier>,
     work_pool: WorkPool,
     pending_receives: HashMap<PendingKey, PendingInfo>,
-    now: UnixTimestamp,
+    now: UnixMillisTimestamp,
 }
 
 #[derive(Clone, Default)]
@@ -48,16 +48,16 @@ impl SavedBlockLatticeBuilder {
             accounts,
             work_pool,
             pending_receives: Default::default(),
-            now: UnixTimestamp::new(42),
+            now: UnixMillisTimestamp::new(42),
         }
     }
 
-    pub fn set_now(&mut self, now: UnixTimestamp) {
+    pub fn set_now(&mut self, now: UnixMillisTimestamp) {
         self.now = now;
     }
 
     pub fn advance_time(&mut self) {
-        self.now = self.now.add(1);
+        self.now = self.now + Duration::from_secs(1);
     }
 
     pub fn genesis(&mut self) -> SavedAccountChainBuilder {
@@ -115,7 +115,7 @@ impl SavedBlockLatticeBuilder {
 
         BlockSideband {
             height: new_frontier.height,
-            timestamp: self.now,
+            timestamp: self.now.into(),
             account,
             balance: new_frontier.balance,
             details: BlockDetails::new(Epoch::Epoch0, is_send, is_receive, false), //TODO epoch

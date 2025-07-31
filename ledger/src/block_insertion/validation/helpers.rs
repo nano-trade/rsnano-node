@@ -223,7 +223,7 @@ impl<'a> BlockValidator<'a> {
             representative: self.new_representative(),
             open_block: self.open_block(),
             balance: self.new_balance(),
-            modified: self.now,
+            modified: self.now.into(),
             block_count: self.new_block_count(),
             epoch: self.epoch(),
         }

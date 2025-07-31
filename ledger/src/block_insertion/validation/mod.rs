@@ -10,7 +10,7 @@ mod tests;
 use super::BlockInsertInstructions;
 use crate::BlockError;
 use rsnano_core::{
-    utils::UnixTimestamp, Account, AccountInfo, Block, Epochs, PendingInfo, SavedBlock,
+    utils::UnixMillisTimestamp, Account, AccountInfo, Block, Epochs, PendingInfo, SavedBlock,
 };
 use rsnano_work::WorkThresholds;
 
@@ -26,7 +26,7 @@ pub(crate) struct BlockValidator<'a> {
     pub pending_receive_info: Option<PendingInfo>,
     pub any_pending_exists: bool,
     pub source_block_exists: bool,
-    pub now: UnixTimestamp,
+    pub now: UnixMillisTimestamp,
 }
 
 impl<'a> BlockValidator<'a> {

@@ -245,7 +245,7 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LmdbEnvFactory;
+    use crate::{LmdbEnvFactory, STORE_VERSION_MINIMUM};
 
     #[test]
     fn create_store() -> anyhow::Result<()> {

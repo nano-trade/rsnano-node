@@ -30,7 +30,7 @@ mod builders;
 pub use builders::*;
 
 use crate::{
-    utils::{BufferWriter, Deserialize, MemoryStream, Stream, UnixTimestamp},
+    utils::{BufferWriter, Deserialize, MemoryStream, Stream, UnixMillisTimestamp},
     Account, Amount, BlockHash, Epoch, Epochs, Link, PrivateKey, PublicKey, QualifiedRoot, Root,
     Signature, WorkNonce,
 };
@@ -441,7 +441,7 @@ impl SavedBlock {
         self.sideband.height
     }
 
-    pub fn timestamp(&self) -> UnixTimestamp {
+    pub fn timestamp(&self) -> UnixMillisTimestamp {
         self.sideband.timestamp
     }
 

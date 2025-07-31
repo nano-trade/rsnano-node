@@ -1,5 +1,7 @@
 use crate::{
-    utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream, UnixTimestamp},
+    utils::{
+        BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream, UnixMillisTimestamp,
+    },
     Account, Amount, BlockDetails, BlockHash, BlockType, Epoch,
 };
 use num::FromPrimitive;
@@ -9,7 +11,7 @@ use super::Block;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockSideband {
     pub height: u64,
-    pub timestamp: UnixTimestamp,
+    pub timestamp: UnixMillisTimestamp,
     pub account: Account,
     pub balance: Amount,
     pub details: BlockDetails,
@@ -84,7 +86,7 @@ impl BlockSideband {
     pub fn from_stream(stream: &mut dyn Stream, block_type: BlockType) -> anyhow::Result<Self> {
         let mut result = Self {
             height: 0,
-            timestamp: UnixTimestamp::ZERO,
+            timestamp: UnixMillisTimestamp::ZERO,
             account: Account::zero(),
             balance: Amount::zero(),
             details: BlockDetails::new(Epoch::Epoch0, false, false, false),
@@ -119,7 +121,7 @@ impl BlockSideband {
         }
 
         stream.read_bytes(&mut buffer, 8)?;
-        self.timestamp = UnixTimestamp::from_be_bytes(buffer);
+        self.timestamp = UnixMillisTimestamp::from_be_bytes(buffer);
 
         if block_type == BlockType::State {
             self.details = BlockDetails::deserialize(stream)?;
@@ -133,7 +135,7 @@ impl BlockSideband {
     pub fn new_test_instance() -> Self {
         Self {
             height: 42,
-            timestamp: UnixTimestamp::new(1000),
+            timestamp: UnixMillisTimestamp::new(1000),
             account: Account::from(1),
             balance: Amount::raw(42),
             details: BlockDetails {
@@ -157,7 +159,7 @@ mod tests {
         let details = BlockDetails::new(Epoch::Epoch0, false, false, false);
         let sideband = BlockSideband {
             height: 4,
-            timestamp: UnixTimestamp::new(5),
+            timestamp: UnixMillisTimestamp::new(5),
             account: 1.into(),
             balance: 3.into(),
             details,
