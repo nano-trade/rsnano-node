@@ -3,13 +3,11 @@ mod info;
 mod roll_back;
 
 use crate::cli::GlobalArgs;
-use anyhow::Context;
 use clap::{CommandFactory, Parser, Subcommand};
 use clear::ClearCommand;
 use info::InfoCommand;
 use roll_back::roll_back;
 use rsnano_store_lmdb::LmdbEnvFactory;
-use std::fs;
 
 #[derive(Parser, PartialEq, Debug)]
 pub(crate) struct LedgerCommand {
@@ -55,26 +53,9 @@ pub(crate) fn run_ledger_command(
 }
 
 fn vacuum(global_args: GlobalArgs) -> anyhow::Result<()> {
-    let data_path = global_args.data_path.clone();
-    let source_path = data_path.join("data.ldb");
-    let backup_path = data_path.join("backup.vacuum.ldb");
-    let vacuum_path = data_path.join("vacuumed.ldb");
-
-    println!("Vacuuming database copy in {:?}", data_path);
-    println!("This may take a while...");
-
-    let env = LmdbEnvFactory::default().create_env(&source_path)?;
-    env.copy_db(&vacuum_path)?;
-
-    println!("Finalizing");
-
-    fs::rename(&source_path, &backup_path).context("Failed to rename source to backup")?;
-    fs::rename(&vacuum_path, &source_path).context("Failed to rename vacuum to source")?;
-    fs::remove_file(&backup_path).context("Failed to remove backup file")?;
-
-    println!("Vacuum completed");
-
-    Ok(())
+    let ledger_path = global_args.data_path.join("data.ldb");
+    let env = LmdbEnvFactory::default().create_env(&ledger_path)?;
+    rsnano_store_lmdb::vacuum(env)
 }
 
 fn snapshot(global_args: GlobalArgs) -> anyhow::Result<()> {

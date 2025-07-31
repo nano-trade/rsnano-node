@@ -19,6 +19,8 @@ mod pruned_store;
 mod rep_weight_store;
 mod store;
 mod successor_store;
+mod upgrades;
+mod vacuum;
 mod version_store;
 mod wallet_store;
 mod write_queue;
@@ -39,9 +41,12 @@ pub use pruned_store::{ConfiguredPrunedDatabaseBuilder, LmdbPrunedStore};
 pub use rep_weight_store::*;
 pub use rsnano_nullable_lmdb::EnvironmentOptions;
 use rsnano_nullable_lmdb::{
-    InactiveTransaction, LmdbDatabase, LmdbEnvironment, RoCursor, RoTransaction, RwTransaction,
+    InactiveTransaction, LmdbDatabase, LmdbEnvironment, RoCursor, RoTransaction, RwCursor,
+    RwTransaction,
 };
 pub use store::{create_backup_file, LedgerCache, LmdbStore, MemoryStats};
+pub use upgrades::create_and_update_lmdb_env;
+pub use vacuum::vacuum;
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
 pub use write_queue::*;
@@ -379,6 +384,10 @@ impl LmdbWriteTransaction {
         self.clear_listener.emit(database);
         self.rw_txn_mut().clear_db(database)
     }
+
+    pub fn open_rw_cursor(&mut self, database: LmdbDatabase) -> lmdb::Result<RwCursor> {
+        self.rw_txn_mut().open_rw_cursor(database)
+    }
 }
 
 impl Drop for LmdbWriteTransaction {
@@ -463,7 +472,13 @@ pub(crate) fn parallel_traversal(
 }
 
 pub const STORE_VERSION_MINIMUM: i32 = 24;
-pub const STORE_VERSION_CURRENT: i32 = 24;
+
+/// RsNano uses store versions upwards of 10_000 so that there is a clear
+/// distinction between databases from nano_node and RsNano
+pub const STORE_VERSION_CURRENT: i32 = 10_001;
+
+/// The first store version where RsNano is incompatible with nano_node
+pub const FIRST_INCOMPATIBLE_STORE_VERSION: i32 = 10_000;
 
 pub const BLOCK_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(1);
 pub const FRONTIER_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(2);

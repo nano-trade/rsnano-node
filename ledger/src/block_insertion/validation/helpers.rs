@@ -210,7 +210,6 @@ impl<'a> BlockValidator<'a> {
         BlockSideband {
             height: self.new_block_count(),
             timestamp: self.now,
-            successor: BlockHash::zero(),
             account: self.account,
             balance: self.new_balance(),
             details: self.block_details(),
@@ -224,7 +223,7 @@ impl<'a> BlockValidator<'a> {
             representative: self.new_representative(),
             open_block: self.open_block(),
             balance: self.new_balance(),
-            modified: self.now,
+            modified: self.now.into(),
             block_count: self.new_block_count(),
             epoch: self.epoch(),
         }

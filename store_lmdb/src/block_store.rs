@@ -3,10 +3,9 @@ use crate::{
     BLOCK_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
-use num_traits::FromPrimitive;
 use rsnano_core::{
-    utils::{BufferReader, Deserialize, FixedSizeSerialize},
-    BlockHash, BlockSideband, BlockType, SavedBlock,
+    utils::{BufferReader, Deserialize},
+    BlockHash, SavedBlock,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -68,41 +67,11 @@ impl LmdbBlockStore {
             self.put_listener.emit(block.clone());
         }
 
-        let hash = block.hash();
-        debug_assert!(
-            block.successor().is_none() || self.exists(txn, &block.successor().unwrap_or_default())
-        );
-
-        self.raw_put(txn, &block.serialize_with_sideband(), &hash);
-        self.update_predecessor(txn, &block);
+        self.raw_put(txn, &block.serialize_with_sideband(), &block.hash());
     }
 
     pub fn exists(&self, transaction: &dyn Transaction, hash: &BlockHash) -> bool {
         transaction.exists(self.database, hash.as_bytes())
-    }
-
-    pub fn successor(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<BlockHash> {
-        self.block_raw_get(txn, hash).and_then(|data| {
-            debug_assert!(data.len() >= 32);
-            let block_type = BlockType::from_u8(data[0]).unwrap();
-            let offset = block_successor_offset(data.len(), block_type);
-            let successor = BlockHash::from_bytes(data[offset..offset + 32].try_into().unwrap());
-            if successor.is_zero() {
-                None
-            } else {
-                Some(successor)
-            }
-        })
-    }
-
-    pub fn successor_clear(&self, txn: &mut LmdbWriteTransaction, hash: &BlockHash) {
-        let value = self.block_raw_get(txn, hash).unwrap();
-        let block_type = BlockType::from_u8(value[0]).unwrap();
-
-        let mut data = value.to_vec();
-        let offset = block_successor_offset(value.len(), block_type);
-        data[offset..offset + BlockHash::serialized_size()].fill(0);
-        self.raw_put(txn, &data, hash)
     }
 
     pub fn get(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
@@ -163,36 +132,12 @@ impl LmdbBlockStore {
             Err(e) => panic!("Could not load block. {:?}", e),
         }
     }
-
-    /// Update the "successor" value of the block's predecesssor
-    fn update_predecessor(&self, txn: &mut LmdbWriteTransaction, block: &SavedBlock) {
-        if block.previous().is_zero() {
-            return;
-        }
-        let hash = block.hash();
-        let value = self
-            .block_raw_get(txn, &block.previous())
-            .expect("block not found by fill_value");
-        let mut data = value.to_vec();
-        let block_type = BlockType::from_u8(data[0]).unwrap();
-
-        let offset = block_successor_offset(data.len(), block_type);
-        data[offset..offset + hash.as_bytes().len()].copy_from_slice(hash.as_bytes());
-
-        self.raw_put(txn, &data, &block.previous());
-    }
-}
-
-fn block_successor_offset(entry_size: usize, block_type: BlockType) -> usize {
-    entry_size - BlockSideband::serialized_size(block_type)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::PutEvent;
-    use rsnano_core::TestBlockBuilder;
-
     use super::*;
+    use crate::PutEvent;
 
     struct Fixture {
         env: Arc<LmdbEnv>,
@@ -256,43 +201,6 @@ mod tests {
                 key: block.hash().as_bytes().to_vec(),
                 value: block.serialize_with_sideband(),
                 flags: lmdb::WriteFlags::empty(),
-            }]
-        );
-    }
-
-    #[test]
-    fn clear_successor() {
-        let block = TestBlockBuilder::legacy_open().build();
-        let sideband = BlockSideband {
-            successor: BlockHash::from(123),
-            ..BlockSideband::new_test_instance()
-        };
-        let block = SavedBlock::new(block, sideband.clone());
-
-        let env = LmdbEnv::new_null_with()
-            .database("blocks", LmdbDatabase::new_null(100))
-            .entry(block.hash().as_bytes(), &block.serialize_with_sideband())
-            .build()
-            .build();
-        let fixture = Fixture::with_env(env);
-        let mut txn = fixture.env.tx_begin_write();
-        let put_tracker = txn.track_puts();
-
-        fixture.store.successor_clear(&mut txn, &block.hash());
-
-        let mut expected_block = block.clone();
-        expected_block.set_sideband(BlockSideband {
-            successor: BlockHash::zero(),
-            ..sideband
-        });
-
-        assert_eq!(
-            put_tracker.output(),
-            vec![PutEvent {
-                database: LmdbDatabase::new_null(100),
-                key: expected_block.hash().as_bytes().to_vec(),
-                value: expected_block.serialize_with_sideband(),
-                flags: WriteFlags::empty(),
             }]
         );
     }

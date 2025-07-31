@@ -1,5 +1,5 @@
 use crate::{block_insertion::validation::tests::BlockValidationTest, BlockError};
-use rsnano_core::{AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingKey};
+use rsnano_core::{AccountInfo, Amount, BlockDetails, BlockSideband, Epoch, PendingKey};
 
 #[test]
 fn valid_receive_block() {
@@ -18,7 +18,7 @@ fn valid_receive_block() {
             representative: receive.representative_field().unwrap(),
             open_block: old_account_info.open_block,
             balance: receive.balance_field().unwrap(),
-            modified: test.now,
+            modified: test.now.into(),
             block_count: old_account_info.block_count + 1,
             epoch: old_account_info.epoch,
         }
@@ -28,7 +28,6 @@ fn valid_receive_block() {
         BlockSideband {
             height: old_account_info.block_count + 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: receive.account_field().unwrap(),
             balance: receive.balance_field().unwrap(),
             details: BlockDetails::new(old_account_info.epoch, false, true, false),

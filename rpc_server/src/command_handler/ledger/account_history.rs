@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
-use rsnano_core::{Account, Block, BlockBase, BlockHash, SavedBlock};
+use rsnano_core::{utils::UnixTimestamp, Account, Block, BlockBase, BlockHash, SavedBlock};
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_zero, AccountHistoryArgs, AccountHistoryResponse,
@@ -259,7 +259,7 @@ impl<'a> AccountHistoryHelper<'a> {
     }
 
     fn set_common_fields(&self, entry: &mut HistoryEntry, block: &SavedBlock, any: &impl AnySet) {
-        entry.local_timestamp = block.timestamp().as_u64().into();
+        entry.local_timestamp = UnixTimestamp::from(block.timestamp()).as_u64().into();
         entry.height = block.height().into();
         entry.hash = block.hash();
         entry.confirmed = any.confirmed().block_exists_or_pruned(&block.hash()).into();

@@ -1,13 +1,3 @@
-use crate::{
-    LmdbAccountStore, LmdbBlockStore, LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv,
-    LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore,
-    LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore, LmdbWriteTransaction, Writer,
-    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
-use lmdb_sys::MDB_SUCCESS;
-use rsnano_core::utils::UnixTimestamp;
-use serde::{Deserialize, Serialize};
 use std::{
     ffi::CString,
     path::{Path, PathBuf},
@@ -16,7 +6,20 @@ use std::{
         Arc,
     },
 };
-use tracing::{debug, error, info};
+
+use lmdb::{DatabaseFlags, WriteFlags};
+use lmdb_sys::MDB_SUCCESS;
+use serde::{Deserialize, Serialize};
+use tracing::{error, info};
+
+use rsnano_core::utils::UnixTimestamp;
+
+use crate::{
+    successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
+    LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore,
+    LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore,
+    LmdbVersionStore, LmdbWriteTransaction, Writer,
+};
 
 pub struct LedgerCache {
     pub confirmed_count: AtomicU64,
@@ -52,6 +55,7 @@ pub struct LmdbStore {
     pub pruned: LmdbPrunedStore,
     pub rep_weight: Arc<LmdbRepWeightStore>,
     pub confirmation_height: LmdbConfirmationHeightStore,
+    pub successors: LmdbSuccessorStore,
     // extract these?
     pub final_vote: LmdbFinalVoteStore,
     pub online_weight: LmdbOnlineWeightStore,
@@ -65,8 +69,6 @@ impl LmdbStore {
     }
 
     pub fn new(env: LmdbEnv) -> anyhow::Result<Self> {
-        upgrade_if_needed(&env)?;
-
         Ok(Self {
             cache: Arc::new(LedgerCache::new()),
             block: LmdbBlockStore::new(&env)?,
@@ -78,6 +80,7 @@ impl LmdbStore {
             peer: LmdbPeerStore::new(&env)?,
             confirmation_height: LmdbConfirmationHeightStore::new(&env)?,
             final_vote: LmdbFinalVoteStore::new(&env)?,
+            successors: LmdbSuccessorStore::new(&env.environment)?,
             version: LmdbVersionStore::new(&env)?,
             env,
         })
@@ -119,20 +122,6 @@ impl LmdbStore {
     }
 }
 
-fn upgrade_if_needed(env: &LmdbEnv) -> Result<(), anyhow::Error> {
-    let upgrade_info = LmdbVersionStore::check_upgrade(&env)?;
-    if upgrade_info.is_fully_upgraded {
-        debug!("No database upgrade needed");
-        return Ok(());
-    }
-
-    info!("Upgrade in progress...");
-    do_upgrades(&env)?;
-    info!("Upgrade done!");
-    env.sync()?;
-    Ok(())
-}
-
 fn rebuild_table(
     env: &LmdbEnv,
     rw_txn: &mut LmdbWriteTransaction,
@@ -169,37 +158,6 @@ fn copy_table(
     if ro_txn.txn().count(source) != rw_txn.rw_txn_mut().count(target) {
         bail!("table count mismatch");
     }
-    Ok(())
-}
-
-fn do_upgrades(env: &LmdbEnv) -> anyhow::Result<()> {
-    let version_store = LmdbVersionStore::new(env)?;
-    let mut txn = env.tx_begin_write();
-
-    let version = match version_store.get(&txn) {
-        Some(v) => v,
-        None => {
-            let new_version = STORE_VERSION_MINIMUM;
-            info!("Setting db version to {}", new_version);
-            version_store.put(&mut txn, new_version);
-            new_version
-        }
-    };
-
-    if version < STORE_VERSION_MINIMUM {
-        error!("The version of the ledger ({}) is lower than the minimum ({}) which is supported for upgrades. Either upgrade to a v24 node first or delete the ledger.", version, STORE_VERSION_MINIMUM);
-        bail!("version too low");
-    }
-
-    if version > STORE_VERSION_CURRENT {
-        error!(
-            "The version of the ledger ({}) is too high for this node",
-            version
-        );
-        bail!("version too high");
-    }
-
-    // most recent version
     Ok(())
 }
 
@@ -277,47 +235,6 @@ mod tests {
     fn create_store() -> anyhow::Result<()> {
         let env = LmdbEnvFactory::new_null().create_env("/nulled/store.ldb")?;
         let _ = LmdbStore::new(env)?;
-        Ok(())
-    }
-
-    #[test]
-    fn version_too_high_for_upgrade() -> anyhow::Result<()> {
-        let env = LmdbEnv::new_null();
-        set_store_version(&env, i32::MAX)?;
-        assert_upgrade_fails(env, "version too high");
-        Ok(())
-    }
-
-    #[test]
-    fn version_too_low_for_upgrade() -> anyhow::Result<()> {
-        let env = LmdbEnv::new_null();
-        set_store_version(&env, STORE_VERSION_MINIMUM - 1)?;
-        assert_upgrade_fails(env, "version too low");
-        Ok(())
-    }
-
-    #[test]
-    fn writes_db_version_for_new_store() {
-        let env = LmdbEnv::new_null();
-        let store = LmdbStore::new(env).unwrap();
-        let txn = store.tx_begin_read();
-        assert_eq!(store.version.get(&txn), Some(STORE_VERSION_MINIMUM));
-    }
-
-    fn assert_upgrade_fails(env: LmdbEnv, error_msg: &str) {
-        let store = LmdbStore::new(env);
-        match store {
-            Ok(_) => panic!("store should not be created!"),
-            Err(e) => {
-                assert_eq!(e.to_string(), error_msg);
-            }
-        }
-    }
-
-    fn set_store_version(env: &LmdbEnv, current_version: i32) -> Result<(), anyhow::Error> {
-        let version_store = LmdbVersionStore::new(env)?;
-        let mut txn = env.tx_begin_write();
-        version_store.put(&mut txn, current_version);
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
-use rsnano_core::{BlockHash, BlockType, PendingKey};
+use rsnano_core::{utils::UnixTimestamp, BlockHash, BlockType, PendingKey};
 use rsnano_ledger::{AnySet, ConfirmedSet, LedgerSet};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, BlockInfoResponse, BlocksInfoArgs, BlocksInfoResponse,
@@ -26,7 +26,7 @@ impl RpcCommandHandler {
                 let balance = any.block_balance(&hash).unwrap();
                 let height = block.height();
                 let local_timestamp = block.timestamp();
-                let successor = block.successor().unwrap_or_default();
+                let successor = any.block_successor(&block.hash()).unwrap_or_default();
                 let confirmed = any.confirmed().block_exists_or_pruned(&hash);
                 let contents = block.json_representation();
 
@@ -50,7 +50,7 @@ impl RpcCommandHandler {
                     amount,
                     balance,
                     height: height.into(),
-                    local_timestamp: local_timestamp.as_u64().into(),
+                    local_timestamp: UnixTimestamp::from(local_timestamp).as_u64().into(),
                     successor,
                     confirmed: confirmed.into(),
                     contents,

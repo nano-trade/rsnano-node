@@ -14,7 +14,6 @@ fn valid_legacy_receive_block() {
         BlockSideband {
             height: test.chain.height() + 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: test.chain.account(),
             balance: test.chain.account_info().balance + Amount::raw(10),
             details: BlockDetails::new(Epoch::Epoch0, false, true, false),

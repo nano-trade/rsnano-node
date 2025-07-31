@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use rsnano_core::{
     epoch_v1_link, epoch_v2_link,
-    utils::{get_env_or_default_string, UnixTimestamp},
+    utils::{get_env_or_default_string, UnixMillisTimestamp},
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, Epochs, Networks,
     PublicKey, SavedBlock, DEV_GENESIS_KEY,
 };
@@ -108,8 +108,7 @@ pub struct LedgerConstants {
 pub fn genesis_sideband(genesis_account: Account) -> BlockSideband {
     BlockSideband {
         height: 1,
-        timestamp: UnixTimestamp::ZERO,
-        successor: BlockHash::zero(),
+        timestamp: UnixMillisTimestamp::ZERO,
         account: genesis_account,
         balance: Amount::MAX,
         details: BlockDetails::new(Epoch::Epoch0, false, false, false),

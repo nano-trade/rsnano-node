@@ -48,10 +48,6 @@ impl<'a> ExplorerView<'a> {
                 ui.label(&self.model.height);
                 ui.end_row();
 
-                ui.label("Successor: ");
-                ui.label(&self.model.successor);
-                ui.end_row();
-
                 ui.label("Timestamp: ");
                 ui.label(&self.model.timestamp);
                 ui.end_row();
@@ -74,7 +70,6 @@ pub(crate) struct BlockViewModel {
     pub height: String,
     pub timestamp: String,
     pub subtype: &'static str,
-    pub successor: String,
 }
 
 impl BlockViewModel {
@@ -87,6 +82,5 @@ impl BlockViewModel {
         self.confirmed = block.confirmed.to_string();
         self.timestamp = block.block.timestamp().utc().to_string();
         self.subtype = block.block.subtype().as_str();
-        self.successor = block.block.successor().unwrap_or_default().to_string();
     }
 }

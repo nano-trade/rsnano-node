@@ -99,7 +99,7 @@ impl OrderedBlocks {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{utils::UnixTimestamp, Amount, PrivateKey};
+    use rsnano_core::{utils::UnixMillisTimestamp, Amount, PrivateKey};
 
     #[test]
     fn empty() {
@@ -115,7 +115,7 @@ mod tests {
     fn insert_one() {
         let mut blocks = OrderedBlocks::default();
 
-        let (hash, entry) = create_entry(UnixTimestamp::new(123), 1);
+        let (hash, entry) = create_entry(UnixMillisTimestamp::new(123), 1);
         blocks.insert(entry);
 
         assert_eq!(blocks.len(), 1);
@@ -128,8 +128,8 @@ mod tests {
     fn insert_multiple() {
         let mut blocks = OrderedBlocks::default();
 
-        let (hash1, entry1) = create_entry(UnixTimestamp::new(123), 1);
-        let (hash2, entry2) = create_entry(UnixTimestamp::new(456), 2);
+        let (hash1, entry1) = create_entry(UnixMillisTimestamp::new(123), 1);
+        let (hash2, entry2) = create_entry(UnixMillisTimestamp::new(456), 2);
 
         blocks.insert(entry1);
         blocks.insert(entry2);
@@ -143,9 +143,9 @@ mod tests {
     fn order_by_timestamp() {
         let mut blocks = OrderedBlocks::default();
 
-        let (hash1, entry1) = create_entry(UnixTimestamp::new(333), 1);
-        let (hash2, entry2) = create_entry(UnixTimestamp::new(111), 2);
-        let (hash3, entry3) = create_entry(UnixTimestamp::new(222), 3);
+        let (hash1, entry1) = create_entry(UnixMillisTimestamp::new(333), 1);
+        let (hash2, entry2) = create_entry(UnixMillisTimestamp::new(111), 2);
+        let (hash3, entry3) = create_entry(UnixMillisTimestamp::new(222), 3);
 
         blocks.insert(entry1);
         blocks.insert(entry2);
@@ -162,9 +162,9 @@ mod tests {
     fn pop_highest_prio() {
         let mut blocks = OrderedBlocks::default();
 
-        let (_, entry1) = create_entry(UnixTimestamp::new(333), 1);
-        let (hash2, entry2) = create_entry(UnixTimestamp::new(111), 2);
-        let (_, entry3) = create_entry(UnixTimestamp::new(222), 3);
+        let (_, entry1) = create_entry(UnixMillisTimestamp::new(333), 1);
+        let (hash2, entry2) = create_entry(UnixMillisTimestamp::new(111), 2);
+        let (_, entry3) = create_entry(UnixMillisTimestamp::new(222), 3);
 
         blocks.insert(entry1);
         blocks.insert(entry2);
@@ -182,9 +182,9 @@ mod tests {
     fn pop_lowest_prio() {
         let mut blocks = OrderedBlocks::default();
 
-        let (hash1, entry1) = create_entry(UnixTimestamp::new(333), 1);
-        let (_, entry2) = create_entry(UnixTimestamp::new(111), 2);
-        let (_, entry3) = create_entry(UnixTimestamp::new(222), 3);
+        let (hash1, entry1) = create_entry(UnixMillisTimestamp::new(333), 1);
+        let (_, entry2) = create_entry(UnixMillisTimestamp::new(111), 2);
+        let (_, entry3) = create_entry(UnixMillisTimestamp::new(222), 3);
 
         blocks.insert(entry1);
         blocks.insert(entry2);
@@ -198,7 +198,10 @@ mod tests {
         assert_eq!(blocks.by_priority.len(), 2);
     }
 
-    fn create_entry(time: UnixTimestamp, key: impl Into<PrivateKey>) -> (BlockHash, BlockEntry) {
+    fn create_entry(
+        time: UnixMillisTimestamp,
+        key: impl Into<PrivateKey>,
+    ) -> (BlockHash, BlockEntry) {
         let entry = BlockEntry {
             priority: BlockPriority::new(Amount::nano(1), time.into()),
             block: SavedBlock::new_test_instance_with_key(key),

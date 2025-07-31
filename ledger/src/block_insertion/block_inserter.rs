@@ -43,6 +43,13 @@ impl<'a> BlockInserter<'a> {
         let sideband = self.instructions.set_sideband.clone();
         let saved_block = SavedBlock::new(self.block.clone(), sideband);
         self.ledger.store.block.put(self.txn, &saved_block);
+        if !saved_block.previous().is_zero() {
+            self.ledger.store.successors.put(
+                self.txn,
+                &saved_block.previous(),
+                &saved_block.hash(),
+            );
+        }
         self.update_account();
         self.delete_old_pending_info();
         self.insert_new_pending_info();
@@ -159,10 +166,7 @@ mod tests {
         let open = TestBlockBuilder::legacy_open()
             .representative(old_representative)
             .build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let open = SavedBlock::new(open, sideband.clone());
 
         let state = TestBlockBuilder::state()
@@ -180,6 +184,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn no_successor_for_open_block() {
+        let (mut block, instructions) = open_state_block_instructions();
+        let ledger = Ledger::new_null();
+
+        let result = insert(&ledger, &mut block, &instructions);
+
+        assert_eq!(result.saved_successors, Vec::new());
+    }
+
+    #[test]
+    fn insert_successor() {
+        let open = TestBlockBuilder::legacy_open().build();
+        let sideband = BlockSideband::new_test_instance();
+        let open = SavedBlock::new(open, sideband.clone());
+
+        let state = TestBlockBuilder::state().previous(open.hash()).build();
+        let (mut state, instructions) = state_block_instructions_for(&open, state);
+
+        let ledger = Ledger::new_null_builder().block(&open).finish();
+
+        let result = insert(&ledger, &mut state, &instructions);
+
+        assert_eq!(result.saved_successors, vec![(open.hash(), state.hash())]);
+    }
+
     fn insert(
         ledger: &Ledger,
         block: &mut Block,
@@ -189,6 +219,7 @@ mod tests {
         let saved_blocks = ledger.store.block.track_puts();
         let saved_accounts = ledger.store.account.track_puts();
         let saved_pending = ledger.store.pending.track_puts();
+        let saved_successors = ledger.store.successors.track_puts();
         let deleted_pending = ledger.store.pending.track_deletions();
 
         let mut block_inserter = BlockInserter::new(&ledger, &mut txn, block, &instructions);
@@ -198,6 +229,7 @@ mod tests {
             saved_blocks: saved_blocks.output(),
             saved_accounts: saved_accounts.output(),
             saved_pending: saved_pending.output(),
+            saved_successors: saved_successors.output(),
             deleted_pending: deleted_pending.output(),
         }
     }
@@ -206,15 +238,13 @@ mod tests {
         saved_blocks: Vec<SavedBlock>,
         saved_accounts: Vec<(Account, AccountInfo)>,
         saved_pending: Vec<(PendingKey, PendingInfo)>,
+        saved_successors: Vec<(BlockHash, BlockHash)>,
         deleted_pending: Vec<PendingKey>,
     }
 
     fn legacy_open_block_instructions() -> (Block, BlockInsertInstructions) {
         let block = TestBlockBuilder::legacy_open().build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let account_info = AccountInfo {
             head: block.hash(),
             open_block: block.hash(),
@@ -237,10 +267,7 @@ mod tests {
         let block = TestBlockBuilder::state()
             .previous(BlockHash::zero())
             .build();
-        let sideband = BlockSideband {
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        };
+        let sideband = BlockSideband::new_test_instance();
         let account_info = AccountInfo {
             head: block.hash(),
             open_block: block.hash(),
@@ -264,7 +291,6 @@ mod tests {
         block: Block,
     ) -> (Block, BlockInsertInstructions) {
         let sideband = BlockSideband {
-            successor: BlockHash::zero(),
             balance: block.balance_field().unwrap(),
             account: block.account_field().unwrap(),
             ..BlockSideband::new_test_instance()

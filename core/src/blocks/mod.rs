@@ -30,7 +30,7 @@ mod builders;
 pub use builders::*;
 
 use crate::{
-    utils::{BufferWriter, Deserialize, MemoryStream, Stream, UnixTimestamp},
+    utils::{BufferWriter, Deserialize, MemoryStream, Stream, UnixMillisTimestamp},
     Account, Amount, BlockHash, Epoch, Epochs, Link, PrivateKey, PublicKey, QualifiedRoot, Root,
     Signature, WorkNonce,
 };
@@ -423,16 +423,11 @@ impl SavedBlock {
         BlockSideband {
             height: 2,
             timestamp: 222222.into(),
-            successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),
             details: BlockDetails::new(Epoch::Epoch2, true, false, false),
             source_epoch: Epoch::Epoch0,
         }
-    }
-
-    pub fn set_sideband(&mut self, sideband: BlockSideband) {
-        self.sideband = sideband;
     }
 
     pub fn account(&self) -> Account {
@@ -446,20 +441,12 @@ impl SavedBlock {
         self.sideband.height
     }
 
-    pub fn timestamp(&self) -> UnixTimestamp {
+    pub fn timestamp(&self) -> UnixMillisTimestamp {
         self.sideband.timestamp
     }
 
     pub fn subtype(&self) -> BlockSubType {
         self.sideband.details.subtype()
-    }
-
-    pub fn successor(&self) -> Option<BlockHash> {
-        if self.sideband.successor.is_zero() {
-            None
-        } else {
-            Some(self.sideband.successor)
-        }
     }
 
     pub fn epoch(&self) -> Epoch {

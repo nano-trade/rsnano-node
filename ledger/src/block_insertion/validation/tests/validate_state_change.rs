@@ -1,5 +1,5 @@
 use crate::block_insertion::validation::tests::BlockValidationTest;
-use rsnano_core::{AccountInfo, BlockDetails, BlockHash, BlockSideband, Epoch};
+use rsnano_core::{AccountInfo, BlockDetails, BlockSideband, Epoch};
 
 #[test]
 fn valid_change_block() {
@@ -16,7 +16,7 @@ fn valid_change_block() {
             representative: change_block.representative_field().unwrap(),
             open_block: old_account_info.open_block,
             balance: old_account_info.balance,
-            modified: test.now,
+            modified: test.now.into(),
             block_count: old_account_info.block_count + 1,
             epoch: old_account_info.epoch,
         }
@@ -29,7 +29,6 @@ fn valid_change_block() {
         BlockSideband {
             height: old_account_info.block_count + 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: change_block.account_field().unwrap(),
             balance: old_account_info.balance,
             details: BlockDetails::new(old_account_info.epoch, false, false, false),

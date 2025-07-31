@@ -1,6 +1,8 @@
 use crate::{
-    utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream, UnixTimestamp},
-    Account, Amount, BlockDetails, BlockHash, BlockType, Epoch,
+    utils::{
+        BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream, UnixMillisTimestamp,
+    },
+    Account, Amount, BlockDetails, BlockType, Epoch,
 };
 use num::FromPrimitive;
 
@@ -9,9 +11,7 @@ use super::Block;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockSideband {
     pub height: u64,
-    pub timestamp: UnixTimestamp,
-    /// Successor to the current block
-    pub successor: BlockHash,
+    pub timestamp: UnixMillisTimestamp,
     pub account: Account,
     pub balance: Amount,
     pub details: BlockDetails,
@@ -23,7 +23,6 @@ impl BlockSideband {
         BlockSideband {
             height: 2,
             timestamp: 222222.into(),
-            successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),
             details: BlockDetails::new(Epoch::Epoch2, false, false, false),
@@ -32,7 +31,7 @@ impl BlockSideband {
     }
 
     pub fn serialized_size(block_type: BlockType) -> usize {
-        let mut size = BlockHash::serialized_size(); // successor
+        let mut size = 0;
 
         if block_type != BlockType::State && block_type != BlockType::LegacyOpen {
             size += Account::serialized_size(); // account
@@ -61,8 +60,6 @@ impl BlockSideband {
     }
 
     pub fn serialize(&self, stream: &mut dyn BufferWriter, block_type: BlockType) {
-        self.successor.serialize(stream);
-
         if block_type != BlockType::State && block_type != BlockType::LegacyOpen {
             self.account.serialize(stream);
         }
@@ -89,8 +86,7 @@ impl BlockSideband {
     pub fn from_stream(stream: &mut dyn Stream, block_type: BlockType) -> anyhow::Result<Self> {
         let mut result = Self {
             height: 0,
-            timestamp: UnixTimestamp::ZERO,
-            successor: BlockHash::zero(),
+            timestamp: UnixMillisTimestamp::ZERO,
             account: Account::zero(),
             balance: Amount::zero(),
             details: BlockDetails::new(Epoch::Epoch0, false, false, false),
@@ -105,8 +101,6 @@ impl BlockSideband {
         stream: &mut dyn Stream,
         block_type: BlockType,
     ) -> anyhow::Result<()> {
-        self.successor = BlockHash::deserialize(stream)?;
-
         if block_type != BlockType::State && block_type != BlockType::LegacyOpen {
             self.account = Account::deserialize(stream)?;
         }
@@ -127,7 +121,7 @@ impl BlockSideband {
         }
 
         stream.read_bytes(&mut buffer, 8)?;
-        self.timestamp = UnixTimestamp::from_be_bytes(buffer);
+        self.timestamp = UnixMillisTimestamp::from_be_bytes(buffer);
 
         if block_type == BlockType::State {
             self.details = BlockDetails::deserialize(stream)?;
@@ -141,8 +135,7 @@ impl BlockSideband {
     pub fn new_test_instance() -> Self {
         Self {
             height: 42,
-            timestamp: UnixTimestamp::new(1000),
-            successor: BlockHash::from(3),
+            timestamp: UnixMillisTimestamp::new(1000),
             account: Account::from(1),
             balance: Amount::raw(42),
             details: BlockDetails {
@@ -166,8 +159,7 @@ mod tests {
         let details = BlockDetails::new(Epoch::Epoch0, false, false, false);
         let sideband = BlockSideband {
             height: 4,
-            timestamp: UnixTimestamp::new(5),
-            successor: 2.into(),
+            timestamp: UnixMillisTimestamp::new(5),
             account: 1.into(),
             balance: 3.into(),
             details,
@@ -178,5 +170,34 @@ mod tests {
         let deserialized =
             BlockSideband::from_stream(&mut stream, BlockType::LegacyReceive).unwrap();
         assert_eq!(deserialized, sideband);
+    }
+
+    #[test]
+    fn serialized_size() {
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacySend),
+            48,
+            "legacy send"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacyReceive),
+            64,
+            "legacy receive"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacyOpen),
+            24,
+            "legacy open"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::LegacyChange),
+            64,
+            "legacy change"
+        );
+        assert_eq!(
+            BlockSideband::serialized_size(BlockType::State),
+            18,
+            "legacy state"
+        );
     }
 }

@@ -1,6 +1,6 @@
 use super::BlockValidationTest;
 use crate::BlockError;
-use rsnano_core::{Account, BlockDetails, BlockHash, BlockSideband, Epoch, PublicKey};
+use rsnano_core::{Account, BlockDetails, BlockSideband, Epoch, PublicKey};
 
 #[test]
 fn valid_legacy_change_block() {
@@ -19,7 +19,6 @@ fn valid_legacy_change_block() {
         BlockSideband {
             height: test.chain.height() + 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: test.chain.account(),
             balance: test.chain.account_info().balance,
             details: BlockDetails::new(Epoch::Epoch0, false, false, false),

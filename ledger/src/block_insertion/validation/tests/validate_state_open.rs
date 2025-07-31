@@ -1,6 +1,6 @@
 use crate::{block_insertion::validation::tests::BlockValidationTest, BlockError};
 use rsnano_core::{
-    AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingKey, PrivateKey,
+    AccountInfo, Amount, BlockDetails, BlockSideband, Epoch, PendingKey, PrivateKey,
 };
 
 #[test]
@@ -16,7 +16,6 @@ fn valid_open_block() {
         BlockSideband {
             height: 1,
             timestamp: test.now,
-            successor: BlockHash::zero(),
             account: open_block.account_field().unwrap(),
             balance: open_block.balance_field().unwrap(),
             details: BlockDetails::new(Epoch::Epoch2, false, true, false),
@@ -35,7 +34,7 @@ fn valid_open_block() {
             representative: open_block.representative_field().unwrap(),
             open_block: open_block.hash(),
             balance: open_block.balance_field().unwrap(),
-            modified: test.now,
+            modified: test.now.into(),
             block_count: 1,
             epoch: Epoch::Epoch2
         }

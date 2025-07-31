@@ -2,7 +2,8 @@ use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
 use rsnano_core::{utils::get_cpu_count, Amount};
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::{
-    get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig, LmdbEnvFactory, TransactionTracker,
+    create_and_update_lmdb_env, get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig,
+    LmdbEnvFactory, TransactionTracker,
 };
 use std::{
     cmp::{max, min},
@@ -95,12 +96,8 @@ impl<'a> LedgerBuilder<'a> {
             max_dbs: config.max_databases,
             map_size: config.map_size,
             flags: get_env_flags(&config),
-            path: &self.path,
+            path: self.path,
         };
-        let mut env = env_factory.create_with_options(env_options)?;
-        if let Some(txn_tracker) = self.txn_tracker {
-            env.set_transaction_tracker(txn_tracker);
-        }
 
         let stats = self.stats.unwrap_or_else(|| Arc::new(Stats::default()));
         let ledger_constants = self
@@ -110,6 +107,12 @@ impl<'a> LedgerBuilder<'a> {
         if self.thread_count == 0 {
             // Between 10 and 40 threads, scales well even in low power systems as long as actions are I/O bound
             self.thread_count = max(10, min(40, 11 * get_cpu_count()));
+        }
+
+        let mut env = create_and_update_lmdb_env(&env_factory, env_options)?;
+
+        if let Some(txn_tracker) = self.txn_tracker {
+            env.set_transaction_tracker(txn_tracker);
         }
 
         info!("Loading ledger, this may take a while...");

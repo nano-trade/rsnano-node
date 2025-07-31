@@ -1,5 +1,5 @@
 use crate::{
-    epoch_v1_link, epoch_v2_link, utils::UnixTimestamp, Account, AccountInfo, Amount, Block,
+    epoch_v1_link, epoch_v2_link, utils::UnixMillisTimestamp, Account, AccountInfo, Amount, Block,
     BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock,
     TestBlockBuilder, TestLegacyChangeBlockBuilder, TestLegacyOpenBlockBuilder,
     TestLegacyReceiveBlockBuilder, TestLegacySendBlockBuilder, TestStateBlockBuilder,
@@ -332,20 +332,12 @@ impl SavedAccountChain {
 
         let sideband = BlockSideband {
             height: self.height() + 1,
-            timestamp: UnixTimestamp::new(1),
-            successor: BlockHash::zero(),
+            timestamp: UnixMillisTimestamp::new(1),
             account: self.account,
             balance: self.balance,
             details: BlockDetails::new(self.epoch, false, false, false),
             source_epoch,
         };
-
-        if !self.blocks.is_empty() {
-            let previous = self.blocks.last_mut().unwrap();
-            let mut sideband = previous.sideband.clone();
-            sideband.successor = block.hash();
-            previous.set_sideband(sideband);
-        }
 
         if let Some(rep) = block.representative_field() {
             self.representative = rep;

@@ -1,5 +1,5 @@
 use crate::{
-    blocks::open_block::OpenBlockArgs, utils::UnixTimestamp, Block, BlockDetails, BlockHash,
+    blocks::open_block::OpenBlockArgs, utils::UnixMillisTimestamp, Block, BlockDetails, BlockHash,
     BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock, WorkNonce,
 };
 
@@ -66,8 +66,7 @@ impl TestLegacyOpenBlockBuilder {
 
         let sideband = BlockSideband {
             height: 1,
-            timestamp: UnixTimestamp::new(2),
-            successor: BlockHash::zero(),
+            timestamp: UnixMillisTimestamp::new(2),
             account: block.account_field().unwrap(),
             balance: 5.into(),
             details,
@@ -95,10 +94,9 @@ mod tests {
         assert_eq!(open.work(), WorkNonce::new(42));
         assert_ne!(*open.signature(), Signature::new());
 
-        assert!(block.successor().is_none());
         assert_eq!(block.balance(), Amount::raw(5));
         assert_eq!(block.height(), 1);
-        assert_eq!(block.timestamp(), UnixTimestamp::new(2));
+        assert_eq!(block.timestamp(), UnixMillisTimestamp::new(2));
         assert_eq!(block.source_epoch(), Epoch::Epoch0);
     }
 }
