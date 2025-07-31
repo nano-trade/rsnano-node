@@ -5,15 +5,15 @@ use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
 use lmdb_sys::{MDB_env, MDB_CP_COMPACT, MDB_SUCCESS};
 use std::{
     ffi::CString,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
-pub struct EnvironmentOptions<'a> {
+pub struct EnvironmentOptions {
     pub max_dbs: u32,
     pub map_size: usize,
     pub flags: EnvironmentFlags,
-    pub path: &'a Path,
+    pub path: PathBuf,
 }
 
 pub struct LmdbEnvironment(EnvironmentStrategy);
@@ -129,7 +129,7 @@ impl EnvironmentWrapper {
             .set_max_dbs(options.max_dbs)
             .set_map_size(options.map_size)
             .set_flags(options.flags)
-            .open_with_permissions(options.path, 0o600.try_into().unwrap())?;
+            .open_with_permissions(&options.path, 0o600.try_into().unwrap())?;
         Ok(Self(env))
     }
 
@@ -263,7 +263,7 @@ impl LmdbEnvironmentFactory {
         Self { is_nulled: true }
     }
 
-    pub fn create_env(&self, options: EnvironmentOptions<'_>) -> lmdb::Result<LmdbEnvironment> {
+    pub fn create_env(&self, options: EnvironmentOptions) -> lmdb::Result<LmdbEnvironment> {
         if self.is_nulled {
             Ok(LmdbEnvironment::new_null())
         } else {
@@ -371,7 +371,7 @@ mod tests {
                 | EnvironmentFlags::NO_READAHEAD
                 | EnvironmentFlags::NO_SYNC
                 | EnvironmentFlags::WRITE_MAP,
-            path: &path,
+            path: path.to_path_buf(),
         };
         LmdbEnvironment::new(opts).unwrap()
     }

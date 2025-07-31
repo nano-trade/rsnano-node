@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
-use rsnano_core::{BlockType, SavedBlock};
+use rsnano_core::{utils::UnixTimestamp, BlockType, SavedBlock};
 use rsnano_ledger::AnySet;
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, BlockInfoArgs, BlockInfoResponse, BlockSubTypeDto,
@@ -28,7 +28,7 @@ impl RpcCommandHandler {
             amount: block.amount,
             balance: block.block.balance(),
             height: block.block.height().into(),
-            local_timestamp: block.block.timestamp().as_u64().into(),
+            local_timestamp: UnixTimestamp::from(block.block.timestamp()).as_u64().into(),
             successor: any.block_successor(&block.block.hash()).unwrap_or_default(),
             confirmed: block.confirmed.into(),
             contents: block.block.json_representation(),

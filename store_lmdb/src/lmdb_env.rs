@@ -66,10 +66,10 @@ impl LmdbEnvFactory {
         }
     }
 
-    pub fn create_env(&self, path: impl AsRef<Path>) -> anyhow::Result<LmdbEnv> {
+    pub fn create_env(&self, path: impl Into<PathBuf>) -> anyhow::Result<LmdbEnv> {
         let cfg = LmdbConfig::default();
         let options = EnvironmentOptions {
-            path: path.as_ref(),
+            path: path.into(),
             max_dbs: cfg.max_databases,
             map_size: cfg.map_size,
             flags: get_env_flags(&cfg),

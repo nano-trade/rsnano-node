@@ -1,15 +1,16 @@
-use rsnano_core::{Epochs, PublicKey, SavedBlock, Signature};
-use rsnano_ledger::LedgerConstants;
-use rsnano_store_lmdb::{LmdbBlockStore, LmdbEnvFactory};
 use std::{
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         mpsc::{self, SyncSender},
         Mutex,
     },
     thread::{self, available_parallelism},
 };
+
+use rsnano_core::{Epochs, PublicKey, SavedBlock, Signature};
+use rsnano_ledger::LedgerConstants;
+use rsnano_store_lmdb::{LmdbBlockStore, LmdbEnvFactory};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -22,7 +23,7 @@ fn main() {
     check_ledger_file(ledger_file);
 }
 
-fn check_ledger_file(ledger_file: impl AsRef<Path>) {
+fn check_ledger_file(ledger_file: impl Into<PathBuf>) {
     let env = LmdbEnvFactory::default().create_env(ledger_file).unwrap();
     let block_store = LmdbBlockStore::new(&env).unwrap();
 

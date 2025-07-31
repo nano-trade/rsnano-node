@@ -68,8 +68,8 @@ impl LmdbStore {
         Self::new(LmdbEnv::new_null()).unwrap()
     }
 
-    pub fn new(env: LmdbEnv) -> anyhow::Result<Self> {
-        upgrade_if_needed(&env)?;
+    pub fn new(mut env: LmdbEnv) -> anyhow::Result<Self> {
+        upgrade_if_needed(&mut env)?;
 
         Ok(Self {
             cache: Arc::new(LedgerCache::new()),
@@ -124,7 +124,7 @@ impl LmdbStore {
     }
 }
 
-fn upgrade_if_needed(env: &LmdbEnv) -> Result<(), anyhow::Error> {
+fn upgrade_if_needed(env: &mut LmdbEnv) -> Result<(), anyhow::Error> {
     let upgrade_info = LmdbVersionStore::check_upgrade(&env)?;
     if upgrade_info.is_fully_upgraded {
         debug!("No database upgrade needed");
@@ -132,7 +132,7 @@ fn upgrade_if_needed(env: &LmdbEnv) -> Result<(), anyhow::Error> {
     }
 
     info!("Upgrade in progress...");
-    do_upgrades(&env)?;
+    do_upgrades(env)?;
     info!("Upgrade done!");
     env.sync()?;
     Ok(())

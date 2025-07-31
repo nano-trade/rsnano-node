@@ -522,7 +522,7 @@ impl Node {
             Arc::new(LmdbEnv::new_null())
         } else {
             let options = EnvironmentOptions {
-                path: &wallets_path,
+                path: wallets_path,
                 max_dbs: 128,
                 map_size: 1024 * 1024 * 1024,
                 flags: EnvironmentFlags::NO_SUB_DIR

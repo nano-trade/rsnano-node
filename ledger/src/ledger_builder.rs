@@ -95,7 +95,7 @@ impl<'a> LedgerBuilder<'a> {
             max_dbs: config.max_databases,
             map_size: config.map_size,
             flags: get_env_flags(&config),
-            path: &self.path,
+            path: self.path,
         };
         let mut env = env_factory.create_with_options(env_options)?;
         if let Some(txn_tracker) = self.txn_tracker {

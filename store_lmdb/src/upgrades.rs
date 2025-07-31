@@ -13,7 +13,7 @@ use crate::{
     STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 
-pub(crate) fn do_upgrades(env: &LmdbEnv) -> anyhow::Result<()> {
+pub(crate) fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<()> {
     let version_store = LmdbVersionStore::new(env)?;
 
     let mut version = {
@@ -48,14 +48,22 @@ pub(crate) fn do_upgrades(env: &LmdbEnv) -> anyhow::Result<()> {
         bail!("version too high");
     }
 
+    let mut needs_vacuuming = false;
+
     loop {
         if version == STORE_VERSION_CURRENT {
             break;
         }
 
         match version {
-            24 => create_successor_table(env)?,
-            10_000 => remove_successor_from_sideband(env)?,
+            24 => {
+                create_successor_table(env)?;
+                needs_vacuuming = true;
+            }
+            10_000 => {
+                remove_successor_from_sideband(env)?;
+                needs_vacuuming = true;
+            }
             _ => unreachable!(),
         };
 
@@ -63,6 +71,10 @@ pub(crate) fn do_upgrades(env: &LmdbEnv) -> anyhow::Result<()> {
 
         let mut tx = env.tx_begin_write();
         version_store.put(&mut tx, version);
+    }
+
+    if needs_vacuuming {
+        //env.vacuum()?;
     }
 
     Ok(())
