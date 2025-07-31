@@ -9,6 +9,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[derive(Clone)]
 pub struct EnvironmentOptions {
     pub max_dbs: u32,
     pub map_size: usize,

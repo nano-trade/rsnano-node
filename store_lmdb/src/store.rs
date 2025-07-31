@@ -10,12 +10,12 @@ use std::{
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::MDB_SUCCESS;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use rsnano_core::utils::UnixTimestamp;
 
 use crate::{
-    successor_store::LmdbSuccessorStore, upgrades::do_upgrades, LmdbAccountStore, LmdbBlockStore,
+    successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
     LmdbConfirmationHeightStore, LmdbDatabase, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore,
     LmdbPeerStore, LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore,
     LmdbVersionStore, LmdbWriteTransaction, Writer,
@@ -68,9 +68,7 @@ impl LmdbStore {
         Self::new(LmdbEnv::new_null()).unwrap()
     }
 
-    pub fn new(mut env: LmdbEnv) -> anyhow::Result<Self> {
-        upgrade_if_needed(&mut env)?;
-
+    pub fn new(env: LmdbEnv) -> anyhow::Result<Self> {
         Ok(Self {
             cache: Arc::new(LedgerCache::new()),
             block: LmdbBlockStore::new(&env)?,
@@ -122,20 +120,6 @@ impl LmdbStore {
     pub fn tx_begin_write(&self, writer: Writer) -> LmdbWriteTransaction {
         self.env.tx_begin_write_for(writer)
     }
-}
-
-fn upgrade_if_needed(env: &mut LmdbEnv) -> Result<(), anyhow::Error> {
-    let upgrade_info = LmdbVersionStore::check_upgrade(&env)?;
-    if upgrade_info.is_fully_upgraded {
-        debug!("No database upgrade needed");
-        return Ok(());
-    }
-
-    info!("Upgrade in progress...");
-    do_upgrades(env)?;
-    info!("Upgrade done!");
-    env.sync()?;
-    Ok(())
 }
 
 fn rebuild_table(
@@ -245,53 +229,12 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LmdbEnvFactory, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM};
+    use crate::LmdbEnvFactory;
 
     #[test]
     fn create_store() -> anyhow::Result<()> {
         let env = LmdbEnvFactory::new_null().create_env("/nulled/store.ldb")?;
         let _ = LmdbStore::new(env)?;
-        Ok(())
-    }
-
-    #[test]
-    fn version_too_high_for_upgrade() -> anyhow::Result<()> {
-        let env = LmdbEnv::new_null();
-        set_store_version(&env, i32::MAX)?;
-        assert_upgrade_fails(env, "version too high");
-        Ok(())
-    }
-
-    #[test]
-    fn version_too_low_for_upgrade() -> anyhow::Result<()> {
-        let env = LmdbEnv::new_null();
-        set_store_version(&env, STORE_VERSION_MINIMUM - 1)?;
-        assert_upgrade_fails(env, "version too low");
-        Ok(())
-    }
-
-    #[test]
-    fn writes_db_version_for_new_store() {
-        let env = LmdbEnv::new_null();
-        let store = LmdbStore::new(env).unwrap();
-        let txn = store.tx_begin_read();
-        assert_eq!(store.version.get(&txn), Some(STORE_VERSION_CURRENT));
-    }
-
-    fn assert_upgrade_fails(env: LmdbEnv, error_msg: &str) {
-        let store = LmdbStore::new(env);
-        match store {
-            Ok(_) => panic!("store should not be created!"),
-            Err(e) => {
-                assert_eq!(e.to_string(), error_msg);
-            }
-        }
-    }
-
-    fn set_store_version(env: &LmdbEnv, current_version: i32) -> Result<(), anyhow::Error> {
-        let version_store = LmdbVersionStore::new(env)?;
-        let mut txn = env.tx_begin_write();
-        version_store.put(&mut txn, current_version);
         Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::{MDB_FIRST, MDB_NEXT};
 use num_traits::FromPrimitive;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use rsnano_core::{
     utils::{UnixMillisTimestamp, UnixTimestamp},
@@ -9,11 +9,39 @@ use rsnano_core::{
 };
 
 use crate::{
-    LmdbEnv, LmdbVersionStore, Transaction, FIRST_INCOMPATIBLE_STORE_VERSION,
-    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
+    vacuum::vacuum, LmdbEnv, LmdbEnvFactory, LmdbVersionStore, Transaction,
+    FIRST_INCOMPATIBLE_STORE_VERSION, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
+use rsnano_nullable_lmdb::EnvironmentOptions;
 
-pub(crate) fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<()> {
+pub fn create_and_update_lmdb_env(
+    env_factory: &LmdbEnvFactory,
+    options: EnvironmentOptions,
+) -> anyhow::Result<LmdbEnv> {
+    let mut env = env_factory.create_with_options(options.clone())?;
+    let needs_vacuuming = upgrade_if_needed(&mut env)?;
+    if needs_vacuuming {
+        vacuum(env)?;
+        env = env_factory.create_with_options(options)?;
+    }
+    Ok(env)
+}
+
+fn upgrade_if_needed(env: &mut LmdbEnv) -> Result<bool, anyhow::Error> {
+    let upgrade_info = LmdbVersionStore::check_upgrade(&env)?;
+    if upgrade_info.is_fully_upgraded {
+        debug!("No database upgrade needed");
+        return Ok(false);
+    }
+
+    info!("Upgrade in progress...");
+    let needs_vacuuming = do_upgrades(env)?;
+    info!("Upgrade done!");
+    env.sync()?;
+    Ok(needs_vacuuming)
+}
+
+fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<bool> {
     let version_store = LmdbVersionStore::new(env)?;
 
     let mut version = {
@@ -30,7 +58,7 @@ pub(crate) fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<()> {
     };
 
     if version == STORE_VERSION_CURRENT {
-        return Ok(());
+        return Ok(false);
     }
 
     if version < STORE_VERSION_MINIMUM {
@@ -77,7 +105,7 @@ pub(crate) fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<()> {
         //env.vacuum()?;
     }
 
-    Ok(())
+    Ok(needs_vacuuming)
 }
 
 fn next_version(version: i32) -> i32 {
@@ -269,5 +297,47 @@ mod tests {
         let sideband = V24Sideband::new(&data);
 
         assert_eq!(sideband.successor(), *successor.as_bytes());
+    }
+
+    #[test]
+    fn version_too_high_for_upgrade() -> anyhow::Result<()> {
+        let env = LmdbEnv::new_null();
+        set_store_version(&env, i32::MAX)?;
+        assert_upgrade_fails(env, "version too high");
+        Ok(())
+    }
+
+    #[test]
+    fn version_too_low_for_upgrade() -> anyhow::Result<()> {
+        let env = LmdbEnv::new_null();
+        set_store_version(&env, STORE_VERSION_MINIMUM - 1)?;
+        assert_upgrade_fails(env, "version too low");
+        Ok(())
+    }
+
+    #[test]
+    fn writes_db_version_for_new_store() {
+        let mut env = LmdbEnv::new_null();
+        upgrade_if_needed(&mut env).unwrap();
+        let txn = env.tx_begin_read();
+        let version_store = LmdbVersionStore::new(&env).unwrap();
+        assert_eq!(version_store.get(&txn), Some(STORE_VERSION_CURRENT));
+    }
+
+    fn assert_upgrade_fails(mut env: LmdbEnv, error_msg: &str) {
+        let result = upgrade_if_needed(&mut env);
+        match result {
+            Ok(_) => panic!("store should not be created!"),
+            Err(e) => {
+                assert_eq!(e.to_string(), error_msg);
+            }
+        }
+    }
+
+    fn set_store_version(env: &LmdbEnv, current_version: i32) -> Result<(), anyhow::Error> {
+        let version_store = LmdbVersionStore::new(env)?;
+        let mut txn = env.tx_begin_write();
+        version_store.put(&mut txn, current_version);
+        Ok(())
     }
 }

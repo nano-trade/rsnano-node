@@ -20,6 +20,7 @@ mod rep_weight_store;
 mod store;
 mod successor_store;
 mod upgrades;
+mod vacuum;
 mod version_store;
 mod wallet_store;
 mod write_queue;
@@ -44,6 +45,8 @@ use rsnano_nullable_lmdb::{
     RwTransaction,
 };
 pub use store::{create_backup_file, LedgerCache, LmdbStore, MemoryStats};
+pub use upgrades::create_and_update_lmdb_env;
+pub use vacuum::vacuum;
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
 pub use write_queue::*;
