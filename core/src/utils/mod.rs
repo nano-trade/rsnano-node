@@ -271,7 +271,7 @@ impl Add<Duration> for UnixMillisTimestamp {
     type Output = UnixMillisTimestamp;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        Self(self.0 + rhs.as_secs())
+        Self(self.0 + rhs.as_millis() as u64)
     }
 }
 

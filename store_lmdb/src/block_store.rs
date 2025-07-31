@@ -1,40 +1,62 @@
 use crate::{
     LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
-    BLOCK_TEST_DATABASE,
+    BLOCK_DATA_DATABASE, BLOCK_INDEX_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
+use lmdb_sys::MDB_LAST;
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
     BlockHash, SavedBlock,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::{ops::RangeBounds, sync::Arc};
+use std::{
+    ops::RangeBounds,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
 pub struct LmdbBlockStore {
-    database: LmdbDatabase,
+    /// block hash => id
+    index_db: LmdbDatabase,
+
+    /// id => block data
+    block_db: LmdbDatabase,
+
     put_listener: OutputListenerMt<SavedBlock>,
+    next_id: AtomicU64,
 }
 
 pub struct ConfiguredBlockDatabaseBuilder {
-    database: ConfiguredDatabase,
+    index_db: ConfiguredDatabase,
+    block_db: ConfiguredDatabase,
+    next_id: u64,
 }
 
 impl ConfiguredBlockDatabaseBuilder {
     pub fn new() -> Self {
         Self {
-            database: ConfiguredDatabase::new(BLOCK_TEST_DATABASE, "blocks"),
+            index_db: ConfiguredDatabase::new(BLOCK_INDEX_DATABASE, BLOCK_INDEX_DB_NAME),
+            block_db: ConfiguredDatabase::new(BLOCK_DATA_DATABASE, BLOCK_DATA_DB_NAME),
+            next_id: 0,
         }
     }
 
     pub fn block(mut self, block: &SavedBlock) -> Self {
-        self.database
-            .insert(block.hash().as_bytes(), block.serialize_with_sideband());
+        let id = self.next_id;
+        self.next_id += 1;
+
+        self.index_db
+            .insert(block.hash().as_bytes(), &id.to_be_bytes());
+        self.block_db
+            .insert(&id.to_be_bytes(), block.serialize_with_sideband());
         self
     }
 
-    pub fn build(self) -> ConfiguredDatabase {
-        self.database
+    pub fn build(self) -> (ConfiguredDatabase, ConfiguredDatabase) {
+        (self.index_db, self.block_db)
     }
 }
 
@@ -44,18 +66,22 @@ impl LmdbBlockStore {
     }
 
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
+        let index_db = env
             .environment
-            .create_db(Some("blocks"), DatabaseFlags::empty())?;
+            .create_db(Some(BLOCK_INDEX_DB_NAME), DatabaseFlags::empty())?;
+
+        let block_db = env
+            .environment
+            .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
+
+        let next_id = get_highest_id(env, index_db)?;
 
         Ok(Self {
-            database,
+            index_db,
+            block_db,
             put_listener: OutputListenerMt::new(),
+            next_id: AtomicU64::new(next_id),
         })
-    }
-
-    pub fn database(&self) -> LmdbDatabase {
-        self.database
     }
 
     pub fn track_puts(&self) -> Arc<OutputTrackerMt<SavedBlock>> {
@@ -71,7 +97,7 @@ impl LmdbBlockStore {
     }
 
     pub fn exists(&self, transaction: &dyn Transaction, hash: &BlockHash) -> bool {
-        transaction.exists(self.database, hash.as_bytes())
+        transaction.exists(self.index_db, hash.as_bytes())
     }
 
     pub fn get(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
@@ -83,56 +109,106 @@ impl LmdbBlockStore {
     }
 
     pub fn del(&self, txn: &mut LmdbWriteTransaction, hash: &BlockHash) {
-        txn.delete(self.database, hash.as_bytes(), None).unwrap();
+        let id = match txn.get(self.index_db, hash.as_bytes()) {
+            Ok(id_bytes) => get_block_id(id_bytes),
+            Err(lmdb::Error::NotFound) => return,
+            Err(e) => panic!("Could not delete block: {e:?} (hash: {hash})"),
+        };
+
+        txn.delete(self.block_db, &id.to_be_bytes(), None)
+            .expect("Could not delete block data (ID: {id})");
+        txn.delete(self.index_db, hash.as_bytes(), None)
+            .expect("Could not delete block index (hash: {hash})");
     }
 
     pub fn count(&self, txn: &dyn Transaction) -> u64 {
-        txn.count(self.database)
+        txn.count(self.index_db)
     }
 
-    pub fn iter<'tx>(&self, tx: &'tx dyn Transaction) -> impl Iterator<Item = SavedBlock> + 'tx {
+    pub fn iter<'tx>(
+        &'tx self,
+        tx: &'tx dyn Transaction,
+    ) -> impl Iterator<Item = SavedBlock> + 'tx {
         let cursor = tx
-            .open_ro_cursor(self.database)
-            .expect("Could not open cursor for block table");
+            .open_ro_cursor(self.index_db)
+            .expect("Could not open cursor for block index table");
 
-        LmdbIterator::new(cursor, |k, v| {
-            let hash = BlockHash::from_slice(k).unwrap();
-            let mut stream = BufferReader::new(v);
-            let block = SavedBlock::deserialize(&mut stream).unwrap();
-            (hash, block)
+        LmdbIterator::new(cursor, |_, v| (0, get_block_id(v))).map(move |(_, id)| {
+            let data = tx
+                .get(self.block_db, &id.to_be_bytes())
+                .expect("Block data missing (id: {id})");
+
+            let mut stream = BufferReader::new(data);
+            SavedBlock::deserialize(&mut stream).expect("Invalid block data (id: {id})")
         })
-        .map(|(_, v)| v)
     }
 
-    pub fn iter_range<'txn>(
-        &self,
+    pub fn iter_range<'txn, R>(
+        &'txn self,
         tx: &'txn dyn Transaction,
-        range: impl RangeBounds<BlockHash> + 'static,
-    ) -> impl Iterator<Item = SavedBlock> + 'txn {
+        range: R,
+    ) -> impl Iterator<Item = SavedBlock> + 'txn
+    where
+        R: RangeBounds<BlockHash> + 'static,
+    {
         let cursor = tx
-            .open_ro_cursor(self.database)
+            .open_ro_cursor(self.index_db)
             .expect("Could not open cursor for block table");
 
-        LmdbRangeIterator::new(cursor, range).map(|(_, v)| v)
+        LmdbRangeIterator::<BlockHash, u64, R>::new(cursor, range).map(move |(_, id)| {
+            let data = tx
+                .get(self.block_db, &id.to_be_bytes())
+                .expect("Block data missing (id: {id})");
+            let mut stream = BufferReader::new(data);
+            let block =
+                SavedBlock::deserialize(&mut stream).expect("Invalid block data (id: {id})");
+            block
+        })
     }
 
-    pub fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {
-        txn.put(self.database, hash.as_bytes(), data, WriteFlags::empty())
-            .unwrap();
+    fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+
+        txn.put(
+            self.index_db,
+            hash.as_bytes(),
+            &id.to_be_bytes(),
+            WriteFlags::empty(),
+        )
+        .expect("Couldn't insert into block index table");
+
+        txn.put(self.block_db, &id.to_be_bytes(), data, WriteFlags::APPEND)
+            .expect("Couldn't insert into block data table'");
     }
 
-    pub fn block_raw_get<'a>(
-        &self,
-        txn: &'a dyn Transaction,
-        hash: &BlockHash,
-    ) -> Option<&'a [u8]> {
-        match txn.get(self.database, hash.as_bytes()) {
+    fn block_raw_get<'a>(&self, txn: &'a dyn Transaction, hash: &BlockHash) -> Option<&'a [u8]> {
+        match txn.get(self.index_db, hash.as_bytes()) {
             Err(lmdb::Error::NotFound) => None,
-            Ok(bytes) => Some(bytes),
+            Ok(id_bytes) => Some(
+                txn.get(self.block_db, id_bytes)
+                    .expect("Block data missing"),
+            ),
             Err(e) => panic!("Could not load block. {:?}", e),
         }
     }
 }
+
+fn get_block_id(id_bytes: &[u8]) -> u64 {
+    u64::from_be_bytes(id_bytes.try_into().expect("Invalid block ID"))
+}
+
+fn get_highest_id(env: &LmdbEnv, database: LmdbDatabase) -> Result<u64, anyhow::Error> {
+    let tx = env.tx_begin_read();
+    let cursor = tx.open_ro_cursor(database)?;
+    match cursor.get(None, None, MDB_LAST) {
+        Ok((_, data)) => Ok(u64::from_be_bytes(data.try_into()?)),
+        Err(lmdb::Error::NotFound) => Ok(0),
+        Err(e) => Err(anyhow!("Couldn't load highest block id: {e:?}")),
+    }
+}
+
+const BLOCK_INDEX_DB_NAME: &str = "block_index";
+const BLOCK_DATA_DB_NAME: &str = "block_data";
 
 #[cfg(test)]
 mod tests {
@@ -174,10 +250,14 @@ mod tests {
         let block = SavedBlock::new_test_instance();
 
         let env = LmdbEnv::new_null_with()
-            .database("blocks", LmdbDatabase::new_null(100))
-            .entry(block.hash().as_bytes(), &block.serialize_with_sideband())
+            .database(BLOCK_INDEX_DB_NAME, LmdbDatabase::new_null(99))
+            .entry(block.hash().as_bytes(), &1u64.to_be_bytes())
+            .build()
+            .database(BLOCK_DATA_DB_NAME, LmdbDatabase::new_null(100))
+            .entry(&1u64.to_be_bytes(), &block.serialize_with_sideband())
             .build()
             .build();
+
         let fixture = Fixture::with_env(env);
         let txn = fixture.env.tx_begin_read();
 
@@ -220,9 +300,12 @@ mod tests {
     #[test]
     fn can_be_nulled() {
         let block = SavedBlock::new_test_instance();
-        let configured_responses = LmdbBlockStore::configured_responses().block(&block).build();
+        let (block_index, block_data) =
+            LmdbBlockStore::configured_responses().block(&block).build();
+
         let env = LmdbEnv::new_null_with()
-            .configured_database(configured_responses)
+            .configured_database(block_index)
+            .configured_database(block_data)
             .build();
         let txn = env.tx_begin_read();
         let block_store = LmdbBlockStore::new(&env).unwrap();

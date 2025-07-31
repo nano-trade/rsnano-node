@@ -48,7 +48,7 @@ impl SavedBlockLatticeBuilder {
             accounts,
             work_pool,
             pending_receives: Default::default(),
-            now: UnixMillisTimestamp::new(42),
+            now: UnixMillisTimestamp::new(42000),
         }
     }
 
@@ -115,7 +115,7 @@ impl SavedBlockLatticeBuilder {
 
         BlockSideband {
             height: new_frontier.height,
-            timestamp: self.now.into(),
+            timestamp: self.now,
             account,
             balance: new_frontier.balance,
             details: BlockDetails::new(Epoch::Epoch0, is_send, is_receive, false), //TODO epoch

@@ -421,9 +421,9 @@ fn configured_peers_response() {
 #[test]
 fn block_priority() {
     let mut lattice = SavedBlockLatticeBuilder::new();
-    lattice.set_now(UnixMillisTimestamp::new(10));
+    lattice.set_now(UnixMillisTimestamp::new(10000));
     let send = lattice.genesis().send(&*DEV_GENESIS_KEY, Amount::nano(500));
-    lattice.set_now(UnixMillisTimestamp::new(20));
+    lattice.set_now(UnixMillisTimestamp::new(20000));
     let receive = lattice.genesis().receive(&send);
     let ledger = Ledger::new_null_builder()
         .block(&send)
