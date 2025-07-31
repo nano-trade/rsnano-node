@@ -3,7 +3,10 @@ use lmdb_sys::{MDB_FIRST, MDB_NEXT};
 use num_traits::FromPrimitive;
 use tracing::{error, info};
 
-use rsnano_core::BlockType;
+use rsnano_core::{
+    utils::{UnixMillisTimestamp, UnixTimestamp},
+    BlockType,
+};
 
 use crate::{
     LmdbEnv, LmdbVersionStore, Transaction, FIRST_INCOMPATIBLE_STORE_VERSION,
@@ -122,7 +125,7 @@ fn remove_successor_from_sideband(env: &LmdbEnv) -> Result<(), anyhow::Error> {
                 hash_bytes.copy_from_slice(k);
 
                 let v24_sideband = V24Sideband::new(v);
-                v24_sideband.remove_successor(&mut new_data);
+                v24_sideband.remove_successor_and_upgrade_timestamp_to_millis(&mut new_data);
 
                 cursor.put(&hash_bytes, &new_data, WriteFlags::CURRENT)?;
                 processed += 1;
@@ -158,10 +161,11 @@ impl<'a> V24Sideband<'a> {
             .unwrap()
     }
 
-    pub fn remove_successor(&self, result: &mut Vec<u8>) {
+    pub fn remove_successor_and_upgrade_timestamp_to_millis(&self, result: &mut Vec<u8>) {
         result.clear();
         result.extend_from_slice(self.block_without_sideband());
         result.extend_from_slice(&self.sideband_without_successor());
+        self.upgrade_timestamp_to_millis(result);
     }
 
     fn sideband_without_successor(&self) -> &[u8] {
@@ -180,6 +184,21 @@ impl<'a> V24Sideband<'a> {
 
     fn block_type(&self) -> BlockType {
         BlockType::from_u8(self.data[0]).expect("invalid block type")
+    }
+
+    fn upgrade_timestamp_to_millis(&self, result: &mut [u8]) {
+        let timestamp_slice = self.timestamp_slice(result);
+        let timestamp_seconds = UnixTimestamp::from_be_bytes(timestamp_slice.try_into().unwrap());
+        let timestamp_millis = UnixMillisTimestamp::from(timestamp_seconds);
+        timestamp_slice.copy_from_slice(&timestamp_millis.to_be_bytes());
+    }
+
+    fn timestamp_slice<'r>(&self, result: &'r mut [u8]) -> &'r mut [u8] {
+        let mut start_index = result.len() - 8;
+        if self.block_type() == BlockType::State {
+            start_index -= 2; // details + source epoch bytes
+        }
+        &mut result[start_index..start_index + 8]
     }
 }
 
