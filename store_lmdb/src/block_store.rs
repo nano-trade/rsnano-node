@@ -74,7 +74,7 @@ impl LmdbBlockStore {
             .environment
             .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
 
-        let next_id = find_next_free_id(env, index_db)?;
+        let next_id = find_next_free_id(env, block_db)?;
 
         Ok(Self {
             index_db,
@@ -167,7 +167,7 @@ impl LmdbBlockStore {
     }
 
     fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
 
         txn.put(
             self.index_db,
@@ -197,11 +197,12 @@ fn get_block_id(id_bytes: &[u8]) -> u64 {
     u64::from_be_bytes(id_bytes.try_into().expect("Invalid block ID"))
 }
 
-fn find_next_free_id(env: &LmdbEnv, database: LmdbDatabase) -> Result<u64, anyhow::Error> {
+fn find_next_free_id(env: &LmdbEnv, block_db: LmdbDatabase) -> Result<u64, anyhow::Error> {
     let tx = env.tx_begin_read();
-    let cursor = tx.open_ro_cursor(database)?;
+    let cursor = tx.open_ro_cursor(block_db)?;
     match cursor.get(None, None, MDB_LAST) {
-        Ok((_, data)) => Ok(get_block_id(data) + 1),
+        Ok((Some(key), _)) => Ok(get_block_id(key) + 1),
+        Ok((None, _)) => panic!("No key!"),
         Err(lmdb::Error::NotFound) => Ok(0),
         Err(e) => Err(anyhow!("Couldn't load highest block id: {e:?}")),
     }
