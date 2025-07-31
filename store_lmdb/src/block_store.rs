@@ -74,7 +74,7 @@ impl LmdbBlockStore {
             .environment
             .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
 
-        let next_id = get_highest_id(env, index_db)?;
+        let next_id = find_next_free_id(env, index_db)?;
 
         Ok(Self {
             index_db,
@@ -101,8 +101,8 @@ impl LmdbBlockStore {
     }
 
     pub fn get(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
-        self.block_raw_get(txn, hash).map(|bytes| {
-            let mut stream = BufferReader::new(bytes);
+        self.block_raw_get(txn, hash).map(|block_bytes| {
+            let mut stream = BufferReader::new(block_bytes);
             SavedBlock::deserialize(&mut stream)
                 .unwrap_or_else(|_| panic!("Could not deserialize block {}!", hash))
         })
@@ -173,7 +173,7 @@ impl LmdbBlockStore {
             self.index_db,
             hash.as_bytes(),
             &id.to_be_bytes(),
-            WriteFlags::empty(),
+            WriteFlags::NO_OVERWRITE,
         )
         .expect("Couldn't insert into block index table");
 
@@ -197,11 +197,11 @@ fn get_block_id(id_bytes: &[u8]) -> u64 {
     u64::from_be_bytes(id_bytes.try_into().expect("Invalid block ID"))
 }
 
-fn get_highest_id(env: &LmdbEnv, database: LmdbDatabase) -> Result<u64, anyhow::Error> {
+fn find_next_free_id(env: &LmdbEnv, database: LmdbDatabase) -> Result<u64, anyhow::Error> {
     let tx = env.tx_begin_read();
     let cursor = tx.open_ro_cursor(database)?;
     match cursor.get(None, None, MDB_LAST) {
-        Ok((_, data)) => Ok(u64::from_be_bytes(data.try_into()?)),
+        Ok((_, data)) => Ok(get_block_id(data) + 1),
         Err(lmdb::Error::NotFound) => Ok(0),
         Err(e) => Err(anyhow!("Couldn't load highest block id: {e:?}")),
     }
@@ -276,12 +276,20 @@ mod tests {
 
         assert_eq!(
             put_tracker.output(),
-            vec![PutEvent {
-                database: LmdbDatabase::new_null(42),
-                key: block.hash().as_bytes().to_vec(),
-                value: block.serialize_with_sideband(),
-                flags: lmdb::WriteFlags::empty(),
-            }]
+            vec![
+                PutEvent {
+                    database: LmdbDatabase::new_null(42),
+                    key: block.hash().as_bytes().to_vec(),
+                    value: 0u64.to_be_bytes().to_vec(),
+                    flags: lmdb::WriteFlags::empty(),
+                },
+                PutEvent {
+                    database: LmdbDatabase::new_null(43),
+                    key: 0u64.to_be_bytes().to_vec(),
+                    value: block.serialize_with_sideband(),
+                    flags: lmdb::WriteFlags::APPEND,
+                }
+            ]
         );
     }
 
