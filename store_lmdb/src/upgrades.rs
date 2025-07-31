@@ -204,11 +204,58 @@ impl<'a> V24Sideband<'a> {
 
 fn v24_sideband_len(block_type: BlockType) -> usize {
     match block_type {
-        BlockType::LegacySend => 80 + 32,
-        BlockType::LegacyReceive => 96 + 32,
-        BlockType::LegacyOpen => 56 + 32,
-        BlockType::LegacyChange => 96 + 32,
-        BlockType::State => 50 + 32,
+        BlockType::LegacySend => 48 + 32,
+        BlockType::LegacyReceive => 64 + 32,
+        BlockType::LegacyOpen => 24 + 32,
+        BlockType::LegacyChange => 64 + 32,
+        BlockType::State => 18 + 32,
         blk_type => panic!("Got block type: {blk_type:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsnano_core::{
+        utils::{MemoryStream, Serialize, Stream, StreamExt},
+        Block, BlockHash, BlockSideband,
+    };
+
+    #[test]
+    fn old_sideband_len() {
+        let assert_len = |block_type: BlockType| {
+            assert_eq!(
+                v24_sideband_len(block_type),
+                BlockSideband::serialized_size(block_type) + 32,
+                "incorrect sideband len for {block_type:?}"
+            );
+        };
+        assert_len(BlockType::LegacySend);
+        assert_len(BlockType::LegacyReceive);
+        assert_len(BlockType::LegacyOpen);
+        assert_len(BlockType::LegacyChange);
+        assert_len(BlockType::State);
+    }
+
+    #[test]
+    fn get_successor_from_v24_sideband() {
+        let mut stream = MemoryStream::new();
+        let block = Block::new_test_instance();
+        assert_eq!(block.block_type(), BlockType::State);
+        block.serialize(&mut stream);
+        let successor = BlockHash::from(12345);
+        successor.serialize(&mut stream);
+        stream.write_u64_be(123).unwrap(); // block height
+        stream
+            .write_bytes(&UnixTimestamp::from(123).to_be_bytes())
+            .unwrap();
+        stream.write_u8(42).unwrap(); // block details;
+        stream.write_u8(42).unwrap(); // source epoch;
+
+        let data = stream.to_vec();
+
+        let sideband = V24Sideband::new(&data);
+
+        assert_eq!(sideband.successor(), *successor.as_bytes());
     }
 }

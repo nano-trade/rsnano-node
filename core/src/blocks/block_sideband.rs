@@ -2,7 +2,7 @@ use crate::{
     utils::{
         BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream, UnixMillisTimestamp,
     },
-    Account, Amount, BlockDetails, BlockHash, BlockType, Epoch,
+    Account, Amount, BlockDetails, BlockType, Epoch,
 };
 use num::FromPrimitive;
 
@@ -31,7 +31,7 @@ impl BlockSideband {
     }
 
     pub fn serialized_size(block_type: BlockType) -> usize {
-        let mut size = BlockHash::serialized_size(); // successor
+        let mut size = 0;
 
         if block_type != BlockType::State && block_type != BlockType::LegacyOpen {
             size += Account::serialized_size(); // account
@@ -176,27 +176,27 @@ mod tests {
     fn serialized_size() {
         assert_eq!(
             BlockSideband::serialized_size(BlockType::LegacySend),
-            80,
+            48,
             "legacy send"
         );
         assert_eq!(
             BlockSideband::serialized_size(BlockType::LegacyReceive),
-            96,
+            64,
             "legacy receive"
         );
         assert_eq!(
             BlockSideband::serialized_size(BlockType::LegacyOpen),
-            56,
+            24,
             "legacy open"
         );
         assert_eq!(
             BlockSideband::serialized_size(BlockType::LegacyChange),
-            96,
+            64,
             "legacy change"
         );
         assert_eq!(
             BlockSideband::serialized_size(BlockType::State),
-            50,
+            18,
             "legacy state"
         );
     }

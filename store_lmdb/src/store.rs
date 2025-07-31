@@ -245,7 +245,7 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LmdbEnvFactory, STORE_VERSION_MINIMUM};
+    use crate::{LmdbEnvFactory, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM};
 
     #[test]
     fn create_store() -> anyhow::Result<()> {
@@ -275,7 +275,7 @@ mod tests {
         let env = LmdbEnv::new_null();
         let store = LmdbStore::new(env).unwrap();
         let txn = store.tx_begin_read();
-        assert_eq!(store.version.get(&txn), Some(STORE_VERSION_MINIMUM));
+        assert_eq!(store.version.get(&txn), Some(STORE_VERSION_CURRENT));
     }
 
     fn assert_upgrade_fails(env: LmdbEnv, error_msg: &str) {
