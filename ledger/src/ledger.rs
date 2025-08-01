@@ -182,8 +182,10 @@ impl NullLedgerBuilder {
     }
 
     pub fn finish(self) -> Ledger {
+        let (block_index, block_data) = self.blocks.build();
         let env = LmdbEnv::new_null_with()
-            .configured_database(self.blocks.build())
+            .configured_database(block_index)
+            .configured_database(block_data)
             .configured_database(self.accounts.build())
             .configured_database(self.pending.build())
             .configured_database(self.pruned.build())

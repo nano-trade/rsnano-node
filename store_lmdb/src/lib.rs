@@ -388,6 +388,14 @@ impl LmdbWriteTransaction {
     pub fn open_rw_cursor(&mut self, database: LmdbDatabase) -> lmdb::Result<RwCursor> {
         self.rw_txn_mut().open_rw_cursor(database)
     }
+
+    /// ## Safety
+    ///
+    /// This method is unsafe in the same ways as `Environment::close_db`, and
+    /// should be used accordingly.
+    pub unsafe fn drop_db(&mut self, database: LmdbDatabase) -> lmdb::Result<()> {
+        self.rw_txn_mut().drop_db(database)
+    }
 }
 
 impl Drop for LmdbWriteTransaction {
@@ -480,14 +488,15 @@ pub const STORE_VERSION_CURRENT: i32 = 10_001;
 /// The first store version where RsNano is incompatible with nano_node
 pub const FIRST_INCOMPATIBLE_STORE_VERSION: i32 = 10_000;
 
-pub const BLOCK_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(1);
-pub const FRONTIER_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(2);
-pub const ACCOUNT_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(3);
-pub const PENDING_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(4);
-pub const PRUNED_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(5);
-pub const REP_WEIGHT_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(6);
-pub const CONFIRMATION_HEIGHT_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(7);
-pub const PEERS_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(8);
+pub const BLOCK_INDEX_DATABASE: LmdbDatabase = LmdbDatabase::new_null(1);
+pub const BLOCK_DATA_DATABASE: LmdbDatabase = LmdbDatabase::new_null(2);
+pub const FRONTIER_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(3);
+pub const ACCOUNT_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(4);
+pub const PENDING_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(5);
+pub const PRUNED_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(6);
+pub const REP_WEIGHT_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(7);
+pub const CONFIRMATION_HEIGHT_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(8);
+pub const PEERS_TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(9);
 
 #[cfg(test)]
 mod test {

@@ -9,8 +9,10 @@ use rsnano_core::{
 };
 
 use crate::{
-    vacuum::vacuum, LmdbEnv, LmdbEnvFactory, LmdbVersionStore, Transaction,
-    FIRST_INCOMPATIBLE_STORE_VERSION, STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
+    block_store::{BLOCK_DATA_DB_NAME, BLOCK_INDEX_DB_NAME},
+    vacuum::vacuum,
+    LmdbEnv, LmdbEnvFactory, LmdbVersionStore, Transaction, FIRST_INCOMPATIBLE_STORE_VERSION,
+    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
 use rsnano_nullable_lmdb::EnvironmentOptions;
 
@@ -89,7 +91,7 @@ fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<bool> {
                 needs_vacuuming = true;
             }
             10_000 => {
-                remove_successor_from_sideband(env)?;
+                remove_successor_from_sideband_and_upgrade_timestamp_and_split_table(env)?;
                 needs_vacuuming = true;
             }
             _ => unreachable!(),
@@ -145,19 +147,31 @@ fn create_successor_table(env: &LmdbEnv) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn remove_successor_from_sideband(env: &LmdbEnv) -> Result<(), anyhow::Error> {
-    info!("Removing successor from sideband and upgrading timestamp to milliseconds...");
+fn remove_successor_from_sideband_and_upgrade_timestamp_and_split_table(
+    env: &LmdbEnv,
+) -> Result<(), anyhow::Error> {
+    info!("Removing successor from sideband and upgrading timestamp to milliseconds and splitting block table...");
 
     let block_db = env
         .environment
         .create_db(Some("blocks"), DatabaseFlags::empty())?;
 
+    let index_db = env
+        .environment
+        .create_db(Some(BLOCK_INDEX_DB_NAME), DatabaseFlags::empty())?;
+
+    let block_data_db = env
+        .environment
+        .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
+
     let mut processed = 0;
+    let tx_read = env.tx_begin_read();
     let mut tx_write = env.tx_begin_write();
-    let mut cursor = tx_write.open_rw_cursor(block_db)?;
+    let cursor = tx_read.open_ro_cursor(block_db)?;
     let mut op = MDB_FIRST;
     let mut hash_bytes = [0; 32];
     let mut new_data = Vec::new();
+    let mut next_id = 0_u64;
 
     loop {
         match cursor.get(None, None, op) {
@@ -167,7 +181,15 @@ fn remove_successor_from_sideband(env: &LmdbEnv) -> Result<(), anyhow::Error> {
                 let v24_sideband = V24Sideband::new(v);
                 v24_sideband.remove_successor_and_upgrade_timestamp_to_millis(&mut new_data);
 
-                cursor.put(&hash_bytes, &new_data, WriteFlags::CURRENT)?;
+                let id = next_id;
+                next_id += 1;
+                tx_write.put(index_db, &hash_bytes, &id.to_be_bytes(), WriteFlags::APPEND)?;
+                tx_write.put(
+                    block_data_db,
+                    &id.to_be_bytes(),
+                    &new_data,
+                    WriteFlags::APPEND,
+                )?;
                 processed += 1;
                 op = MDB_NEXT;
                 if processed % 500_000 == 0 {
@@ -178,6 +200,11 @@ fn remove_successor_from_sideband(env: &LmdbEnv) -> Result<(), anyhow::Error> {
             Err(lmdb::Error::NotFound) => break,
             Err(e) => bail!("Could not iter blocks table: {e:?}"),
         }
+    }
+
+    info!("Dropping old block table...");
+    unsafe {
+        tx_write.drop_db(block_db)?;
     }
 
     Ok(())
