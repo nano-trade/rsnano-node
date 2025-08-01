@@ -208,8 +208,8 @@ fn find_next_free_id(env: &LmdbEnv, block_db: LmdbDatabase) -> Result<u64, anyho
     }
 }
 
-const BLOCK_INDEX_DB_NAME: &str = "block_index";
-const BLOCK_DATA_DB_NAME: &str = "block_data";
+pub(crate) const BLOCK_INDEX_DB_NAME: &str = "block_index";
+pub(crate) const BLOCK_DATA_DB_NAME: &str = "block_data";
 
 #[cfg(test)]
 mod tests {

@@ -388,6 +388,14 @@ impl LmdbWriteTransaction {
     pub fn open_rw_cursor(&mut self, database: LmdbDatabase) -> lmdb::Result<RwCursor> {
         self.rw_txn_mut().open_rw_cursor(database)
     }
+
+    /// ## Safety
+    ///
+    /// This method is unsafe in the same ways as `Environment::close_db`, and
+    /// should be used accordingly.
+    pub unsafe fn drop_db(&mut self, database: LmdbDatabase) -> lmdb::Result<()> {
+        self.rw_txn_mut().drop_db(database)
+    }
 }
 
 impl Drop for LmdbWriteTransaction {
