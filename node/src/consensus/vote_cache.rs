@@ -18,6 +18,7 @@ use rsnano_core::{
     Amount, BlockHash, DescTallyKey, PublicKey, Vote, VoteError,
 };
 use rsnano_stats::{DetailType, StatType, Stats};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VoteCacheConfig {
@@ -336,8 +337,8 @@ impl CacheEntry {
 #[derive(Default)]
 pub struct CacheEntryCollection {
     sequential: BTreeMap<usize, BlockHash>,
-    by_hash: HashMap<BlockHash, CacheEntry>,
-    by_tally: BTreeMap<DescTallyKey, Vec<BlockHash>>,
+    by_hash: FxHashMap<BlockHash, CacheEntry>,
+    by_tally: BTreeMap<DescTallyKey, FxHashSet<BlockHash>>,
 }
 
 impl CacheEntryCollection {
@@ -350,7 +351,7 @@ impl CacheEntryCollection {
         debug_assert!(old.is_none());
 
         let tally = entry.tally().into();
-        self.by_tally.entry(tally).or_default().push(entry.hash);
+        self.by_tally.entry(tally).or_default().insert(entry.hash);
 
         let old = self.by_hash.insert(entry.hash, entry);
         debug_assert!(old.is_none());
@@ -380,7 +381,7 @@ impl CacheEntryCollection {
         self.by_tally
             .entry(new_tally.into())
             .or_default()
-            .push(hash);
+            .insert(hash);
     }
 
     fn remove_by_tally(&mut self, hash: BlockHash, tally: Amount) {
