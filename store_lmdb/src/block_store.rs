@@ -282,7 +282,7 @@ mod tests {
                     database: LmdbDatabase::new_null(42),
                     key: block.hash().as_bytes().to_vec(),
                     value: 0u64.to_be_bytes().to_vec(),
-                    flags: lmdb::WriteFlags::empty(),
+                    flags: lmdb::WriteFlags::NO_OVERWRITE,
                 },
                 PutEvent {
                     database: LmdbDatabase::new_null(43),
