@@ -1,7 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::{BTreeSet, HashMap},
-};
+use std::{cmp::Ordering, collections::BTreeSet};
 
 use super::{vote_router::VoteRouter, AecInsertRequest};
 use crate::consensus::{
@@ -12,6 +9,7 @@ use rsnano_core::{
     utils::{BlockPriority, TimePriority},
     BlockHash, QualifiedRoot,
 };
+use rustc_hash::FxHashMap;
 
 pub(crate) struct Entry {
     pub root: QualifiedRoot,
@@ -52,7 +50,7 @@ impl PartialOrd for BucketEntry {
 
 /// Contains elections and their qualified roots
 pub(crate) struct RootContainer {
-    by_root: HashMap<QualifiedRoot, Entry>,
+    by_root: FxHashMap<QualifiedRoot, Entry>,
     buckets: Vec<BTreeSet<BucketEntry>>,
     pub vote_router: VoteRouter,
 }
