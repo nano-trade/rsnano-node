@@ -4210,6 +4210,7 @@ dependencies = [
  "rsnano_store_lmdb",
  "rsnano_websocket_messages",
  "rsnano_work",
+ "rustc-hash 2.1.1",
  "scoped_threadpool",
  "serde",
  "serde_derive",

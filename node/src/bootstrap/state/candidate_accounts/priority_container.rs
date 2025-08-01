@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 
 use super::priority::{Priority, PriorityKeyDesc};
+use rustc_hash::FxHashSet;
 
 #[derive(Clone, Default)]
 pub(super) struct PriorityEntry {
@@ -39,7 +40,7 @@ impl PriorityEntry {
 #[derive(Default)]
 pub(super) struct PriorityContainer {
     by_account: BTreeMap<Account, PriorityEntry>,
-    by_priority: BTreeMap<PriorityKeyDesc, Vec<Account>>, // descending
+    by_priority: BTreeMap<PriorityKeyDesc, FxHashSet<Account>>, // descending
 }
 
 pub(crate) enum ChangePriorityResult {
@@ -80,14 +81,14 @@ impl PriorityContainer {
         self.by_priority
             .entry(priority.into())
             .or_default()
-            .push(account);
+            .insert(account);
         true
     }
 
     pub fn pop_lowest_prio(&mut self) -> Option<PriorityEntry> {
         let lowest_prio_account = {
             let (_, v) = self.by_priority.last_key_value()?;
-            v.first().unwrap().clone()
+            v.iter().next().unwrap().clone()
         };
         Some(self.remove_account(&lowest_prio_account))
     }
@@ -164,7 +165,7 @@ impl PriorityContainer {
         self.by_priority
             .entry(new_prio.into())
             .or_default()
-            .push(*account);
+            .insert(*account);
     }
 
     fn remove_account(&mut self, account: &Account) -> PriorityEntry {
@@ -176,7 +177,7 @@ impl PriorityContainer {
     fn remove_priority(&mut self, account: &Account, priority: Priority) {
         let ids = self.by_priority.get_mut(&priority.into()).unwrap();
         if ids.len() > 1 {
-            ids.retain(|i| i != account);
+            ids.remove(account);
         } else {
             self.by_priority.remove(&priority.into());
         }
