@@ -11,6 +11,7 @@ use crate::{
     consensus::{
         election::{
             AddForkResult, ConfirmationType, ConfirmedElection, Election, ElectionBehavior,
+            VoteType,
         },
         filtered_vote::FilteredVote,
     },
@@ -105,6 +106,18 @@ impl ActiveElectionsContainer {
 
         self.insert_new_election(request, now);
         Ok(())
+    }
+
+    pub fn set_last_voted(
+        &mut self,
+        root: &QualifiedRoot,
+        vote_type: VoteType,
+        timestamp: Timestamp,
+    ) {
+        let Some(entry) = self.roots.get_mut(root) else {
+            return;
+        };
+        entry.election.voted(vote_type, timestamp);
     }
 
     fn ensure_not_stopped(&self) -> Result<(), AecInsertError> {

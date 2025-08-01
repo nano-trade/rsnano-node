@@ -41,6 +41,9 @@ pub struct Election {
     /// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
     base_latency: Duration,
     account: Account,
+    last_final_vote: Option<Timestamp>,
+    last_non_final_vote: Option<Timestamp>,
+    last_voted_winner: BlockHash,
 }
 
 impl Election {
@@ -71,6 +74,9 @@ impl Election {
             base_latency,
             account: block.account(),
             winner: MaybeSavedBlock::Saved(block),
+            last_voted_winner: BlockHash::zero(),
+            last_non_final_vote: None,
+            last_final_vote: None,
         }
     }
 
@@ -159,6 +165,30 @@ impl Election {
             voter,
             VoteSummary::new(voter, hash, vote_created, vote_received),
         );
+    }
+
+    pub fn voted(&mut self, vote_type: VoteType, timestamp: Timestamp) {
+        match vote_type {
+            VoteType::NonFinal => self.last_non_final_vote = Some(timestamp),
+            VoteType::Final => self.last_final_vote = Some(timestamp),
+        }
+        self.last_voted_winner = self.winner().hash();
+    }
+
+    pub fn can_vote(&self, broadcast_interval: Duration, now: Timestamp) -> bool {
+        if self.last_voted_winner != self.winner().hash() {
+            return true;
+        }
+
+        let last_vote = match self.vote_type() {
+            VoteType::NonFinal => self.last_non_final_vote,
+            VoteType::Final => self.last_final_vote,
+        };
+
+        match last_vote {
+            Some(last) => now >= last + broadcast_interval,
+            None => true,
+        }
     }
 
     pub fn winner_tally(&self) -> Amount {

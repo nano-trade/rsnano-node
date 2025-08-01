@@ -1,4 +1,4 @@
-use super::{last_votes::LastVotes, CpsLimiter, VoteGenerators};
+use super::{CpsLimiter, VoteGenerators};
 use crate::consensus::{
     election::VoteType, election_schedulers::priority::bucket_count, ActiveElectionsContainer,
 };
@@ -7,16 +7,19 @@ use rsnano_core::{
     BlockHash, Networks, Root,
 };
 use rsnano_nullable_clock::SteadyClock;
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 /// Creates votes for blocks within the AEC
 pub(crate) struct AecVoter {
     aec: Arc<RwLock<ActiveElectionsContainer>>,
     vote_generators: Arc<VoteGenerators>,
     clock: Arc<SteadyClock>,
-    last_votes: LastVotes,
     cps_limiter: CpsLimiter,
     current_bucket: usize,
+    vote_broadcast_interval: Duration,
 }
 
 impl AecVoter {
@@ -31,9 +34,12 @@ impl AecVoter {
             aec,
             vote_generators,
             clock,
-            last_votes: LastVotes::new(network),
             cps_limiter,
             current_bucket: bucket_count() - 1,
+            vote_broadcast_interval: match network {
+                Networks::NanoDevNetwork => Duration::from_millis(500),
+                _ => Duration::from_secs(15),
+            },
         }
     }
 
@@ -48,31 +54,37 @@ impl AecVoter {
 impl Runnable for AecVoter {
     fn run(&mut self, cancel_token: &CancellationToken) {
         let now = self.clock.now();
-        let aec = self.aec.read().unwrap();
+        let mut aec = self.aec.write().unwrap();
         let mut voted = true;
         let mut vote_queue = Vec::new();
         while voted {
             voted = false;
             loop {
-                for election in aec.iter_bucket(self.current_bucket) {
-                    let vote_type = election.vote_type();
-                    let winner_hash = election.winner().hash();
-
-                    if self.last_votes.can_vote(winner_hash, vote_type, now) {
-                        if vote_type == VoteType::NonFinal && !self.cps_limiter.try_vote(now) {
-                            self.flush(&mut vote_queue);
-                            return;
-                        }
-
-                        vote_queue.push((election.qualified_root().root, winner_hash, vote_type));
-
-                        self.last_votes.voted(winner_hash, vote_type, now);
-                        voted = true;
-
-                        // Vote for only one election per bucket
-                        break;
+                let vote_target = aec.iter_bucket(self.current_bucket).find_map(|election| {
+                    if election.can_vote(self.vote_broadcast_interval, now) {
+                        Some((
+                            election.qualified_root().clone(),
+                            election.vote_type(),
+                            election.winner().hash(),
+                        ))
+                    } else {
+                        None
                     }
+                });
+
+                if let Some((root, vote_type, winner_hash)) = vote_target {
+                    if vote_type == VoteType::NonFinal && !self.cps_limiter.try_vote(now) {
+                        drop(aec);
+                        self.flush(&mut vote_queue);
+                        return;
+                    }
+
+                    vote_queue.push((root.root, winner_hash, vote_type));
+
+                    aec.set_last_voted(&root, vote_type, now);
+                    voted = true;
                 }
+
                 if cancel_token.is_cancelled() {
                     return;
                 }
@@ -85,6 +97,7 @@ impl Runnable for AecVoter {
                 }
             }
         }
+        drop(aec);
         self.flush(&mut vote_queue);
     }
 }
