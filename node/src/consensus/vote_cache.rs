@@ -377,20 +377,20 @@ impl CacheEntryCollection {
         if old_tally == new_tally {
             return;
         }
-        self.remove_by_tally(hash, old_tally);
+        self.remove_by_tally(&hash, old_tally);
         self.by_tally
             .entry(new_tally.into())
             .or_default()
             .insert(hash);
     }
 
-    fn remove_by_tally(&mut self, hash: BlockHash, tally: Amount) {
+    fn remove_by_tally(&mut self, hash: &BlockHash, tally: Amount) {
         let key = DescTallyKey::from(tally);
         let hashes = self.by_tally.get_mut(&key).unwrap();
         if hashes.len() == 1 {
             self.by_tally.remove(&key);
         } else {
-            hashes.retain(|h| *h != hash)
+            hashes.remove(hash);
         }
     }
 
@@ -398,7 +398,7 @@ impl CacheEntryCollection {
         match self.sequential.pop_first() {
             Some((_, front_hash)) => {
                 let entry = self.by_hash.remove(&front_hash).unwrap();
-                self.remove_by_tally(front_hash, entry.tally());
+                self.remove_by_tally(&front_hash, entry.tally());
                 Some(entry)
             }
             None => None,
@@ -413,7 +413,7 @@ impl CacheEntryCollection {
         match self.by_hash.remove(hash) {
             Some(entry) => {
                 self.sequential.remove(&entry.id);
-                self.remove_by_tally(*hash, entry.tally());
+                self.remove_by_tally(hash, entry.tally());
                 Some(entry)
             }
             None => None,
@@ -447,7 +447,7 @@ impl CacheEntryCollection {
 
 #[derive(Default, Clone)]
 pub struct OrderedVoters {
-    by_representative: HashMap<PublicKey, VoterEntry>,
+    by_representative: FxHashMap<PublicKey, VoterEntry>,
     by_weight: BTreeMap<Amount, Vec<PublicKey>>,
 }
 
