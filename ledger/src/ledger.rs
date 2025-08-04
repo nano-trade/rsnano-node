@@ -601,32 +601,15 @@ impl Ledger {
     ) -> BatchProcessResult {
         let mut processed = Vec::new();
         let mut processed_batch = Vec::new();
-        let mut rolled_back = RollbackResults::new();
 
         {
             let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
             for (block, source) in batch.into_iter() {
                 if tx.is_refresh_needed() {
                     drop(tx);
-                    if !rolled_back.is_empty() {
-                        self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
-                        rolled_back = RollbackResults::new();
-                    }
                     self.notify(LedgerEvent::BlocksProcessed(processed_batch));
                     processed_batch = Vec::new();
                     tx = self.store.tx_begin_write(Writer::BlockProcessor);
-                }
-
-                if source == BlockSource::Forced {
-                    let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
-                    if !rolled_back_blocks.is_empty() {
-                        rolled_back.push(RollbackResult {
-                            target_hash: block.hash(),
-                            target_root: block.qualified_root(),
-                            rolled_back: rolled_back_blocks,
-                            error: None,
-                        });
-                    }
                 }
 
                 match self.process(&mut tx, block) {
@@ -650,10 +633,6 @@ impl Ledger {
                     }
                 }
             }
-        }
-
-        if !rolled_back.is_empty() {
-            self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
         }
 
         if !processed_batch.is_empty() {
@@ -682,6 +661,35 @@ impl Ledger {
         let instructions = validator.validate()?;
         let inserted = BlockInserter::new(self, txn, block, &instructions).insert();
         Ok(inserted)
+    }
+
+    pub fn roll_back_competitors<'a>(&self, blocks: impl IntoIterator<Item = &'a Block>) {
+        let mut rolled_back = RollbackResults::new();
+        {
+            let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
+            for block in blocks {
+                if tx.is_refresh_needed() {
+                    drop(tx);
+                    if !rolled_back.is_empty() {
+                        self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+                        rolled_back = RollbackResults::new();
+                    }
+                    tx = self.store.tx_begin_write(Writer::BlockProcessor);
+                }
+                let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
+                if !rolled_back_blocks.is_empty() {
+                    rolled_back.push(RollbackResult {
+                        target_hash: block.hash(),
+                        target_root: block.qualified_root(),
+                        rolled_back: rolled_back_blocks,
+                        error: None,
+                    });
+                }
+            }
+        }
+        if !rolled_back.is_empty() {
+            self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+        }
     }
 
     fn rollback_competitor(
