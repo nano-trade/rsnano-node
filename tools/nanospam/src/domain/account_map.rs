@@ -198,15 +198,15 @@ impl AccountMap {
     }
 
     pub fn next_receivable(&self) -> Option<(Account, BlockHash, Amount)> {
-        self.confirmed_receivable
-            .iter()
-            .find_map(|((receiving_account, send_hash), amount)| {
+        self.confirmed_receivable.iter().take(100).find_map(
+            |((receiving_account, send_hash), amount)| {
                 if self.confirmed_accounts.contains(receiving_account) {
                     Some((*receiving_account, *send_hash, *amount))
                 } else {
                     None
                 }
-            })
+            },
+        )
     }
 
     pub fn random_account_that_can_send(&self) -> Option<&AccountState> {
