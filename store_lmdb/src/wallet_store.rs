@@ -1,4 +1,4 @@
-use crate::{Fan, LmdbDatabase, LmdbRangeIterator, LmdbWriteTransaction, Transaction};
+use crate::{Fan, LmdbDatabase, LmdbEnv, LmdbRangeIterator, LmdbWriteTransaction, Transaction};
 use anyhow::bail;
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -84,7 +84,7 @@ impl LmdbWalletStore {
     pub fn new(
         fanout: usize,
         kdf: KeyDerivationFunction,
-        txn: &mut LmdbWriteTransaction,
+        env: &LmdbEnv,
         representative: &PublicKey,
         wallet: &Path,
     ) -> anyhow::Result<Self> {
@@ -93,8 +93,9 @@ impl LmdbWalletStore {
             fans: Mutex::new(Fans::new(fanout)),
             kdf,
         };
-        store.initialize(txn, wallet)?;
+        store.initialize(env, wallet)?;
         let handle = store.db_handle();
+        let txn = &mut env.tx_begin_write();
         if let Err(lmdb::Error::NotFound) = txn.get(handle, Self::version_special().as_bytes()) {
             store.version_put(txn, Self::VERSION_CURRENT);
             let salt = RawKey::random();
@@ -150,7 +151,7 @@ impl LmdbWalletStore {
     pub fn new_from_json(
         fanout: usize,
         kdf: KeyDerivationFunction,
-        txn: &mut LmdbWriteTransaction,
+        env: &LmdbEnv,
         wallet: &Path,
         json: &str,
     ) -> anyhow::Result<Self> {
@@ -159,8 +160,9 @@ impl LmdbWalletStore {
             fans: Mutex::new(Fans::new(fanout)),
             kdf,
         };
-        store.initialize(txn, wallet)?;
+        store.initialize(env, wallet)?;
         let handle = store.db_handle();
+        let mut txn = env.tx_begin_write();
         match txn.get(handle, Self::version_special().as_bytes()) {
             Ok(_) => panic!("wallet store already initialized"),
             Err(lmdb::Error::NotFound) => {}
@@ -173,7 +175,7 @@ impl LmdbWalletStore {
                 if let serde_json::Value::String(v_str) = v {
                     let key = PublicKey::decode_hex(k)?;
                     let value = RawKey::decode_hex(v_str)?;
-                    store.entry_put_raw(txn, &key, &WalletValue::new(value, 0.into()));
+                    store.entry_put_raw(&mut txn, &key, &WalletValue::new(value, 0.into()));
                 } else {
                     bail!("expected string value");
                 }
@@ -182,14 +184,14 @@ impl LmdbWalletStore {
             bail!("invalid json")
         }
 
-        store.ensure_key_exists(txn, &Self::version_special())?;
-        store.ensure_key_exists(txn, &Self::wallet_key_special())?;
-        store.ensure_key_exists(txn, &Self::salt_special())?;
-        store.ensure_key_exists(txn, &Self::check_special())?;
-        store.ensure_key_exists(txn, &Self::representative_special())?;
+        store.ensure_key_exists(&txn, &Self::version_special())?;
+        store.ensure_key_exists(&txn, &Self::wallet_key_special())?;
+        store.ensure_key_exists(&txn, &Self::salt_special())?;
+        store.ensure_key_exists(&txn, &Self::check_special())?;
+        store.ensure_key_exists(&txn, &Self::representative_special())?;
         let mut guard = store.fans.lock().unwrap();
         guard.password.value_set(RawKey::zero());
-        let key = store.entry_get_raw(txn, &Self::wallet_key_special()).key;
+        let key = store.entry_get_raw(&txn, &Self::wallet_key_special()).key;
         guard.wallet_key_mem.value_set(key);
         drop(guard);
         Ok(store)
@@ -243,15 +245,15 @@ impl LmdbWalletStore {
         PublicKey::from(7)
     }
 
-    pub fn initialize(&self, txn: &mut LmdbWriteTransaction, path: &Path) -> anyhow::Result<()> {
+    pub fn initialize(&self, env: &LmdbEnv, path: &Path) -> anyhow::Result<()> {
         let path_str = path
             .as_os_str()
             .to_str()
             .ok_or_else(|| anyhow!("invalid path"))?;
-        let db = unsafe {
-            txn.rw_txn_mut()
-                .create_db(Some(path_str), DatabaseFlags::empty())
-        }?;
+
+        let db = env
+            .environment
+            .create_db(Some(path_str), DatabaseFlags::empty())?;
         *self.db_handle.lock().unwrap() = Some(db);
         Ok(())
     }

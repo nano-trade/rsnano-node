@@ -200,51 +200,58 @@ impl Wallets {
     }
 
     pub fn initialize(&mut self) -> anyhow::Result<()> {
-        let mut txn = self.env.tx_begin_write();
-        self.db = Some(unsafe { txn.rw_txn_mut().create_db(None, DatabaseFlags::empty())? });
-        self.send_action_ids_handle = Some(unsafe {
-            txn.rw_txn_mut()
-                .create_db(Some("send_action_ids"), DatabaseFlags::empty())?
-        });
-        {
-            let mut guard = self.mutex.lock().unwrap();
-            let wallet_ids = self.get_wallet_ids_with_tx(&txn);
-            for id in wallet_ids {
-                assert!(!guard.contains_key(&id));
-                let representative = self.random_representative();
-                let text = PathBuf::from(id.encode_hex());
-                let wallet = Wallet::new(
-                    self.ledger.clone(),
-                    self.work_thresholds.clone(),
-                    &mut txn,
-                    self.node_config.password_fanout as usize,
-                    self.kdf.clone(),
-                    representative,
-                    &text,
-                )?;
+        let mut guard = self.mutex.lock().unwrap();
+        self.db = Some(
+            self.env
+                .environment
+                .create_db(None, DatabaseFlags::empty())?,
+        );
+        self.send_action_ids_handle = Some(
+            self.env
+                .environment
+                .create_db(Some("send_action_ids"), DatabaseFlags::empty())?,
+        );
 
-                guard.insert(id, Arc::new(wallet));
-            }
+        let wallet_ids = {
+            let txn = self.env.tx_begin_write();
+            self.get_wallet_ids_with_tx(&txn)
+        };
 
-            info!("Found {} wallet(s)", guard.len());
-            for i in guard.keys() {
-                info!("Wallet: {}", i);
-            }
+        for id in wallet_ids {
+            assert!(!guard.contains_key(&id));
+            let representative = self.random_representative();
+            let text = PathBuf::from(id.encode_hex());
+            let wallet = Wallet::new(
+                self.ledger.clone(),
+                self.work_thresholds.clone(),
+                &self.env,
+                self.node_config.password_fanout as usize,
+                self.kdf.clone(),
+                representative,
+                &text,
+            )?;
 
-            // Backup before upgrade wallets
-            let mut backup_required = false;
-            if self.node_config.backup_before_upgrade {
-                let txn = self.env.tx_begin_read();
-                for wallet in guard.values() {
-                    if wallet.store.version(&txn) != LmdbWalletStore::VERSION_CURRENT {
-                        backup_required = true;
-                        break;
-                    }
+            guard.insert(id, Arc::new(wallet));
+        }
+
+        info!("Found {} wallet(s)", guard.len());
+        for i in guard.keys() {
+            info!("Wallet: {}", i);
+        }
+
+        // Backup before upgrade wallets
+        let mut backup_required = false;
+        if self.node_config.backup_before_upgrade {
+            let txn = self.env.tx_begin_read();
+            for wallet in guard.values() {
+                if wallet.store.version(&txn) != LmdbWalletStore::VERSION_CURRENT {
+                    backup_required = true;
+                    break;
                 }
             }
-            if backup_required {
-                create_backup_file(&self.env)?;
-            }
+        }
+        if backup_required {
+            create_backup_file(&self.env)?;
         }
         Ok(())
     }
@@ -503,9 +510,11 @@ impl Wallets {
 
     pub fn reload(&self) {
         let mut guard = self.mutex.lock().unwrap();
-        let mut tx = self.env.tx_begin_write();
         let mut stored_items = HashSet::new();
-        let wallet_ids = self.get_wallet_ids_with_tx(&tx);
+        let wallet_ids = {
+            let tx = self.env.tx_begin_write();
+            self.get_wallet_ids_with_tx(&tx)
+        };
         for id in wallet_ids {
             // New wallet
             if !guard.contains_key(&id) {
@@ -514,7 +523,7 @@ impl Wallets {
                 if let Ok(wallet) = Wallet::new(
                     Arc::clone(&self.ledger),
                     self.work_thresholds.clone(),
-                    &mut tx,
+                    &self.env,
                     self.node_config.password_fanout as usize,
                     self.kdf.clone(),
                     representative,
@@ -797,11 +806,10 @@ impl Wallets {
 
     pub fn import(&self, wallet_id: WalletId, json: &str) -> anyhow::Result<()> {
         let _guard = self.mutex.lock().unwrap();
-        let mut tx = self.env.tx_begin_write();
         let _wallet = Wallet::new_from_json(
             Arc::clone(&self.ledger),
             self.work_thresholds.clone(),
-            &mut tx,
+            &self.env,
             self.node_config.password_fanout as usize,
             self.kdf.clone(),
             &PathBuf::from(wallet_id.to_string()),
@@ -820,16 +828,16 @@ impl Wallets {
         let existing = guard
             .get(&wallet_id)
             .ok_or_else(|| anyhow!("wallet not found"))?;
-        let mut tx = self.env.tx_begin_write();
         let id = WalletId::from_bytes(rand::rng().random());
         let temp = LmdbWalletStore::new_from_json(
             1,
             self.kdf.clone(),
-            &mut tx,
+            &self.env,
             &PathBuf::from(id.to_string()),
             json,
         )?;
 
+        let mut tx = self.env.tx_begin_write();
         let result = if temp.attempt_password(&tx, password) {
             existing.store.import(&mut tx, &temp)
         } else {
@@ -2045,11 +2053,10 @@ impl WalletsExt for Arc<Wallets> {
         let mut guard = self.mutex.lock().unwrap();
         debug_assert!(!guard.contains_key(&wallet_id));
         let wallet = {
-            let mut tx = self.env.tx_begin_write();
             let Ok(wallet) = Wallet::new(
                 Arc::clone(&self.ledger),
                 self.work_thresholds.clone(),
-                &mut tx,
+                &self.env,
                 self.node_config.password_fanout as usize,
                 self.kdf.clone(),
                 self.random_representative(),

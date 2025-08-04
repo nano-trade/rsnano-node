@@ -1,7 +1,7 @@
 use anyhow::Context;
 use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
 use rsnano_ledger::{AnySet, Ledger};
-use rsnano_store_lmdb::{LmdbWalletStore, LmdbWriteTransaction, Transaction};
+use rsnano_store_lmdb::{LmdbEnv, LmdbWalletStore, LmdbWriteTransaction, Transaction};
 use rsnano_work::WorkThresholds;
 use std::{
     collections::HashSet,
@@ -21,13 +21,13 @@ impl Wallet {
     pub fn new(
         ledger: Arc<Ledger>,
         work_thresholds: WorkThresholds,
-        txn: &mut LmdbWriteTransaction,
+        env: &LmdbEnv,
         fanout: usize,
         kdf: KeyDerivationFunction,
         representative: PublicKey,
         wallet_path: &Path,
     ) -> anyhow::Result<Self> {
-        let store = LmdbWalletStore::new(fanout, kdf, txn, &representative, &wallet_path)
+        let store = LmdbWalletStore::new(fanout, kdf, env, &representative, &wallet_path)
             .context("could not create wallet store")?;
 
         Ok(Self {
@@ -41,13 +41,13 @@ impl Wallet {
     pub fn new_from_json(
         ledger: Arc<Ledger>,
         work_thresholds: WorkThresholds,
-        txn: &mut LmdbWriteTransaction,
+        env: &LmdbEnv,
         fanout: usize,
         kdf: KeyDerivationFunction,
         wallet_path: &Path,
         json: &str,
     ) -> anyhow::Result<Self> {
-        let store = LmdbWalletStore::new_from_json(fanout, kdf, txn, &wallet_path, json)
+        let store = LmdbWalletStore::new_from_json(fanout, kdf, env, &wallet_path, json)
             .context("could not create wallet store")?;
 
         Ok(Self {
