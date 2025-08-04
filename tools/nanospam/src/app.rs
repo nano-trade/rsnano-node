@@ -2,8 +2,8 @@ use std::{
     ffi::OsString,
     net::{Ipv6Addr, SocketAddrV6},
     sync::{
-        Mutex,
         atomic::{AtomicUsize, Ordering},
+        Mutex,
     },
     thread::yield_now,
     time::{Duration, Instant},
@@ -19,7 +19,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use rsnano_core::{Block, Networks, PrivateKey, ProtocolInfo};
+use rsnano_core::{Block, Networks, PrivateKey, ProtocolInfo, RawKey};
 use rsnano_messages::{Message, MessageSerializer, Publish};
 use rsnano_network::token_bucket::TokenBucket;
 use rsnano_nullable_clock::SteadyClock;
@@ -43,6 +43,7 @@ use crate::{
 
 const MAX_BUFFERED_BLOCKS: usize = 1024;
 const DEFAULT_RATE: &str = "1+50@3s";
+const CONNECTIONS_PER_NODE: usize = 4;
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
@@ -114,7 +115,6 @@ impl NanoSpamApp {
         self.tracing_init.init();
         let args = Args::try_parse_from(args)?;
 
-        let node_id_key = PrivateKey::from(42);
         let protocol = ProtocolInfo::default_for(Networks::NanoTestNetwork);
         let genesis_hash = get_genesis_hash();
         let rate_spec: RateSpec = args
@@ -173,15 +173,22 @@ impl NanoSpamApp {
         let mut tcp_writers = Vec::new();
         let mut tcp_readers = Vec::new();
 
-        for i in 0..args.prs {
-            let peer_addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, peering_port(i), 0, 0);
-            info!(?peer_addr, "Connecting to node PR{i}...");
-            let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
-            info!("Performing handshake...");
-            perform_handshake(protocol, genesis_hash, node_id_key.clone(), &mut tcp_stream).await?;
-            let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
-            tcp_writers.push(tcp_write);
-            tcp_readers.push(tcp_read);
+        for node_index in 0..args.prs {
+            let peer_addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, peering_port(node_index), 0, 0);
+            info!(?peer_addr, "Connecting to node PR{node_index}...");
+            let mut node_writers = Vec::with_capacity(CONNECTIONS_PER_NODE);
+            let mut node_readers = Vec::with_capacity(CONNECTIONS_PER_NODE);
+            for i in 0..CONNECTIONS_PER_NODE {
+                let mut tcp_stream = self.tcp_stream_factory.connect(peer_addr).await?;
+                info!("Performing handshake...");
+                let node_id_key: PrivateKey = RawKey::from(42 + i as u64).into();
+                perform_handshake(protocol, genesis_hash, node_id_key, &mut tcp_stream).await?;
+                let (tcp_read, tcp_write) = tokio::io::split(tcp_stream);
+                node_writers.push(tcp_write);
+                node_readers.push(tcp_read);
+            }
+            tcp_writers.push(node_writers);
+            tcp_readers.push(node_readers);
         }
 
         let tx_block_clone = tx_block.clone();
@@ -324,7 +331,7 @@ fn create_blocks(
 
 async fn publish_blocks(
     mut rx_block: mpsc::Receiver<Block>,
-    mut tcp_streams: Vec<WriteHalf<TcpStream>>,
+    mut tcp_streams: Vec<Vec<WriteHalf<TcpStream>>>,
     protocol: ProtocolInfo,
     delayed_blocks: &Mutex<DelayedBlocks>,
     cancel_token: CancellationToken,
@@ -333,6 +340,7 @@ async fn publish_blocks(
     prio_tracker: &Mutex<HighPrioTracker>,
 ) {
     let mut serializer = MessageSerializer::new(protocol);
+    let mut writer_index = 0;
     while let Some(block) = rx_block.recv().await {
         let hash = block.hash();
         let publish = Message::Publish(Publish::new_from_originator(block));
@@ -344,10 +352,16 @@ async fn publish_blocks(
         tokio_scoped::scope(|s| {
             for stream in &mut tcp_streams {
                 s.spawn(async {
-                    stream.write(buffer).await.unwrap();
+                    stream[writer_index].write(buffer).await.unwrap();
                 });
             }
         });
+
+        writer_index += 1;
+        if writer_index >= CONNECTIONS_PER_NODE {
+            writer_index = 0;
+        }
+
         if unconfirmed {
             delayed_blocks.lock().unwrap().confirmed(&hash, now);
             block_factory.lock().unwrap().confirm(hash);
@@ -380,7 +394,7 @@ async fn republish_delayed_blocks(
 }
 
 async fn receive_messages(
-    readers: Vec<ReadHalf<TcpStream>>,
+    mut readers: Vec<Vec<ReadHalf<TcpStream>>>,
     _protocol: ProtocolInfo,
     cancel_token: CancellationToken,
 ) {
@@ -388,7 +402,7 @@ async fn receive_messages(
         _ = cancel_token.cancelled() => {},
         _ = async {
             let mut set = JoinSet::new();
-            for mut reader in readers {
+            for mut reader in readers.drain(..).flatten() {
                 set.spawn(async move {
                     let mut recv_buffer = vec![0; 1024 * 4];
                     loop{
