@@ -135,7 +135,7 @@ impl BlockProcessorQueue {
         let added = self.queue.lock().unwrap().push(context);
 
         if added {
-            self.condition.notify_all();
+            self.condition.notify_one();
         }
 
         added

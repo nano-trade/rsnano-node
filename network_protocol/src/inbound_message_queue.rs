@@ -56,7 +56,7 @@ impl InboundMessageQueue {
         if added {
             self.stats.processed.fetch_add(1, Ordering::Relaxed);
             self.stats.processed_type[message_type as usize].fetch_add(1, Ordering::Relaxed);
-            self.condition.notify_all();
+            self.condition.notify_one();
             if let Some(cb) = &self.inbound_callback {
                 cb(channel.channel_id(), &message);
             }
