@@ -1608,7 +1608,8 @@ impl Node {
             self.vote_processor.start();
         }
         self.vote_cache_processor.start();
-        self.block_processor.start();
+        self.block_processor
+            .start(self.config.block_processor_threads);
         if !self.flags.disable_request_loop {
             self.aec_ticker
                 .start(self.network_params.network.aec_loop_interval);

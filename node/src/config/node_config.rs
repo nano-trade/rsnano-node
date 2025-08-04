@@ -95,6 +95,7 @@ pub struct NodeConfig {
     pub vote_cache: VoteCacheConfig,
     pub rep_crawler_query_timeout: Duration,
     pub block_processor: ProcessQueueConfig,
+    pub block_processor_threads: usize,
     pub active_elections: ActiveElectionsConfig,
     pub vote_processor: VoteProcessorConfig,
     pub tcp: TcpConfig,
@@ -312,6 +313,7 @@ impl NodeConfig {
                 Duration::from_secs(60)
             },
             block_processor: block_processor_cfg,
+            block_processor_threads: max(2, parallelism / 2),
             vote_processor: VoteProcessorConfig::new(parallelism),
             tcp: if network_params.network.is_dev_network() {
                 TcpConfig::for_dev_network()
