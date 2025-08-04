@@ -258,7 +258,7 @@ impl LmdbWalletStore {
         Ok(())
     }
 
-    pub fn db_handle(&self) -> LmdbDatabase {
+    fn db_handle(&self) -> LmdbDatabase {
         self.db_handle.lock().unwrap().unwrap().clone()
     }
 

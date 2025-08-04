@@ -1842,28 +1842,20 @@ fn confirm_back() {
     let open = lattice.account(&key).receive(&send1);
     let send2 = lattice.account(&key).send(&*DEV_GENESIS_KEY, 1);
 
-    node.process_active(send1.clone());
-    node.process_active(open.clone());
-    node.process_active(send2.clone());
-
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.block_exists(&send2.hash()),
-        "send2 not found",
-    );
+    node.process(send1.clone());
+    node.process(open.clone());
+    node.process(send2.clone());
 
     start_election(&node, &send1.hash());
     start_election(&node, &open.hash());
     start_election(&node, &send2.hash());
     assert_eq!(node.active.read().unwrap().len(), 3);
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
+
     node.vote_processor_queue
         .enqueue(vote, None, VoteSource::Live, None);
-    assert_timely_eq(
-        Duration::from_secs(10),
-        || node.active.read().unwrap().len(),
-        0,
-    );
+
+    assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
 }
 
 #[test]

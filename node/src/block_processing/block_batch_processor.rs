@@ -35,14 +35,7 @@ impl BlockBatchProcessor {
     pub(crate) fn process_blocks(&self, mut batch: VecDeque<Arc<BlockContext>>) {
         let timer = Instant::now();
 
-        let fork_blocks = batch.iter().filter_map(|i| {
-            if i.source == BlockSource::Forced {
-                Some(&i.block)
-            } else {
-                None
-            }
-        });
-        self.ledger.roll_back_competitors(fork_blocks);
+        self.roll_back_competitor_blocks(&batch);
 
         let mut result = self
             .ledger
@@ -165,6 +158,17 @@ impl BlockBatchProcessor {
             }
             context.set_result(*res);
         }
+    }
+
+    fn roll_back_competitor_blocks(&self, batch: &VecDeque<Arc<BlockContext>>) {
+        let fork_blocks = batch.iter().filter_map(|i| {
+            if i.source == BlockSource::Forced {
+                Some(&i.block)
+            } else {
+                None
+            }
+        });
+        self.ledger.roll_back_competitors(fork_blocks);
     }
 }
 

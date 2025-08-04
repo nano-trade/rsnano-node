@@ -601,9 +601,11 @@ impl Ledger {
     ) -> BatchProcessResult {
         let mut processed = Vec::new();
         let mut processed_batch = Vec::new();
+        let mut validation_results = Vec::new();
 
         {
             let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
+            // Validate blocks
             for (block, source) in batch.into_iter() {
                 if tx.is_refresh_needed() {
                     drop(tx);
@@ -612,15 +614,41 @@ impl Ledger {
                     tx = self.store.tx_begin_write(Writer::BlockProcessor);
                 }
 
-                match self.process(&mut tx, block) {
-                    Ok(saved_block) => {
-                        processed.push((Ok(()), Some(saved_block.clone())));
-                        processed_batch.push(ProcessedResult {
-                            block: block.clone(),
-                            source,
-                            status: Ok(()),
-                            saved_block: Some(saved_block),
-                        });
+                let any = BorrowingAnySet {
+                    constants: &self.constants,
+                    store: &self.store,
+                    tx: &tx,
+                };
+                let validator =
+                    BlockValidatorFactory::new(&any, &self.constants, block).create_validator();
+                let result = validator.validate();
+                validation_results.push((result, block, source));
+            }
+
+            // Insert blocks
+            for (result, block, source) in validation_results {
+                match result {
+                    Ok(instructions) => {
+                        if let Some(saved_block) =
+                            BlockInserter::new(self, &mut tx, block, &instructions).insert()
+                        {
+                            processed.push((Ok(()), Some(saved_block.clone())));
+                            processed_batch.push(ProcessedResult {
+                                block: block.clone(),
+                                source,
+                                status: Ok(()),
+                                saved_block: Some(saved_block),
+                            });
+                        } else {
+                            let err = BlockError::Old;
+                            processed.push((Err(err), None));
+                            processed_batch.push(ProcessedResult {
+                                block: block.clone(),
+                                source,
+                                status: Err(err),
+                                saved_block: None,
+                            });
+                        }
                     }
                     Err(err) => {
                         processed.push((Err(err), None));
@@ -644,23 +672,16 @@ impl Ledger {
 
     pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockError> {
         let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
-        self.process(&mut tx, block)
-    }
-
-    fn process(
-        &self,
-        txn: &mut LmdbWriteTransaction,
-        block: &Block,
-    ) -> Result<SavedBlock, BlockError> {
         let any = BorrowingAnySet {
             constants: &self.constants,
             store: &self.store,
-            tx: txn,
+            tx: &tx,
         };
         let validator = BlockValidatorFactory::new(&any, &self.constants, block).create_validator();
         let instructions = validator.validate()?;
-        let inserted = BlockInserter::new(self, txn, block, &instructions).insert();
-        Ok(inserted)
+        BlockInserter::new(self, &mut tx, block, &instructions)
+            .insert()
+            .ok_or(BlockError::Old)
     }
 
     pub fn roll_back_competitors<'a>(&self, blocks: impl IntoIterator<Item = &'a Block>) {

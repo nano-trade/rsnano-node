@@ -52,6 +52,8 @@ impl System {
         config.representative_vote_weight_minimum = Amount::zero();
         config.io_threads = 1;
         config.lmdb_config.sync = SyncStrategy::NosyncUnsafeWriteMap;
+        // process blocks sequentially
+        config.block_processor.batch_size = 1;
         config
     }
 

@@ -39,7 +39,11 @@ impl<'a> BlockInserter<'a> {
         }
     }
 
-    pub(crate) fn insert(&mut self) -> SavedBlock {
+    pub(crate) fn insert(&mut self) -> Option<SavedBlock> {
+        if self.account_changed_since_validation() {
+            return None;
+        }
+
         let sideband = self.instructions.set_sideband.clone();
         let saved_block = SavedBlock::new(self.block.clone(), sideband);
         self.ledger.store.block.put(self.txn, &saved_block);
@@ -60,7 +64,24 @@ impl<'a> BlockInserter<'a> {
             .block_count
             .fetch_add(1, Ordering::SeqCst);
 
-        saved_block
+        Some(saved_block)
+    }
+
+    fn account_changed_since_validation(&mut self) -> bool {
+        let account_info = self.get_current_account_info();
+        let account_changed_since_validation =
+            account_info.head != self.instructions.old_account_info.head;
+        account_changed_since_validation
+    }
+
+    fn get_current_account_info(&mut self) -> AccountInfo {
+        let account_info = self
+            .ledger
+            .store
+            .account
+            .get(self.txn, &self.instructions.account)
+            .unwrap_or_default();
+        account_info
     }
 
     fn update_account(&mut self) {
@@ -108,7 +129,7 @@ impl<'a> BlockInserter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{BlockHash, PublicKey, TestBlockBuilder};
+    use rsnano_core::{utils::UnixTimestamp, BlockHash, Epoch, PublicKey, TestBlockBuilder};
     use rsnano_store_lmdb::Writer;
 
     #[test]
@@ -176,8 +197,24 @@ mod tests {
             .build();
         let (mut state, instructions) = state_block_instructions_for(&open, state);
 
-        let ledger = Ledger::new_null_builder().block(&open).finish();
+        let ledger = Ledger::new_null_builder()
+            .block(&open)
+            .account_info(
+                &open.account(),
+                &AccountInfo {
+                    head: open.hash(),
+                    representative: old_representative,
+                    open_block: open.hash(),
+                    balance: open.balance(),
+                    modified: UnixTimestamp::new(1),
+                    block_count: 1,
+                    epoch: Epoch::Epoch0,
+                },
+            )
+            .finish();
+
         insert(&ledger, &mut state, &instructions);
+
         assert_eq!(
             ledger.rep_weights.weight(&new_representative),
             instructions.set_account_info.balance
@@ -203,7 +240,21 @@ mod tests {
         let state = TestBlockBuilder::state().previous(open.hash()).build();
         let (mut state, instructions) = state_block_instructions_for(&open, state);
 
-        let ledger = Ledger::new_null_builder().block(&open).finish();
+        let ledger = Ledger::new_null_builder()
+            .block(&open)
+            .account_info(
+                &open.account(),
+                &AccountInfo {
+                    head: open.hash(),
+                    representative: open.account().into(),
+                    open_block: open.hash(),
+                    balance: open.balance(),
+                    modified: UnixTimestamp::new(1),
+                    block_count: 1,
+                    epoch: Epoch::Epoch0,
+                },
+            )
+            .finish();
 
         let result = insert(&ledger, &mut state, &instructions);
 
@@ -223,7 +274,7 @@ mod tests {
         let deleted_pending = ledger.store.pending.track_deletions();
 
         let mut block_inserter = BlockInserter::new(&ledger, &mut txn, block, &instructions);
-        block_inserter.insert();
+        block_inserter.insert().unwrap();
 
         InsertResult {
             saved_blocks: saved_blocks.output(),
@@ -308,7 +359,7 @@ mod tests {
             ..AccountInfo::new_test_instance()
         };
         let instructions = BlockInsertInstructions {
-            account: Account::from(1),
+            account: previous.account(),
             old_account_info,
             set_account_info: new_account_info,
             delete_pending: None,
