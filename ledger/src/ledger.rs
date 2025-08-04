@@ -603,17 +603,10 @@ impl Ledger {
         let mut processed_batch = Vec::new();
         let mut validation_results = Vec::new();
 
+        // Validate blocks
         {
-            let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
-            // Validate blocks
+            let tx = self.store.tx_begin_read();
             for (block, source) in batch.into_iter() {
-                if tx.is_refresh_needed() {
-                    drop(tx);
-                    self.notify(LedgerEvent::BlocksProcessed(processed_batch));
-                    processed_batch = Vec::new();
-                    tx = self.store.tx_begin_write(Writer::BlockProcessor);
-                }
-
                 let any = BorrowingAnySet {
                     constants: &self.constants,
                     store: &self.store,
@@ -624,9 +617,19 @@ impl Ledger {
                 let result = validator.validate();
                 validation_results.push((result, block, source));
             }
+        }
 
-            // Insert blocks
+        // Insert blocks
+        {
+            let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
             for (result, block, source) in validation_results {
+                if tx.is_refresh_needed() {
+                    drop(tx);
+                    self.notify(LedgerEvent::BlocksProcessed(processed_batch));
+                    processed_batch = Vec::new();
+                    tx = self.store.tx_begin_write(Writer::BlockProcessor);
+                }
+
                 match result {
                     Ok(instructions) => {
                         if let Some(saved_block) =
