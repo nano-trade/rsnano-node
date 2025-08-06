@@ -297,9 +297,13 @@ impl NodeConfig {
         if let Some(vote_cache_toml) = &toml.vote_cache {
             self.vote_cache = vote_cache_toml.into();
         }
-        if let Some(block_processor_toml) = &toml.block_processor {
-            self.block_processor.merge_toml(block_processor_toml);
+        if let Some(t) = &toml.block_processor {
+            self.block_processor.merge_toml(t);
+            if let Some(threads) = t.threads {
+                self.block_processor_threads = threads;
+            }
         }
+
         if let Some(i) = &toml.active_elections {
             if let Some(size) = i.size {
                 self.active_elections.max_elections = size
@@ -505,7 +509,7 @@ impl From<&NodeConfig> for NodeToml {
             diagnostics: Some((&config.diagnostics_config).into()),
             lmdb: Some((&config.lmdb_config).into()),
             vote_cache: Some((&config.vote_cache).into()),
-            block_processor: Some((&config.block_processor).into()),
+            block_processor: Some(config.into()),
             active_elections: Some(config.into()),
             vote_processor: Some((&config.vote_processor).into()),
             request_aggregator: Some((&config.request_aggregator).into()),
@@ -532,7 +536,7 @@ impl From<&NodeConfig> for NodeToml {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::toml::AccountSetsToml;
+    use crate::{block_processing::ProcessQueueConfig, config::toml::AccountSetsToml};
 
     #[test]
     fn merge_bootstrap_ascending_toml() {
@@ -634,6 +638,14 @@ mod tests {
                 ..Default::default()
             }),
             cps_limit: Some(42),
+            block_processor: Some(BlockProcessorToml {
+                threads: Some(42),
+                max_peer_queue: Some(43),
+                max_system_queue: Some(44),
+                priority_bootstrap: Some(45),
+                priority_live: Some(46),
+                priority_local: Some(47),
+            }),
             ..Default::default()
         };
 
@@ -644,6 +656,12 @@ mod tests {
         assert_eq!(cfg.fork_cache_max_forks_per_root, 22);
         assert_eq!(cfg.bootstrap_stale_threshold, Duration::from_secs(42));
         assert_eq!(cfg.cps_limit, 42);
+        assert_eq!(cfg.block_processor_threads, 42);
+        assert_eq!(cfg.block_processor.max_peer_queue, 43);
+        assert_eq!(cfg.block_processor.max_system_queue, 44);
+        assert_eq!(cfg.block_processor.priority_bootstrap, 45);
+        assert_eq!(cfg.block_processor.priority_live, 46);
+        assert_eq!(cfg.block_processor.priority_local, 47);
     }
 
     #[test]
@@ -651,6 +669,16 @@ mod tests {
         let config = NodeConfig {
             bootstrap_stale_threshold: Duration::from_secs(42),
             cps_limit: 42,
+            block_processor_threads: 43,
+            block_processor: ProcessQueueConfig {
+                max_peer_queue: 44,
+                max_system_queue: 45,
+                priority_live: 46,
+                priority_bootstrap: 47,
+                priority_local: 48,
+                priority_system: 49,
+                batch_size: 50,
+            },
             ..NodeConfig::new_test_instance()
         };
 
@@ -664,5 +692,13 @@ mod tests {
             Some(42)
         );
         assert_eq!(toml.cps_limit, Some(42));
+
+        let block_proc = toml.block_processor.unwrap();
+        assert_eq!(block_proc.threads, Some(43));
+        assert_eq!(block_proc.max_peer_queue, Some(44));
+        assert_eq!(block_proc.max_system_queue, Some(45));
+        assert_eq!(block_proc.priority_live, Some(46));
+        assert_eq!(block_proc.priority_bootstrap, Some(47));
+        assert_eq!(block_proc.priority_local, Some(48));
     }
 }

@@ -1,8 +1,9 @@
-use crate::block_processing::ProcessQueueConfig;
+use crate::{block_processing::ProcessQueueConfig, config::NodeConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct BlockProcessorToml {
+    pub threads: Option<usize>,
     pub max_peer_queue: Option<usize>,
     pub max_system_queue: Option<usize>,
     pub priority_bootstrap: Option<usize>,
@@ -10,14 +11,15 @@ pub struct BlockProcessorToml {
     pub priority_local: Option<usize>,
 }
 
-impl From<&ProcessQueueConfig> for BlockProcessorToml {
-    fn from(config: &ProcessQueueConfig) -> Self {
+impl From<&NodeConfig> for BlockProcessorToml {
+    fn from(config: &NodeConfig) -> Self {
         Self {
-            max_peer_queue: Some(config.max_peer_queue),
-            max_system_queue: Some(config.max_system_queue),
-            priority_live: Some(config.priority_live),
-            priority_bootstrap: Some(config.priority_bootstrap),
-            priority_local: Some(config.priority_local),
+            threads: Some(config.block_processor_threads),
+            max_peer_queue: Some(config.block_processor.max_peer_queue),
+            max_system_queue: Some(config.block_processor.max_system_queue),
+            priority_live: Some(config.block_processor.priority_live),
+            priority_bootstrap: Some(config.block_processor.priority_bootstrap),
+            priority_local: Some(config.block_processor.priority_local),
         }
     }
 }
