@@ -113,12 +113,20 @@ impl PriorityScheduler {
     ) {
         debug_assert!(conf_info.frontier != account_info.head);
 
-        let hash = match conf_info.height {
+        let next_unconfirmed_hash = match conf_info.height {
             0 => account_info.open_block,
-            _ => any.block_successor(&conf_info.frontier).unwrap(),
+            _ => {
+                match any.block_successor(&conf_info.frontier) {
+                    Some(h) => h,
+                    None => {
+                        // This can happen if the bounded backlog did a rollback
+                        return;
+                    }
+                }
+            }
         };
 
-        let Some(block) = any.get_block(&hash) else {
+        let Some(block) = any.get_block(&next_unconfirmed_hash) else {
             return;
         };
 
