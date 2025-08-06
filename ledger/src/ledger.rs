@@ -627,13 +627,6 @@ impl Ledger {
         {
             let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
             for (result, block, source) in validation_results {
-                if tx.is_refresh_needed() {
-                    drop(tx);
-                    self.notify(LedgerEvent::BlocksProcessed(processed_batch));
-                    processed_batch = Vec::new();
-                    tx = self.store.tx_begin_write(Writer::BlockProcessor);
-                }
-
                 match result {
                     Ok(instructions) => {
                         if let Some(saved_block) =

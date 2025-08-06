@@ -9,8 +9,11 @@ use std::{
 
 use tracing::debug;
 
-use rsnano_core::{BlockType, Epoch, UncheckedInfo};
-use rsnano_ledger::{BlockError, BlockSource, Ledger};
+use rsnano_core::{
+    utils::{backpressure_channel, BackpressureSender},
+    BlockType, Epoch, UncheckedInfo,
+};
+use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerEvent};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{BlockContext, UncheckedMap};
@@ -20,6 +23,7 @@ pub(crate) struct BlockBatchProcessor {
     pub ledger: Arc<Ledger>,
     pub unchecked: Arc<UncheckedMap>,
     pub stats: Arc<BlockBatchProcessorStats>,
+    pub event_publisher: BackpressureSender<LedgerEvent>,
 }
 
 impl BlockBatchProcessor {
@@ -29,6 +33,7 @@ impl BlockBatchProcessor {
             ledger: Arc::new(Ledger::new_null()),
             unchecked: Arc::new(UncheckedMap::default()),
             stats: Arc::new(BlockBatchProcessorStats::default()),
+            event_publisher: backpressure_channel(0).0,
         }
     }
 

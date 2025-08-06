@@ -354,7 +354,7 @@ impl Node {
         let (ledger_tx, ledger_rx) = backpressure_channel(1024);
         let ledger_tx_clone = ledger_tx.clone();
         event_queues_info.add_leaf("ledger", move || ledger_tx_clone.len());
-        ledger.set_observer(ledger_tx);
+        ledger.set_observer(ledger_tx.clone());
 
         let ledger = Arc::new(ledger);
         info!(
@@ -900,11 +900,13 @@ impl Node {
             config.bounded_backlog.max_backlog,
         ));
 
+        let ledger_tx_clone = ledger_tx.clone();
         let block_processor = Arc::new(BlockProcessor::new(
             block_processor_queue.clone(),
             ledger.clone(),
             unchecked.clone(),
             backlog_waiter.clone(),
+            ledger_tx_clone,
         ));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(

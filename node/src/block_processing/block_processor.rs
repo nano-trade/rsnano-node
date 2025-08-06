@@ -3,7 +3,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{Ledger, LedgerEvent};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{
@@ -11,6 +11,7 @@ use super::{
     BlockProcessorQueue, UncheckedMap,
 };
 use crate::block_processing::block_batch_processor::BlockBatchProcessor;
+use rsnano_core::utils::BackpressureSender;
 
 pub struct BlockProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
@@ -19,6 +20,7 @@ pub struct BlockProcessor {
     unchecked: Arc<UncheckedMap>,
     process_stats: Arc<BlockBatchProcessorStats>,
     backlog_waiter: Arc<BacklogWaiter>,
+    event_publisher: Mutex<Option<BackpressureSender<LedgerEvent>>>,
 }
 
 impl BlockProcessor {
@@ -27,6 +29,7 @@ impl BlockProcessor {
         ledger: Arc<Ledger>,
         unchecked: Arc<UncheckedMap>,
         backlog_waiter: Arc<BacklogWaiter>,
+        event_publisher: BackpressureSender<LedgerEvent>,
     ) -> Self {
         Self {
             queue,
@@ -35,6 +38,7 @@ impl BlockProcessor {
             process_stats: Arc::new(BlockBatchProcessorStats::default()),
             threads: Mutex::new(Vec::new()),
             backlog_waiter,
+            event_publisher: Mutex::new(Some(event_publisher)),
         }
     }
 
@@ -67,10 +71,18 @@ impl BlockProcessor {
             ledger: self.ledger.clone(),
             unchecked: self.unchecked.clone(),
             stats: self.process_stats.clone(),
+            event_publisher: self
+                .event_publisher
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .clone(),
         }
     }
 
     pub fn stop(&self) {
+        drop(self.event_publisher.lock().unwrap().take());
         self.queue.stop();
         let mut threads = self.threads.lock().unwrap();
         for join_handle in threads.drain(..) {
