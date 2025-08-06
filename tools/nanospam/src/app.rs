@@ -98,6 +98,10 @@ pub(crate) struct Args {
     /// Don't kill the node processes on exit
     #[arg(long, default_value_t = false)]
     pub no_kill: bool,
+
+    /// Don't republish delayed blocks after 10 seconds
+    #[arg(long, default_value_t = false)]
+    pub no_republish: bool,
 }
 
 #[derive(Default)]
@@ -253,11 +257,13 @@ impl NanoSpamApp {
                     protocol,
                     cancel_tcp_recv.clone(),
                 ));
-                scope.spawn(republish_delayed_blocks(
-                    tx_block_clone,
-                    &delayed_blocks,
-                    cancel_ws_recv,
-                ));
+                if !args.no_republish {
+                    scope.spawn(republish_delayed_blocks(
+                        tx_block_clone,
+                        &delayed_blocks,
+                        cancel_ws_recv,
+                    ));
+                }
                 scope.spawn(publish_blocks(
                     rx_block,
                     tcp_writers,
