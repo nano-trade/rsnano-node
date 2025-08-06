@@ -60,6 +60,8 @@ pub enum BlockError {
     BlockPosition,
     /// Insufficient work for this block, even though it passed the minimal validation
     InsufficientWork,
+    /// The account got updated while this block was processed. This block is ether old or a fork.
+    Conflict,
 }
 
 impl BlockError {
@@ -78,6 +80,7 @@ impl BlockError {
             BlockError::RepresentativeMismatch => "Representative mismatch",
             BlockError::BlockPosition => "Block position",
             BlockError::InsufficientWork => "Insufficient work",
+            BlockError::Conflict => "Conflict",
         }
     }
 }
@@ -98,6 +101,7 @@ impl From<BlockError> for DetailType {
             BlockError::RepresentativeMismatch => Self::RepresentativeMismatch,
             BlockError::BlockPosition => Self::BlockPosition,
             BlockError::InsufficientWork => Self::InsufficientWork,
+            BlockError::Conflict => Self::Conflict,
         }
     }
 }
@@ -643,7 +647,7 @@ impl Ledger {
                                 saved_block: Some(saved_block),
                             });
                         } else {
-                            let err = BlockError::Old;
+                            let err = BlockError::Conflict;
                             processed.push((Err(err), None));
                             processed_batch.push(ProcessedResult {
                                 block: block.clone(),

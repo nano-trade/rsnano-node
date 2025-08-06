@@ -105,6 +105,7 @@ impl RpcCommandHandler {
                     Err(anyhow!("This block cannot follow the previous block"))
                 }
                 Err(BlockError::InsufficientWork) => Err(anyhow!("Block work is insufficient")),
+                Err(BlockError::Conflict) => Err(anyhow!("Conflict while processing block")),
             }
         } else if block.block_type() == BlockType::State {
             self.node.block_processor_queue.push(BlockContext::new(

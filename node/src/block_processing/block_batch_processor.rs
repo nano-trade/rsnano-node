@@ -120,6 +120,9 @@ impl BlockBatchProcessor {
                 Err(BlockError::Old) => {
                     debug!("Block is old: {}", hash)
                 }
+                Err(BlockError::Conflict) => {
+                    debug!("Block conflict: {}", hash)
+                }
                 // These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
                 Err(BlockError::BadSignature) => {
                     debug!("Block signature is invalid: {}", hash)
