@@ -1,5 +1,5 @@
 use crate::wallets::WalletRepresentatives;
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use std::sync::{Arc, Mutex};
 
 pub(crate) struct WalletRepsChecker {
@@ -20,8 +20,8 @@ impl WalletRepsChecker {
     }
 }
 
-impl Runnable for WalletRepsChecker {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
+impl Tickable for WalletRepsChecker {
+    fn tick(&mut self, _cancel_token: &CancellationToken) {
         let reps = self.wallet_reps.lock().unwrap().clone();
         for consumer in &self.consumers {
             consumer.update_wallet_reps(&reps);

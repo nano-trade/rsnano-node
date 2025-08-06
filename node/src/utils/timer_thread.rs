@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 // Runs a task periodically in it's own thread
-pub struct TimerThread<T: Runnable + 'static> {
+pub struct TimerThread<T: Tickable + 'static> {
     thread_name: String,
     task: Mutex<Option<T>>,
     thread: Mutex<Option<JoinHandle<()>>>,
@@ -30,7 +30,7 @@ pub enum TimerStartType {
     RunOnceThenStart,
 }
 
-impl<T: Runnable> TimerThread<T> {
+impl<T: Tickable> TimerThread<T> {
     pub fn new(name: impl Into<String>, task: T) -> Self {
         Self {
             thread_name: name.into(),
@@ -85,7 +85,7 @@ impl<T: Runnable> TimerThread<T> {
         let cancel_token = self.cancel_token.clone();
 
         if start_type == TimerStartType::RunOnceThenStart {
-            task.run(&cancel_token);
+            task.tick(&cancel_token);
         }
 
         let mut timer_loop = TimerLoop {
@@ -113,7 +113,7 @@ impl<T: Runnable> TimerThread<T> {
     }
 }
 
-struct TimerLoop<T: Runnable> {
+struct TimerLoop<T: Tickable> {
     interval: Duration,
     start_type: TimerStartType,
     cancel_token: CancellationToken,
@@ -121,7 +121,7 @@ struct TimerLoop<T: Runnable> {
     next_wait_duration: Duration,
 }
 
-impl<T: Runnable> TimerLoop<T> {
+impl<T: Tickable> TimerLoop<T> {
     fn run(&mut self) {
         if self.start_type == TimerStartType::Start {
             self.run_one();
@@ -140,13 +140,13 @@ impl<T: Runnable> TimerLoop<T> {
 
     fn run_one(&mut self) {
         let start = Instant::now();
-        self.task.run(&self.cancel_token);
+        self.task.tick(&self.cancel_token);
         let elapsed = start.elapsed();
         self.next_wait_duration = self.interval.saturating_sub(elapsed);
     }
 }
 
-impl<T: Runnable> Drop for TimerThread<T> {
+impl<T: Tickable> Drop for TimerThread<T> {
     fn drop(&mut self) {
         self.stop();
     }

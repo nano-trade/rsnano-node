@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use tracing::debug;
 
 use rsnano_ledger::{Ledger, Writer};
@@ -90,8 +90,8 @@ impl PeerCacheUpdater {
     }
 }
 
-impl Runnable for PeerCacheUpdater {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
+impl Tickable for PeerCacheUpdater {
+    fn tick(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::PeerHistory, DetailType::Loop);
         let mut tx = self.ledger.store.tx_begin_write(Writer::Generic);
         self.save_peers(&mut tx);
@@ -310,7 +310,7 @@ mod tests {
             erase_cutoff,
         );
 
-        peer_history.run(&CancellationToken::new());
+        peer_history.tick(&CancellationToken::new());
 
         (put_tracker.output(), delete_tracker.output(), stats)
     }

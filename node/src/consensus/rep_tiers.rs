@@ -10,7 +10,7 @@ use strum_macros::{EnumCount, EnumIter};
 use tracing::debug;
 
 use rsnano_core::{
-    utils::{CancellationToken, ContainerInfo, ContainerInfoProvider, Runnable},
+    utils::{CancellationToken, ContainerInfo, ContainerInfoProvider, Tickable},
     PublicKey,
 };
 use rsnano_ledger::RepWeightCache;
@@ -223,8 +223,8 @@ impl Drop for RepTiersCalculator {
     }
 }
 
-impl Runnable for RepTiersCalculator {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
+impl Tickable for RepTiersCalculator {
+    fn tick(&mut self, _cancel_token: &CancellationToken) {
         self.calculate_tiers();
     }
 }

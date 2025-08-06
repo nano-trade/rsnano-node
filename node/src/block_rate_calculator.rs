@@ -1,5 +1,5 @@
 use crate::utils::RateCalculator;
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use rsnano_ledger::Ledger;
 use rsnano_nullable_clock::SteadyClock;
 use std::sync::{
@@ -57,8 +57,8 @@ impl BlockRateCalculator {
     }
 }
 
-impl Runnable for BlockRateCalculator {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
+impl Tickable for BlockRateCalculator {
+    fn tick(&mut self, _cancel_token: &CancellationToken) {
         let now = self.clock.now();
         self.bps_calculator.sample(self.ledger.block_count(), now);
         self.cps_calculator
@@ -89,7 +89,7 @@ mod tests {
         let ledger = Arc::new(Ledger::new_null());
         let mut calculator = BlockRateCalculator::new(clock, ledger);
 
-        calculator.run(&CancellationToken::new_null());
+        calculator.tick(&CancellationToken::new_null());
 
         assert_rates(calculator, 0, 0);
     }
@@ -102,11 +102,11 @@ mod tests {
         let ledger = Arc::new(Ledger::new_null());
         let mut calculator = BlockRateCalculator::new(clock, ledger.clone());
 
-        calculator.run(&CancellationToken::new_null());
+        calculator.tick(&CancellationToken::new_null());
 
         ledger.simulate_block_count(126);
         ledger.simulate_confirmed_count(101);
-        calculator.run(&CancellationToken::new_null());
+        calculator.tick(&CancellationToken::new_null());
 
         assert_rates(calculator, 250, 200);
     }

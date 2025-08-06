@@ -3,7 +3,7 @@ use crate::consensus::{
     election::VoteType, election_schedulers::priority::bucket_count, ActiveElectionsContainer,
 };
 use rsnano_core::{
-    utils::{CancellationToken, Runnable},
+    utils::{CancellationToken, Tickable},
     BlockHash, Networks, Root,
 };
 use rsnano_nullable_clock::SteadyClock;
@@ -51,8 +51,8 @@ impl AecVoter {
     }
 }
 
-impl Runnable for AecVoter {
-    fn run(&mut self, cancel_token: &CancellationToken) {
+impl Tickable for AecVoter {
+    fn tick(&mut self, cancel_token: &CancellationToken) {
         let now = self.clock.now();
         let mut aec = self.aec.write().unwrap();
         let mut voted = true;

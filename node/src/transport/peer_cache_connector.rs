@@ -2,7 +2,7 @@ use std::{net::SocketAddrV6, sync::Arc, time::Duration};
 
 use tracing::info;
 
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use rsnano_ledger::Ledger;
 use rsnano_network::PeerConnector;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -44,8 +44,8 @@ impl PeerCacheConnector {
     }
 }
 
-impl Runnable for PeerCacheConnector {
-    fn run(&mut self, cancel_token: &CancellationToken) {
+impl Tickable for PeerCacheConnector {
+    fn tick(&mut self, cancel_token: &CancellationToken) {
         self.stats
             .inc(StatType::Network, DetailType::LoopReachoutCached);
         let cached_peers = self.load_peers_from_cache();
@@ -114,8 +114,8 @@ mod tests {
         let (mut connector, _, _) = create_test_connector([]).await;
 
         let cancel = CancellationToken::new_null();
-        connector.run(&cancel);
-        connector.run(&cancel);
+        connector.tick(&cancel);
+        connector.tick(&cancel);
 
         logs_assert(|lines| {
             match lines
@@ -136,7 +136,7 @@ mod tests {
         let cancel_token = CancellationToken::new_null();
         let wait_tracker = cancel_token.track_waits();
 
-        connector.run(&cancel_token);
+        connector.tick(&cancel_token);
 
         assert_eq!(wait_tracker.output(), [REACHOUT_DELAY; 3]);
     }
@@ -148,7 +148,7 @@ mod tests {
         let cancel_token = CancellationToken::new_null_with_uncancelled_waits(1);
         let wait_tracker = cancel_token.track_waits();
 
-        connector.run(&cancel_token);
+        connector.tick(&cancel_token);
 
         assert_eq!(merge_tracker.output(), [TEST_ENDPOINT_1, TEST_ENDPOINT_2]);
         assert_eq!(wait_tracker.output(), [REACHOUT_DELAY; 2]);
@@ -157,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn inc_stats_when_run() {
         let (mut connector, _, stats) = create_test_connector([]).await;
-        connector.run(&CancellationToken::new_null());
+        connector.tick(&CancellationToken::new_null());
         assert_eq!(
             stats.count(
                 StatType::Network,
@@ -172,7 +172,7 @@ mod tests {
     async fn inc_stats_for_each_reachout() {
         let (mut connector, _, stats) =
             create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2]).await;
-        connector.run(&CancellationToken::new_null());
+        connector.tick(&CancellationToken::new_null());
         assert_eq!(
             stats.count(StatType::Network, DetailType::ReachoutCached, Direction::In),
             2
@@ -183,7 +183,7 @@ mod tests {
         cached_peers: impl IntoIterator<Item = SocketAddrV6>,
     ) -> Vec<SocketAddrV6> {
         let (mut connector, merge_tracker, _) = create_test_connector(cached_peers).await;
-        connector.run(&CancellationToken::new_null());
+        connector.tick(&CancellationToken::new_null());
         merge_tracker.output()
     }
 

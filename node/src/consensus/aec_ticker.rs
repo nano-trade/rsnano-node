@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use rsnano_nullable_clock::SteadyClock;
 
 use super::ActiveElectionsContainer;
@@ -55,8 +55,8 @@ impl AecTicker {
     }
 }
 
-impl Runnable for AecTicker {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
+impl Tickable for AecTicker {
+    fn tick(&mut self, _cancel_token: &CancellationToken) {
         {
             let mut aec = self.active_elections.write().unwrap();
             aec.transition_time(self.clock.now());
@@ -104,7 +104,7 @@ mod tests {
             )
             .unwrap();
 
-        ticker.run(&CancellationToken::new_null());
+        ticker.tick(&CancellationToken::new_null());
 
         assert!(called.load(Ordering::Relaxed));
     }

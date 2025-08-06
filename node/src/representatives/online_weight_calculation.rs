@@ -1,5 +1,5 @@
 use super::{OnlineReps, OnlineWeightSampler};
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::{Arc, Mutex},
@@ -41,8 +41,8 @@ impl OnlineWeightCalculation {
     }
 }
 
-impl Runnable for OnlineWeightCalculation {
-    fn run(&mut self, _: &CancellationToken) {
+impl Tickable for OnlineWeightCalculation {
+    fn tick(&mut self, _: &CancellationToken) {
         if self.first_run {
             // Don't sample online weight on first run, because it is always 0
             self.sampler.sanitize();

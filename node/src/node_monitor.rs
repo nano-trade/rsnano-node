@@ -5,7 +5,7 @@ use std::{
 
 use tracing::info;
 
-use rsnano_core::utils::{CancellationToken, Runnable};
+use rsnano_core::utils::{CancellationToken, Tickable};
 use rsnano_ledger::Ledger;
 use rsnano_network::Network;
 
@@ -94,8 +94,8 @@ impl NodeMonitor {
     }
 }
 
-impl Runnable for NodeMonitor {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
+impl Tickable for NodeMonitor {
+    fn tick(&mut self, _cancel_token: &CancellationToken) {
         if self.last_time.is_some() {
             self.log();
         } else {

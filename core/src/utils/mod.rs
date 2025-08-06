@@ -363,8 +363,8 @@ impl<T> OneShotNotification<T> {
     }
 }
 
-pub trait Runnable: Send {
-    fn run(&mut self, cancel_token: &CancellationToken);
+pub trait Tickable: Send {
+    fn tick(&mut self, cancel_token: &CancellationToken);
 }
 
 /// Lower timestamps have a higher priority
