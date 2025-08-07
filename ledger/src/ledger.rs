@@ -2,10 +2,9 @@ use crate::{
     block_cementer::BlockCementer,
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
-    AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, BorrowingConfirmedSet,
-    ConfirmedSet, GenerateCacheFlags, LedgerConstants, LedgerEvent, LedgerSet, OwningAnySet,
-    OwningConfirmedSet, OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError,
-    Writer,
+    AnySet, BlockRollbackPerformer, BorrowingAnySet, BorrowingConfirmedSet, ConfirmedSet,
+    GenerateCacheFlags, LedgerConstants, LedgerEvent, LedgerSet, OwningAnySet, OwningConfirmedSet,
+    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
@@ -593,6 +592,16 @@ impl Ledger {
         }
     }
 
+    pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockError> {
+        let mut result = self.process_batch(std::iter::once(block));
+        let mut drain = result.processed.drain(..);
+        match drain.next().unwrap() {
+            (Ok(_), Some(block)) => Ok(block),
+            (Ok(_), None) => unreachable!(),
+            (Err(e), _) => Err(e),
+        }
+    }
+
     pub fn process_batch<'a>(
         &self,
         batch: impl IntoIterator<Item = &'a Block>,
@@ -639,20 +648,6 @@ impl Ledger {
         }
 
         BatchProcessResult { processed }
-    }
-
-    pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockError> {
-        let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
-        let any = BorrowingAnySet {
-            constants: &self.constants,
-            store: &self.store,
-            tx: &tx,
-        };
-        let validator = BlockValidatorFactory::new(&any, &self.constants, block).create_validator();
-        let instructions = validator.validate()?;
-        BlockInserter::new(self, &mut tx, block, &instructions)
-            .insert()
-            .ok_or(BlockError::Old)
     }
 
     pub fn roll_back_competitors<'a>(&self, blocks: impl IntoIterator<Item = &'a Block>) {

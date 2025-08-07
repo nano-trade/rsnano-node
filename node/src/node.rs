@@ -1405,7 +1405,7 @@ impl Node {
     pub fn process_multi(&self, blocks: &[Block]) {
         for (i, block) in blocks.iter().enumerate() {
             match self.ledger.process_one(block) {
-                Ok(_) | Err(BlockError::Old) => {}
+                Ok(_) | Err(BlockError::Old) | Err(BlockError::Conflict) => {}
                 Err(e) => {
                     panic!("Could not multi-process block index {}: {:?}", i, e);
                 }
