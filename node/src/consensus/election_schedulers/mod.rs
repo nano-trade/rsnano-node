@@ -15,18 +15,19 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Account, AccountInfo, BlockHash, ConfirmationHeightInfo, Networks, SavedBlock,
 };
-use rsnano_ledger::{AnySet, Ledger, ProcessedResult};
+use rsnano_ledger::{AnySet, Ledger};
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_stats::{Stats, StatsCollection, StatsSource};
 
 use super::{ActiveElectionsContainer, VoteCache};
 use crate::{
+    block_processing::ProcessedResult,
     cementation::ConfirmingSet,
     config::{NetworkConstants, NodeConfig},
     representatives::OnlineReps,
 };
 use priority::{PriorityScheduler, PrioritySchedulerExt};
-use rsnano_nullable_clock::SteadyClock;
 
 pub struct ElectionSchedulers {
     pub priority: Arc<PriorityScheduler>,

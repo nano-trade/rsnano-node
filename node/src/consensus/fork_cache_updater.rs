@@ -1,8 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use rsnano_ledger::{BlockError, ProcessedResult};
+use rsnano_ledger::BlockError;
 
 use super::ForkCache;
+use crate::block_processing::ProcessedResult;
 
 pub(crate) struct ForkCacheUpdater {
     cache: Arc<RwLock<ForkCache>>,

@@ -12,6 +12,7 @@ use std::{
 };
 
 use bounded_vec_deque::BoundedVecDeque;
+use num_format::{Locale, ToFormattedString};
 use tracing::{debug, error, info, warn};
 
 use rsnano_core::{
@@ -21,15 +22,19 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, QualifiedRoot, Root,
     SavedBlock, Vote, VoteError, WorkNonce,
 };
-use rsnano_ledger::{
-    AnySet, BlockError, BlockSource, Ledger, LedgerBuilder, LedgerSet, ProcessedResult,
-};
+use rsnano_ledger::{AnySet, BlockError, Ledger, LedgerBuilder, LedgerSet};
 use rsnano_messages::NetworkFilter;
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
     TcpListenerExt, TcpNetworkAdapter, TrafficType,
 };
+use rsnano_network_protocol::{
+    HandshakeStats, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
+    LatestKeepalivesCleanup, NanoDataReceiverFactory, SynCookies,
+};
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
+use rsnano_nullable_fs::NullableFilesystem;
+use rsnano_nullable_lmdb::EnvironmentOptions;
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 use rsnano_store_lmdb::{
@@ -39,9 +44,9 @@ use rsnano_store_lmdb::{
 use crate::{
     aec_event_processor::AecEventProcessor,
     block_processing::{
-        BacklogScan, BacklogWaiter, BlockContext, BlockProcessor, BlockProcessorQueue,
+        BacklogScan, BacklogWaiter, BlockContext, BlockProcessor, BlockProcessorQueue, BlockSource,
         BoundedBacklog, BoundedBacklogPlugin, LocalBlockBroadcaster, LocalBlockBroadcasterExt,
-        LocalBlockBroadcasterPlugin, ProcessQueueConfig, UncheckedMap,
+        LocalBlockBroadcasterPlugin, ProcessQueueConfig, ProcessedResult, UncheckedMap,
     },
     block_rate_calculator::{BlockRateCalculator, CurrentBlockRates},
     bootstrap::{
@@ -89,13 +94,6 @@ use crate::{
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
 };
-use num_format::{Locale, ToFormattedString};
-use rsnano_network_protocol::{
-    HandshakeStats, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
-    LatestKeepalivesCleanup, NanoDataReceiverFactory, SynCookies,
-};
-use rsnano_nullable_fs::NullableFilesystem;
-use rsnano_nullable_lmdb::EnvironmentOptions;
 
 #[allow(dead_code)]
 pub struct Node {

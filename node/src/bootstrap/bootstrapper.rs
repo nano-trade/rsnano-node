@@ -10,7 +10,7 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Account,
 };
-use rsnano_ledger::{Ledger, ProcessedResult};
+use rsnano_ledger::Ledger;
 use rsnano_messages::{AscPullAck, BlocksAckPayload};
 use rsnano_network::{token_bucket::TokenBucket, ChannelId, DeadChannelCleanupStep, Network};
 use rsnano_nullable_clock::SteadyClock;
@@ -24,7 +24,10 @@ use super::{
     state::{BootstrapState, CandidateAccountsConfig},
     FrontierScanConfig,
 };
-use crate::{block_processing::BlockProcessorQueue, transport::MessageSender};
+use crate::{
+    block_processing::{BlockProcessorQueue, ProcessedResult},
+    transport::MessageSender,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapConfig {

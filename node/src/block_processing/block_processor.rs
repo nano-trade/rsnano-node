@@ -3,15 +3,15 @@ use std::{
     thread::JoinHandle,
 };
 
-use rsnano_ledger::{Ledger, LedgerEvent};
+use rsnano_core::utils::BackpressureSender;
+use rsnano_ledger::Ledger;
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{
     backlog_waiter::BacklogWaiter, block_batch_processor::BlockBatchProcessorStats,
-    BlockProcessorQueue, UncheckedMap,
+    BlockProcessorQueue, LedgerEvent, UncheckedMap,
 };
 use crate::block_processing::block_batch_processor::BlockBatchProcessor;
-use rsnano_core::utils::BackpressureSender;
 
 pub struct BlockProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,

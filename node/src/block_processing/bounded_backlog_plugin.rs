@@ -1,7 +1,7 @@
-use super::BoundedBacklog;
-use crate::ledger_event_processor::LedgerEventProcessorPlugin;
-use rsnano_ledger::LedgerEvent;
 use std::sync::Arc;
+
+use super::{BoundedBacklog, LedgerEvent};
+use crate::ledger_event_processor::LedgerEventProcessorPlugin;
 
 pub(crate) struct BoundedBacklogPlugin {
     bounded_backlog: Arc<BoundedBacklog>,

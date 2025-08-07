@@ -6,13 +6,13 @@ use rsnano_core::{
     StateBlockArgs, UncheckedInfo, Vote, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockError, BlockSource, ConfirmedSet,
-    LedgerSet, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockError, ConfirmedSet, LedgerSet, Writer,
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
-    block_processing::{BacklogScanConfig, BlockContext, BoundedBacklogConfig},
+    block_processing::{BacklogScanConfig, BlockContext, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
     consensus::{election::VoteType, AecEvent, AggregatorRequest, FilteredVote, ReceivedVote},
     wallets::WalletsExt,

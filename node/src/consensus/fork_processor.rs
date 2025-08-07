@@ -3,11 +3,14 @@ use std::sync::{Arc, Mutex, RwLock};
 use tracing::debug;
 
 use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot};
-use rsnano_ledger::{BlockError, LedgerEvent, ProcessedResult, RepWeightCache};
+use rsnano_ledger::{BlockError, RepWeightCache};
 use rsnano_stats::Stats;
 
 use super::{ActiveElectionsContainer, ForkCache, VoteCache};
-use crate::ledger_event_processor::LedgerEventProcessorPlugin;
+use crate::{
+    block_processing::{LedgerEvent, ProcessedResult},
+    ledger_event_processor::LedgerEventProcessorPlugin,
+};
 
 pub(crate) struct ForkProcessor {
     pub(crate) rep_weights: Arc<RepWeightCache>,

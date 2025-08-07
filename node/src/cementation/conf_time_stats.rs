@@ -1,12 +1,14 @@
-use crate::ledger_event_processor::LedgerEventProcessorPlugin;
-use bounded_vec_deque::BoundedVecDeque;
-use chrono::Utc;
-use rsnano_ledger::LedgerEvent;
-use rsnano_stats::{StatsCollection, StatsSource};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+use bounded_vec_deque::BoundedVecDeque;
+use chrono::Utc;
+
+use rsnano_stats::{StatsCollection, StatsSource};
+
+use crate::{block_processing::LedgerEvent, ledger_event_processor::LedgerEventProcessorPlugin};
 
 const STATS_KEY: &str = "confirmation_time";
 const DEFAULT_SAMPLE_SIZE: usize = 1000;

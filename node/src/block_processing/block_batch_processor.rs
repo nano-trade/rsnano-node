@@ -7,17 +7,18 @@ use std::{
     time::{Duration, Instant},
 };
 
+use strum::{EnumCount, IntoEnumIterator};
 use tracing::{debug, warn};
 
 use rsnano_core::{
     utils::{backpressure_channel, BackpressureSender},
     BlockType, Epoch, UncheckedInfo,
 };
-use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerEvent, ProcessedResult};
+use rsnano_ledger::{BlockError, Ledger};
 use rsnano_stats::{StatsCollection, StatsSource};
 
-use super::{BlockContext, UncheckedMap};
-use strum::{EnumCount, IntoEnumIterator};
+use super::{BlockContext, BlockSource, LedgerEvent, UncheckedMap};
+use crate::block_processing::ProcessedResult;
 
 pub(crate) struct BlockBatchProcessor {
     pub ledger: Arc<Ledger>,

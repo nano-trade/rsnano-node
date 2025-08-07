@@ -12,11 +12,12 @@ use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
     BlockHash, SavedBlock,
 };
-use rsnano_ledger::{CementingObserver, Ledger, LedgerEvent, ProcessedResult};
+use rsnano_ledger::{CementingObserver, Ledger};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ordered_entries::OrderedEntries;
 use crate::{
+    block_processing::{LedgerEvent, ProcessedResult},
     consensus::{election::ConfirmedElection, ConfirmedElectionsCache},
     utils::{ThreadPool, ThreadPoolImpl},
 };

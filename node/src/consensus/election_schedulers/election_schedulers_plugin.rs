@@ -1,7 +1,8 @@
-use super::ElectionSchedulers;
-use crate::ledger_event_processor::LedgerEventProcessorPlugin;
-use rsnano_ledger::LedgerEvent;
 use std::sync::Arc;
+
+use crate::{block_processing::LedgerEvent, ledger_event_processor::LedgerEventProcessorPlugin};
+
+use super::ElectionSchedulers;
 
 pub(crate) struct ElectionSchedulersPlugin {
     schedulers: Arc<ElectionSchedulers>,

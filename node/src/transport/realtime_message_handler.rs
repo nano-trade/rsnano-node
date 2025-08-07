@@ -3,22 +3,21 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use rsnano_ledger::BlockSource;
 use tracing::trace;
 
 use rsnano_core::VoteSource;
 use rsnano_messages::{Message, NetworkFilter};
 use rsnano_network::{Channel, Network};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
+use rsnano_work::WorkThresholds;
 
 use crate::{
-    block_processing::{BlockContext, BlockProcessorQueue},
+    block_processing::{BlockContext, BlockProcessorQueue, BlockSource},
     bootstrap::{BootstrapServer, Bootstrapper},
     consensus::{AggregatorRequest, RequestAggregator, VoteProcessorQueue},
     telemetry::Telemetry,
     wallets::Wallets,
 };
-use rsnano_work::WorkThresholds;
 
 /// Handle realtime messages (as opposed to bootstrap messages)
 pub struct RealtimeMessageHandler {

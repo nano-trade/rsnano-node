@@ -4,21 +4,20 @@ use std::{
     time::Duration,
 };
 
-use strum::{EnumCount, IntoEnumIterator};
-
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, FairQueueInfo},
     Block, SavedBlock,
 };
-use rsnano_ledger::{BlockError, BlockSource};
+use rsnano_ledger::BlockError;
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{
     process_queue::{ProcessQueue, ProcessQueueConfig},
-    BlockContext,
+    BlockContext, BlockSource,
 };
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use rsnano_stats::{StatsCollection, StatsSource};
+use strum::{EnumCount, IntoEnumIterator};
 
 pub struct BlockProcessorQueue {
     queue: Mutex<BlockProcessorQueueImpl>,

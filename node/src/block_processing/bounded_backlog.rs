@@ -5,21 +5,23 @@ use std::{
     time::Duration,
 };
 
+use tracing::warn;
+
 use rsnano_core::{
     utils::{backpressure_channel, BackpressureSender, ContainerInfo, ContainerInfoProvider},
     Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{AnySet, Ledger, LedgerEvent, LedgerSet, OwningAnySet, ProcessedResult};
+use rsnano_ledger::{AnySet, Ledger, LedgerSet, OwningAnySet};
 use rsnano_network::token_bucket::TokenBucket;
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::UnconfirmedInfo,
+    LedgerEvent, ProcessedResult,
 };
 use crate::consensus::election_schedulers::priority::{prio_bucket_count, prio_bucket_index};
-use rsnano_nullable_clock::SteadyClock;
-use tracing::warn;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {

@@ -1,9 +1,8 @@
-use super::BlockContext;
+use super::{BlockContext, BlockSource};
 use rsnano_core::{
     utils::{ContainerInfo, FairQueue, FairQueueInfo},
     Block,
 };
-use rsnano_ledger::BlockSource;
 use rsnano_network::ChannelId;
 use std::{
     collections::VecDeque,

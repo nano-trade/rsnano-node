@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use rsnano_ledger::{BlockSource, Ledger};
+use rsnano_ledger::Ledger;
 use rsnano_network::Channel;
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_stats::{StatsCollection, StatsSource};
@@ -13,7 +13,7 @@ use super::{
     query_factory::QueryFactory,
 };
 use crate::{
-    block_processing::BlockProcessorQueue,
+    block_processing::{BlockProcessorQueue, BlockSource},
     bootstrap::{
         requesters::channel_waiter::{ChannelWaiter, ChannelWaiterStats},
         state::BootstrapState,

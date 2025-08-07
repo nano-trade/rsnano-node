@@ -13,16 +13,17 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider},
     Block, BlockHash, Networks,
 };
-use rsnano_ledger::{BlockSource, ConfirmedSet, Ledger, LedgerEvent, ProcessedResult};
+use rsnano_ledger::{ConfirmedSet, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::{token_bucket::TokenBucket, TrafficType};
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 
+use super::{BlockSource, LedgerEvent, ProcessedResult};
 use crate::{
     cementation::ConfirmingSet, ledger_event_processor::LedgerEventProcessorPlugin,
     transport::MessageFlooder,
 };
-use rsnano_nullable_clock::SteadyClock;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalBlockBroadcasterConfig {

@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use rsnano_core::{Account, Block, BlockType, SavedBlock};
-use rsnano_ledger::{AnySet, BlockError, BlockSource, Ledger, ProcessedResult};
+use rsnano_ledger::{AnySet, BlockError, Ledger};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::state::{BootstrapState, PriorityUpResult};
+use crate::block_processing::{BlockSource, ProcessedResult};
 
 /// Inspects a processed block and adjusts the bootstrap state accordingly
 pub(super) struct BlockInspector {

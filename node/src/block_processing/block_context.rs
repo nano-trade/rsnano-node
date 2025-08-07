@@ -1,7 +1,10 @@
-use rsnano_core::{Block, SavedBlock};
-use rsnano_ledger::{BlockError, BlockSource};
-use rsnano_network::ChannelId;
 use std::sync::{Arc, Condvar, Mutex};
+
+use rsnano_core::{Block, SavedBlock};
+use rsnano_ledger::BlockError;
+use rsnano_network::ChannelId;
+
+use super::BlockSource;
 
 pub type BlockProcessorCallback = Box<dyn Fn(Result<(), BlockError>) + Send + Sync>;
 
