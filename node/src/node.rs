@@ -778,6 +778,7 @@ impl Node {
             ledger.clone(),
             stats.clone(),
             steady_clock.clone(),
+            ledger_tx.clone(),
         ));
 
         if config.enable_bounded_backlog {

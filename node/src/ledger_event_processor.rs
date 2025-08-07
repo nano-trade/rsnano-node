@@ -89,7 +89,7 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
                     let mut aec = self.active_elections.write().unwrap();
                     for result in rolled_back.iter() {
                         for block in &result.rolled_back {
-                            // Stop all rolled back active transactions except initial
+                            // Stop all rolled back elections except initial
                             if block.qualified_root() != result.target_root {
                                 aec.erase(&block.qualified_root());
                             }

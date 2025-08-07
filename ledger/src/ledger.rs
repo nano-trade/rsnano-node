@@ -504,12 +504,16 @@ impl Ledger {
         result[0].error.map_or(Ok(rolled_back), |e| Err(e))
     }
 
-    pub fn roll_back_batch(
+    pub fn roll_back_batch<'a, T, F>(
         &self,
-        targets: &[BlockHash],
+        targets: T,
         max_rollbacks: usize,
-        can_roll_back: impl Fn(&BlockHash) -> bool,
-    ) -> RollbackResults {
+        mut can_roll_back: F,
+    ) -> RollbackResults
+    where
+        T: IntoIterator<Item = &'a BlockHash>,
+        F: FnMut(&BlockHash) -> bool,
+    {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
@@ -575,8 +579,6 @@ impl Ledger {
             }
         }
 
-        // TODO: don't clone processed
-        self.notify(LedgerEvent::BlocksRolledBack(results.clone()));
         results
     }
 
