@@ -3,8 +3,9 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BlockSource, BorrowingAnySet, BorrowingConfirmedSet,
-    ConfirmedSet, GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
-    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
+    ConfirmedSet, GenerateCacheFlags, LedgerConstants, LedgerEvent, LedgerSet, OwningAnySet,
+    OwningConfirmedSet, OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError,
+    Writer,
 };
 use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
@@ -104,13 +105,6 @@ impl From<BlockError> for DetailType {
             BlockError::Conflict => Self::Conflict,
         }
     }
-}
-
-pub enum LedgerEvent {
-    /// The confirmed block + it's confirmation root
-    BlocksProcessed(Vec<ProcessedResult>),
-    BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
-    BlocksRolledBack(RollbackResults),
 }
 
 pub struct Ledger {
@@ -603,7 +597,6 @@ impl Ledger {
         &self,
         batch: impl IntoIterator<Item = &'a Block>,
     ) -> BatchProcessResult {
-        let mut processed = Vec::new();
         let mut validation_results = Vec::new();
 
         // Validate blocks
@@ -623,6 +616,7 @@ impl Ledger {
         }
 
         // Insert blocks
+        let mut processed = Vec::with_capacity(validation_results.len());
         {
             let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
             for (result, block) in validation_results {
@@ -1023,14 +1017,6 @@ impl RollbackResult {
     pub fn roots(&self) -> impl Iterator<Item = Root> + use<'_> {
         self.rolled_back.iter().map(|b| b.root())
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct ProcessedResult {
-    pub block: Block,
-    pub source: BlockSource,
-    pub status: Result<(), BlockError>,
-    pub saved_block: Option<SavedBlock>,
 }
 
 #[cfg(test)]

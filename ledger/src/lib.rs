@@ -37,8 +37,24 @@ pub use ledger_sets::*;
 pub use rep_weight_cache::*;
 pub use rep_weights_updater::*;
 pub(crate) use representative_block_finder::RepresentativeBlockFinder;
+use rsnano_core::{Block, BlockHash, SavedBlock};
 use rsnano_stats::DetailType;
 pub use rsnano_store_lmdb::{WriteGuard, WriteQueue, Writer};
+
+pub enum LedgerEvent {
+    /// The confirmed block + it's confirmation root
+    BlocksProcessed(Vec<ProcessedResult>),
+    BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
+    BlocksRolledBack(RollbackResults),
+}
+
+#[derive(Clone, Debug)]
+pub struct ProcessedResult {
+    pub block: Block,
+    pub source: BlockSource,
+    pub status: Result<(), BlockError>,
+    pub saved_block: Option<SavedBlock>,
+}
 
 #[derive(
     Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, EnumCount, Hash, IntoStaticStr,
