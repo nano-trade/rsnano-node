@@ -3,11 +3,11 @@ use crate::{
     block_insertion::{BlockInserter, BlockValidatorFactory},
     vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BorrowingAnySet, BorrowingConfirmedSet, ConfirmedSet,
-    GenerateCacheFlags, LedgerConstants, LedgerEvent, LedgerSet, OwningAnySet, OwningConfirmedSet,
+    GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
     OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
 };
 use rsnano_core::{
-    utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider, UnixTimestamp},
+    utils::{ContainerInfo, ContainerInfoProvider, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, ConfirmationHeightInfo, Epoch, Link,
     PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root, SavedBlock,
 };
@@ -25,7 +25,7 @@ use std::{
     ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, RwLock,
+        Arc,
     },
     time::SystemTime,
 };
@@ -113,7 +113,6 @@ pub struct Ledger {
     pub constants: LedgerConstants,
     pruning: AtomicBool,
     pub(crate) stats: Arc<Stats>,
-    observer: RwLock<Option<BackpressureSender<LedgerEvent>>>,
 }
 
 pub struct NullLedgerBuilder {
@@ -240,16 +239,11 @@ impl Ledger {
             constants,
             pruning: AtomicBool::new(false),
             stats,
-            observer: RwLock::new(None),
         };
 
         ledger.initialize(thread_count, &GenerateCacheFlags::new())?;
 
         Ok(ledger)
-    }
-
-    pub fn set_observer(&mut self, sink: BackpressureSender<LedgerEvent>) {
-        *self.observer.write().unwrap() = Some(sink);
     }
 
     fn initialize(
@@ -780,7 +774,7 @@ impl Ledger {
                         blocks_confirmed = 0;
                         self.stats
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
-                        self.notify(LedgerEvent::BlocksConfirmed(confirmed));
+                        cementing_observer.batch_confirmed(confirmed);
                         confirmed = Vec::new();
                         tx.renew();
                     }
@@ -850,7 +844,7 @@ impl Ledger {
         }
 
         if !confirmed.is_empty() {
-            self.notify(LedgerEvent::BlocksConfirmed(confirmed));
+            cementing_observer.batch_confirmed(confirmed);
         }
     }
 
@@ -928,16 +922,6 @@ impl Ledger {
     pub fn wait(&self, writer: Writer) -> WriteGuard {
         self.store.env.write_queue.wait(writer)
     }
-
-    pub fn stop(&self) {
-        drop(self.observer.write().unwrap().take());
-    }
-
-    fn notify(&self, event: LedgerEvent) {
-        if let Some(sender) = self.observer.read().unwrap().as_ref() {
-            sender.send(event).unwrap();
-        }
-    }
 }
 
 impl Drop for Ledger {
@@ -961,6 +945,7 @@ pub struct BatchProcessResult {
 pub trait CementingObserver {
     fn already_confirmed(&mut self, hash: &BlockHash);
     fn cementing_failed(&mut self, hash: &BlockHash);
+    fn batch_confirmed(&mut self, batch: Vec<(SavedBlock, BlockHash)>);
 }
 
 #[derive(Clone, Default)]

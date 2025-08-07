@@ -12,7 +12,7 @@ use rsnano_core::{
     utils::{BackpressureSender, ContainerInfo, ContainerInfoProvider},
     BlockHash, SavedBlock,
 };
-use rsnano_ledger::{CementingObserver, Ledger, ProcessedResult};
+use rsnano_ledger::{CementingObserver, Ledger, LedgerEvent, ProcessedResult};
 use rsnano_stats::{DetailType, StatType, Stats};
 
 use super::ordered_entries::OrderedEntries;
@@ -88,7 +88,8 @@ impl ConfirmingSet {
                 stats,
                 config,
                 workers: ThreadPoolImpl::create(1, "Conf notif"),
-                event_sender: RwLock::new(None),
+                confirming_set_event_publisher: RwLock::new(None),
+                ledger_event_publisher: Mutex::new(None),
             }),
         }
     }
@@ -101,8 +102,12 @@ impl ConfirmingSet {
         )
     }
 
-    pub fn set_event_sink(&self, sink: BackpressureSender<ConfirmingSetEvent>) {
-        *self.thread.event_sender.write().unwrap() = Some(sink);
+    pub fn set_confirming_set_event_publisher(&self, sink: BackpressureSender<ConfirmingSetEvent>) {
+        *self.thread.confirming_set_event_publisher.write().unwrap() = Some(sink);
+    }
+
+    pub fn set_ledger_event_publisher(&self, sink: BackpressureSender<LedgerEvent>) {
+        *self.thread.ledger_event_publisher.lock().unwrap() = Some(sink);
     }
 
     /// Adds a block to the set of blocks to be confirmed
@@ -216,7 +221,8 @@ struct ConfirmingSetThread {
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
     workers: ThreadPoolImpl,
-    event_sender: RwLock<Option<BackpressureSender<ConfirmingSetEvent>>>,
+    confirming_set_event_publisher: RwLock<Option<BackpressureSender<ConfirmingSetEvent>>>,
+    ledger_event_publisher: Mutex<Option<BackpressureSender<LedgerEvent>>>,
 }
 
 impl ConfirmingSetThread {
@@ -225,7 +231,7 @@ impl ConfirmingSetThread {
             let _guard = self.mutex.lock().unwrap();
             self.stopped.store(true, Ordering::SeqCst);
         }
-        drop(self.event_sender.write().unwrap().take());
+        drop(self.confirming_set_event_publisher.write().unwrap().take());
         self.condition.notify_all();
     }
 
@@ -337,7 +343,7 @@ impl ConfirmingSetThread {
     }
 
     fn notify(&self, event: ConfirmingSetEvent) {
-        if let Some(sender) = self.event_sender.read().unwrap().as_ref() {
+        if let Some(sender) = self.confirming_set_event_publisher.read().unwrap().as_ref() {
             sender.send(event).unwrap();
         }
     }
@@ -434,6 +440,14 @@ impl<'a> CementingObserver for CementedNotifier<'a> {
                 confirmation_root: *hash,
                 timestamp: Instant::now(),
             });
+    }
+
+    fn batch_confirmed(&mut self, batch: Vec<(SavedBlock, BlockHash)>) {
+        let publisher = self.confirming_set.ledger_event_publisher.lock().unwrap();
+        let Some(publisher) = publisher.as_ref() else {
+            return;
+        };
+        publisher.send(LedgerEvent::BlocksConfirmed(batch)).unwrap();
     }
 }
 

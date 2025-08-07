@@ -338,7 +338,7 @@ impl Node {
             .txn_tracker(txn_tracker)
             .finish();
 
-        let mut ledger = match ledger {
+        let ledger = match ledger {
             Ok(i) => i,
             Err(e) => {
                 panic!("Could not open ledger: {:?}. Details: {:?}", ledger_path, e)
@@ -354,7 +354,6 @@ impl Node {
         let (ledger_tx, ledger_rx) = backpressure_channel(1024);
         let ledger_tx_clone = ledger_tx.clone();
         event_queues_info.add_leaf("ledger", move || ledger_tx_clone.len());
-        ledger.set_observer(ledger_tx.clone());
 
         let ledger = Arc::new(ledger);
         info!(
@@ -500,7 +499,8 @@ impl Node {
         let (tx_confirming, rx_confirming) = backpressure_channel(1024);
         let tx_conf_clone = tx_confirming.clone();
         event_queues_info.add_leaf("confirming_set", move || tx_conf_clone.len());
-        confirming_set.set_event_sink(tx_confirming);
+        confirming_set.set_confirming_set_event_publisher(tx_confirming);
+        confirming_set.set_ledger_event_publisher(ledger_tx.clone());
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
             config.vote_cache.clone(),
@@ -1664,7 +1664,6 @@ impl Node {
 
         self.tcp_listener.stop();
         self.aec_voter.stop();
-        self.ledger.stop();
         self.wallet_reps_checker.stop();
         self.online_weight_calculation.stop();
         self.peer_connector.stop();
