@@ -13,7 +13,7 @@ use rsnano_core::{
     utils::{backpressure_channel, BackpressureSender},
     BlockType, Epoch, UncheckedInfo,
 };
-use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerEvent};
+use rsnano_ledger::{BlockError, BlockSource, Ledger, LedgerEvent, ProcessedResult};
 use rsnano_stats::{StatsCollection, StatsSource};
 
 use super::{BlockContext, UncheckedMap};
@@ -46,10 +46,22 @@ impl BlockBatchProcessor {
             .ledger
             .process_batch(batch.iter().map(|c| (&c.block, c.source)));
 
+        let processed_batch = result
+            .processed
+            .iter()
+            .zip(&batch)
+            .map(|((result, block), ctx)| ProcessedResult {
+                block: ctx.block.clone(),
+                source: ctx.source,
+                status: *result,
+                saved_block: block.clone(),
+            })
+            .collect();
+
         if !result.processed_batch.is_empty() {
             if let Err(e) = self
                 .event_publisher
-                .send(LedgerEvent::BlocksProcessed(result.processed_batch))
+                .send(LedgerEvent::BlocksProcessed(processed_batch))
             {
                 warn!("Failed to publish blocks processed event: {e:?}");
             }
