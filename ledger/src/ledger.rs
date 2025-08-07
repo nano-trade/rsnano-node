@@ -601,16 +601,15 @@ impl Ledger {
 
     pub fn process_batch<'a>(
         &self,
-        batch: impl IntoIterator<Item = (&'a Block, BlockSource)>,
+        batch: impl IntoIterator<Item = &'a Block>,
     ) -> BatchProcessResult {
         let mut processed = Vec::new();
-        let mut processed_batch = Vec::new();
         let mut validation_results = Vec::new();
 
         // Validate blocks
         {
             let tx = self.store.tx_begin_read();
-            for (block, source) in batch.into_iter() {
+            for block in batch.into_iter() {
                 let any = BorrowingAnySet {
                     constants: &self.constants,
                     store: &self.store,
@@ -619,54 +618,33 @@ impl Ledger {
                 let validator =
                     BlockValidatorFactory::new(&any, &self.constants, block).create_validator();
                 let result = validator.validate();
-                validation_results.push((result, block, source));
+                validation_results.push((result, block));
             }
         }
 
         // Insert blocks
         {
             let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
-            for (result, block, source) in validation_results {
+            for (result, block) in validation_results {
                 match result {
                     Ok(instructions) => {
                         if let Some(saved_block) =
                             BlockInserter::new(self, &mut tx, block, &instructions).insert()
                         {
                             processed.push((Ok(()), Some(saved_block.clone())));
-                            processed_batch.push(ProcessedResult {
-                                block: block.clone(),
-                                source,
-                                status: Ok(()),
-                                saved_block: Some(saved_block),
-                            });
                         } else {
                             let err = BlockError::Conflict;
                             processed.push((Err(err), None));
-                            processed_batch.push(ProcessedResult {
-                                block: block.clone(),
-                                source,
-                                status: Err(err),
-                                saved_block: None,
-                            });
                         }
                     }
                     Err(err) => {
                         processed.push((Err(err), None));
-                        processed_batch.push(ProcessedResult {
-                            block: block.clone(),
-                            source,
-                            status: Err(err),
-                            saved_block: None,
-                        });
                     }
                 }
             }
         }
 
-        BatchProcessResult {
-            processed,
-            processed_batch,
-        }
+        BatchProcessResult { processed }
     }
 
     pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockError> {
@@ -983,7 +961,6 @@ impl ContainerInfoProvider for Ledger {
 
 pub struct BatchProcessResult {
     pub processed: Vec<(Result<(), BlockError>, Option<SavedBlock>)>,
-    pub processed_batch: Vec<ProcessedResult>,
 }
 
 pub trait CementingObserver {

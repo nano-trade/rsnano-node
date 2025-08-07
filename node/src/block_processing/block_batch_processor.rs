@@ -42,11 +42,9 @@ impl BlockBatchProcessor {
 
         self.roll_back_competitor_blocks(&batch);
 
-        let mut result = self
-            .ledger
-            .process_batch(batch.iter().map(|c| (&c.block, c.source)));
+        let mut result = self.ledger.process_batch(batch.iter().map(|c| &c.block));
 
-        let processed_batch = result
+        let processed_result: Vec<_> = result
             .processed
             .iter()
             .zip(&batch)
@@ -58,10 +56,10 @@ impl BlockBatchProcessor {
             })
             .collect();
 
-        if !result.processed_batch.is_empty() {
+        if !processed_result.is_empty() {
             if let Err(e) = self
                 .event_publisher
-                .send(LedgerEvent::BlocksProcessed(processed_batch))
+                .send(LedgerEvent::BlocksProcessed(processed_result))
             {
                 warn!("Failed to publish blocks processed event: {e:?}");
             }
