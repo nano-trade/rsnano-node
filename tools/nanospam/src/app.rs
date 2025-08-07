@@ -2,8 +2,8 @@ use std::{
     ffi::OsString,
     net::{Ipv6Addr, SocketAddrV6},
     sync::{
-        Mutex,
         atomic::{AtomicUsize, Ordering},
+        Mutex,
     },
     thread::yield_now,
     time::{Duration, Instant},
@@ -102,6 +102,10 @@ pub(crate) struct Args {
     /// Don't republish delayed blocks after 10 seconds
     #[arg(long, default_value_t = false)]
     pub no_republish: bool,
+
+    /// Maximum number of individual accounts to use to produce blocks
+    #[arg(long, default_value_t = 500000)]
+    pub accounts: usize,
 }
 
 #[derive(Default)]
@@ -131,7 +135,7 @@ impl NanoSpamApp {
         let mut data_dir = dirs::home_dir().unwrap();
         data_dir.push("NanoSpam");
 
-        let mut account_map = create_account_map(&data_dir);
+        let mut account_map = create_account_map(&data_dir, args.accounts);
 
         if !args.attach && !args.sync {
             configure_nodes(&args, &data_dir);
