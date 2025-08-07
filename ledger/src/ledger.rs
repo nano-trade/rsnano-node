@@ -650,7 +650,11 @@ impl Ledger {
         BatchProcessResult { processed }
     }
 
-    pub fn roll_back_competitors<'a>(&self, blocks: impl IntoIterator<Item = &'a Block>) {
+    pub fn roll_back_competitors<'a, T, F>(&self, blocks: T, mut rolled_back_callback: F)
+    where
+        T: IntoIterator<Item = &'a Block>,
+        F: FnMut(RollbackResults),
+    {
         let mut rolled_back = RollbackResults::new();
         {
             let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
@@ -658,7 +662,7 @@ impl Ledger {
                 if tx.is_refresh_needed() {
                     drop(tx);
                     if !rolled_back.is_empty() {
-                        self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+                        rolled_back_callback(rolled_back);
                         rolled_back = RollbackResults::new();
                     }
                     tx = self.store.tx_begin_write(Writer::BlockProcessor);
@@ -675,7 +679,7 @@ impl Ledger {
             }
         }
         if !rolled_back.is_empty() {
-            self.notify(LedgerEvent::BlocksRolledBack(rolled_back));
+            rolled_back_callback(rolled_back);
         }
     }
 

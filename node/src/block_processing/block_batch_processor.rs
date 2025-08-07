@@ -195,7 +195,14 @@ impl BlockBatchProcessor {
                 None
             }
         });
-        self.ledger.roll_back_competitors(fork_blocks);
+        self.ledger.roll_back_competitors(fork_blocks, |results| {
+            if let Err(e) = self
+                .event_publisher
+                .send(LedgerEvent::BlocksRolledBack(results))
+            {
+                warn!("Failed to publish rolled back event: {e:?}");
+            }
+        });
     }
 }
 
