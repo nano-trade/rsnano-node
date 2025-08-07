@@ -663,11 +663,10 @@ impl Ledger {
             }
         }
 
-        if !processed_batch.is_empty() {
-            self.notify(LedgerEvent::BlocksProcessed(processed_batch));
+        BatchProcessResult {
+            processed,
+            processed_batch,
         }
-
-        BatchProcessResult { processed }
     }
 
     pub fn process_one(&self, block: &Block) -> Result<SavedBlock, BlockError> {
@@ -984,6 +983,7 @@ impl ContainerInfoProvider for Ledger {
 
 pub struct BatchProcessResult {
     pub processed: Vec<(Result<(), BlockError>, Option<SavedBlock>)>,
+    pub processed_batch: Vec<ProcessedResult>,
 }
 
 pub trait CementingObserver {

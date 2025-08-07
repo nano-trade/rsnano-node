@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tracing::debug;
+use tracing::{debug, warn};
 
 use rsnano_core::{
     utils::{backpressure_channel, BackpressureSender},
@@ -45,6 +45,15 @@ impl BlockBatchProcessor {
         let mut result = self
             .ledger
             .process_batch(batch.iter().map(|c| (&c.block, c.source)));
+
+        if !result.processed_batch.is_empty() {
+            if let Err(e) = self
+                .event_publisher
+                .send(LedgerEvent::BlocksProcessed(result.processed_batch))
+            {
+                warn!("Failed to publish blocks processed event: {e:?}");
+            }
+        }
 
         if result.processed.len() > 0 && timer.elapsed() > Duration::from_millis(100) {
             debug!(
