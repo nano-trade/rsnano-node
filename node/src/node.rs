@@ -657,14 +657,12 @@ impl Node {
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
         let handshake_stats = Arc::new(HandshakeStats::default());
 
-        let inbound_clone = inbound_message_queue.clone();
-        let inbound = Arc::new(move |msg, channel| {
-            inbound_clone.put(msg, channel);
-        });
+        let inbound_queue_clone = inbound_message_queue.clone();
+        let try_enqueue = Arc::new(move |msg, channel| inbound_queue_clone.put(msg, channel));
 
         let data_receiver_factory = Box::new(NanoDataReceiverFactory::new(
             &network,
-            inbound,
+            try_enqueue,
             network_filter.clone(),
             stats.clone(),
             handshake_stats.clone(),

@@ -11,7 +11,7 @@ pub struct NanoDataReceiverFactory {
     stats: Arc<Stats>,
     handshake_stats: Arc<HandshakeStats>,
     network: Weak<RwLock<Network>>,
-    received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
+    try_enqueue: Arc<dyn Fn(Message, Arc<Channel>) -> bool + Send + Sync>,
     network_filter: Arc<NetworkFilter>,
     syn_cookies: Arc<SynCookies>,
     node_id: PrivateKey,
@@ -23,7 +23,7 @@ pub struct NanoDataReceiverFactory {
 impl NanoDataReceiverFactory {
     pub fn new(
         network: &Arc<RwLock<Network>>,
-        received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
+        try_enqueue: Arc<dyn Fn(Message, Arc<Channel>) -> bool + Send + Sync>,
         network_filter: Arc<NetworkFilter>,
         stats: Arc<Stats>,
         stats2: Arc<HandshakeStats>,
@@ -35,7 +35,7 @@ impl NanoDataReceiverFactory {
     ) -> Self {
         Self {
             network: Arc::downgrade(network),
-            received,
+            try_enqueue,
             syn_cookies: syn_cookies.clone(),
             node_id: node_id_key.clone(),
             stats: stats.clone(),
@@ -63,7 +63,7 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             channel,
             handshake_process,
             message_deserializer,
-            self.received.clone(),
+            self.try_enqueue.clone(),
             self.latest_keepalives.clone(),
             self.stats.clone(),
             self.network.clone(),

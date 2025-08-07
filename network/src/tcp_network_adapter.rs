@@ -126,7 +126,7 @@ impl TcpNetworkAdapter {
                         loop {
                             // TODO find better solution than sleep and polling
                             tokio::select! {
-                                _ = sleep(Duration::from_millis(50)) => {},
+                                _ = sleep(Duration::from_millis(5)) => {},
                                 _ = channel.cancelled() => { break;}
                             }
                             match receiver.try_unpause() {

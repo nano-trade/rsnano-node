@@ -280,6 +280,10 @@ impl Channel {
         self.cancel_token.cancelled()
     }
 
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel_token.is_cancelled()
+    }
+
     pub fn check_timeout(&self, now: Timestamp) -> bool {
         // If the socket is already dead, stop doing checkups
         if !self.is_alive() {

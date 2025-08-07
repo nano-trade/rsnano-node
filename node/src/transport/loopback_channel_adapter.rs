@@ -1,5 +1,5 @@
-use std::sync::Arc;
-use tokio::select;
+use std::{sync::Arc, time::Duration};
+use tokio::{select, time::sleep};
 
 use rsnano_core::{Networks, NodeId, ProtocolInfo};
 use rsnano_messages::MessageDeserializer;
@@ -26,7 +26,9 @@ pub(crate) async fn run_loopback_channel_adapter(
         if let Some(entry) = res {
             deserializer.push(&entry.buffer);
             if let Some(Ok(m)) = deserializer.try_deserialize() {
-                inbound.put(m.message, loopback.clone());
+                while !inbound.put(m.message.clone(), loopback.clone()) && loopback.is_cancelled() {
+                    sleep(Duration::from_millis(1)).await;
+                }
             }
         }
     }

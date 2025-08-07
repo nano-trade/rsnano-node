@@ -16,13 +16,14 @@ pub struct NanoDataReceiver {
     handshake_process: HandshakeProcess,
     serializer: MessageSerializer,
     message_deserializer: MessageDeserializer,
-    received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
+    try_enqueue: Arc<dyn Fn(Message, Arc<Channel>) -> bool + Send + Sync>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     stats: Arc<Stats>,
     network: Weak<RwLock<Network>>,
     first_message: bool,
     node_id: NodeId,
     handshake_stats: Arc<HandshakeStats>,
+    retry_enqueue: Option<Message>,
 }
 
 impl NanoDataReceiver {
@@ -30,7 +31,7 @@ impl NanoDataReceiver {
         channel: Arc<Channel>,
         handshake_process: HandshakeProcess,
         message_deserializer: MessageDeserializer,
-        received: Arc<dyn Fn(Message, Arc<Channel>) + Send + Sync>,
+        try_enqueue: Arc<dyn Fn(Message, Arc<Channel>) -> bool + Send + Sync>,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         stats: Arc<Stats>,
         network: Weak<RwLock<Network>>,
@@ -42,13 +43,14 @@ impl NanoDataReceiver {
             handshake_process,
             serializer: MessageSerializer::new_with_buffer_size(protocol, 512),
             message_deserializer,
-            received,
+            try_enqueue,
             latest_keepalives,
             stats,
             network,
             first_message: true,
             node_id: NodeId::ZERO,
             handshake_stats,
+            retry_enqueue: None,
         }
     }
 
@@ -92,9 +94,19 @@ impl NanoDataReceiver {
         }
     }
 
-    fn queue_realtime(&self, message: Message) {
-        // TODO: Throttle if not added
-        (self.received)(message, self.channel.clone());
+    fn queue_realtime(&mut self, message: Message) -> ReceiveResult {
+        let enqueued = self.try_enqueue(message.clone());
+        if enqueued {
+            ReceiveResult::Continue
+        } else {
+            debug_assert!(self.retry_enqueue.is_none());
+            self.retry_enqueue = Some(message);
+            ReceiveResult::Pause
+        }
+    }
+
+    fn try_enqueue(&self, message: Message) -> bool {
+        (self.try_enqueue)(message, self.channel.clone())
     }
 
     fn set_last_keepalive(&self, keepalive: Keepalive) {
@@ -104,7 +116,7 @@ impl NanoDataReceiver {
             .insert(self.channel.channel_id(), keepalive);
     }
 
-    fn process_realtime(&self, message: Message) -> ReceiveResult {
+    fn process_realtime(&mut self, message: Message) -> ReceiveResult {
         let process = match &message {
             Message::Keepalive(keepalive) => {
                 self.set_last_keepalive(keepalive.clone());
@@ -121,10 +133,11 @@ impl NanoDataReceiver {
         };
 
         if process {
-            self.queue_realtime(message);
+            self.queue_realtime(message)
+        } else {
+            // TODO: Ban the peer, instead of continuing?
+            ReceiveResult::Continue
         }
-
-        ReceiveResult::Continue
     }
 
     fn to_realtime_connection(&self, node_id: &NodeId) -> bool {
@@ -338,32 +351,47 @@ impl DataReceiver for NanoDataReceiver {
     }
 
     fn try_unpause(&self) -> ReceiveResult {
-        if self.channel.mode() != ChannelMode::Undefined {
-            // Pausing is currently only needed during handshake
-            return ReceiveResult::Continue;
-        }
+        let mode = self.channel.mode();
+        match mode {
+            ChannelMode::Undefined => {
+                // Paused during handshake
 
-        // Wait until all outbound messages are processed.
-        // This is needed for the handshake because the channel can't be upgraded to
-        // a realtime channel unless the handshake response is actually sent out
-        if self.channel.queue_len() > 0 {
-            return ReceiveResult::Pause;
-        }
+                // Wait until all outbound messages are processed.
+                // This is needed for the handshake because the channel can't be upgraded to
+                // a realtime channel unless the handshake response is actually sent out
+                if self.channel.queue_len() > 0 {
+                    return ReceiveResult::Pause;
+                }
 
-        if !self.to_realtime_connection(&self.node_id) {
-            self.stats.inc_dir(
-                StatType::TcpServer,
-                DetailType::HandshakeError,
-                Direction::In,
-            );
-            debug!(
-                "Error switching to realtime mode ({})",
-                self.channel.peer_addr()
-            );
-            return ReceiveResult::Abort;
-        }
+                if !self.to_realtime_connection(&self.node_id) {
+                    self.stats.inc_dir(
+                        StatType::TcpServer,
+                        DetailType::HandshakeError,
+                        Direction::In,
+                    );
+                    debug!(
+                        "Error switching to realtime mode ({})",
+                        self.channel.peer_addr()
+                    );
+                    return ReceiveResult::Abort;
+                }
 
-        ReceiveResult::Continue
+                ReceiveResult::Continue
+            }
+            ChannelMode::Realtime => {
+                let message = self.retry_enqueue.clone();
+                match message {
+                    Some(message) => {
+                        if self.try_enqueue(message) {
+                            ReceiveResult::Continue
+                        } else {
+                            ReceiveResult::Pause
+                        }
+                    }
+                    None => ReceiveResult::Continue,
+                }
+            }
+        }
     }
 }
 
