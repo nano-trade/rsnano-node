@@ -32,6 +32,9 @@ pub enum LedgerEvent {
     BlocksProcessed(Vec<ProcessedResult>),
     BlocksConfirmed(Vec<(SavedBlock, BlockHash)>),
     BlocksRolledBack(RollbackResults),
+    ConfirmationFailed(BlockHash),
+    ConfirmingSetNearFull,
+    ConfirmingSetRecovered,
 }
 
 #[derive(Clone, Debug)]

@@ -8,8 +8,8 @@ use crate::{
     bootstrap::Bootstrapper,
     cementation::ConfirmingSet,
     consensus::{
-        ActiveElectionsContainer, DependentElectionsConfirmer, ForkCache, ForkCacheUpdater,
-        LocalVoteHistory,
+        ActiveElectionsContainer, AecCooldownReason, DependentElectionsConfirmer, ForkCache,
+        ForkCacheUpdater, LocalVoteHistory,
     },
     utils::BackpressureEventProcessor,
     NodeEvent,
@@ -100,6 +100,25 @@ impl BackpressureEventProcessor<LedgerEvent> for LedgerEventProcessor {
 
                 self.bootstrapper
                     .unblock_batch(rolled_back.affected_accounts());
+            }
+            LedgerEvent::ConfirmationFailed(block_hash) => {
+                // Do some cleanup due to this block never being processed
+                self.active_elections
+                    .write()
+                    .unwrap()
+                    .remove_recently_confirmed(&block_hash);
+            }
+            LedgerEvent::ConfirmingSetNearFull => {
+                self.active_elections
+                    .write()
+                    .unwrap()
+                    .set_cooldown(true, AecCooldownReason::ConfirmingSetFull);
+            }
+            LedgerEvent::ConfirmingSetRecovered => {
+                self.active_elections
+                    .write()
+                    .unwrap()
+                    .set_cooldown(false, AecCooldownReason::ConfirmingSetFull);
             }
         }
     }

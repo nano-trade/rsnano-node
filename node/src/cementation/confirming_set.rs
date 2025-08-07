@@ -2,7 +2,7 @@ use std::{
     collections::{HashSet, VecDeque},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Condvar, Mutex, RwLock,
+        Arc, Condvar, Mutex,
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -54,12 +54,6 @@ impl Default for ConfirmingSetConfig {
     }
 }
 
-pub enum ConfirmingSetEvent {
-    ConfirmationFailed(BlockHash),
-    NearFull,
-    Recovered,
-}
-
 /// Set of blocks to be durably confirmed
 pub struct ConfirmingSet {
     thread: Arc<ConfirmingSetThread>,
@@ -89,8 +83,7 @@ impl ConfirmingSet {
                 stats,
                 config,
                 workers: ThreadPoolImpl::create(1, "Conf notif"),
-                confirming_set_event_publisher: RwLock::new(None),
-                ledger_event_publisher: Mutex::new(None),
+                event_publisher: Mutex::new(None),
             }),
         }
     }
@@ -103,12 +96,8 @@ impl ConfirmingSet {
         )
     }
 
-    pub fn set_confirming_set_event_publisher(&self, sink: BackpressureSender<ConfirmingSetEvent>) {
-        *self.thread.confirming_set_event_publisher.write().unwrap() = Some(sink);
-    }
-
-    pub fn set_ledger_event_publisher(&self, sink: BackpressureSender<LedgerEvent>) {
-        *self.thread.ledger_event_publisher.lock().unwrap() = Some(sink);
+    pub fn set_event_publisher(&self, sink: BackpressureSender<LedgerEvent>) {
+        *self.thread.event_publisher.lock().unwrap() = Some(sink);
     }
 
     /// Adds a block to the set of blocks to be confirmed
@@ -222,8 +211,7 @@ struct ConfirmingSetThread {
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
     workers: ThreadPoolImpl,
-    confirming_set_event_publisher: RwLock<Option<BackpressureSender<ConfirmingSetEvent>>>,
-    ledger_event_publisher: Mutex<Option<BackpressureSender<LedgerEvent>>>,
+    event_publisher: Mutex<Option<BackpressureSender<LedgerEvent>>>,
 }
 
 impl ConfirmingSetThread {
@@ -232,7 +220,7 @@ impl ConfirmingSetThread {
             let _guard = self.mutex.lock().unwrap();
             self.stopped.store(true, Ordering::SeqCst);
         }
-        drop(self.confirming_set_event_publisher.write().unwrap().take());
+        drop(self.event_publisher.lock().unwrap().take());
         self.condition.notify_all();
     }
 
@@ -264,7 +252,7 @@ impl ConfirmingSetThread {
         }
 
         if near_full_warning {
-            self.notify(ConfirmingSetEvent::NearFull);
+            self.notify(LedgerEvent::ConfirmingSetNearFull);
         }
     }
 
@@ -290,9 +278,7 @@ impl ConfirmingSetThread {
                 drop(guard);
                 {
                     for entry in evicted {
-                        self.notify(ConfirmingSetEvent::ConfirmationFailed(
-                            entry.confirmation_root,
-                        ));
+                        self.notify(LedgerEvent::ConfirmationFailed(entry.confirmation_root));
                     }
                 }
                 guard = self.mutex.lock().unwrap();
@@ -315,7 +301,7 @@ impl ConfirmingSetThread {
 
                 self.run_batch(batch);
                 if recovered {
-                    self.notify(ConfirmingSetEvent::Recovered);
+                    self.notify(LedgerEvent::ConfirmingSetRecovered);
                 }
 
                 guard = self.mutex.lock().unwrap();
@@ -343,8 +329,8 @@ impl ConfirmingSetThread {
         self.mutex.lock().unwrap().current.clear();
     }
 
-    fn notify(&self, event: ConfirmingSetEvent) {
-        if let Some(sender) = self.confirming_set_event_publisher.read().unwrap().as_ref() {
+    fn notify(&self, event: LedgerEvent) {
+        if let Some(sender) = self.event_publisher.lock().unwrap().as_ref() {
             sender.send(event).unwrap();
         }
     }
@@ -444,11 +430,8 @@ impl<'a> CementingObserver for CementedNotifier<'a> {
     }
 
     fn batch_confirmed(&mut self, batch: Vec<(SavedBlock, BlockHash)>) {
-        let publisher = self.confirming_set.ledger_event_publisher.lock().unwrap();
-        let Some(publisher) = publisher.as_ref() else {
-            return;
-        };
-        publisher.send(LedgerEvent::BlocksConfirmed(batch)).unwrap();
+        self.confirming_set
+            .notify(LedgerEvent::BlocksConfirmed(batch))
     }
 }
 

@@ -6,7 +6,6 @@ use strum_macros::EnumCount as EnumCountMacro;
 #[derive(Clone, Debug, PartialEq, EnumCountMacro)]
 pub enum AecCooldownReason {
     ConfirmingSetFull,
-    ConfirmingSetEventQueueFull,
     AecEventQueueFull,
 }
 

@@ -26,6 +26,7 @@ impl LedgerEventProcessorPlugin for BoundedBacklogPlugin {
                 // Unblock rolled back accounts as the dependency is no longer valid
                 self.bounded_backlog.erase_hashes(rolled_back.hashes());
             }
+            _ => {}
         }
     }
 }

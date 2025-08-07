@@ -54,7 +54,6 @@ use crate::{
     },
     cementation::{ConfirmingSet, TrackConfirmationTimes},
     config::{GlobalConfig, NetworkParams, NodeConfig, NodeFlags},
-    confirming_set_event_processor::ConfirmingSetEventProcessor,
     consensus::{
         election::ConfirmedElection,
         election_schedulers::{ElectionSchedulers, ElectionSchedulersPlugin},
@@ -494,11 +493,7 @@ impl Node {
             ledger.clone(),
             stats.clone(),
         ));
-        let (tx_confirming, rx_confirming) = backpressure_channel(1024);
-        let tx_conf_clone = tx_confirming.clone();
-        event_queues_info.add_leaf("confirming_set", move || tx_conf_clone.len());
-        confirming_set.set_confirming_set_event_publisher(tx_confirming);
-        confirming_set.set_ledger_event_publisher(ledger_tx.clone());
+        confirming_set.set_event_publisher(ledger_tx.clone());
 
         let vote_cache = Arc::new(Mutex::new(VoteCache::new(
             config.vote_cache.clone(),
@@ -1237,12 +1232,6 @@ impl Node {
         };
 
         spawn_backpressure_processor("Ledger ev proc", ledger_rx, ledger_event_processor);
-
-        let confirming_set_ev_proc = ConfirmingSetEventProcessor {
-            active_elections: active_elections.clone(),
-        };
-
-        spawn_backpressure_processor("Confset ev proc", rx_confirming, confirming_set_ev_proc);
 
         vote_processor.add_observer(aec_sender);
 
