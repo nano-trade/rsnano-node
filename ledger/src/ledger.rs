@@ -4,7 +4,7 @@ use crate::{
     vote_verifier::VoteVerifier,
     AnySet, BlockRollbackPerformer, BorrowingAnySet, BorrowingConfirmedSet, ConfirmedSet,
     GenerateCacheFlags, LedgerConstants, LedgerSet, OwningAnySet, OwningConfirmedSet,
-    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError, Writer,
+    OwningUnconfirmedSet, RepWeightCache, RepWeightsUpdater, RollbackError,
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoProvider, UnixTimestamp},
@@ -258,7 +258,7 @@ impl Ledger {
             .next()
             .is_none()
         {
-            let mut tx = self.store.tx_begin_write(Writer::Generic);
+            let mut tx = self.store.tx_begin_write();
             self.add_genesis_block(&mut tx);
         }
 
@@ -428,7 +428,7 @@ impl Ledger {
         let mut transaction_write_count = 0;
         // TODO break loop if node stopped
         if !targets.is_empty() {
-            let mut tx = self.store.tx_begin_write(Writer::Pruning);
+            let mut tx = self.store.tx_begin_write();
             while !targets.is_empty() && transaction_write_count < batch_size {
                 let pruning_hash = targets.front().unwrap();
                 let account_pruned_count =
@@ -441,7 +441,7 @@ impl Ledger {
     }
 
     pub fn prune_one(&self, target: &BlockHash, batch_size: usize) -> usize {
-        let mut tx = self.store.tx_begin_write(Writer::Pruning);
+        let mut tx = self.store.tx_begin_write();
         self.pruning_action(&mut tx, target, batch_size as u64) as usize
     }
 
@@ -514,7 +514,7 @@ impl Ledger {
         let mut rolled_back_count = 0;
         let mut results = RollbackResults::new();
         {
-            let mut tx = self.store.tx_begin_write(Writer::BoundedBacklog);
+            let mut tx = self.store.tx_begin_write();
 
             for hash in targets {
                 // Skip the rollback if the block is being used by the node, this should be race free as it's checked while holding the ledger write lock
@@ -623,7 +623,7 @@ impl Ledger {
         // Insert blocks
         let mut processed = Vec::with_capacity(validation_results.len());
         {
-            let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
+            let mut tx = self.store.tx_begin_write();
             for (result, block) in validation_results {
                 match result {
                     Ok(instructions) => {
@@ -653,7 +653,7 @@ impl Ledger {
     {
         let mut rolled_back = RollbackResults::new();
         {
-            let mut tx = self.store.tx_begin_write(Writer::BlockProcessor);
+            let mut tx = self.store.tx_begin_write();
             for block in blocks {
                 if tx.is_refresh_needed() {
                     drop(tx);
@@ -661,7 +661,7 @@ impl Ledger {
                         rolled_back_callback(rolled_back);
                         rolled_back = RollbackResults::new();
                     }
-                    tx = self.store.tx_begin_write(Writer::BlockProcessor);
+                    tx = self.store.tx_begin_write();
                 }
                 let rolled_back_blocks = self.rollback_competitor(&mut tx, block);
                 if !rolled_back_blocks.is_empty() {
@@ -725,7 +725,7 @@ impl Ledger {
     }
 
     pub fn confirm(&self, hash: BlockHash) -> Vec<SavedBlock> {
-        let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
+        let mut tx = self.store.tx_begin_write();
         self.confirm_max(&mut tx, hash, 1024 * 128)
     }
 
@@ -756,7 +756,7 @@ impl Ledger {
         let mut confirmed = Vec::new();
         let mut blocks_confirmed = 0;
         {
-            let mut tx = self.store.tx_begin_write(Writer::ConfirmationHeight);
+            let mut tx = self.store.tx_begin_write();
 
             for confirmation_root in batch.into_iter() {
                 let mut success = false;

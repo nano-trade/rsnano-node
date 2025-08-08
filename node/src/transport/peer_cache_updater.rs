@@ -7,7 +7,7 @@ use std::{
 use rsnano_core::utils::{CancellationToken, Tickable};
 use tracing::debug;
 
-use rsnano_ledger::{Ledger, Writer};
+use rsnano_ledger::Ledger;
 use rsnano_network::{Channel, Network};
 use rsnano_nullable_clock::SystemTimeFactory;
 use rsnano_stats::{DetailType, StatType, Stats};
@@ -93,7 +93,7 @@ impl PeerCacheUpdater {
 impl Tickable for PeerCacheUpdater {
     fn tick(&mut self, _cancel_token: &CancellationToken) {
         self.stats.inc(StatType::PeerHistory, DetailType::Loop);
-        let mut tx = self.ledger.store.tx_begin_write(Writer::Generic);
+        let mut tx = self.ledger.store.tx_begin_write();
         self.save_peers(&mut tx);
         self.delete_old_peers(&mut tx);
     }

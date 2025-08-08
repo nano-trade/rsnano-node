@@ -5,7 +5,7 @@ use rsnano_core::{
     Account, Amount, PrivateKey, Vote, VoteError, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, BlockError, LedgerSet, Writer, DEV_GENESIS_ACCOUNT,
+    test_helpers::UnsavedBlockLatticeBuilder, BlockError, LedgerSet, DEV_GENESIS_ACCOUNT,
     DEV_GENESIS_PUB_KEY,
 };
 use rsnano_node::{
@@ -785,7 +785,7 @@ fn bound_election_winners() {
 
     {
         // Prevent cementing of confirmed blocks
-        let _tx = node.ledger.store.tx_begin_write(Writer::Testing);
+        let _tx = node.ledger.store.tx_begin_write();
 
         // Ensure that when the number of election winners reaches the limit, AEC vacancy reflects that
         // Confirming more elections should make the vacancy negative

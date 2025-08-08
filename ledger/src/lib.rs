@@ -37,4 +37,3 @@ pub use ledger_sets::*;
 pub use rep_weight_cache::*;
 pub use rep_weights_updater::*;
 pub(crate) use representative_block_finder::RepresentativeBlockFinder;
-pub use rsnano_store_lmdb::{WriteGuard, WriteQueue, Writer};

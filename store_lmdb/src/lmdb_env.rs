@@ -8,9 +8,7 @@ use rsnano_nullable_lmdb::{
     LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
 };
 
-use crate::{
-    LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, SyncStrategy, WriteQueue, Writer,
-};
+use crate::{LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, SyncStrategy};
 use lmdb::EnvironmentFlags;
 
 pub struct NullLmdbEnvBuilder {
@@ -84,7 +82,6 @@ impl LmdbEnvFactory {
 
 pub struct LmdbEnv {
     pub environment: LmdbEnvironment,
-    pub write_queue: Arc<WriteQueue>,
     path: PathBuf,
 }
 
@@ -105,7 +102,6 @@ impl LmdbEnv {
     pub fn new(env: LmdbEnvironment, path: impl Into<PathBuf>) -> Self {
         Self {
             environment: env,
-            write_queue: Arc::new(WriteQueue::new()),
             path: path.into(),
         }
     }
@@ -116,11 +112,7 @@ impl LmdbEnv {
     }
 
     pub fn tx_begin_write(&self) -> LmdbWriteTransaction {
-        self.tx_begin_write_for(Writer::Generic)
-    }
-
-    pub fn tx_begin_write_for(&self, writer: Writer) -> LmdbWriteTransaction {
-        LmdbWriteTransaction::new(&self.environment, self.write_queue.clone(), writer)
+        LmdbWriteTransaction::new(&self.environment)
             .expect("Could not create LMDB read-write transaction")
     }
 

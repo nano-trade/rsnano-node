@@ -1,6 +1,5 @@
 use crate::{AnySet, Ledger};
 use rsnano_core::{Account, BlockHash, PendingInfo, PendingKey};
-use rsnano_store_lmdb::Writer;
 
 #[test]
 fn empty() {
@@ -19,7 +18,7 @@ fn empty() {
 #[test]
 fn reveivable_upper_bound_for_given_account() {
     let ledger = Ledger::new_null();
-    let mut txn = ledger.store.tx_begin_write(Writer::Testing);
+    let mut txn = ledger.store.tx_begin_write();
 
     let account = Account::from(100);
     let hash = BlockHash::from(200);
@@ -54,7 +53,7 @@ fn reveivable_upper_bound_for_given_account() {
 #[test]
 fn reveivable_upper_bound() {
     let ledger = Ledger::new_null();
-    let mut txn = ledger.store.tx_begin_write(Writer::Testing);
+    let mut txn = ledger.store.tx_begin_write();
 
     let key_1 = PendingKey::new(100.into(), 200.into());
     let key_2 = PendingKey::new(100.into(), 300.into());
@@ -85,7 +84,7 @@ fn reveivable_upper_bound() {
 #[test]
 fn reveivable_any() {
     let ledger = Ledger::new_null();
-    let mut txn = ledger.store.tx_begin_write(Writer::Testing);
+    let mut txn = ledger.store.tx_begin_write();
 
     let key = PendingKey::new(100.into(), 200.into());
     let pending = PendingInfo::new_test_instance();

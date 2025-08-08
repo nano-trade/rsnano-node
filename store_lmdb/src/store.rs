@@ -17,7 +17,7 @@ use crate::{
     successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
     LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore,
     LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore,
-    LmdbWriteTransaction, Writer,
+    LmdbWriteTransaction,
 };
 
 pub struct LedgerCache {
@@ -101,8 +101,8 @@ impl LmdbStore {
         self.env.tx_begin_read()
     }
 
-    pub fn tx_begin_write(&self, writer: Writer) -> LmdbWriteTransaction {
-        self.env.tx_begin_write_for(writer)
+    pub fn tx_begin_write(&self) -> LmdbWriteTransaction {
+        self.env.tx_begin_write()
     }
 }
 

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use rsnano_core::{Amount, PrivateKey};
-use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet, Writer};
+use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet};
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{assert_always_eq, assert_timely2, assert_timely_eq2, start_election, System};
 
@@ -47,15 +47,6 @@ fn confirmed_history() {
         );
         node.confirming_set.set_cooldown(false);
     }
-
-    assert_timely2(|| {
-        !node
-            .ledger
-            .store
-            .env
-            .write_queue
-            .contains(Writer::ConfirmationHeight)
-    });
 
     assert_timely2(|| node.ledger.confirmed().block_exists(&send.hash()));
 

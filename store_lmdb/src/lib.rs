@@ -23,7 +23,14 @@ mod upgrades;
 mod vacuum;
 mod version_store;
 mod wallet_store;
-mod write_queue;
+
+use std::{
+    any::Any,
+    mem,
+    time::{Duration, Instant},
+};
+
+use primitive_types::U256;
 
 pub use account_store::{ConfiguredAccountDatabaseBuilder, LmdbAccountStore};
 pub use block_store::{ConfiguredBlockDatabaseBuilder, LmdbBlockStore};
@@ -49,15 +56,6 @@ pub use upgrades::create_and_update_lmdb_env;
 pub use vacuum::vacuum;
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
-pub use write_queue::*;
-
-use primitive_types::U256;
-use std::{
-    any::Any,
-    mem,
-    sync::Arc,
-    time::{Duration, Instant},
-};
 
 #[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListener, OutputTracker};
@@ -212,17 +210,10 @@ pub struct LmdbWriteTransaction {
     #[cfg(feature = "output_tracking")]
     clear_listener: OutputListener<LmdbDatabase>,
     start: Instant,
-    write_queue: Arc<WriteQueue>,
-    guard: Option<WriteGuard>,
-    writer: Writer,
 }
 
 impl LmdbWriteTransaction {
-    pub fn new<'a>(
-        env: &'a LmdbEnvironment,
-        write_queue: Arc<WriteQueue>,
-        writer: Writer,
-    ) -> lmdb::Result<Self> {
+    pub fn new<'a>(env: &'a LmdbEnvironment) -> lmdb::Result<Self> {
         let env =
             unsafe { std::mem::transmute::<&'a LmdbEnvironment, &'static LmdbEnvironment>(env) };
         let mut tx = Self {
@@ -235,9 +226,6 @@ impl LmdbWriteTransaction {
             #[cfg(feature = "output_tracking")]
             clear_listener: OutputListener::new(),
             start: Instant::now(),
-            write_queue,
-            guard: None,
-            writer,
         };
         tx.renew();
         Ok(tx)
@@ -265,10 +253,7 @@ impl LmdbWriteTransaction {
         let t = mem::replace(&mut self.txn, RwTxnState::Transitioning);
         self.txn = match t {
             RwTxnState::Active(_) => panic!("Cannot renew active RwTransaction"),
-            RwTxnState::Inactive => {
-                self.guard = Some(self.write_queue.wait(self.writer));
-                RwTxnState::Active(self.env.begin_rw_txn().unwrap())
-            }
+            RwTxnState::Inactive => RwTxnState::Active(self.env.begin_rw_txn().unwrap()),
             RwTxnState::Transitioning => unreachable!(),
         };
         self.start = Instant::now();
@@ -280,7 +265,6 @@ impl LmdbWriteTransaction {
             RwTxnState::Inactive => {}
             RwTxnState::Active(t) => {
                 t.commit().unwrap();
-                drop(self.guard.take());
             }
             RwTxnState::Transitioning => unreachable!(),
         };

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use rsnano_core::{BlockHash, Root};
-use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction, Writer};
+use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
 
 use crate::{AnySet, BorrowingAnySet, LedgerConstants, OwningAnySet};
 
@@ -20,7 +20,7 @@ impl<'a> VoteVerifier<'a> {
         let mut verified = VecDeque::new();
 
         if is_final {
-            let mut tx = self.store.tx_begin_write(Writer::VotingFinal);
+            let mut tx = self.store.tx_begin_write();
             for (root, hash) in &candidates {
                 tx.refresh_if_needed();
                 if self.should_vote_final(&mut tx, root, hash) {
