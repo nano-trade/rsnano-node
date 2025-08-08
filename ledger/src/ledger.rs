@@ -756,7 +756,7 @@ impl Ledger {
             for confirmation_root in batch.into_iter() {
                 let mut success = false;
                 loop {
-                    tx.refresh_if_needed();
+                    self.store.env.refresh_if_needed(&mut tx);
 
                     // Cementing deep dependency chains might take a long time, allow for graceful shutdown, ignore notifications
                     if stopped.load(Ordering::Relaxed) {

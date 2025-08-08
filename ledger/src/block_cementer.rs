@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, sync::atomic::Ordering};
 
 use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
-use rsnano_nullable_lmdb::{Transaction, WriteTransaction};
+use rsnano_nullable_lmdb::WriteTransaction;
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
 use rsnano_store_lmdb::LmdbStore;
 
@@ -90,7 +90,8 @@ impl<'a> BlockCementer<'a> {
 
             // Refresh the transaction to avoid long-running transactions
             // Ensure that the block wasn't rolled back during the refresh
-            let refreshed = txn.refresh_if_needed();
+
+            let refreshed = self.store.env.refresh_if_needed(txn);
             if refreshed {
                 if !self.store.block.exists(txn, &target_hash) {
                     break; // Block was rolled back during cementing

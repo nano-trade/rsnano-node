@@ -173,11 +173,6 @@ impl Drop for WriteTransaction {
 }
 
 impl Transaction for WriteTransaction {
-    fn refresh(&mut self) {
-        self.commit();
-        self.renew();
-    }
-
     fn get(&self, database: LmdbDatabase, key: &[u8]) -> lmdb::Result<&[u8]> {
         self.rw_txn().get(database, key)
     }
@@ -196,14 +191,6 @@ impl Transaction for WriteTransaction {
 
     fn is_refresh_needed_with(&self, max_duration: Duration) -> bool {
         self.start.elapsed() > max_duration
-    }
-    fn refresh_if_needed(&mut self) -> bool {
-        if self.is_refresh_needed() {
-            self.refresh();
-            true
-        } else {
-            false
-        }
     }
 }
 

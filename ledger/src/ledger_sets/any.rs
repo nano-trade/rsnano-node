@@ -164,7 +164,7 @@ impl<'a> OwningAnySet<'a> {
     }
 
     pub fn refresh_if_needed(&mut self) {
-        self.tx.refresh_if_needed();
+        self.store.env.refresh_if_needed_ro(&mut self.tx);
     }
 }
 

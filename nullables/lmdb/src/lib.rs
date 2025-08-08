@@ -24,8 +24,6 @@ use std::time::Duration;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait Transaction {
-    fn refresh(&mut self);
-    fn refresh_if_needed(&mut self) -> bool;
     fn is_refresh_needed(&self) -> bool;
     fn is_refresh_needed_with(&self, max_duration: Duration) -> bool;
     fn get(&self, database: LmdbDatabase, key: &[u8]) -> Result<&[u8]>;

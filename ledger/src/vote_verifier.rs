@@ -23,7 +23,7 @@ impl<'a> VoteVerifier<'a> {
         if is_final {
             let mut tx = self.store.tx_begin_write();
             for (root, hash) in &candidates {
-                tx.refresh_if_needed();
+                self.store.env.refresh_if_needed(&mut tx);
                 if self.should_vote_final(&mut tx, root, hash) {
                     verified.push_back((*root, *hash));
                 }

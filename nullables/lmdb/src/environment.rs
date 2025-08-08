@@ -8,7 +8,7 @@ use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
 use lmdb_sys::{MDB_env, MDB_CP_COMPACT, MDB_SUCCESS};
 
 use super::{ConfiguredDatabase, LmdbDatabase, RoTransaction, RwTransaction};
-use crate::{ConfiguredDatabaseBuilder, ReadTransaction, Result, WriteTransaction};
+use crate::{ConfiguredDatabaseBuilder, ReadTransaction, Result, Transaction, WriteTransaction};
 
 #[derive(Clone)]
 pub struct EnvironmentOptions {
@@ -110,8 +110,12 @@ impl LmdbEnv {
     }
 
     pub fn begin_read(&self) -> ReadTransaction {
-        ReadTransaction::new(&self.environment)
-            .expect("Could not create LMDB read-only transaction")
+        let tx = self
+            .environment
+            .begin_ro_txn()
+            .expect("Could not create LMDB read-only transaction");
+
+        ReadTransaction::new(tx)
     }
 
     pub fn begin_write(&self) -> WriteTransaction {
@@ -141,6 +145,34 @@ impl LmdbEnv {
 
     pub fn stat(&self) -> Result<Stat> {
         self.environment.stat()
+    }
+
+    pub fn refresh_if_needed(&self, tx: &mut WriteTransaction) -> bool {
+        if tx.is_refresh_needed() {
+            self.refresh(tx);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn refresh(&self, tx: &mut WriteTransaction) {
+        tx.commit();
+        *tx = self.begin_write();
+    }
+
+    pub fn refresh_if_needed_ro(&self, tx: &mut ReadTransaction) -> bool {
+        if tx.is_refresh_needed() {
+            self.refresh_ro(tx);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn refresh_ro(&self, tx: &mut ReadTransaction) {
+        tx.reset();
+        *tx = self.begin_read();
     }
 }
 

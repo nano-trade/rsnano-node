@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::{ConfiguredDatabase, LmdbDatabase, RoCursor};
-use crate::{LmdbEnvironment, Transaction, EMPTY_DATABASE};
+use crate::{Transaction, EMPTY_DATABASE};
 
 enum RoTxnState {
     Inactive(InactiveTransaction),
@@ -15,13 +15,11 @@ pub struct ReadTransaction {
 }
 
 impl ReadTransaction {
-    pub fn new(env: &LmdbEnvironment) -> lmdb::Result<Self> {
-        let txn = env.begin_ro_txn()?;
-
-        Ok(Self {
-            txn: RoTxnState::Active(txn),
+    pub fn new(tx: RoTransaction) -> Self {
+        Self {
+            txn: RoTxnState::Active(tx),
             start: Instant::now(),
-        })
+        }
     }
 
     fn txn(&self) -> &RoTransaction {
@@ -62,26 +60,12 @@ impl Drop for ReadTransaction {
 }
 
 impl Transaction for ReadTransaction {
-    fn refresh(&mut self) {
-        self.reset();
-        self.renew();
-    }
-
     fn is_refresh_needed(&self) -> bool {
         self.is_refresh_needed_with(Duration::from_millis(500))
     }
 
     fn is_refresh_needed_with(&self, max_duration: Duration) -> bool {
         self.start.elapsed() > max_duration
-    }
-
-    fn refresh_if_needed(&mut self) -> bool {
-        if self.is_refresh_needed() {
-            self.refresh();
-            true
-        } else {
-            false
-        }
     }
 
     fn get(&self, database: LmdbDatabase, key: &[u8]) -> lmdb::Result<&[u8]> {

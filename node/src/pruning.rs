@@ -126,7 +126,7 @@ impl LedgerPruning {
                 depth += 1;
                 if depth % batch_read_size == 0 {
                     drop(it);
-                    tx.refresh();
+                    self.ledger.store.env.refresh_ro(&mut tx);
                     it = self
                         .ledger
                         .store
