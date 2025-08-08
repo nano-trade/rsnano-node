@@ -3,7 +3,7 @@ use rsnano_core::{utils::get_cpu_count, Amount};
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::{
     create_and_update_lmdb_env, get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig,
-    LmdbEnvFactory, TransactionTracker,
+    LmdbEnvFactory,
 };
 use std::{
     cmp::{max, min},
@@ -15,7 +15,6 @@ use tracing::info;
 pub struct LedgerBuilder<'a> {
     path: PathBuf,
     config: Option<LmdbConfig>,
-    txn_tracker: Option<Arc<dyn TransactionTracker>>,
     env_factory: Option<&'a LmdbEnvFactory>,
     bootstrap_weights: Option<BootstrapWeights>,
     stats: Option<Arc<Stats>>,
@@ -29,7 +28,6 @@ impl<'a> LedgerBuilder<'a> {
         Self {
             path: path.into(),
             config: None,
-            txn_tracker: None,
             env_factory: None,
             bootstrap_weights: None,
             stats: None,
@@ -51,11 +49,6 @@ impl<'a> LedgerBuilder<'a> {
 
     pub fn bootstrap_weights(mut self, weights: BootstrapWeights) -> Self {
         self.bootstrap_weights = Some(weights);
-        self
-    }
-
-    pub fn txn_tracker(mut self, tracker: Arc<dyn TransactionTracker>) -> Self {
-        self.txn_tracker = Some(tracker);
         self
     }
 
@@ -109,11 +102,7 @@ impl<'a> LedgerBuilder<'a> {
             self.thread_count = max(10, min(40, 11 * get_cpu_count()));
         }
 
-        let mut env = create_and_update_lmdb_env(&env_factory, env_options)?;
-
-        if let Some(txn_tracker) = self.txn_tracker {
-            env.set_transaction_tracker(txn_tracker);
-        }
+        let env = create_and_update_lmdb_env(&env_factory, env_options)?;
 
         info!("Loading ledger, this may take a while...");
         Ledger::new(

@@ -82,24 +82,6 @@ pub trait Transaction {
     fn count(&self, database: LmdbDatabase) -> u64;
 }
 
-pub trait TransactionTracker: Send + Sync {
-    fn txn_start(&self, txn_id: u64, is_write: bool);
-    fn txn_end(&self, txn_id: u64, is_write: bool);
-}
-
-pub struct NullTransactionTracker {}
-
-impl NullTransactionTracker {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl TransactionTracker for NullTransactionTracker {
-    fn txn_start(&self, _txn_id: u64, _is_write: bool) {}
-    fn txn_end(&self, _txn_id: u64, _is_write: bool) {}
-}
-
 enum RoTxnState {
     Inactive(InactiveTransaction),
     Active(RoTransaction),
@@ -107,24 +89,15 @@ enum RoTxnState {
 }
 
 pub struct LmdbReadTransaction {
-    txn_id: u64,
-    callbacks: Arc<dyn TransactionTracker>,
     txn: RoTxnState,
     start: Instant,
 }
 
 impl LmdbReadTransaction {
-    pub fn new(
-        txn_id: u64,
-        env: &LmdbEnvironment,
-        callbacks: Arc<dyn TransactionTracker>,
-    ) -> lmdb::Result<Self> {
+    pub fn new(env: &LmdbEnvironment) -> lmdb::Result<Self> {
         let txn = env.begin_ro_txn()?;
-        callbacks.txn_start(txn_id, false);
 
         Ok(Self {
-            txn_id,
-            callbacks,
             txn: RoTxnState::Active(txn),
             start: Instant::now(),
         })
@@ -144,7 +117,6 @@ impl LmdbReadTransaction {
             RoTxnState::Inactive(_) => panic!("Cannot reset inactive transaction"),
             RoTxnState::Transitioning => unreachable!(),
         };
-        self.callbacks.txn_end(self.txn_id, false);
     }
 
     pub fn renew(&mut self) {
@@ -154,7 +126,6 @@ impl LmdbReadTransaction {
             RoTxnState::Inactive(t) => RoTxnState::Active(t.renew().unwrap()),
             RoTxnState::Transitioning => unreachable!(),
         };
-        self.callbacks.txn_start(self.txn_id, false);
         self.start = Instant::now();
     }
 }
@@ -166,7 +137,6 @@ impl Drop for LmdbReadTransaction {
         if let RoTxnState::Active(t) = t {
             t.commit().unwrap()
         }
-        self.callbacks.txn_end(self.txn_id, false);
     }
 }
 
@@ -234,8 +204,6 @@ pub struct DeleteEvent {
 
 pub struct LmdbWriteTransaction {
     env: &'static LmdbEnvironment,
-    txn_id: u64,
-    callbacks: Arc<dyn TransactionTracker>,
     txn: RwTxnState,
     #[cfg(feature = "output_tracking")]
     put_listener: OutputListener<PutEvent>,
@@ -251,9 +219,7 @@ pub struct LmdbWriteTransaction {
 
 impl LmdbWriteTransaction {
     pub fn new<'a>(
-        txn_id: u64,
         env: &'a LmdbEnvironment,
-        callbacks: Arc<dyn TransactionTracker>,
         write_queue: Arc<WriteQueue>,
         writer: Writer,
     ) -> lmdb::Result<Self> {
@@ -261,8 +227,6 @@ impl LmdbWriteTransaction {
             unsafe { std::mem::transmute::<&'a LmdbEnvironment, &'static LmdbEnvironment>(env) };
         let mut tx = Self {
             env,
-            txn_id,
-            callbacks,
             txn: RwTxnState::Inactive,
             #[cfg(feature = "output_tracking")]
             put_listener: OutputListener::new(),
@@ -307,7 +271,6 @@ impl LmdbWriteTransaction {
             }
             RwTxnState::Transitioning => unreachable!(),
         };
-        self.callbacks.txn_start(self.txn_id, true);
         self.start = Instant::now();
     }
 
@@ -318,7 +281,6 @@ impl LmdbWriteTransaction {
             RwTxnState::Active(t) => {
                 t.commit().unwrap();
                 drop(self.guard.take());
-                self.callbacks.txn_end(self.txn_id, true);
             }
             RwTxnState::Transitioning => unreachable!(),
         };

@@ -1,19 +1,17 @@
-use crate::{
-    LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, NullTransactionTracker, SyncStrategy,
-    TransactionTracker, WriteQueue, Writer,
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
 };
-use lmdb::EnvironmentFlags;
+
 use rsnano_nullable_lmdb::{
     ConfiguredDatabase, ConfiguredDatabaseBuilder, EnvironmentOptions, EnvironmentStubBuilder,
     LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
 };
-use std::{
-    path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+
+use crate::{
+    LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, SyncStrategy, WriteQueue, Writer,
 };
+use lmdb::EnvironmentFlags;
 
 pub struct NullLmdbEnvBuilder {
     env_builder: EnvironmentStubBuilder,
@@ -86,8 +84,6 @@ impl LmdbEnvFactory {
 
 pub struct LmdbEnv {
     pub environment: LmdbEnvironment,
-    next_txn_id: AtomicU64,
-    pub txn_tracker: Arc<dyn TransactionTracker>,
     pub write_queue: Arc<WriteQueue>,
     path: PathBuf,
 }
@@ -109,20 +105,13 @@ impl LmdbEnv {
     pub fn new(env: LmdbEnvironment, path: impl Into<PathBuf>) -> Self {
         Self {
             environment: env,
-            next_txn_id: AtomicU64::new(0),
-            txn_tracker: Arc::new(NullTransactionTracker::new()),
             write_queue: Arc::new(WriteQueue::new()),
             path: path.into(),
         }
     }
 
-    pub fn set_transaction_tracker(&mut self, txn_tracker: Arc<dyn TransactionTracker>) {
-        self.txn_tracker = txn_tracker;
-    }
-
     pub fn tx_begin_read(&self) -> LmdbReadTransaction {
-        let txn_id = self.next_txn_id.fetch_add(1, Ordering::Relaxed);
-        LmdbReadTransaction::new(txn_id, &self.environment, self.create_txn_callbacks())
+        LmdbReadTransaction::new(&self.environment)
             .expect("Could not create LMDB read-only transaction")
     }
 
@@ -131,15 +120,8 @@ impl LmdbEnv {
     }
 
     pub fn tx_begin_write_for(&self, writer: Writer) -> LmdbWriteTransaction {
-        let txn_id = self.next_txn_id.fetch_add(1, Ordering::Relaxed);
-        LmdbWriteTransaction::new(
-            txn_id,
-            &self.environment,
-            self.create_txn_callbacks(),
-            self.write_queue.clone(),
-            writer,
-        )
-        .expect("Could not create LMDB read-write transaction")
+        LmdbWriteTransaction::new(&self.environment, self.write_queue.clone(), writer)
+            .expect("Could not create LMDB read-write transaction")
     }
 
     pub fn file_path(&self) -> &Path {
@@ -153,10 +135,6 @@ impl LmdbEnv {
 
     pub fn copy_db(&self, destination: &Path) -> lmdb::Result<()> {
         self.environment.copy_db(destination)
-    }
-
-    fn create_txn_callbacks(&self) -> Arc<dyn TransactionTracker> {
-        Arc::clone(&self.txn_tracker)
     }
 }
 

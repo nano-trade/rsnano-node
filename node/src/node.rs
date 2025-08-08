@@ -37,9 +37,7 @@ use rsnano_nullable_fs::NullableFilesystem;
 use rsnano_nullable_lmdb::EnvironmentOptions;
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
-use rsnano_store_lmdb::{
-    EnvironmentFlags, LmdbEnv, LmdbEnvFactory, NullTransactionTracker, TransactionTracker,
-};
+use rsnano_store_lmdb::{EnvironmentFlags, LmdbEnv, LmdbEnvFactory};
 
 use crate::{
     aec_event_processor::AecEventProcessor,
@@ -311,8 +309,6 @@ impl Node {
         } else {
             LmdbEnvFactory::default()
         };
-
-        let txn_tracker: Arc<dyn TransactionTracker> = Arc::new(NullTransactionTracker::new());
 
         info!("Loading ledger, this may take a while...");
         let ledger = LedgerBuilder::new(&ledger_path)
