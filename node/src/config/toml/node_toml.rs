@@ -48,7 +48,6 @@ pub struct NodeToml {
     pub block_processor: Option<BlockProcessorToml>,
     pub bootstrap: Option<BootstrapToml>,
     pub bootstrap_server: Option<BootstrapServerToml>,
-    pub diagnostics: Option<DiagnosticsToml>,
     pub experimental: Option<ExperimentalToml>,
     pub httpcallback: Option<HttpcallbackToml>,
     pub lmdb: Option<LmdbToml>,
@@ -288,9 +287,6 @@ impl NodeConfig {
         if let Some(websocket_config_toml) = &toml.websocket {
             self.websocket_config.merge_toml(&websocket_config_toml);
         }
-        if let Some(diagnostics_config_toml) = &toml.diagnostics {
-            self.diagnostics_config = diagnostics_config_toml.into();
-        }
         if let Some(lmdb_config_toml) = &toml.lmdb {
             self.lmdb_config = lmdb_config_toml.into();
         }
@@ -506,7 +502,6 @@ impl From<&NodeConfig> for NodeToml {
             bootstrap: Some((&config.bootstrap).into()),
             bootstrap_server: Some(config.into()),
             websocket: Some((&config.websocket_config).into()),
-            diagnostics: Some((&config.diagnostics_config).into()),
             lmdb: Some((&config.lmdb_config).into()),
             vote_cache: Some((&config.vote_cache).into()),
             block_processor: Some(config.into()),

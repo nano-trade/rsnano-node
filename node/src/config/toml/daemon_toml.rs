@@ -487,36 +487,6 @@ mod tests {
             default_cfg.node.active_elections.confirmation_cache
         );
 
-        // Diagnostics section
-        assert_ne!(
-            deserialized.node.diagnostics_config.txn_tracking.enable,
-            default_cfg.node.diagnostics_config.txn_tracking.enable
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .diagnostics_config
-                .txn_tracking
-                .min_read_txn_time_ms,
-            default_cfg
-                .node
-                .diagnostics_config
-                .txn_tracking
-                .min_read_txn_time_ms
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .diagnostics_config
-                .txn_tracking
-                .min_write_txn_time_ms,
-            default_cfg
-                .node
-                .diagnostics_config
-                .txn_tracking
-                .min_write_txn_time_ms
-        );
-
         // HTTP Callback section
         assert_ne!(
             deserialized.node.callback_address,

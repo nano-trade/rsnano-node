@@ -1,25 +1,25 @@
 mod backpressure_event_processor;
-mod long_running_transaction_logger;
 mod processing_queue;
 mod rate_calculator;
 mod thread_pool;
 mod timer;
 mod timer_thread;
 
+use std::net::Ipv6Addr;
+
+use blake2::{
+    digest::{Update, VariableOutput},
+    Blake2bVar,
+};
+
 pub(crate) use backpressure_event_processor::{
     spawn_backpressure_processor, BackpressureEventProcessor,
 };
 
 pub use crate::utils::timer::{NullTimer, Timer, TimerStrategy, TimerWrapper};
-use blake2::{
-    digest::{Update, VariableOutput},
-    Blake2bVar,
-};
-pub use long_running_transaction_logger::{LongRunningTransactionLogger, TxnTrackingConfig};
 pub use processing_queue::*;
 pub use rate_calculator::RateCalculator;
 use rsnano_core::HardenedConstants;
-use std::net::Ipv6Addr;
 pub use thread_pool::*;
 pub use timer_thread::*;
 

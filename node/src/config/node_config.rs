@@ -12,10 +12,7 @@ use rsnano_nullable_http_client::Url;
 use rsnano_store_lmdb::LmdbConfig;
 use rsnano_work::OpenClConfig;
 
-use super::{
-    websocket_config::WebsocketConfig, DiagnosticsConfig, NetworkParams, Networks,
-    DEV_NETWORK_PARAMS,
-};
+use super::{websocket_config::WebsocketConfig, NetworkParams, Networks, DEV_NETWORK_PARAMS};
 use crate::{
     block_processing::{
         BacklogScanConfig, BoundedBacklogConfig, LocalBlockBroadcasterConfig, ProcessQueueConfig,
@@ -90,7 +87,6 @@ pub struct NodeConfig {
     pub callback_port: u16,
     pub callback_target: String,
     pub websocket_config: WebsocketConfig,
-    pub diagnostics_config: DiagnosticsConfig,
     pub lmdb_config: LmdbConfig,
     pub vote_cache: VoteCacheConfig,
     pub rep_crawler_query_timeout: Duration,
@@ -296,7 +292,6 @@ impl NodeConfig {
             callback_port: 0,
             callback_target: String::new(),
             websocket_config: WebsocketConfig::new(&network_params.network),
-            diagnostics_config: DiagnosticsConfig::new(),
             lmdb_config: LmdbConfig::new(),
             optimistic_scheduler: OptimisticSchedulerConfig::new(),
             hinted_scheduler: if network_params.network.is_dev_network() {

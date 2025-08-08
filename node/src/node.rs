@@ -85,10 +85,7 @@ use crate::{
         MessageSender, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
         RealtimeMessageHandler,
     },
-    utils::{
-        spawn_backpressure_processor, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl,
-        TimerThread,
-    },
+    utils::{spawn_backpressure_processor, ThreadPool, ThreadPoolImpl, TimerThread},
     wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
     work::{WorkFactory, WorkRequest},
     NodeCallbacks, OnlineWeightSampler,
@@ -315,14 +312,7 @@ impl Node {
             LmdbEnvFactory::default()
         };
 
-        let txn_tracker: Arc<dyn TransactionTracker> =
-            if config.diagnostics_config.txn_tracking.enable {
-                Arc::new(LongRunningTransactionLogger::new(
-                    config.diagnostics_config.txn_tracking.clone(),
-                ))
-            } else {
-                Arc::new(NullTransactionTracker::new())
-            };
+        let txn_tracker: Arc<dyn TransactionTracker> = Arc::new(NullTransactionTracker::new());
 
         info!("Loading ledger, this may take a while...");
         let ledger = LedgerBuilder::new(&ledger_path)
@@ -332,7 +322,6 @@ impl Node {
             .min_rep_weight(config.representative_vote_weight_minimum)
             .bootstrap_weights(bootstrap_weights)
             .stats(stats.clone())
-            .txn_tracker(txn_tracker)
             .finish();
 
         let ledger = match ledger {

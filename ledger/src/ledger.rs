@@ -1008,10 +1008,20 @@ impl RollbackResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::LedgerBuilder;
+    use rsnano_store_lmdb::LmdbEnvFactory;
 
     #[test]
     fn error_variant_to_static_str() {
         let s: &'static str = BlockError::GapSource.into();
         assert_eq!(s, "gap_source");
+    }
+
+    #[test]
+    fn initialize_unconfirmed_env() {
+        let env_factory = LmdbEnvFactory::new_null();
+        let ledger = LedgerBuilder::new("/nulled-ledger")
+            .env_factory(&env_factory)
+            .finish();
     }
 }

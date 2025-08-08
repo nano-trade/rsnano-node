@@ -1,6 +1,5 @@
 mod converters;
 mod daemon_config;
-mod diagnostics_config;
 mod network_constants;
 mod network_params;
 mod node_config;
@@ -10,7 +9,6 @@ mod toml;
 mod websocket_config;
 
 pub use daemon_config::*;
-pub use diagnostics_config::*;
 pub use network_constants::*;
 pub use network_params::*;
 pub use node_config::*;
