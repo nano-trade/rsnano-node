@@ -7,7 +7,7 @@ use rsnano_core::{
 };
 use rsnano_nullable_lmdb::{
     sys::{MDB_FIRST, MDB_NEXT},
-    DatabaseFlags, EnvironmentOptions, LmdbEnv, LmdbEnvFactory, Transaction, WriteFlags,
+    DatabaseFlags, EnvironmentOptions, LmdbEnv, LmdbEnvironmentFactory, Transaction, WriteFlags,
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub fn create_and_update_lmdb_env(
-    env_factory: &LmdbEnvFactory,
+    env_factory: &LmdbEnvironmentFactory,
     options: EnvironmentOptions,
 ) -> anyhow::Result<LmdbEnv> {
     let mut env = env_factory.create(options.clone())?;

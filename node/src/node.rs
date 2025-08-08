@@ -34,7 +34,7 @@ use rsnano_network_protocol::{
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_nullable_fs::NullableFilesystem;
-use rsnano_nullable_lmdb::{EnvironmentFlags, EnvironmentOptions, LmdbEnv, LmdbEnvFactory};
+use rsnano_nullable_lmdb::{EnvironmentFlags, EnvironmentOptions, LmdbEnv, LmdbEnvironmentFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
 
@@ -304,9 +304,9 @@ impl Node {
         ledger_path.push("data.ldb");
 
         let lmdb_env_factory = if is_nulled {
-            LmdbEnvFactory::new_null()
+            LmdbEnvironmentFactory::new_null()
         } else {
-            LmdbEnvFactory::default()
+            LmdbEnvironmentFactory::default()
         };
 
         info!("Loading ledger, this may take a while...");

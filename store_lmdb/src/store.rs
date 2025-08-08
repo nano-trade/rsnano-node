@@ -161,7 +161,7 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
 mod tests {
     use super::*;
     use lmdb::EnvironmentFlags;
-    use rsnano_nullable_lmdb::{EnvironmentOptions, LmdbEnvFactory};
+    use rsnano_nullable_lmdb::{EnvironmentOptions, LmdbEnvironmentFactory};
 
     #[test]
     fn create_store() -> anyhow::Result<()> {
@@ -171,7 +171,7 @@ mod tests {
             flags: EnvironmentFlags::empty(),
             path: "/nulled/store.ldb".into(),
         };
-        let env = LmdbEnvFactory::new_null().create(options)?;
+        let env = LmdbEnvironmentFactory::new_null().create(options)?;
         let _ = LmdbStore::new(env)?;
         Ok(())
     }

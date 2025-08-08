@@ -4,7 +4,7 @@ use rsnano_core::QualifiedRoot;
 use rsnano_store_lmdb::{default_ledger_lmdb_options, LmdbFinalVoteStore};
 
 use crate::cli::GlobalArgs;
-use rsnano_nullable_lmdb::LmdbEnvFactory;
+use rsnano_nullable_lmdb::LmdbEnvironmentFactory;
 
 #[derive(Parser, PartialEq, Debug)]
 #[command(group = ArgGroup::new("input1")
@@ -23,7 +23,7 @@ impl FinalVoteArgs {
     pub(crate) fn final_vote(&self, global_args: GlobalArgs) -> anyhow::Result<()> {
         let path = global_args.data_path.join("data.ldb");
         let options = default_ledger_lmdb_options(path);
-        let env = LmdbEnvFactory::default().create(options)?;
+        let env = LmdbEnvironmentFactory::default().create(options)?;
         let final_vote_store = LmdbFinalVoteStore::new(&env)?;
         let mut txn = env.begin_write();
 

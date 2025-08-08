@@ -7,7 +7,7 @@ use std::{
 use tracing::info;
 
 use rsnano_core::{utils::get_cpu_count, Amount};
-use rsnano_nullable_lmdb::LmdbEnvFactory;
+use rsnano_nullable_lmdb::LmdbEnvironmentFactory;
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::{
     create_and_update_lmdb_env, get_lmdb_flags, EnvironmentOptions, LedgerCache, LmdbConfig,
@@ -18,7 +18,7 @@ use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
 pub struct LedgerBuilder<'a> {
     path: PathBuf,
     config: Option<LmdbConfig>,
-    env_factory: Option<&'a LmdbEnvFactory>,
+    env_factory: Option<&'a LmdbEnvironmentFactory>,
     bootstrap_weights: Option<BootstrapWeights>,
     stats: Option<Arc<Stats>>,
     min_rep_weight: Amount,
@@ -40,7 +40,7 @@ impl<'a> LedgerBuilder<'a> {
         }
     }
 
-    pub fn env_factory(mut self, env_factory: &'a LmdbEnvFactory) -> Self {
+    pub fn env_factory(mut self, env_factory: &'a LmdbEnvironmentFactory) -> Self {
         self.env_factory = Some(env_factory);
         self
     }
@@ -85,7 +85,7 @@ impl<'a> LedgerBuilder<'a> {
         ));
 
         let config = self.config.unwrap_or_default();
-        let default_env_factory = LmdbEnvFactory::default();
+        let default_env_factory = LmdbEnvironmentFactory::default();
         let env_factory = self.env_factory.unwrap_or(&default_env_factory);
 
         let env_options = EnvironmentOptions {

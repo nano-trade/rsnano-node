@@ -58,21 +58,23 @@ impl NullDatabaseBuilder {
 }
 
 #[derive(Default)]
-pub struct LmdbEnvFactory {
-    env_factory: LmdbEnvironmentFactory,
+pub struct LmdbEnvironmentFactory {
+    is_nulled: bool,
 }
 
-impl LmdbEnvFactory {
+impl LmdbEnvironmentFactory {
     pub fn new_null() -> Self {
-        Self {
-            env_factory: LmdbEnvironmentFactory::new_null(),
-        }
+        Self { is_nulled: true }
     }
 
     pub fn create(&self, options: EnvironmentOptions) -> Result<LmdbEnv> {
         let db_file_path = options.path.to_path_buf();
-        let env = self.env_factory.create_env(options)?;
-        Ok(LmdbEnv::new(env, db_file_path))
+
+        if self.is_nulled {
+            Ok(LmdbEnv::new(LmdbEnvironment::new_null(), db_file_path))
+        } else {
+            Ok(LmdbEnv::new(LmdbEnvironment::new(options)?, db_file_path))
+        }
     }
 }
 
@@ -371,25 +373,6 @@ impl EnvironmentStubBuilder {
 
     pub fn finish(self) -> LmdbEnvironment {
         LmdbEnvironment::new_null_with(self.databases)
-    }
-}
-
-#[derive(Default)]
-pub struct LmdbEnvironmentFactory {
-    is_nulled: bool,
-}
-
-impl LmdbEnvironmentFactory {
-    pub fn new_null() -> Self {
-        Self { is_nulled: true }
-    }
-
-    pub fn create_env(&self, options: EnvironmentOptions) -> lmdb::Result<LmdbEnvironment> {
-        if self.is_nulled {
-            Ok(LmdbEnvironment::new_null())
-        } else {
-            LmdbEnvironment::new(options)
-        }
     }
 }
 

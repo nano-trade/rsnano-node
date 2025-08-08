@@ -10,7 +10,7 @@ use std::{
 
 use rsnano_core::{Epochs, PublicKey, SavedBlock, Signature};
 use rsnano_ledger::LedgerConstants;
-use rsnano_nullable_lmdb::LmdbEnvFactory;
+use rsnano_nullable_lmdb::LmdbEnvironmentFactory;
 use rsnano_store_lmdb::{EnvironmentFlags, EnvironmentOptions, LmdbBlockStore};
 
 fn main() {
@@ -33,7 +33,9 @@ fn check_ledger_file(ledger_file: impl Into<PathBuf>) {
             | EnvironmentFlags::NO_MEM_INIT,
         path: ledger_file.into(),
     };
-    let env = LmdbEnvFactory::default().create(env_options).unwrap();
+    let env = LmdbEnvironmentFactory::default()
+        .create(env_options)
+        .unwrap();
     let block_store = LmdbBlockStore::new(&env).unwrap();
 
     let tx = env.begin_read();

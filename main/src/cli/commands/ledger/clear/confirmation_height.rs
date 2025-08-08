@@ -2,7 +2,7 @@ use clap::{ArgGroup, Parser};
 
 use rsnano_core::{Account, ConfirmationHeightInfo, Networks};
 use rsnano_ledger::LedgerConstants;
-use rsnano_nullable_lmdb::LmdbEnvFactory;
+use rsnano_nullable_lmdb::LmdbEnvironmentFactory;
 use rsnano_store_lmdb::{default_ledger_lmdb_options, LmdbConfirmationHeightStore};
 
 use crate::cli::GlobalArgs;
@@ -35,7 +35,7 @@ impl ConfirmationHeightArgs {
         let genesis_account = genesis_block.account();
         let genesis_hash = genesis_block.hash();
 
-        let env_factory = LmdbEnvFactory::default();
+        let env_factory = LmdbEnvironmentFactory::default();
         let options = default_ledger_lmdb_options(path);
         let env = env_factory.create(options)?;
         let confirmation_height_store = LmdbConfirmationHeightStore::new(&env)?;
