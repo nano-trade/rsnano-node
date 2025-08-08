@@ -23,8 +23,8 @@ use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, LedgerSet};
 use rsnano_messages::{Message, Publish};
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
-    create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, LmdbWriteTransaction,
-    Transaction,
+    create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, Transaction,
+    WriteTransaction,
 };
 use rsnano_work::WorkThresholds;
 
@@ -311,11 +311,11 @@ impl Wallets {
 
     pub fn set_block_hash(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         id: &str,
         hash: &BlockHash,
     ) -> anyhow::Result<()> {
-        txn.rw_txn_mut().put(
+        txn.put(
             self.send_action_ids_handle.unwrap(),
             id.as_bytes(),
             hash.as_bytes(),
@@ -677,7 +677,7 @@ impl Wallets {
 
     fn prepare_send_with_id(
         &self,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         id: &str,
         wallet: &Arc<Wallet>,
         source: Account,
@@ -934,7 +934,7 @@ pub trait WalletsExt {
     fn deterministic_insert(
         &self,
         wallet: &Arc<Wallet>,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         generate_work: bool,
     ) -> PublicKey;
 
@@ -983,7 +983,7 @@ pub trait WalletsExt {
     fn change_seed_wallet(
         &self,
         wallet: &Arc<Wallet>,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         prv_key: &RawKey,
         count: u32,
     ) -> PublicKey;
@@ -1230,7 +1230,7 @@ impl WalletsExt for Arc<Wallets> {
     fn deterministic_insert(
         &self,
         wallet: &Arc<Wallet>,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         generate_work: bool,
     ) -> PublicKey {
         if !wallet.store.valid_password(tx) {
@@ -1423,7 +1423,7 @@ impl WalletsExt for Arc<Wallets> {
     fn change_seed_wallet(
         &self,
         wallet: &Arc<Wallet>,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         prv_key: &RawKey,
         mut count: u32,
     ) -> PublicKey {

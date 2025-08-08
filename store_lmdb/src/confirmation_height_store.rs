@@ -1,6 +1,6 @@
 use crate::{
-    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator,
-    LmdbWriteTransaction, Transaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
+    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction,
+    WriteTransaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -29,7 +29,7 @@ impl LmdbConfirmationHeightStore {
 
     pub fn put(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         account: &Account,
         info: &ConfirmationHeightInfo,
     ) {
@@ -59,7 +59,7 @@ impl LmdbConfirmationHeightStore {
         txn.exists(self.database, account.as_bytes())
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, account: &Account) {
+    pub fn del(&self, txn: &mut WriteTransaction, account: &Account) {
         txn.delete(self.database, account.as_bytes(), None).unwrap();
     }
 
@@ -67,7 +67,7 @@ impl LmdbConfirmationHeightStore {
         txn.count(self.database)
     }
 
-    pub fn clear(&self, txn: &mut LmdbWriteTransaction) {
+    pub fn clear(&self, txn: &mut WriteTransaction) {
         txn.clear_db(self.database).unwrap()
     }
 

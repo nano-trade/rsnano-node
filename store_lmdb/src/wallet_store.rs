@@ -1,4 +1,4 @@
-use crate::{Fan, LmdbDatabase, LmdbEnv, LmdbRangeIterator, LmdbWriteTransaction, Transaction};
+use crate::{Fan, LmdbDatabase, LmdbEnv, LmdbRangeIterator, Transaction, WriteTransaction};
 use anyhow::bail;
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -274,7 +274,7 @@ impl LmdbWalletStore {
 
     pub fn entry_put_raw(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         pub_key: &PublicKey,
         entry: &WalletValue,
     ) {
@@ -314,7 +314,7 @@ impl LmdbWalletStore {
         value.key.decrypt(&password, &iv)
     }
 
-    pub fn set_seed(&self, txn: &mut LmdbWriteTransaction, prv: &RawKey) {
+    pub fn set_seed(&self, txn: &mut WriteTransaction, prv: &RawKey) {
         let password_l = self.wallet_key(txn);
         let iv = self.salt(txn).initialization_vector_high();
         let ciphertext = prv.encrypt(&password_l, &iv);
@@ -337,7 +337,7 @@ impl LmdbWalletStore {
         value.key.number().low_u32()
     }
 
-    pub fn deterministic_index_set(&self, txn: &mut LmdbWriteTransaction, index: u32) {
+    pub fn deterministic_index_set(&self, txn: &mut WriteTransaction, index: u32) {
         let index = RawKey::from(index as u64);
         let value = WalletValue::new(index, 0.into());
         self.entry_put_raw(txn, &Self::deterministic_index_special(), &value);
@@ -369,7 +369,7 @@ impl LmdbWalletStore {
         self.kdf.hash_password(password, salt.as_bytes())
     }
 
-    pub fn rekey(&self, txn: &mut LmdbWriteTransaction, password: &str) -> anyhow::Result<()> {
+    pub fn rekey(&self, txn: &mut WriteTransaction, password: &str) -> anyhow::Result<()> {
         let mut guard = self.fans.lock().unwrap();
         if self.valid_password_locked(&guard, txn) {
             let password_new = self.derive_key(txn, password);
@@ -420,7 +420,7 @@ impl LmdbWalletStore {
         None
     }
 
-    pub fn erase(&self, txn: &mut LmdbWriteTransaction, pub_key: &PublicKey) {
+    pub fn erase(&self, txn: &mut WriteTransaction, pub_key: &PublicKey) {
         txn.delete(self.db_handle(), pub_key.as_bytes(), None)
             .unwrap();
     }
@@ -441,7 +441,7 @@ impl LmdbWalletStore {
         }
     }
 
-    pub fn deterministic_clear(&self, txn: &mut LmdbWriteTransaction) {
+    pub fn deterministic_clear(&self, txn: &mut WriteTransaction) {
         {
             let mut it = self.iter_range(txn, PublicKey::zero()..);
             while let Some((account, value)) = it.next() {
@@ -467,7 +467,7 @@ impl LmdbWalletStore {
         self.valid_public_key(key) && self.find(txn, key).is_some()
     }
 
-    pub fn deterministic_insert(&self, txn: &mut LmdbWriteTransaction) -> PublicKey {
+    pub fn deterministic_insert(&self, txn: &mut WriteTransaction) -> PublicKey {
         let mut index = self.deterministic_index_get(txn);
         let mut prv = self.deterministic_key(txn, index);
         let mut result = PublicKey::try_from(&prv).unwrap();
@@ -486,7 +486,7 @@ impl LmdbWalletStore {
         result
     }
 
-    pub fn deterministic_insert_at(&self, txn: &mut LmdbWriteTransaction, index: u32) -> PublicKey {
+    pub fn deterministic_insert_at(&self, txn: &mut WriteTransaction, index: u32) -> PublicKey {
         let prv = self.deterministic_key(txn, index);
         let result = PublicKey::try_from(&prv).unwrap();
         let mut marker = 1u64;
@@ -529,7 +529,7 @@ impl LmdbWalletStore {
         PublicKey::from_bytes(*value.key.as_bytes())
     }
 
-    pub fn representative_set(&self, txn: &mut LmdbWriteTransaction, representative: &PublicKey) {
+    pub fn representative_set(&self, txn: &mut WriteTransaction, representative: &PublicKey) {
         let rep = RawKey::from_bytes(*representative.as_bytes());
         self.entry_put_raw(
             txn,
@@ -538,7 +538,7 @@ impl LmdbWalletStore {
         );
     }
 
-    pub fn insert_adhoc(&self, txn: &mut LmdbWriteTransaction, prv: &RawKey) -> PublicKey {
+    pub fn insert_adhoc(&self, txn: &mut WriteTransaction, prv: &RawKey) -> PublicKey {
         debug_assert!(self.valid_password(txn));
         let pub_key = PublicKey::try_from(prv).unwrap();
         let password = self.wallet_key(txn);
@@ -549,7 +549,7 @@ impl LmdbWalletStore {
 
     pub fn insert_watch(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         pub_key: &PublicKey,
     ) -> anyhow::Result<()> {
         if !self.valid_public_key(pub_key) {
@@ -615,7 +615,7 @@ impl LmdbWalletStore {
 
     pub fn move_keys(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         other: &LmdbWalletStore,
         keys: &[PublicKey],
     ) -> anyhow::Result<()> {
@@ -632,7 +632,7 @@ impl LmdbWalletStore {
 
     pub fn import(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         other: &LmdbWalletStore,
     ) -> anyhow::Result<()> {
         debug_assert!(self.valid_password(txn));
@@ -684,7 +684,7 @@ impl LmdbWalletStore {
         }
     }
 
-    pub fn version_put(&self, txn: &mut LmdbWriteTransaction, version: u32) {
+    pub fn version_put(&self, txn: &mut WriteTransaction, version: u32) {
         let entry = RawKey::from(version as u64);
         self.entry_put_raw(
             txn,
@@ -693,16 +693,16 @@ impl LmdbWalletStore {
         );
     }
 
-    pub fn work_put(&self, txn: &mut LmdbWriteTransaction, pub_key: &PublicKey, work: WorkNonce) {
+    pub fn work_put(&self, txn: &mut WriteTransaction, pub_key: &PublicKey, work: WorkNonce) {
         let mut entry = self.entry_get_raw(txn, pub_key);
         debug_assert!(!entry.key.is_zero());
         entry.work = work;
         self.entry_put_raw(txn, pub_key, &entry);
     }
 
-    pub fn destroy(&self, txn: &mut LmdbWriteTransaction) {
+    pub fn destroy(&self, txn: &mut WriteTransaction) {
         unsafe {
-            txn.rw_txn_mut().drop_db(self.db_handle()).unwrap();
+            txn.drop_db(self.db_handle()).unwrap();
         }
         *self.db_handle.lock().unwrap() = None;
     }

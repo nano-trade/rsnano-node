@@ -6,7 +6,7 @@ use rsnano_core::{
     SavedBlock,
 };
 use rsnano_store_lmdb::{
-    LmdbPendingStore, LmdbRangeIterator, LmdbReadTransaction, LmdbStore, Transaction,
+    LmdbPendingStore, LmdbRangeIterator, LmdbStore, ReadTransaction, Transaction,
 };
 
 use super::{BorrowingConfirmedSet, ConfirmedSet, LedgerSet};
@@ -82,7 +82,7 @@ pub trait AnySet: LedgerSet {
 /// It owns the DB transaction
 pub struct OwningAnySet<'a> {
     store: &'a LmdbStore,
-    tx: LmdbReadTransaction,
+    tx: ReadTransaction,
     constants: &'a LedgerConstants,
 }
 

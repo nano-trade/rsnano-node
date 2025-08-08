@@ -16,7 +16,7 @@ use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
     ConfiguredConfirmationHeightDatabaseBuilder, ConfiguredPeersDatabaseBuilder,
     ConfiguredPendingDatabaseBuilder, ConfiguredPrunedDatabaseBuilder, LmdbEnv, LmdbStore,
-    LmdbWriteTransaction, MemoryStats, Transaction,
+    MemoryStats, Transaction, WriteTransaction,
 };
 use rsnano_work::WorkThresholds;
 use std::{
@@ -320,7 +320,7 @@ impl Ledger {
         Ok(())
     }
 
-    fn add_genesis_block(&self, txn: &mut LmdbWriteTransaction) {
+    fn add_genesis_block(&self, txn: &mut WriteTransaction) {
         let genesis_hash = self.constants.genesis_block.hash();
         let genesis_account = self.constants.genesis_account;
         self.store.block.put(txn, &self.constants.genesis_block);
@@ -396,7 +396,7 @@ impl Ledger {
 
     pub(crate) fn update_account(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         account: &Account,
         old_info: &AccountInfo,
         new_info: &AccountInfo,
@@ -445,12 +445,7 @@ impl Ledger {
         self.pruning_action(&mut tx, target, batch_size as u64) as usize
     }
 
-    fn pruning_action(
-        &self,
-        txn: &mut LmdbWriteTransaction,
-        hash: &BlockHash,
-        batch_size: u64,
-    ) -> u64 {
+    fn pruning_action(&self, txn: &mut WriteTransaction, hash: &BlockHash, batch_size: u64) -> u64 {
         self.stats.inc(StatType::Pruning, DetailType::PruningTarget);
         let mut pruned_count = 0;
         let mut hash = *hash;
@@ -578,7 +573,7 @@ impl Ledger {
 
     fn roll_back_with_tx(
         &self,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         block: &BlockHash,
     ) -> (Vec<SavedBlock>, Option<RollbackError>) {
         let mut performer = BlockRollbackPerformer::new(self, tx);
@@ -681,7 +676,7 @@ impl Ledger {
 
     fn rollback_competitor(
         &self,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         fork_block: &Block,
     ) -> Vec<SavedBlock> {
         let mut rollback_list = Vec::new();
@@ -733,7 +728,7 @@ impl Ledger {
     /// Callers must ensure that the target block was confirmed, and if not, call this function multiple times
     fn confirm_max(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         target_hash: BlockHash,
         max_blocks: usize,
     ) -> Vec<SavedBlock> {

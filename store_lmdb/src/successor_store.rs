@@ -1,4 +1,4 @@
-use crate::{LmdbWriteTransaction, Transaction};
+use crate::{Transaction, WriteTransaction};
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::BlockHash;
 use rsnano_nullable_lmdb::{LmdbDatabase, LmdbEnvironment};
@@ -24,7 +24,7 @@ impl LmdbSuccessorStore {
         self.put_listener.track()
     }
 
-    pub fn put(&self, tx: &mut LmdbWriteTransaction, block: &BlockHash, successor: &BlockHash) {
+    pub fn put(&self, tx: &mut WriteTransaction, block: &BlockHash, successor: &BlockHash) {
         if self.put_listener.is_tracked() {
             self.put_listener.emit((*block, *successor));
         }
@@ -38,7 +38,7 @@ impl LmdbSuccessorStore {
         .unwrap();
     }
 
-    pub fn del(&self, tx: &mut LmdbWriteTransaction, block: &BlockHash) {
+    pub fn del(&self, tx: &mut WriteTransaction, block: &BlockHash) {
         tx.delete(self.database, block.as_bytes(), None).unwrap();
     }
 

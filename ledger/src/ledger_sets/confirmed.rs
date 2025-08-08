@@ -2,7 +2,7 @@ use rsnano_core::{
     Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, PendingInfo, PendingKey,
     SavedBlock,
 };
-use rsnano_store_lmdb::{LmdbReadTransaction, LmdbStore, Transaction};
+use rsnano_store_lmdb::{LmdbStore, ReadTransaction, Transaction};
 
 use super::{AnyReceivableIterator, LedgerSet};
 
@@ -16,11 +16,11 @@ pub trait ConfirmedSet: LedgerSet {
 /// It owns the DB transaction
 pub struct OwningConfirmedSet<'a> {
     store: &'a LmdbStore,
-    tx: LmdbReadTransaction,
+    tx: ReadTransaction,
 }
 
 impl<'a> OwningConfirmedSet<'a> {
-    pub fn new(store: &'a LmdbStore, tx: LmdbReadTransaction) -> Self {
+    pub fn new(store: &'a LmdbStore, tx: ReadTransaction) -> Self {
         Self { store, tx }
     }
 

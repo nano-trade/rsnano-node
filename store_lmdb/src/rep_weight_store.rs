@@ -1,5 +1,5 @@
 use crate::{
-    LmdbDatabase, LmdbEnv, LmdbWriteTransaction, RoCursor, Transaction, REP_WEIGHT_TEST_DATABASE,
+    LmdbDatabase, LmdbEnv, RoCursor, Transaction, WriteTransaction, REP_WEIGHT_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_NEXT};
@@ -51,7 +51,7 @@ impl LmdbRepWeightStore {
         }
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, representative: PublicKey, weight: Amount) {
+    pub fn put(&self, txn: &mut WriteTransaction, representative: PublicKey, weight: Amount) {
         self.put_listener.emit((representative, weight));
 
         txn.put(
@@ -63,7 +63,7 @@ impl LmdbRepWeightStore {
         .unwrap();
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, representative: &PublicKey) {
+    pub fn del(&self, txn: &mut WriteTransaction, representative: &PublicKey) {
         self.delete_listener.emit(*representative);
 
         txn.delete(self.database, representative.as_bytes(), None)

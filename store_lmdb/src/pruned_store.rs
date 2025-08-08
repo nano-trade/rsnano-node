@@ -1,5 +1,5 @@
 use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
     PRUNED_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -23,12 +23,12 @@ impl LmdbPrunedStore {
         self.database
     }
 
-    pub fn put(&self, tx: &mut LmdbWriteTransaction, hash: &BlockHash) {
+    pub fn put(&self, tx: &mut WriteTransaction, hash: &BlockHash) {
         tx.put(self.database, hash.as_bytes(), &[0; 0], WriteFlags::empty())
             .unwrap();
     }
 
-    pub fn del(&self, tx: &mut LmdbWriteTransaction, hash: &BlockHash) {
+    pub fn del(&self, tx: &mut WriteTransaction, hash: &BlockHash) {
         tx.delete(self.database, hash.as_bytes(), None).unwrap();
     }
 
@@ -66,7 +66,7 @@ impl LmdbPrunedStore {
         tx.count(self.database)
     }
 
-    pub fn clear(&self, tx: &mut LmdbWriteTransaction) {
+    pub fn clear(&self, tx: &mut WriteTransaction) {
         tx.clear_db(self.database).unwrap();
     }
 }

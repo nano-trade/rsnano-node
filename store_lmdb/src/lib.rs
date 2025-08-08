@@ -25,7 +25,6 @@ mod version_store;
 mod wallet_store;
 
 use std::{
-    any::Any,
     mem,
     time::{Duration, Instant},
 };
@@ -63,7 +62,6 @@ use rsnano_output_tracker::{OutputListener, OutputTracker};
 use std::rc::Rc;
 
 pub trait Transaction {
-    fn as_any(&self) -> &dyn Any;
     fn refresh(&mut self);
     fn refresh_if_needed(&mut self) -> bool;
     fn is_refresh_needed(&self) -> bool;
@@ -86,12 +84,12 @@ enum RoTxnState {
     Transitioning,
 }
 
-pub struct LmdbReadTransaction {
+pub struct ReadTransaction {
     txn: RoTxnState,
     start: Instant,
 }
 
-impl LmdbReadTransaction {
+impl ReadTransaction {
     pub fn new(env: &LmdbEnvironment) -> lmdb::Result<Self> {
         let txn = env.begin_ro_txn()?;
 
@@ -101,7 +99,7 @@ impl LmdbReadTransaction {
         })
     }
 
-    pub fn txn(&self) -> &RoTransaction {
+    fn txn(&self) -> &RoTransaction {
         match &self.txn {
             RoTxnState::Active(t) => t,
             _ => panic!("LMDB read transaction not active"),
@@ -128,7 +126,7 @@ impl LmdbReadTransaction {
     }
 }
 
-impl Drop for LmdbReadTransaction {
+impl Drop for ReadTransaction {
     fn drop(&mut self) {
         let t = mem::replace(&mut self.txn, RoTxnState::Transitioning);
         // This uses commit rather than abort, as it is needed when opening databases with a read only transaction
@@ -138,11 +136,7 @@ impl Drop for LmdbReadTransaction {
     }
 }
 
-impl Transaction for LmdbReadTransaction {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl Transaction for ReadTransaction {
     fn refresh(&mut self) {
         self.reset();
         self.renew();
@@ -200,7 +194,7 @@ pub struct DeleteEvent {
     key: Vec<u8>,
 }
 
-pub struct LmdbWriteTransaction {
+pub struct WriteTransaction {
     env: &'static LmdbEnvironment,
     txn: RwTxnState,
     #[cfg(feature = "output_tracking")]
@@ -212,7 +206,7 @@ pub struct LmdbWriteTransaction {
     start: Instant,
 }
 
-impl LmdbWriteTransaction {
+impl WriteTransaction {
     pub fn new<'a>(env: &'a LmdbEnvironment) -> lmdb::Result<Self> {
         let env =
             unsafe { std::mem::transmute::<&'a LmdbEnvironment, &'static LmdbEnvironment>(env) };
@@ -231,14 +225,14 @@ impl LmdbWriteTransaction {
         Ok(tx)
     }
 
-    pub fn rw_txn(&self) -> &RwTransaction {
+    fn rw_txn(&self) -> &RwTransaction {
         match &self.txn {
             RwTxnState::Active(t) => t,
             _ => panic!("txn not active"),
         }
     }
 
-    pub fn rw_txn_mut(&mut self) -> &mut RwTransaction {
+    fn rw_txn_mut(&mut self) -> &mut RwTransaction {
         match &mut self.txn {
             RwTxnState::Active(t) => t,
             _ => panic!("txn not active"),
@@ -344,17 +338,13 @@ impl LmdbWriteTransaction {
     }
 }
 
-impl Drop for LmdbWriteTransaction {
+impl Drop for WriteTransaction {
     fn drop(&mut self) {
         self.commit();
     }
 }
 
-impl Transaction for LmdbWriteTransaction {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl Transaction for WriteTransaction {
     fn refresh(&mut self) {
         self.commit();
         self.renew();

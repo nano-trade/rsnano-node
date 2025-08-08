@@ -2,7 +2,7 @@ use crate::Ledger;
 use rsnano_core::{
     Account, AccountInfo, Amount, Block, BlockSideband, PendingInfo, PendingKey, SavedBlock,
 };
-use rsnano_store_lmdb::LmdbWriteTransaction;
+use rsnano_store_lmdb::WriteTransaction;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, PartialEq)]
@@ -19,7 +19,7 @@ pub(crate) struct BlockInsertInstructions {
 /// Inserts a new block into the ledger
 pub(crate) struct BlockInserter<'a> {
     ledger: &'a Ledger,
-    txn: &'a mut LmdbWriteTransaction,
+    txn: &'a mut WriteTransaction,
     block: &'a Block,
     instructions: &'a BlockInsertInstructions,
 }
@@ -27,7 +27,7 @@ pub(crate) struct BlockInserter<'a> {
 impl<'a> BlockInserter<'a> {
     pub(crate) fn new(
         ledger: &'a Ledger,
-        txn: &'a mut LmdbWriteTransaction,
+        txn: &'a mut WriteTransaction,
         block: &'a Block,
         instructions: &'a BlockInsertInstructions,
     ) -> Self {

@@ -2,7 +2,7 @@ use crate::{BootstrapWeights, Ledger, LedgerConstants, RepWeightCache};
 use rsnano_core::{utils::get_cpu_count, Amount};
 use rsnano_stats::Stats;
 use rsnano_store_lmdb::{
-    create_and_update_lmdb_env, get_env_flags, EnvironmentOptions, LedgerCache, LmdbConfig,
+    create_and_update_lmdb_env, get_lmdb_flags, EnvironmentOptions, LedgerCache, LmdbConfig,
     LmdbEnvFactory,
 };
 use std::{
@@ -88,7 +88,7 @@ impl<'a> LedgerBuilder<'a> {
         let env_options = EnvironmentOptions {
             max_dbs: config.max_databases,
             map_size: config.map_size,
-            flags: get_env_flags(&config),
+            flags: get_lmdb_flags(&config),
             path: self.path,
         };
 

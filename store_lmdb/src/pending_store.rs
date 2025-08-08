@@ -1,6 +1,6 @@
 use crate::{
-    iterator::LmdbRangeIterator, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbWriteTransaction,
-    Transaction, PENDING_TEST_DATABASE,
+    iterator::LmdbRangeIterator, LmdbDatabase, LmdbEnv, LmdbIterator, Transaction,
+    WriteTransaction, PENDING_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -42,7 +42,7 @@ impl LmdbPendingStore {
         self.delete_listener.track()
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, key: &PendingKey, pending: &PendingInfo) {
+    pub fn put(&self, txn: &mut WriteTransaction, key: &PendingKey, pending: &PendingInfo) {
         self.put_listener.emit((key.clone(), pending.clone()));
         let key_bytes = key.to_bytes();
         let pending_bytes = pending.to_bytes();
@@ -55,7 +55,7 @@ impl LmdbPendingStore {
         .unwrap();
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, key: &PendingKey) {
+    pub fn del(&self, txn: &mut WriteTransaction, key: &PendingKey) {
         self.delete_listener.emit(key.clone());
         let key_bytes = key.to_bytes();
         txn.delete(self.database, &key_bytes, None).unwrap();

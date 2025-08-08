@@ -1,7 +1,7 @@
 use anyhow::Context;
 use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
 use rsnano_ledger::{AnySet, Ledger};
-use rsnano_store_lmdb::{LmdbEnv, LmdbWalletStore, LmdbWriteTransaction, Transaction};
+use rsnano_store_lmdb::{LmdbEnv, LmdbWalletStore, Transaction, WriteTransaction};
 use rsnano_work::WorkThresholds;
 use std::{
     collections::HashSet,
@@ -60,7 +60,7 @@ impl Wallet {
 
     pub fn work_update(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         pub_key: &PublicKey,
         root: &Root,
         work: WorkNonce,

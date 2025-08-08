@@ -1,5 +1,5 @@
 use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
     BLOCK_DATA_DATABASE, BLOCK_INDEX_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -88,7 +88,7 @@ impl LmdbBlockStore {
         self.put_listener.track()
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, block: &SavedBlock) {
+    pub fn put(&self, txn: &mut WriteTransaction, block: &SavedBlock) {
         if self.put_listener.is_tracked() {
             self.put_listener.emit(block.clone());
         }
@@ -108,7 +108,7 @@ impl LmdbBlockStore {
         })
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, hash: &BlockHash) {
+    pub fn del(&self, txn: &mut WriteTransaction, hash: &BlockHash) {
         let id = match txn.get(self.index_db, hash.as_bytes()) {
             Ok(id_bytes) => get_block_id(id_bytes),
             Err(lmdb::Error::NotFound) => return,
@@ -166,7 +166,7 @@ impl LmdbBlockStore {
         })
     }
 
-    fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {
+    fn raw_put(&self, txn: &mut WriteTransaction, data: &[u8], hash: &BlockHash) {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
 
         txn.put(

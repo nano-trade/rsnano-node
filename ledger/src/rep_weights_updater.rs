@@ -1,6 +1,6 @@
 use crate::{RepWeightCache, RepWeights};
 use rsnano_core::{Amount, PublicKey};
-use rsnano_store_lmdb::{LmdbRepWeightStore, LmdbWriteTransaction};
+use rsnano_store_lmdb::{LmdbRepWeightStore, WriteTransaction};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -35,7 +35,7 @@ impl RepWeightsUpdater {
 
     pub fn representation_add(
         &self,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         representative: PublicKey,
         amount: Amount,
     ) {
@@ -61,7 +61,7 @@ impl RepWeightsUpdater {
 
     fn put_store(
         &self,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         representative: PublicKey,
         previous_weight: Amount,
         new_weight: Amount,
@@ -83,7 +83,7 @@ impl RepWeightsUpdater {
 
     pub fn representation_add_dual(
         &self,
-        tx: &mut LmdbWriteTransaction,
+        tx: &mut WriteTransaction,
         rep_1: PublicKey,
         amount_1: Amount,
         rep_2: PublicKey,

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use rsnano_core::{BlockHash, Root};
-use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
+use rsnano_store_lmdb::{LmdbStore, Transaction, WriteTransaction};
 
 use crate::{AnySet, BorrowingAnySet, LedgerConstants, OwningAnySet};
 
@@ -48,12 +48,7 @@ impl<'a> VoteVerifier<'a> {
         any.dependents_confirmed(&block)
     }
 
-    fn should_vote_final(
-        &self,
-        tx: &mut LmdbWriteTransaction,
-        root: &Root,
-        hash: &BlockHash,
-    ) -> bool {
+    fn should_vote_final(&self, tx: &mut WriteTransaction, root: &Root, hash: &BlockHash) -> bool {
         let any = BorrowingAnySet {
             constants: &self.constants,
             store: self.store,

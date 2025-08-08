@@ -1,7 +1,7 @@
 use crate::LedgerConstants;
 use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
 use rsnano_stats::{DetailType, Direction, StatType, Stats};
-use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
+use rsnano_store_lmdb::{LmdbStore, Transaction, WriteTransaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
 
 /// Cements Blocks in the ledger
@@ -26,7 +26,7 @@ impl<'a> BlockCementer<'a> {
 
     pub(crate) fn confirm(
         &self,
-        txn: &mut LmdbWriteTransaction,
+        txn: &mut WriteTransaction,
         target_hash: BlockHash,
         max_blocks: usize,
     ) -> Vec<SavedBlock> {
@@ -102,7 +102,7 @@ impl<'a> BlockCementer<'a> {
         result
     }
 
-    fn is_confirmed(&self, tx: &LmdbWriteTransaction, hash: &BlockHash) -> bool {
+    fn is_confirmed(&self, tx: &WriteTransaction, hash: &BlockHash) -> bool {
         if self.store.pruned.exists(tx, hash) {
             return true;
         }

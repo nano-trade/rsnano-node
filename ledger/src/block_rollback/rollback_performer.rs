@@ -1,5 +1,5 @@
 use rsnano_core::{AccountInfo, BlockHash, SavedBlock};
-use rsnano_store_lmdb::LmdbWriteTransaction;
+use rsnano_store_lmdb::WriteTransaction;
 
 use crate::{AnySet, BorrowingAnySet, Ledger, LedgerSet};
 
@@ -10,12 +10,12 @@ use super::{
 
 pub(crate) struct BlockRollbackPerformer<'a> {
     ledger: &'a Ledger,
-    pub txn: &'a mut LmdbWriteTransaction,
+    pub txn: &'a mut WriteTransaction,
     pub rolled_back: Vec<SavedBlock>,
 }
 
 impl<'a> BlockRollbackPerformer<'a> {
-    pub(crate) fn new(ledger: &'a Ledger, txn: &'a mut LmdbWriteTransaction) -> Self {
+    pub(crate) fn new(ledger: &'a Ledger, txn: &'a mut WriteTransaction) -> Self {
         Self {
             ledger,
             txn,

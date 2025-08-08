@@ -16,8 +16,8 @@ use rsnano_core::utils::UnixTimestamp;
 use crate::{
     successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
     LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore,
-    LmdbPendingStore, LmdbPrunedStore, LmdbReadTransaction, LmdbRepWeightStore, LmdbVersionStore,
-    LmdbWriteTransaction,
+    LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore, LmdbVersionStore, ReadTransaction,
+    WriteTransaction,
 };
 
 pub struct LedgerCache {
@@ -97,11 +97,11 @@ impl LmdbStore {
         })
     }
 
-    pub fn tx_begin_read(&self) -> LmdbReadTransaction {
+    pub fn tx_begin_read(&self) -> ReadTransaction {
         self.env.tx_begin_read()
     }
 
-    pub fn tx_begin_write(&self) -> LmdbWriteTransaction {
+    pub fn tx_begin_write(&self) -> WriteTransaction {
         self.env.tx_begin_write()
     }
 }

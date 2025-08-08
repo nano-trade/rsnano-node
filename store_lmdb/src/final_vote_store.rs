@@ -1,5 +1,5 @@
 use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -28,12 +28,7 @@ impl LmdbFinalVoteStore {
     }
 
     /// Returns *true* if root + hash was inserted or the same root/hash pair was already in the database
-    pub fn put(
-        &self,
-        txn: &mut LmdbWriteTransaction,
-        root: &QualifiedRoot,
-        hash: &BlockHash,
-    ) -> bool {
+    pub fn put(&self, txn: &mut WriteTransaction, root: &QualifiedRoot, hash: &BlockHash) -> bool {
         let root_bytes = root.to_bytes();
         match txn.get(self.database, &root_bytes) {
             Err(lmdb::Error::NotFound) => {
@@ -88,7 +83,7 @@ impl LmdbFinalVoteStore {
         }
     }
 
-    pub fn del(&self, tx: &mut LmdbWriteTransaction, root: &QualifiedRoot) {
+    pub fn del(&self, tx: &mut WriteTransaction, root: &QualifiedRoot) {
         let root_bytes = root.to_bytes();
         tx.delete(self.database, &root_bytes, None).unwrap();
     }
@@ -97,7 +92,7 @@ impl LmdbFinalVoteStore {
         txn.count(self.database)
     }
 
-    pub fn clear(&self, txn: &mut LmdbWriteTransaction) {
+    pub fn clear(&self, txn: &mut WriteTransaction) {
         txn.clear_db(self.database).unwrap();
     }
 }

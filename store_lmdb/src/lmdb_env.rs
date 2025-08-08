@@ -8,7 +8,7 @@ use rsnano_nullable_lmdb::{
     LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
 };
 
-use crate::{LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, SyncStrategy};
+use crate::{LmdbConfig, ReadTransaction, SyncStrategy, WriteTransaction};
 use lmdb::EnvironmentFlags;
 
 pub struct NullLmdbEnvBuilder {
@@ -68,7 +68,7 @@ impl LmdbEnvFactory {
             path: path.into(),
             max_dbs: cfg.max_databases,
             map_size: cfg.map_size,
-            flags: get_env_flags(&cfg),
+            flags: get_lmdb_flags(&cfg),
         };
         self.create_with_options(options)
     }
@@ -106,13 +106,13 @@ impl LmdbEnv {
         }
     }
 
-    pub fn tx_begin_read(&self) -> LmdbReadTransaction {
-        LmdbReadTransaction::new(&self.environment)
+    pub fn tx_begin_read(&self) -> ReadTransaction {
+        ReadTransaction::new(&self.environment)
             .expect("Could not create LMDB read-only transaction")
     }
 
-    pub fn tx_begin_write(&self) -> LmdbWriteTransaction {
-        LmdbWriteTransaction::new(&self.environment)
+    pub fn tx_begin_write(&self) -> WriteTransaction {
+        WriteTransaction::new(&self.environment)
             .expect("Could not create LMDB read-write transaction")
     }
 
@@ -130,25 +130,25 @@ impl LmdbEnv {
     }
 }
 
-pub fn get_env_flags(options: &LmdbConfig) -> EnvironmentFlags {
+pub fn get_lmdb_flags(config: &LmdbConfig) -> EnvironmentFlags {
     // It seems if there's ever more threads than mdb_env_set_maxreaders has read slots available, we get failures on transaction creation unless MDB_NOTLS is specified
     // This can happen if something like 256 io_threads are specified in the node config
     // MDB_NORDAHEAD will allow platforms that support it to load the DB in memory as needed.
     // MDB_NOMEMINIT prevents zeroing malloc'ed pages. Can provide improvement for non-sensitive data but may make memory checkers noisy (e.g valgrind).
     let mut flags = EnvironmentFlags::NO_SUB_DIR | EnvironmentFlags::NO_TLS;
 
-    if options.sync == SyncStrategy::NosyncSafe {
+    if config.sync == SyncStrategy::NosyncSafe {
         flags |= EnvironmentFlags::NO_META_SYNC;
-    } else if options.sync == SyncStrategy::NosyncUnsafe {
+    } else if config.sync == SyncStrategy::NosyncUnsafe {
         flags |= EnvironmentFlags::NO_SYNC | EnvironmentFlags::NO_META_SYNC;
-    } else if options.sync == SyncStrategy::NosyncUnsafeLargeMemory {
+    } else if config.sync == SyncStrategy::NosyncUnsafeLargeMemory {
         flags |=
             EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP | EnvironmentFlags::MAP_ASYNC;
-    } else if options.sync == SyncStrategy::NosyncUnsafeWriteMap {
+    } else if config.sync == SyncStrategy::NosyncUnsafeWriteMap {
         flags |= EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP;
     }
 
-    if !options.mem_init {
+    if !config.mem_init {
         flags |= EnvironmentFlags::NO_MEM_INIT;
     }
     flags

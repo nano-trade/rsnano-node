@@ -1,5 +1,5 @@
 use crate::{
-    iterator::LmdbIterator, LmdbDatabase, LmdbEnv, LmdbWriteTransaction, Transaction,
+    iterator::LmdbIterator, LmdbDatabase, LmdbEnv, Transaction, WriteTransaction,
     PEERS_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -41,7 +41,7 @@ impl LmdbPeerStore {
         self.put_listener.track()
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, endpoint: SocketAddrV6, time: SystemTime) {
+    pub fn put(&self, txn: &mut WriteTransaction, endpoint: SocketAddrV6, time: SystemTime) {
         self.put_listener.emit((endpoint.clone(), time));
         txn.put(
             self.database,
@@ -56,7 +56,7 @@ impl LmdbPeerStore {
         self.delete_listener.track()
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, endpoint: SocketAddrV6) {
+    pub fn del(&self, txn: &mut WriteTransaction, endpoint: SocketAddrV6) {
         self.delete_listener.emit(endpoint);
         txn.delete(self.database, &EndpointBytes::from(endpoint), None)
             .unwrap();
@@ -70,7 +70,7 @@ impl LmdbPeerStore {
         txn.count(self.database)
     }
 
-    pub fn clear(&self, txn: &mut LmdbWriteTransaction) {
+    pub fn clear(&self, txn: &mut WriteTransaction) {
         txn.clear_db(self.database).unwrap();
     }
 

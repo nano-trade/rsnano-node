@@ -1,6 +1,6 @@
 use crate::{
     iterator::{LmdbIterator, LmdbRangeIterator},
-    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbWriteTransaction, Transaction,
+    parallel_traversal, LmdbDatabase, LmdbEnv, Transaction, WriteTransaction,
     ACCOUNT_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -38,12 +38,7 @@ impl LmdbAccountStore {
         self.database
     }
 
-    pub fn put(
-        &self,
-        transaction: &mut LmdbWriteTransaction,
-        account: &Account,
-        info: &AccountInfo,
-    ) {
+    pub fn put(&self, transaction: &mut WriteTransaction, account: &Account, info: &AccountInfo) {
         if self.put_listener.is_tracked() {
             self.put_listener.emit((*account, info.clone()));
         }
@@ -69,7 +64,7 @@ impl LmdbAccountStore {
         }
     }
 
-    pub fn del(&self, transaction: &mut LmdbWriteTransaction, account: &Account) {
+    pub fn del(&self, transaction: &mut WriteTransaction, account: &Account) {
         transaction
             .delete(self.database, account.as_bytes(), None)
             .unwrap();

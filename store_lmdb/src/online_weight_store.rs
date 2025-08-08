@@ -1,4 +1,4 @@
-use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, LmdbWriteTransaction, Transaction};
+use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, Transaction, WriteTransaction};
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::Amount;
 
@@ -18,7 +18,7 @@ impl LmdbOnlineWeightStore {
         self.database
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, time: u64, amount: &Amount) {
+    pub fn put(&self, txn: &mut WriteTransaction, time: u64, amount: &Amount) {
         let time_bytes = time.to_be_bytes();
         let amount_bytes = amount.to_be_bytes();
         txn.put(
@@ -30,7 +30,7 @@ impl LmdbOnlineWeightStore {
         .unwrap();
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, time: u64) {
+    pub fn del(&self, txn: &mut WriteTransaction, time: u64) {
         let time_bytes = time.to_be_bytes();
         txn.delete(self.database, &time_bytes, None).unwrap();
     }
@@ -66,7 +66,7 @@ impl LmdbOnlineWeightStore {
         txn.count(self.database)
     }
 
-    pub fn clear(&self, txn: &mut LmdbWriteTransaction) {
+    pub fn clear(&self, txn: &mut WriteTransaction) {
         txn.clear_db(self.database).unwrap();
     }
 }
