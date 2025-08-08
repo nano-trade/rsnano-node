@@ -174,14 +174,13 @@ mod tests {
     mod rw_txn {
         use super::*;
         use crate::PutEvent;
-        use lmdb::{DatabaseFlags, WriteFlags};
+        use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
 
         #[test]
         fn can_track_puts() {
             let env = LmdbEnv::new_null();
 
             let database = env
-                .environment
                 .create_db(Some("testdb"), DatabaseFlags::empty())
                 .unwrap();
 
