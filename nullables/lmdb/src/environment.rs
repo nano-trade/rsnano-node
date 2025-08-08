@@ -50,6 +50,11 @@ impl NullDatabaseBuilder {
         self
     }
 
+    pub fn error(mut self, key: &[u8], error: lmdb::Error) -> Self {
+        self.db_builder = self.db_builder.error(key, error);
+        self
+    }
+
     pub fn build(self) -> NullLmdbEnvBuilder {
         NullLmdbEnvBuilder {
             env_builder: self.db_builder.finish(),

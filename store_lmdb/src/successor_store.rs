@@ -61,7 +61,7 @@ const TABLE_NAME: &str = "successors";
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_nullable_lmdb::{DeleteEvent, LmdbEnvironment, PutEvent};
+    use rsnano_nullable_lmdb::{DeleteEvent, PutEvent};
 
     #[test]
     fn initialize() {
@@ -140,12 +140,11 @@ mod tests {
     #[should_panic = "Could not load successor hash: PageNotFound"]
     fn get_unexpected_error() {
         let block_hash = BlockHash::from(1);
-        let lmdb_env = LmdbEnvironment::null_builder()
+        let env = LmdbEnv::new_null_with()
             .database(TABLE_NAME, TEST_DATABASE)
             .error(block_hash.as_bytes(), lmdb::Error::PageNotFound)
-            .finish()
-            .finish();
-        let env = LmdbEnv::new(lmdb_env, "/nulled-env");
+            .build()
+            .build();
         let store = LmdbSuccessorStore::new(&env).unwrap();
         let tx = env.begin_read();
         store.get(&tx, &block_hash);
@@ -172,15 +171,14 @@ mod tests {
     const TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(42);
 
     fn create_test_store(entries: &[(BlockHash, BlockHash)]) -> (LmdbSuccessorStore, LmdbEnv) {
-        let mut env_builder = LmdbEnvironment::null_builder().database(TABLE_NAME, TEST_DATABASE);
+        let mut env_builder = LmdbEnv::new_null_with().database(TABLE_NAME, TEST_DATABASE);
 
         for (block_hash, successor) in entries {
             env_builder = env_builder.entry(block_hash.as_bytes(), successor.as_bytes());
         }
 
-        let lmdb_env = env_builder.finish().finish();
-        let env = LmdbEnv::new(lmdb_env, "/nulled-env");
-        let store = LmdbSuccessorStore::new(&env).unwrap();
-        (store, env)
+        let lmdb_env = env_builder.build().build();
+        let store = LmdbSuccessorStore::new(&lmdb_env).unwrap();
+        (store, lmdb_env)
     }
 }
