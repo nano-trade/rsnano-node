@@ -116,7 +116,7 @@ mod tests {
         }
 
         pub fn with_stored_data(entries: Vec<BlockHash>) -> Self {
-            let env = LmdbEnv::new_null_with()
+            let env = LmdbEnv::null_builder()
                 .configured_database(ConfiguredPrunedDatabaseBuilder::create(entries))
                 .build();
             let env = Arc::new(env);

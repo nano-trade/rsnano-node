@@ -245,7 +245,7 @@ mod tests {
     fn load_block_by_hash() {
         let block = SavedBlock::new_test_instance();
 
-        let env = LmdbEnv::new_null_with()
+        let env = LmdbEnv::null_builder()
             .database(BLOCK_INDEX_DB_NAME, LmdbDatabase::new_null(99))
             .entry(block.hash().as_bytes(), &1u64.to_be_bytes())
             .build()
@@ -307,7 +307,7 @@ mod tests {
         let (block_index, block_data) =
             LmdbBlockStore::configured_responses().block(&block).build();
 
-        let env = LmdbEnv::new_null_with()
+        let env = LmdbEnv::null_builder()
             .configured_database(block_index)
             .configured_database(block_data)
             .build();

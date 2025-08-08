@@ -138,7 +138,7 @@ mod tests {
         let weight = Amount::from(100);
 
         let env = Arc::new(
-            LmdbEnv::new_null_with()
+            LmdbEnv::null_builder()
                 .configured_database(ConfiguredRepWeightDatabaseBuilder::create(vec![(
                     representative,
                     weight,
@@ -170,7 +170,7 @@ mod tests {
         let weight = Amount::from(100);
 
         let env = Arc::new(
-            LmdbEnv::new_null_with()
+            LmdbEnv::null_builder()
                 .configured_database(ConfiguredRepWeightDatabaseBuilder::create(vec![
                     (rep1, weight),
                     (rep2, weight),
@@ -221,7 +221,7 @@ mod tests {
         let representative = PublicKey::from(1);
         let weight = Amount::from(11);
         let env = Arc::new(
-            LmdbEnv::new_null_with()
+            LmdbEnv::null_builder()
                 .configured_database(ConfiguredRepWeightDatabaseBuilder::create(vec![(
                     representative,
                     weight,

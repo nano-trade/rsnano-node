@@ -211,7 +211,7 @@ mod tests {
         let account = Account::from(1);
         let info = ConfirmationHeightInfo::new(1, BlockHash::from(2));
 
-        let env = LmdbEnv::new_null_with()
+        let env = LmdbEnv::null_builder()
             .database("confirmation_height", LmdbDatabase::new_null(100))
             .entry(account.as_bytes(), &info.to_bytes())
             .build()
@@ -229,7 +229,7 @@ mod tests {
         let account = Account::from(1);
         let info = ConfirmationHeightInfo::new(1, BlockHash::from(2));
 
-        let env = LmdbEnv::new_null_with()
+        let env = LmdbEnv::null_builder()
             .database("confirmation_height", LmdbDatabase::new_null(100))
             .entry(account.as_bytes(), &info.to_bytes())
             .build()

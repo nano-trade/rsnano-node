@@ -168,7 +168,7 @@ mod tests {
         }
 
         fn with_stored_accounts(accounts: Vec<(Account, AccountInfo)>) -> Self {
-            let env = LmdbEnv::new_null_with()
+            let env = LmdbEnv::null_builder()
                 .configured_database(ConfiguredAccountDatabaseBuilder::create(accounts))
                 .build();
             Self::with_env(env)

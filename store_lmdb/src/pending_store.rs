@@ -159,7 +159,7 @@ mod tests {
         }
 
         pub fn with_stored_data(entries: Vec<(PendingKey, PendingInfo)>) -> Self {
-            let env = LmdbEnv::new_null_with()
+            let env = LmdbEnv::null_builder()
                 .configured_database(ConfiguredPendingDatabaseBuilder::create(entries))
                 .build();
 

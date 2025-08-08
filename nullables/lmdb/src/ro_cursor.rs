@@ -133,7 +133,7 @@ impl<'a> Iterator for Iter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LmdbDatabase, LmdbEnv, LmdbEnvironment, LmdbEnvironmentFactory, Transaction};
+    use crate::{LmdbDatabase, LmdbEnv, LmdbEnvironmentFactory, Transaction};
     use lmdb::{DatabaseFlags, EnvironmentFlags, WriteFlags};
     use std::path::{Path, PathBuf};
 
@@ -188,7 +188,7 @@ mod tests {
         #[test]
         fn iter_from_start() {
             let env = nulled_env_with_foo_database();
-            let txn = env.begin_ro_txn().unwrap();
+            let txn = env.begin_read();
             let mut cursor = txn.open_ro_cursor(TEST_DATABASE).unwrap();
 
             let result: Vec<([u8; 3], [u8; 3])> = cursor
@@ -210,7 +210,7 @@ mod tests {
         #[test]
         fn nulled_cursor_can_be_iterated_forwards() {
             let env = nulled_env_with_foo_database();
-            let txn = env.begin_ro_txn().unwrap();
+            let txn = env.begin_read();
 
             let cursor = txn.open_ro_cursor(LmdbDatabase::new_null(42)).unwrap();
 
@@ -233,7 +233,7 @@ mod tests {
         #[test]
         fn nulled_cursor_can_be_iterated_backwards() {
             let env = nulled_env_with_foo_database();
-            let txn = env.begin_ro_txn().unwrap();
+            let txn = env.begin_read();
             let cursor = txn.open_ro_cursor(TEST_DATABASE).unwrap();
 
             let (k, v) = cursor.get(None, None, MDB_LAST).unwrap();
@@ -255,7 +255,7 @@ mod tests {
         #[test]
         fn nulled_cursor_can_start_at_specified_key() {
             let env = nulled_env_with_foo_database();
-            let txn = env.begin_ro_txn().unwrap();
+            let txn = env.begin_read();
 
             let cursor = txn.open_ro_cursor(TEST_DATABASE).unwrap();
             let (k, v) = cursor
@@ -271,14 +271,14 @@ mod tests {
             assert_eq!(v, [7, 7, 7].as_slice());
         }
 
-        fn nulled_env_with_foo_database() -> LmdbEnvironment {
-            LmdbEnvironment::null_builder()
+        fn nulled_env_with_foo_database() -> LmdbEnv {
+            LmdbEnv::null_builder()
                 .database(TEST_DATABASE_NAME, TEST_DATABASE)
                 .entry(&[1, 1, 1], &[6, 6, 6])
                 .entry(&[2, 2, 2], &[7, 7, 7])
                 .entry(&[3, 3, 3], &[8, 8, 8])
-                .finish()
-                .finish()
+                .build()
+                .build()
         }
     }
 

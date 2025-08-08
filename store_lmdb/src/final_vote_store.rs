@@ -116,7 +116,7 @@ mod tests {
         }
 
         fn with_stored_entries(entries: Vec<(QualifiedRoot, BlockHash)>) -> Self {
-            let mut env = LmdbEnv::new_null_with().database("final_votes", TEST_DATABASE);
+            let mut env = LmdbEnv::null_builder().database("final_votes", TEST_DATABASE);
             for (key, value) in entries {
                 env = env.entry(&key.to_bytes(), value.as_bytes());
             }

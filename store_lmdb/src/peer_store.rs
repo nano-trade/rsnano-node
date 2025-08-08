@@ -324,7 +324,7 @@ mod tests {
         }
 
         fn with_stored_data(entries: Vec<SocketAddrV6>) -> Self {
-            let mut env = LmdbEnv::new_null_with().database("peers", LmdbDatabase::new_null(42));
+            let mut env = LmdbEnv::null_builder().database("peers", LmdbDatabase::new_null(42));
 
             for entry in entries {
                 env = env.entry(&EndpointBytes::from(entry), &[]);

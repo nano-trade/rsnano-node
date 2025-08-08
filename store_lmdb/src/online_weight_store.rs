@@ -90,7 +90,7 @@ mod tests {
 
         fn with_stored_data(entries: Vec<(u64, Amount)>) -> Self {
             let mut env =
-                LmdbEnv::new_null_with().database("online_weight", LmdbDatabase::new_null(42));
+                LmdbEnv::null_builder().database("online_weight", LmdbDatabase::new_null(42));
 
             for (key, value) in entries {
                 env = env.entry(&key.to_be_bytes(), &value.to_be_bytes())

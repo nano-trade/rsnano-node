@@ -140,7 +140,7 @@ mod tests {
     #[should_panic = "Could not load successor hash: PageNotFound"]
     fn get_unexpected_error() {
         let block_hash = BlockHash::from(1);
-        let env = LmdbEnv::new_null_with()
+        let env = LmdbEnv::null_builder()
             .database(TABLE_NAME, TEST_DATABASE)
             .error(block_hash.as_bytes(), lmdb::Error::PageNotFound)
             .build()
@@ -171,7 +171,7 @@ mod tests {
     const TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(42);
 
     fn create_test_store(entries: &[(BlockHash, BlockHash)]) -> (LmdbSuccessorStore, LmdbEnv) {
-        let mut env_builder = LmdbEnv::new_null_with().database(TABLE_NAME, TEST_DATABASE);
+        let mut env_builder = LmdbEnv::null_builder().database(TABLE_NAME, TEST_DATABASE);
 
         for (block_hash, successor) in entries {
             env_builder = env_builder.entry(block_hash.as_bytes(), successor.as_bytes());

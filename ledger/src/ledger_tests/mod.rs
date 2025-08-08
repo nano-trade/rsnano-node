@@ -352,7 +352,7 @@ fn block_confirmed() {
 
 #[test]
 fn ledger_cache() {
-    let env = LmdbEnv::new_null_with().build();
+    let env = LmdbEnv::null_builder().build();
     {
         let pruned = LmdbPrunedStore::new(&env).unwrap();
         let accounts = LmdbAccountStore::new(&env).unwrap();

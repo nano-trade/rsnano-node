@@ -236,7 +236,7 @@ mod tests {
         }
 
         pub fn with_stored_data(entries: Vec<(PublicKey, Amount)>) -> Self {
-            let env = LmdbEnv::new_null_with()
+            let env = LmdbEnv::null_builder()
                 .configured_database(ConfiguredRepWeightDatabaseBuilder::create(entries))
                 .build();
             let env = Arc::new(env);
