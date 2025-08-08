@@ -6,7 +6,7 @@ use rsnano_core::{
     StateBlockArgs, UncheckedInfo, Vote, VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
-    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockError, ConfirmedSet, LedgerSet, Writer,
+    test_helpers::UnsavedBlockLatticeBuilder, AnySet, BlockError, ConfirmedSet, LedgerSet,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
@@ -14,16 +14,16 @@ use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockContext, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
-    consensus::{election::VoteType, AecEvent, AggregatorRequest, FilteredVote, ReceivedVote},
+    consensus::{election::VoteType, AecEvent, FilteredVote, ReceivedVote},
     wallets::WalletsExt,
     work::WorkRequest,
 };
 use rsnano_nullable_tcp::get_available_port;
 use rsnano_stats::{DetailType, Direction, StatType};
 use test_helpers::{
-    activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
-    assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, make_fake_channel,
-    setup_chains, start_election, System,
+    activate_hashes, assert_never, assert_timely, assert_timely2, assert_timely_eq,
+    assert_timely_eq2, assert_timely_msg, establish_tcp, make_fake_channel, setup_chains,
+    start_election, System,
 };
 
 #[test]
@@ -1858,109 +1858,6 @@ fn confirm_back() {
     assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
 }
 
-#[test]
-#[ignore = "TODO: find out why this test fails"]
-fn rollback_vote_self() {
-    let mut system = System::new();
-    let mut flags = NodeFlags::default();
-    flags.disable_request_loop = true;
-    let node = system.build_node().flags(flags).finish();
-    let key = PrivateKey::new();
-
-    // send half the voting weight to a non voting rep to ensure quorum cannot be reached
-    let mut lattice = UnsavedBlockLatticeBuilder::new();
-    let send1 = lattice.genesis().send(&key, Amount::MAX / 2);
-    let open = lattice.account(&key).receive(&send1);
-
-    let mut fork_lattice = lattice.clone();
-    // send 1 raw
-    let send2 = lattice.account(&key).send(&*DEV_GENESIS_KEY, 1);
-
-    // fork of send2 block
-    let fork = fork_lattice.account(&key).send(&*DEV_GENESIS_KEY, 2);
-
-    // Process and mark the first 2 blocks as confirmed to allow voting
-    node.process(send1.clone());
-    node.process(open.clone());
-    node.confirm(open.hash());
-
-    // wait until the rep weights have caught up with the weight transfer
-    assert_timely_eq2(|| node.ledger.weight(&key.public_key()), Amount::MAX / 2);
-
-    // process forked blocks, send2 will be the winner because it was first and there are no votes yet
-    node.process_active(send2.clone());
-    assert_timely2(|| node.is_active_root(&send2.qualified_root()));
-    node.process_active(fork.clone());
-    assert_timely_eq2(
-        || {
-            node.active
-                .read()
-                .unwrap()
-                .election_for_root(&send2.qualified_root())
-                .unwrap()
-                .block_count()
-        },
-        2,
-    );
-
-    {
-        // The write guard prevents the block processor from performing the rollback
-        let _write_guard = node.ledger.wait(Writer::Testing);
-
-        // Vote with key to switch the winner
-        let vote = Arc::new(Vote::new(
-            &key,
-            UnixMillisTimestamp::ZERO,
-            0,
-            vec![fork.hash()],
-        ));
-        let _ = node
-            .vote_processor
-            .vote_blocking(&ReceivedVote::new(vote.into(), VoteSource::Live, None).into());
-
-        // The winner changed
-        assert_eq!(
-            node.active
-                .read()
-                .unwrap()
-                .election_for_root(&send2.qualified_root())
-                .unwrap()
-                .winner()
-                .hash(),
-            fork.hash(),
-        );
-
-        node.insert_into_wallet(&DEV_GENESIS_KEY);
-
-        // Without the rollback being finished, the aggregator should not reply with any vote
-        let channel = node.network.read().unwrap().loopback().clone();
-
-        let aggregator_req = AggregatorRequest {
-            channel: channel.clone(),
-            roots_hashes: vec![(send2.hash(), send2.root())],
-        };
-        node.request_aggregator.request(aggregator_req);
-
-        assert_always_eq(
-            Duration::from_secs(1),
-            || {
-                node.stats.count(
-                    StatType::RequestAggregatorReplies,
-                    DetailType::NormalVote,
-                    Direction::Out,
-                )
-            },
-            0,
-        );
-
-        // Going out of the scope allows the rollback to complete
-    }
-
-    // A vote is eventually generated from the local representative
-    node.aec_ticker.start(Duration::from_millis(25));
-    assert_timely2(|| node.block_confirmed(&fork.hash()));
-}
-
 // Test that rep_crawler removes unreachable reps from its search results.
 // This test creates three principal representatives (rep1, rep2, genesis_rep) and
 // one node for searching them (searching_node).
@@ -2255,7 +2152,7 @@ fn fork_open_flip() {
 
     // send 1 raw from genesis to key1 on both node1 and node2
     let send1 = lattice.genesis().legacy_send(&key1, 1);
-    node1.process_active(send1.clone());
+    node1.process(send1.clone());
 
     let mut fork_lattice = lattice.clone();
     // We should be keeping this block

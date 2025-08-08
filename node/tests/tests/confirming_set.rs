@@ -3,10 +3,7 @@ use std::time::Duration;
 use rsnano_core::{Amount, PrivateKey};
 use rsnano_ledger::{test_helpers::UnsavedBlockLatticeBuilder, LedgerSet, Writer};
 use rsnano_stats::{DetailType, Direction, StatType};
-use test_helpers::{
-    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2,
-    start_election, System,
-};
+use test_helpers::{assert_always_eq, assert_timely2, assert_timely_eq2, start_election, System};
 
 // The callback and confirmation history should only be updated after confirmation height is set (and not just after voting)
 #[test]
@@ -25,28 +22,15 @@ fn confirmed_history() {
 
     start_election(&node, &send1.hash());
     {
-        // The write guard prevents the confirmation height processor doing any writes
-        let _write_guard = node.ledger.wait(Writer::Testing);
+        // Prevent the confirming set doing any writes
+        node.confirming_set.set_cooldown(true);
 
         // Confirm send1
         node.force_confirm(&send1.hash());
-        assert_timely_eq(
-            Duration::from_secs(10),
-            || node.active.read().unwrap().len(),
-            0,
-        );
+        assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
         assert_eq!(node.recently_cemented.lock().unwrap().len(), 0);
         assert_eq!(node.active.read().unwrap().len(), 0);
-
         assert_eq!(node.ledger.confirmed().block_exists(&send.hash()), false);
-
-        assert_timely(Duration::from_secs(10), || {
-            node.ledger
-                .store
-                .env
-                .write_queue
-                .contains(Writer::ConfirmationHeight)
-        });
 
         // Confirm that no inactive callbacks have been called when the
         // confirmation height processor has already iterated over it, waiting to write
@@ -61,9 +45,10 @@ fn confirmed_history() {
             },
             0,
         );
+        node.confirming_set.set_cooldown(false);
     }
 
-    assert_timely(Duration::from_secs(10), || {
+    assert_timely2(|| {
         !node
             .ledger
             .store
@@ -74,11 +59,7 @@ fn confirmed_history() {
 
     assert_timely2(|| node.ledger.confirmed().block_exists(&send.hash()));
 
-    assert_timely_eq(
-        Duration::from_secs(10),
-        || node.active.read().unwrap().len(),
-        0,
-    );
+    assert_timely_eq2(|| node.active.read().unwrap().len(), 0);
     assert_timely_eq2(
         || node.stats().get("confirmation_observer", "active_quorum"),
         1,
