@@ -35,8 +35,7 @@ impl NullLmdbEnvBuilder {
     }
 
     pub fn build(self) -> LmdbEnv {
-        let env = self.env_builder.finish();
-        LmdbEnv::new(env, "/nulled/ledger.ldb")
+        self.env_builder.build()
     }
 }
 
@@ -74,7 +73,7 @@ impl LmdbEnvironmentFactory {
 
     pub fn create(&self, options: EnvironmentOptions) -> Result<LmdbEnv> {
         if self.is_nulled {
-            Ok(LmdbEnv::new_null_with(options))
+            Ok(LmdbEnv::new_null_with_options(options))
         } else {
             LmdbEnv::create(options)
         }
@@ -88,15 +87,28 @@ pub struct LmdbEnv {
 
 impl LmdbEnv {
     pub fn new_null() -> Self {
-        Self::new(
-            LmdbEnvironment::new_null(),
-            PathBuf::from("/nulled/ledger.ldb"),
-        )
+        Self::new_null_with_options(EnvironmentOptions {
+            max_dbs: 42,
+            map_size: 1024,
+            flags: EnvironmentFlags::NO_SUB_DIR,
+            path: "/nulled/ledger.ldb".into(),
+        })
     }
 
-    pub fn new_null_with(options: EnvironmentOptions) -> Self {
-        let db_file_path = options.path.to_path_buf();
-        Self::new(LmdbEnvironment::new_null(), db_file_path)
+    pub fn new_null_with_options(options: EnvironmentOptions) -> Self {
+        Self {
+            env_strategy: EnvironmentStrategy::Nulled(EnvironmentStub::new()),
+            path: options.path.to_path_buf(),
+        }
+    }
+
+    pub fn new_null_with_data(databases: Vec<ConfiguredDatabase>) -> Self {
+        Self {
+            env_strategy: EnvironmentStrategy::Nulled(EnvironmentStub {
+                databases: Arc::new(Mutex::new(databases)),
+            }),
+            path: "/nulled/ledger.ldb".into(),
+        }
     }
 
     pub fn null_builder() -> NullLmdbEnvBuilder {
@@ -107,15 +119,11 @@ impl LmdbEnv {
 
     pub fn create(options: EnvironmentOptions) -> Result<Self> {
         let filepath = options.path.clone();
-        let env = LmdbEnvironment::new(options)?;
-        Ok(Self::new(env, filepath))
-    }
-
-    fn new(env: LmdbEnvironment, path: impl Into<PathBuf>) -> Self {
-        Self {
-            env_strategy: env.0,
-            path: path.into(),
-        }
+        let env_wrapper = EnvironmentWrapper::build(options)?;
+        Ok(Self {
+            env_strategy: EnvironmentStrategy::Real(env_wrapper),
+            path: filepath,
+        })
     }
 
     pub fn begin_read(&self) -> ReadTransaction {
@@ -220,26 +228,6 @@ impl LmdbEnv {
     }
 }
 
-struct LmdbEnvironment(EnvironmentStrategy);
-
-impl LmdbEnvironment {
-    pub fn new(options: EnvironmentOptions) -> Result<Self> {
-        Ok(Self(EnvironmentStrategy::Real(EnvironmentWrapper::build(
-            options,
-        )?)))
-    }
-
-    pub fn new_null() -> Self {
-        Self::new_null_with(Vec::new())
-    }
-
-    pub fn new_null_with(databases: Vec<ConfiguredDatabase>) -> Self {
-        Self(EnvironmentStrategy::Nulled(EnvironmentStub {
-            databases: Arc::new(Mutex::new(databases)),
-        }))
-    }
-}
-
 enum EnvironmentStrategy {
     Nulled(EnvironmentStub),
     Real(EnvironmentWrapper),
@@ -303,6 +291,12 @@ struct EnvironmentStub {
 }
 
 impl EnvironmentStub {
+    fn new() -> Self {
+        Self {
+            databases: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
     fn begin_ro_txn(&self) -> lmdb::Result<RoTransaction> {
         //todo  don't clone!
         Ok(RoTransaction::new_null(
@@ -372,8 +366,8 @@ impl EnvironmentStubBuilder {
         self
     }
 
-    pub fn finish(self) -> LmdbEnvironment {
-        LmdbEnvironment::new_null_with(self.databases)
+    pub fn build(self) -> LmdbEnv {
+        LmdbEnv::new_null_with_data(self.databases)
     }
 }
 
@@ -498,7 +492,7 @@ mod tests {
     fn create_lmdb_env(path: TempLmdbFile) -> LmdbEnv {
         let opts = EnvironmentOptions {
             max_dbs: 3,
-            map_size: 1024 * 8,
+            map_size: 1024 * 1024,
             flags: EnvironmentFlags::NO_SUB_DIR
                 | EnvironmentFlags::NO_TLS
                 | EnvironmentFlags::NO_SYNC
