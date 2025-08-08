@@ -24,7 +24,7 @@ impl Account {
             number >>= 5;
             result.push(account_encode(r));
         }
-        result.push_str("_onan"); // nano_
+        result.push_str("_nab"); // ban_
         result.chars().rev().collect()
     }
 
@@ -71,7 +71,7 @@ impl<'de> Visitor<'de> for AccountVisitor {
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter
-            .write_str("an account in the form \"nano_...\" or a node ID in the form \"node_...\"")
+            .write_str("an account in the form \"ban_...\" or a node ID in the form \"node_...\"")
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -127,7 +127,10 @@ impl<'a> EncodedAccountStr<'a> {
     }
 
     fn has_valid_prefix(&self) -> bool {
-        self.has_xrb_prefix() || self.has_nano_prefix() || self.has_node_id_prefix()
+        self.has_xrb_prefix()
+            || self.has_nano_prefix()
+            || self.has_ban_prefix()
+            || self.has_node_id_prefix()
     }
 
     fn has_xrb_prefix(&self) -> bool {
@@ -136,6 +139,10 @@ impl<'a> EncodedAccountStr<'a> {
 
     fn has_nano_prefix(&self) -> bool {
         self.0.starts_with("nano_") || self.0.starts_with("nano-")
+    }
+
+    fn has_ban_prefix(&self) -> bool {
+        self.0.starts_with("ban_") || self.0.starts_with("ban-")
     }
 
     fn has_node_id_prefix(&self) -> bool {
@@ -149,11 +156,14 @@ impl<'a> EncodedAccountStr<'a> {
         if self.has_nano_prefix() && self.0.chars().count() != 65 {
             return false;
         }
+        if self.has_ban_prefix() && self.0.chars().count() != 64 {
+            return false;
+        }
         true
     }
 
     fn prefix_len(&self) -> usize {
-        if self.has_xrb_prefix() {
+        if self.has_xrb_prefix() || self.has_ban_prefix() {
             4
         } else {
             5

@@ -285,13 +285,13 @@ pub fn deterministic_key(seed: &RawKey, index: u32) -> RawKey {
 pub enum Networks {
     Invalid = 0x0,
     // Low work parameters, publicly known genesis key, dev IP ports
-    NanoDevNetwork = 0x5241, // 'R', 'A'
+    NanoDevNetwork = 0x4241, // 'B', 'A'
     // Normal work parameters, secret beta genesis key, beta IP ports
-    NanoBetaNetwork = 0x5242, // 'R', 'B'
+    NanoBetaNetwork = 0x4242, // 'B', 'B'
     // Normal work parameters, secret live key, live IP ports
-    NanoLiveNetwork = 0x5243, // 'R', 'C'
+    NanoLiveNetwork = 0x4258, // 'B', 'X'
     // Normal work parameters, secret test genesis key, test IP ports
-    NanoTestNetwork = 0x5258, // 'R', 'X'
+    NanoTestNetwork = 0x4243, // 'B', 'C'
 }
 
 impl Networks {

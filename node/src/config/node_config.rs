@@ -172,56 +172,21 @@ impl NodeConfig {
                 );
             }
             Networks::NanoLiveNetwork => {
-                preconfigured_peers
-                    .push(Peer::new(DEFAULT_LIVE_PEER_NETWORK.clone(), default_port));
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "A30E0A32ED41C8607AA9212843392E853FCBCB4E7CB194E35C94F07F91DE59EF",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "67556D31DDFC2A440BF6147501449B4CB9572278D034EE686A6BEE29851681DF",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "5C2FBB148E006A8E8BA7A75DD86C9FE00C83F5FFDBFD76EAA09531071436B6AF",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "AE7AC63990DAAAF2A69BF11C913B928844BF5012355456F2F164166464024B29",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "BD6267D6ECD8038327D2BCC0850BDF8F56EC0414912207E81BCF90DFAC8A4AAA",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "2399A083C600AA0572F5E36247D978FCFC840405F8D4B6D33161C0066A55F431",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "2298FAB7C61058E77EA554CB93EDEEDA0692CBFCC540AB213B2836B29029E23A",
-                    )
-                    .unwrap(),
-                );
-                preconfigured_representatives.push(
-                    PublicKey::decode_hex(
-                        "3FE80B4BC842E82C1C18ABFEEC47EA989E63953BC82AC411F304D13833D52A56",
-                    )
-                    .unwrap(),
-                );
+                for addr in [
+                    "[::ffff:37.27.80.228]",
+                    "[::ffff:51.15.5.35]",
+                    "[::ffff:51.15.19.228]",
+                    "[::ffff:129.151.163.96]",
+                    "[::ffff:103.77.242.225]",
+                    "[::ffff:167.86.102.138]",
+                    "[::ffff:188.251.33.45]",
+                    "[::ffff:72.86.43.83]",
+                    "[::ffff:204.13.115.218]",
+                    "[::ffff:23.88.62.227]",
+                ] {
+                    preconfigured_peers.push(Peer::new(addr.to_string(), default_port));
+                }
+                preconfigured_representatives.push(network_params.ledger.genesis_account.into());
             }
             Networks::NanoTestNetwork => {
                 preconfigured_peers
