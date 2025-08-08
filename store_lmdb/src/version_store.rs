@@ -1,6 +1,6 @@
-use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{DatabaseFlags, LmdbEnv, Transaction, WriteFlags, WriteTransaction};
 
-use crate::{LmdbDatabase, LmdbEnv, Transaction, WriteTransaction, STORE_VERSION_CURRENT};
+use crate::{LmdbDatabase, STORE_VERSION_CURRENT};
 
 pub struct LmdbVersionStore {
     /// U256 (arbitrary key) -> blob

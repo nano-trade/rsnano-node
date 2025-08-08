@@ -1,3 +1,10 @@
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+
 use rsnano_core::{
     deterministic_key, Account, Amount, Block, BlockHash, Epoch, EpochBlockArgs,
     KeyDerivationFunction, PrivateKey, PublicKey, RawKey, DEV_GENESIS_KEY,
@@ -12,13 +19,8 @@ use rsnano_node::{
     wallets::{WalletsError, WalletsExt},
     Node,
 };
-use rsnano_store_lmdb::{LmdbEnv, LmdbEnvFactory, LmdbWalletStore};
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
-};
+use rsnano_nullable_lmdb::{LmdbEnv, LmdbEnvFactory};
+use rsnano_store_lmdb::{EnvironmentFlags, EnvironmentOptions, LmdbWalletStore};
 use test_helpers::{assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2, System};
 
 struct TestFixture {
@@ -32,7 +34,16 @@ impl TestFixture {
         let mut test_file = test_dir.clone();
         test_file.push("wallet.ldb");
 
-        let env = LmdbEnvFactory::default().create_env(test_file).unwrap();
+        let options = EnvironmentOptions {
+            max_dbs: 32,
+            map_size: 1024 * 1024,
+            flags: EnvironmentFlags::NO_SUB_DIR
+                | EnvironmentFlags::NO_TLS
+                | EnvironmentFlags::NO_META_SYNC
+                | EnvironmentFlags::NO_SYNC,
+            path: test_file,
+        };
+        let env = LmdbEnvFactory::default().create(options).unwrap();
 
         Self { test_dir, env }
     }

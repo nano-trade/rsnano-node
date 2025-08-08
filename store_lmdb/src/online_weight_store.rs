@@ -1,7 +1,9 @@
 use rsnano_core::Amount;
-use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{
+    DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags, WriteTransaction,
+};
 
-use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, Transaction, WriteTransaction};
+use crate::LmdbIterator;
 
 pub struct LmdbOnlineWeightStore {
     database: LmdbDatabase,
@@ -73,7 +75,7 @@ impl LmdbOnlineWeightStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeleteEvent, PutEvent};
+    use rsnano_nullable_lmdb::{DeleteEvent, PutEvent};
     use std::sync::Arc;
 
     struct Fixture {

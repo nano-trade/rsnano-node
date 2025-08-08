@@ -1,6 +1,7 @@
-use crate::LmdbEnv;
-use anyhow::Context;
 use std::fs;
+
+use anyhow::Context;
+use rsnano_nullable_lmdb::LmdbEnv;
 use tracing::info;
 
 pub fn vacuum(env: LmdbEnv) -> anyhow::Result<()> {

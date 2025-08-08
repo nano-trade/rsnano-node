@@ -1,13 +1,12 @@
 use std::ops::RangeBounds;
 
 use rsnano_core::{BlockHash, NoValue};
-use rsnano_nullable_lmdb::ConfiguredDatabase;
-
-use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
-    PRUNED_TEST_DATABASE,
+use rsnano_nullable_lmdb::{
+    ConfiguredDatabase, DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags,
+    WriteTransaction,
 };
-use lmdb::{DatabaseFlags, WriteFlags};
+
+use crate::{LmdbIterator, LmdbRangeIterator, PRUNED_TEST_DATABASE};
 
 pub struct LmdbPrunedStore {
     database: LmdbDatabase,
@@ -103,7 +102,7 @@ impl ConfiguredPrunedDatabaseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeleteEvent, PutEvent};
+    use rsnano_nullable_lmdb::{DeleteEvent, PutEvent};
     use std::sync::Arc;
 
     struct Fixture {

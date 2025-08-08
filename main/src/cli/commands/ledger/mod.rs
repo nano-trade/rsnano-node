@@ -2,12 +2,15 @@ mod clear;
 mod info;
 mod roll_back;
 
-use crate::cli::GlobalArgs;
 use clap::{CommandFactory, Parser, Subcommand};
+
+use rsnano_nullable_lmdb::LmdbEnvFactory;
+
+use crate::cli::GlobalArgs;
 use clear::ClearCommand;
 use info::InfoCommand;
 use roll_back::roll_back;
-use rsnano_store_lmdb::LmdbEnvFactory;
+use rsnano_store_lmdb::default_ledger_lmdb_options;
 
 #[derive(Parser, PartialEq, Debug)]
 pub(crate) struct LedgerCommand {
@@ -54,7 +57,8 @@ pub(crate) fn run_ledger_command(
 
 fn vacuum(global_args: GlobalArgs) -> anyhow::Result<()> {
     let ledger_path = global_args.data_path.join("data.ldb");
-    let env = LmdbEnvFactory::default().create_env(&ledger_path)?;
+    let options = default_ledger_lmdb_options(ledger_path);
+    let env = LmdbEnvFactory::default().create(options)?;
     rsnano_store_lmdb::vacuum(env)
 }
 
@@ -69,7 +73,8 @@ fn snapshot(global_args: GlobalArgs) -> anyhow::Result<()> {
 
     println!("This may take a while...");
 
-    let env = LmdbEnvFactory::default().create_env(&source_path)?;
+    let options = default_ledger_lmdb_options(source_path);
+    let env = LmdbEnvFactory::default().create(options)?;
     env.copy_db(&snapshot_path)?;
 
     println!(

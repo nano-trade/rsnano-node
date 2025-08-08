@@ -1,8 +1,13 @@
-use crate::{RepWeightCache, RepWeights};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
 use rsnano_core::{Amount, PublicKey};
-use rsnano_store_lmdb::{LmdbRepWeightStore, WriteTransaction};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use rsnano_nullable_lmdb::WriteTransaction;
+use rsnano_store_lmdb::LmdbRepWeightStore;
+
+use crate::{RepWeightCache, RepWeights};
 
 /// Updates the representative weights in the ledger and in the in-memory cache
 pub struct RepWeightsUpdater {
@@ -108,7 +113,8 @@ impl RepWeightsUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_store_lmdb::{ConfiguredRepWeightDatabaseBuilder, LmdbEnv};
+    use rsnano_nullable_lmdb::LmdbEnv;
+    use rsnano_store_lmdb::ConfiguredRepWeightDatabaseBuilder;
 
     #[test]
     fn representation_changes() {

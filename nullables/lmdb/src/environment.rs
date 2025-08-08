@@ -1,13 +1,14 @@
-use crate::ConfiguredDatabaseBuilder;
-
-use super::{ConfiguredDatabase, LmdbDatabase, RoTransaction, RwTransaction};
-use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
-use lmdb_sys::{MDB_env, MDB_CP_COMPACT, MDB_SUCCESS};
 use std::{
     ffi::CString,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+
+use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
+use lmdb_sys::{MDB_env, MDB_CP_COMPACT, MDB_SUCCESS};
+
+use super::{ConfiguredDatabase, LmdbDatabase, RoTransaction, RwTransaction};
+use crate::{ConfiguredDatabaseBuilder, ReadTransaction, Result, WriteTransaction};
 
 #[derive(Clone)]
 pub struct EnvironmentOptions {
@@ -17,10 +18,129 @@ pub struct EnvironmentOptions {
     pub path: PathBuf,
 }
 
+pub struct NullLmdbEnvBuilder {
+    env_builder: EnvironmentStubBuilder,
+}
+
+impl NullLmdbEnvBuilder {
+    pub fn database(self, name: impl Into<String>, dbi: LmdbDatabase) -> NullDatabaseBuilder {
+        NullDatabaseBuilder {
+            db_builder: ConfiguredDatabaseBuilder::new(name, dbi, self.env_builder),
+        }
+    }
+
+    pub fn configured_database(mut self, db: ConfiguredDatabase) -> Self {
+        self.env_builder = self.env_builder.configured_database(db);
+        self
+    }
+
+    pub fn build(self) -> LmdbEnv {
+        let env = self.env_builder.finish();
+        LmdbEnv::new(env, "/nulled/ledger.ldb")
+    }
+}
+
+pub struct NullDatabaseBuilder {
+    db_builder: ConfiguredDatabaseBuilder,
+}
+
+impl NullDatabaseBuilder {
+    pub fn entry(mut self, key: &[u8], value: &[u8]) -> Self {
+        self.db_builder = self.db_builder.entry(key, value);
+        self
+    }
+
+    pub fn build(self) -> NullLmdbEnvBuilder {
+        NullLmdbEnvBuilder {
+            env_builder: self.db_builder.finish(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct LmdbEnvFactory {
+    env_factory: LmdbEnvironmentFactory,
+}
+
+impl LmdbEnvFactory {
+    pub fn new_null() -> Self {
+        Self {
+            env_factory: LmdbEnvironmentFactory::new_null(),
+        }
+    }
+
+    pub fn create(&self, options: EnvironmentOptions) -> Result<LmdbEnv> {
+        let db_file_path = options.path.to_path_buf();
+        let env = self.env_factory.create_env(options)?;
+        Ok(LmdbEnv::new(env, db_file_path))
+    }
+}
+
+pub struct LmdbEnv {
+    environment: LmdbEnvironment,
+    path: PathBuf,
+}
+
+impl LmdbEnv {
+    pub fn new_null() -> Self {
+        Self::new(
+            LmdbEnvironment::new_null(),
+            PathBuf::from("/nulled/ledger.ldb"),
+        )
+    }
+
+    pub fn new_null_with() -> NullLmdbEnvBuilder {
+        NullLmdbEnvBuilder {
+            env_builder: EnvironmentStubBuilder::default(),
+        }
+    }
+
+    pub fn new(env: LmdbEnvironment, path: impl Into<PathBuf>) -> Self {
+        Self {
+            environment: env,
+            path: path.into(),
+        }
+    }
+
+    pub fn begin_read(&self) -> ReadTransaction {
+        ReadTransaction::new(&self.environment)
+            .expect("Could not create LMDB read-only transaction")
+    }
+
+    pub fn begin_write(&self) -> WriteTransaction {
+        WriteTransaction::new(&self.environment)
+            .expect("Could not create LMDB read-write transaction")
+    }
+
+    pub fn file_path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn sync(&self) -> Result<()> {
+        self.environment.sync(true)
+    }
+
+    pub fn copy_db(&self, destination: &Path) -> Result<()> {
+        self.environment.copy_db(destination)
+    }
+
+    pub fn create_db(&self, name: Option<&str>, flags: DatabaseFlags) -> Result<LmdbDatabase> {
+        self.environment.create_db(name, flags)
+    }
+
+    pub fn open_db(&self, name: Option<&str>) -> Result<LmdbDatabase> {
+        self.environment.open_db(name)
+    }
+
+    pub fn stat(&self) -> Result<Stat> {
+        self.environment.stat()
+    }
+}
+
 pub struct LmdbEnvironment(EnvironmentStrategy);
 
 impl LmdbEnvironment {
-    pub fn new(options: EnvironmentOptions) -> lmdb::Result<Self> {
+    pub fn new(options: EnvironmentOptions) -> Result<Self> {
         Ok(Self(EnvironmentStrategy::Real(EnvironmentWrapper::build(
             options,
         )?)))
@@ -276,6 +396,7 @@ impl LmdbEnvironmentFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::PutEvent;
     use lmdb::WriteFlags;
     use std::{
         env::temp_dir,
@@ -314,6 +435,33 @@ mod tests {
         let tx = env.begin_ro_txn().unwrap();
         let result = tx.get(dbi, &[1, 2]).unwrap();
         assert_eq!(result, [3, 4]);
+    }
+
+    #[test]
+    fn can_track_puts() {
+        let env = LmdbEnv::new_null();
+
+        let database = env
+            .create_db(Some("testdb"), DatabaseFlags::empty())
+            .unwrap();
+
+        let mut txn = env.begin_write();
+        let tracker = txn.track_puts();
+        let key = &[1, 2, 3];
+        let value = &[4, 5, 6];
+        let flags = WriteFlags::APPEND;
+        txn.put(database, key, value, flags).unwrap();
+
+        let puts = tracker.output();
+        assert_eq!(
+            puts,
+            vec![PutEvent {
+                database,
+                key: key.to_vec(),
+                value: value.to_vec(),
+                flags
+            }]
+        )
     }
 
     mod nullability {

@@ -6,13 +6,12 @@ use rsnano_core::{
 };
 use rsnano_nullable_lmdb::{
     sys::{MDB_cursor_op, MDB_FIRST, MDB_NEXT},
-    ConfiguredDatabase, DatabaseFlags, WriteFlags,
+    ConfiguredDatabase, DatabaseFlags, LmdbDatabase, LmdbEnv, RoCursor, Transaction, WriteFlags,
+    WriteTransaction,
 };
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
-use crate::{
-    LmdbDatabase, LmdbEnv, RoCursor, Transaction, WriteTransaction, REP_WEIGHT_TEST_DATABASE,
-};
+use crate::REP_WEIGHT_TEST_DATABASE;
 
 pub struct LmdbRepWeightStore {
     database: LmdbDatabase,
@@ -140,10 +139,8 @@ impl ConfiguredRepWeightDatabaseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use lmdb::WriteFlags;
-
     use super::*;
-    use crate::{DeleteEvent, LmdbEnv, PutEvent};
+    use rsnano_nullable_lmdb::{DeleteEvent, PutEvent, WriteFlags};
 
     #[test]
     fn count() {

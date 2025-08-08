@@ -7,25 +7,25 @@ use rsnano_core::{
 };
 use rsnano_nullable_lmdb::{
     sys::{MDB_FIRST, MDB_NEXT},
-    DatabaseFlags, EnvironmentOptions, WriteFlags,
+    DatabaseFlags, EnvironmentOptions, LmdbEnv, LmdbEnvFactory, Transaction, WriteFlags,
 };
 
 use crate::{
     block_store::{BLOCK_DATA_DB_NAME, BLOCK_INDEX_DB_NAME},
     vacuum::vacuum,
-    LmdbEnv, LmdbEnvFactory, LmdbVersionStore, Transaction, FIRST_INCOMPATIBLE_STORE_VERSION,
-    STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
+    LmdbVersionStore, FIRST_INCOMPATIBLE_STORE_VERSION, STORE_VERSION_CURRENT,
+    STORE_VERSION_MINIMUM,
 };
 
 pub fn create_and_update_lmdb_env(
     env_factory: &LmdbEnvFactory,
     options: EnvironmentOptions,
 ) -> anyhow::Result<LmdbEnv> {
-    let mut env = env_factory.create_with_options(options.clone())?;
+    let mut env = env_factory.create(options.clone())?;
     let needs_vacuuming = upgrade_if_needed(&mut env)?;
     if needs_vacuuming {
         vacuum(env)?;
-        env = env_factory.create_with_options(options)?;
+        env = env_factory.create(options)?;
     }
     Ok(env)
 }

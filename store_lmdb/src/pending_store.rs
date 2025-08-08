@@ -4,13 +4,13 @@ use rsnano_core::{
     utils::{BufferReader, Deserialize},
     Account, BlockHash, PendingInfo, PendingKey,
 };
-use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{
+    ConfiguredDatabase, DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags,
+    WriteTransaction,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
-use crate::{
-    iterator::LmdbRangeIterator, LmdbDatabase, LmdbEnv, LmdbIterator, Transaction,
-    WriteTransaction, PENDING_TEST_DATABASE,
-};
+use crate::{iterator::LmdbRangeIterator, LmdbIterator, PENDING_TEST_DATABASE};
 
 pub struct LmdbPendingStore {
     database: LmdbDatabase,
@@ -146,7 +146,7 @@ impl ConfiguredPendingDatabaseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeleteEvent, PutEvent};
+    use rsnano_nullable_lmdb::{DeleteEvent, PutEvent};
 
     struct Fixture {
         env: Arc<LmdbEnv>,

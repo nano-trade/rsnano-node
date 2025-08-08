@@ -1,14 +1,17 @@
-use anyhow::Context;
-use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
-use rsnano_ledger::{AnySet, Ledger};
-use rsnano_store_lmdb::{LmdbEnv, LmdbWalletStore, Transaction, WriteTransaction};
-use rsnano_work::WorkThresholds;
 use std::{
     collections::HashSet,
     path::Path,
     sync::{Arc, Mutex},
 };
+
+use anyhow::Context;
 use tracing::warn;
+
+use rsnano_core::{KeyDerivationFunction, PrivateKey, PublicKey, Root, WorkNonce};
+use rsnano_ledger::{AnySet, Ledger};
+use rsnano_nullable_lmdb::{LmdbEnv, Transaction, WriteTransaction};
+use rsnano_store_lmdb::LmdbWalletStore;
+use rsnano_work::WorkThresholds;
 
 pub struct Wallet {
     pub representatives: Mutex<HashSet<PublicKey>>,

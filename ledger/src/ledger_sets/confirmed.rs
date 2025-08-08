@@ -2,7 +2,8 @@ use rsnano_core::{
     Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo, PendingInfo, PendingKey,
     SavedBlock,
 };
-use rsnano_store_lmdb::{LmdbStore, ReadTransaction, Transaction};
+use rsnano_nullable_lmdb::{ReadTransaction, Transaction};
+use rsnano_store_lmdb::LmdbStore;
 
 use super::{AnyReceivableIterator, LedgerSet};
 

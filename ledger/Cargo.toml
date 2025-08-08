@@ -12,12 +12,13 @@ rsnano_store_lmdb = { path = "../store_lmdb", features=["output_tracking"]}
 rsnano_core = { path = "../core" }
 rsnano_work = { path = "../work" }
 rsnano_stats = { path = "../stats" }
+rsnano_store_lmdb = { path = "../store_lmdb" }
+rsnano_nullable_lmdb = { path = "../nullables/lmdb" }
 anyhow = "1"
 once_cell = "1"
 num-traits = "0"
 num-derive = "0"
 rand = {version="0" }
-rsnano_store_lmdb = { path = "../store_lmdb" }
 lmdb-rkv = "0.14"
 serde_json = "1"
 tracing = "0"

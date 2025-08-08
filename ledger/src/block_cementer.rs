@@ -1,8 +1,11 @@
-use crate::LedgerConstants;
-use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
-use rsnano_stats::{DetailType, Direction, StatType, Stats};
-use rsnano_store_lmdb::{LmdbStore, Transaction, WriteTransaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
+
+use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
+use rsnano_nullable_lmdb::{Transaction, WriteTransaction};
+use rsnano_stats::{DetailType, Direction, StatType, Stats};
+use rsnano_store_lmdb::LmdbStore;
+
+use crate::LedgerConstants;
 
 /// Cements Blocks in the ledger
 pub(crate) struct BlockCementer<'a> {

@@ -1,9 +1,11 @@
-use crate::Ledger;
+use std::sync::atomic::Ordering;
+
 use rsnano_core::{
     Account, AccountInfo, Amount, Block, BlockSideband, PendingInfo, PendingKey, SavedBlock,
 };
-use rsnano_store_lmdb::WriteTransaction;
-use std::sync::atomic::Ordering;
+use rsnano_nullable_lmdb::WriteTransaction;
+
+use crate::Ledger;
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct BlockInsertInstructions {

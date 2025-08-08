@@ -4,11 +4,13 @@ use rsnano_core::{
     utils::{BufferReader, Deserialize},
     Account, ConfirmationHeightInfo,
 };
-use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{
+    ConfiguredDatabase, DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags,
+    WriteTransaction,
+};
 
 use crate::{
-    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction,
-    WriteTransaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
+    parallel_traversal, LmdbIterator, LmdbRangeIterator, CONFIRMATION_HEIGHT_TEST_DATABASE,
 };
 
 pub struct LmdbConfirmationHeightStore {
@@ -149,8 +151,8 @@ impl ConfiguredConfirmationHeightDatabaseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PutEvent;
     use rsnano_core::BlockHash;
+    use rsnano_nullable_lmdb::PutEvent;
     use std::sync::Arc;
 
     struct Fixture {

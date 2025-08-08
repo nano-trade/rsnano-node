@@ -1,9 +1,11 @@
-use rsnano_core::utils::system_time_as_seconds;
-use rsnano_core::{Amount, Networks};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
+
+use rsnano_core::{utils::system_time_as_seconds, Amount, Networks};
 use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::WriteTransaction;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use rsnano_nullable_lmdb::WriteTransaction;
 
 pub struct TrendResult {
     pub trended: Amount,

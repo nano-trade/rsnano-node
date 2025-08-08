@@ -1,9 +1,10 @@
-use crate::{LmdbEnv, Transaction, WriteTransaction};
-use lmdb::{DatabaseFlags, WriteFlags};
-use rsnano_core::BlockHash;
-use rsnano_nullable_lmdb::LmdbDatabase;
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
+
+use rsnano_core::BlockHash;
+use rsnano_nullable_lmdb::{
+    DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags, WriteTransaction,
+};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 /// Stores the hash of the successor block for a given block hash
 pub struct LmdbSuccessorStore {
@@ -60,8 +61,7 @@ const TABLE_NAME: &str = "successors";
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeleteEvent, LmdbEnv, PutEvent};
-    use rsnano_nullable_lmdb::LmdbEnvironment;
+    use rsnano_nullable_lmdb::{DeleteEvent, LmdbEnvironment, PutEvent};
 
     #[test]
     fn initialize() {

@@ -21,11 +21,10 @@ use rsnano_core::{
 };
 use rsnano_ledger::{AnySet, ConfirmedSet, Ledger, LedgerSet};
 use rsnano_messages::{Message, Publish};
-use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
-use rsnano_store_lmdb::{
-    create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, Transaction,
-    WriteTransaction,
+use rsnano_nullable_lmdb::{
+    DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags, WriteTransaction,
 };
+use rsnano_store_lmdb::{create_backup_file, KeyType, LmdbIterator, LmdbWalletStore};
 use rsnano_work::WorkThresholds;
 
 use super::{Wallet, WalletActionThread, WalletRepresentatives};

@@ -16,9 +16,9 @@ use rsnano_core::{
     },
     Account, KeyDerivationFunction, PublicKey, RawKey, WorkNonce,
 };
-use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{DatabaseFlags, LmdbEnv, Transaction, WriteFlags, WriteTransaction};
 
-use crate::{Fan, LmdbDatabase, LmdbEnv, LmdbRangeIterator, Transaction, WriteTransaction};
+use crate::{Fan, LmdbDatabase, LmdbRangeIterator};
 
 pub struct Fans {
     pub password: Fan,

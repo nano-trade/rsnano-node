@@ -5,9 +5,8 @@ use rsnano_core::{
     DependentBlocks, DetailedBlock, PendingInfo, PendingKey, PublicKey, QualifiedRoot, Root,
     SavedBlock,
 };
-use rsnano_store_lmdb::{
-    LmdbPendingStore, LmdbRangeIterator, LmdbStore, ReadTransaction, Transaction,
-};
+use rsnano_nullable_lmdb::{ReadTransaction, Transaction};
+use rsnano_store_lmdb::{LmdbPendingStore, LmdbRangeIterator, LmdbStore};
 
 use super::{BorrowingConfirmedSet, ConfirmedSet, LedgerSet};
 use crate::{DependentBlocksFinder, LedgerConstants, RepresentativeBlockFinder};

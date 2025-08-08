@@ -6,7 +6,7 @@ use rsnano_core::{
     TestBlockBuilder, DEV_GENESIS_KEY,
 };
 use rsnano_stats::Stats;
-use rsnano_store_lmdb::{LmdbAccountStore, LmdbEnv, LmdbPrunedStore};
+use rsnano_store_lmdb::{LmdbAccountStore, LmdbPrunedStore};
 
 use crate::{
     ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY},
@@ -14,6 +14,7 @@ use crate::{
     AnySet, ConfirmedSet, Ledger, LedgerConstants, LedgerInserter, RepWeightCache,
     DEV_GENESIS_HASH,
 };
+use rsnano_nullable_lmdb::LmdbEnv;
 
 mod empty_ledger;
 mod pruning;

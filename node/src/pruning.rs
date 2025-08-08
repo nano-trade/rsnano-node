@@ -11,8 +11,8 @@ use tracing::info;
 
 use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
 use rsnano_ledger::Ledger;
+use rsnano_nullable_lmdb::Transaction;
 use rsnano_stats::{DetailType, StatType, Stats};
-use rsnano_store_lmdb::Transaction;
 
 use crate::{
     config::NodeConfig,

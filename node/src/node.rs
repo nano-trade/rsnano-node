@@ -34,10 +34,9 @@ use rsnano_network_protocol::{
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_nullable_fs::NullableFilesystem;
-use rsnano_nullable_lmdb::EnvironmentOptions;
+use rsnano_nullable_lmdb::{EnvironmentFlags, EnvironmentOptions, LmdbEnv, LmdbEnvFactory};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_stats::{Direction, Stats, StatsCollection, StatsCollector};
-use rsnano_store_lmdb::{EnvironmentFlags, LmdbEnv, LmdbEnvFactory};
 
 use crate::{
     aec_event_processor::AecEventProcessor,
@@ -509,7 +508,7 @@ impl Node {
             };
             Arc::new(
                 lmdb_env_factory
-                    .create_with_options(options)
+                    .create(options)
                     .expect("Could not create LMDB env for wallets"),
             )
         };

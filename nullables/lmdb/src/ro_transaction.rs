@@ -1,5 +1,101 @@
+use std::time::{Duration, Instant};
+
 use super::{ConfiguredDatabase, LmdbDatabase, RoCursor};
-use crate::EMPTY_DATABASE;
+use crate::{LmdbEnvironment, Transaction, EMPTY_DATABASE};
+
+enum RoTxnState {
+    Inactive(InactiveTransaction),
+    Active(RoTransaction),
+    Transitioning,
+}
+
+pub struct ReadTransaction {
+    txn: RoTxnState,
+    start: Instant,
+}
+
+impl ReadTransaction {
+    pub fn new(env: &LmdbEnvironment) -> lmdb::Result<Self> {
+        let txn = env.begin_ro_txn()?;
+
+        Ok(Self {
+            txn: RoTxnState::Active(txn),
+            start: Instant::now(),
+        })
+    }
+
+    fn txn(&self) -> &RoTransaction {
+        match &self.txn {
+            RoTxnState::Active(t) => t,
+            _ => panic!("LMDB read transaction not active"),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        let t = std::mem::replace(&mut self.txn, RoTxnState::Transitioning);
+        self.txn = match t {
+            RoTxnState::Active(t) => RoTxnState::Inactive(t.reset()),
+            RoTxnState::Inactive(_) => panic!("Cannot reset inactive transaction"),
+            RoTxnState::Transitioning => unreachable!(),
+        };
+    }
+
+    pub fn renew(&mut self) {
+        let t = std::mem::replace(&mut self.txn, RoTxnState::Transitioning);
+        self.txn = match t {
+            RoTxnState::Active(_) => panic!("Cannot renew active transaction"),
+            RoTxnState::Inactive(t) => RoTxnState::Active(t.renew().unwrap()),
+            RoTxnState::Transitioning => unreachable!(),
+        };
+        self.start = Instant::now();
+    }
+}
+
+impl Drop for ReadTransaction {
+    fn drop(&mut self) {
+        let t = std::mem::replace(&mut self.txn, RoTxnState::Transitioning);
+        // This uses commit rather than abort, as it is needed when opening databases with a read only transaction
+        if let RoTxnState::Active(t) = t {
+            t.commit().unwrap()
+        }
+    }
+}
+
+impl Transaction for ReadTransaction {
+    fn refresh(&mut self) {
+        self.reset();
+        self.renew();
+    }
+
+    fn is_refresh_needed(&self) -> bool {
+        self.is_refresh_needed_with(Duration::from_millis(500))
+    }
+
+    fn is_refresh_needed_with(&self, max_duration: Duration) -> bool {
+        self.start.elapsed() > max_duration
+    }
+
+    fn refresh_if_needed(&mut self) -> bool {
+        if self.is_refresh_needed() {
+            self.refresh();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn get(&self, database: LmdbDatabase, key: &[u8]) -> lmdb::Result<&[u8]> {
+        self.txn().get(database, key)
+    }
+
+    fn open_ro_cursor(&self, database: LmdbDatabase) -> lmdb::Result<RoCursor> {
+        self.txn().open_ro_cursor(database)
+    }
+
+    fn count(&self, database: LmdbDatabase) -> u64 {
+        self.txn().count(database)
+    }
+}
 
 pub struct RoTransaction {
     strategy: RoTransactionStrategy,

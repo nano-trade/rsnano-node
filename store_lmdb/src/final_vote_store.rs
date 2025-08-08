@@ -4,11 +4,11 @@ use rsnano_core::{
     utils::{BufferReader, Deserialize},
     BlockHash, QualifiedRoot,
 };
-
-use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
+use rsnano_nullable_lmdb::{
+    DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags, WriteTransaction,
 };
-use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+
+use crate::{LmdbIterator, LmdbRangeIterator};
 
 /// Maps root to block hash for generated final votes.
 /// nano::qualified_root -> nano::block_hash
@@ -100,7 +100,7 @@ impl LmdbFinalVoteStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DeleteEvent;
+    use rsnano_nullable_lmdb::DeleteEvent;
     use std::sync::Arc;
 
     const TEST_DATABASE: LmdbDatabase = LmdbDatabase::new_null(100);

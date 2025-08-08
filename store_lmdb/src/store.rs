@@ -1,5 +1,4 @@
 use std::{
-    ffi::CString,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -7,17 +6,16 @@ use std::{
     },
 };
 
-use lmdb_sys::MDB_SUCCESS;
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
+use tracing::info;
 
 use rsnano_core::utils::UnixTimestamp;
+use rsnano_nullable_lmdb::{LmdbEnv, ReadTransaction, WriteTransaction};
 
 use crate::{
     successor_store::LmdbSuccessorStore, LmdbAccountStore, LmdbBlockStore,
-    LmdbConfirmationHeightStore, LmdbEnv, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore,
-    LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore, LmdbVersionStore, ReadTransaction,
-    WriteTransaction,
+    LmdbConfirmationHeightStore, LmdbFinalVoteStore, LmdbOnlineWeightStore, LmdbPeerStore,
+    LmdbPendingStore, LmdbPrunedStore, LmdbRepWeightStore, LmdbVersionStore,
 };
 
 pub struct LedgerCache {
@@ -162,11 +160,18 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LmdbEnvFactory;
+    use lmdb::EnvironmentFlags;
+    use rsnano_nullable_lmdb::{EnvironmentOptions, LmdbEnvFactory};
 
     #[test]
     fn create_store() -> anyhow::Result<()> {
-        let env = LmdbEnvFactory::new_null().create_env("/nulled/store.ldb")?;
+        let options = EnvironmentOptions {
+            max_dbs: 100,
+            map_size: 1024,
+            flags: EnvironmentFlags::empty(),
+            path: "/nulled/store.ldb".into(),
+        };
+        let env = LmdbEnvFactory::new_null().create(options)?;
         let _ = LmdbStore::new(env)?;
         Ok(())
     }

@@ -10,13 +10,13 @@ use rsnano_core::{
     utils::{BufferReader, Deserialize},
     BlockHash, SavedBlock,
 };
-use rsnano_nullable_lmdb::{sys::MDB_LAST, ConfiguredDatabase, DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{
+    sys::MDB_LAST, ConfiguredDatabase, DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction,
+    WriteFlags, WriteTransaction,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
-use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
-    BLOCK_DATA_DATABASE, BLOCK_INDEX_DATABASE,
-};
+use crate::{LmdbIterator, LmdbRangeIterator, BLOCK_DATA_DATABASE, BLOCK_INDEX_DATABASE};
 
 pub struct LmdbBlockStore {
     /// block hash => id
@@ -209,7 +209,7 @@ pub(crate) const BLOCK_DATA_DB_NAME: &str = "block_data";
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PutEvent;
+    use rsnano_nullable_lmdb::PutEvent;
 
     struct Fixture {
         env: Arc<LmdbEnv>,

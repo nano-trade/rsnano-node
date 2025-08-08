@@ -7,13 +7,13 @@ use std::{
 };
 
 use rsnano_core::utils::{BufferWriter, Serialize};
-use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
+use rsnano_nullable_lmdb::{
+    ConfiguredDatabase, DatabaseFlags, LmdbDatabase, LmdbEnv, Transaction, WriteFlags,
+    WriteTransaction,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
-use crate::{
-    iterator::LmdbIterator, LmdbDatabase, LmdbEnv, Transaction, WriteTransaction,
-    PEERS_TEST_DATABASE,
-};
+use crate::{iterator::LmdbIterator, PEERS_TEST_DATABASE};
 
 pub struct LmdbPeerStore {
     database: LmdbDatabase,
@@ -207,7 +207,7 @@ impl ConfiguredPeersDatabaseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeleteEvent, PutEvent};
+    use rsnano_nullable_lmdb::{DeleteEvent, PutEvent};
     use std::{
         net::Ipv6Addr,
         time::{Duration, UNIX_EPOCH},

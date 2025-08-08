@@ -1,8 +1,9 @@
-use crate::EMPTY_DATABASE;
+use std::{cell::Cell, collections::btree_map};
+
+use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
 
 use super::ConfiguredDatabase;
-use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
-use std::{cell::Cell, collections::btree_map};
+use crate::EMPTY_DATABASE;
 
 pub struct RoCursor<'txn>(RoCursorStrategy<'txn>);
 

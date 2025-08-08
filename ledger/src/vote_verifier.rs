@@ -1,9 +1,10 @@
 use std::collections::VecDeque;
 
 use rsnano_core::{BlockHash, Root};
-use rsnano_store_lmdb::{LmdbStore, Transaction, WriteTransaction};
+use rsnano_store_lmdb::LmdbStore;
 
 use crate::{AnySet, BorrowingAnySet, LedgerConstants, OwningAnySet};
+use rsnano_nullable_lmdb::{Transaction, WriteTransaction};
 
 /// Verifies whether a vote (or a final vote) can be generated for a given block
 pub(crate) struct VoteVerifier<'a> {

@@ -4099,6 +4099,7 @@ dependencies = [
  "once_cell",
  "rand 0.9.2",
  "rsnano_core",
+ "rsnano_nullable_lmdb",
  "rsnano_stats",
  "rsnano_store_lmdb",
  "rsnano_work",
@@ -4247,6 +4248,7 @@ dependencies = [
  "rsnano_messages",
  "rsnano_node",
  "rsnano_nullable_console",
+ "rsnano_nullable_lmdb",
  "rsnano_nullable_tracing_subscriber",
  "rsnano_rpc_server",
  "rsnano_store_lmdb",
@@ -4298,6 +4300,7 @@ version = "0.1.0"
 dependencies = [
  "lmdb-rkv",
  "lmdb-rkv-sys",
+ "rsnano_output_tracker",
 ]
 
 [[package]]
@@ -4820,6 +4823,7 @@ dependencies = [
  "ed25519-dalek-blake2b",
  "rsnano_core",
  "rsnano_ledger",
+ "rsnano_nullable_lmdb",
  "rsnano_store_lmdb",
 ]
 
