@@ -119,8 +119,11 @@ impl LmdbEnv {
     }
 
     pub fn begin_write(&self) -> WriteTransaction {
-        WriteTransaction::new(&self.environment)
-            .expect("Could not create LMDB read-write transaction")
+        let tx = self
+            .environment
+            .begin_rw_txn()
+            .expect("Could not create LMDB read-write transaction");
+        WriteTransaction::new(tx)
     }
 
     pub fn file_path(&self) -> &Path {

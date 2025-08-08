@@ -465,8 +465,7 @@ impl Ledger {
                 pruned_count += 1;
                 self.store.cache.pruned_count.fetch_add(1, Ordering::SeqCst);
                 if pruned_count % batch_size == 0 {
-                    txn.commit();
-                    txn.renew();
+                    self.store.env.refresh(txn);
                 }
                 any = BorrowingAnySet {
                     constants: &self.constants,
@@ -771,7 +770,7 @@ impl Ledger {
                             .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
                         cementing_observer.batch_confirmed(confirmed);
                         confirmed = Vec::new();
-                        tx.renew();
+                        tx = self.store.env.begin_write();
                     }
 
                     self.stats

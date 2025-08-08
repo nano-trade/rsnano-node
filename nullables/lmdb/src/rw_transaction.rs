@@ -8,7 +8,7 @@ use lmdb::DatabaseFlags;
 use rsnano_output_tracker::{OutputListener, OutputTracker};
 
 use super::{ConfiguredDatabase, LmdbDatabase, RoCursor};
-use crate::{LmdbEnvironment, RwCursor, Transaction};
+use crate::{RwCursor, Transaction};
 
 enum RwTxnState {
     Inactive,
@@ -31,7 +31,6 @@ pub struct DeleteEvent {
 }
 
 pub struct WriteTransaction {
-    env: &'static LmdbEnvironment,
     txn: RwTxnState,
     put_listener: OutputListener<PutEvent>,
     delete_listener: OutputListener<DeleteEvent>,
@@ -40,19 +39,14 @@ pub struct WriteTransaction {
 }
 
 impl WriteTransaction {
-    pub fn new<'a>(env: &'a LmdbEnvironment) -> lmdb::Result<Self> {
-        let env =
-            unsafe { std::mem::transmute::<&'a LmdbEnvironment, &'static LmdbEnvironment>(env) };
-        let mut tx = Self {
-            env,
-            txn: RwTxnState::Inactive,
+    pub fn new(tx: RwTransaction) -> Self {
+        Self {
+            txn: RwTxnState::Active(tx),
             put_listener: OutputListener::new(),
             delete_listener: OutputListener::new(),
             clear_listener: OutputListener::new(),
             start: Instant::now(),
-        };
-        tx.renew();
-        Ok(tx)
+        }
     }
 
     fn rw_txn(&self) -> &RwTransaction {
@@ -71,16 +65,6 @@ impl WriteTransaction {
 
     pub fn elapsed(&self) -> Duration {
         self.start.elapsed()
-    }
-
-    pub fn renew(&mut self) {
-        let t = std::mem::replace(&mut self.txn, RwTxnState::Transitioning);
-        self.txn = match t {
-            RwTxnState::Active(_) => panic!("Cannot renew active RwTransaction"),
-            RwTxnState::Inactive => RwTxnState::Active(self.env.begin_rw_txn().unwrap()),
-            RwTxnState::Transitioning => unreachable!(),
-        };
-        self.start = Instant::now();
     }
 
     pub fn commit(&mut self) {
