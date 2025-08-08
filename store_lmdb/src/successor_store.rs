@@ -1,7 +1,7 @@
-use crate::{Transaction, WriteTransaction};
+use crate::{LmdbEnv, Transaction, WriteTransaction};
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::BlockHash;
-use rsnano_nullable_lmdb::{LmdbDatabase, LmdbEnvironment};
+use rsnano_nullable_lmdb::LmdbDatabase;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ pub struct LmdbSuccessorStore {
 }
 
 impl LmdbSuccessorStore {
-    pub fn new(env: &LmdbEnvironment) -> anyhow::Result<Self> {
+    pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
         let database = env.create_db(Some(TABLE_NAME), DatabaseFlags::empty())?;
         Ok(Self {
             database,
@@ -61,6 +61,7 @@ const TABLE_NAME: &str = "successors";
 mod tests {
     use super::*;
     use crate::{DeleteEvent, LmdbEnv, PutEvent};
+    use rsnano_nullable_lmdb::LmdbEnvironment;
 
     #[test]
     fn initialize() {
@@ -145,7 +146,7 @@ mod tests {
             .finish()
             .finish();
         let env = LmdbEnv::new(lmdb_env, "/nulled-env");
-        let store = LmdbSuccessorStore::new(&env.environment).unwrap();
+        let store = LmdbSuccessorStore::new(&env).unwrap();
         let tx = env.begin_read();
         store.get(&tx, &block_hash);
     }
@@ -179,7 +180,7 @@ mod tests {
 
         let lmdb_env = env_builder.finish().finish();
         let env = LmdbEnv::new(lmdb_env, "/nulled-env");
-        let store = LmdbSuccessorStore::new(&env.environment).unwrap();
+        let store = LmdbSuccessorStore::new(&env).unwrap();
         (store, env)
     }
 }

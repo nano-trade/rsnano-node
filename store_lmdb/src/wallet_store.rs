@@ -1,6 +1,14 @@
-use crate::{Fan, LmdbDatabase, LmdbEnv, LmdbRangeIterator, Transaction, WriteTransaction};
+use std::{
+    fs::{set_permissions, File, Permissions},
+    io::Write,
+    ops::RangeBounds,
+    os::unix::prelude::PermissionsExt,
+    path::Path,
+    sync::{Mutex, MutexGuard},
+};
+
 use anyhow::bail;
-use lmdb::{DatabaseFlags, WriteFlags};
+
 use rsnano_core::{
     deterministic_key,
     utils::{
@@ -8,13 +16,9 @@ use rsnano_core::{
     },
     Account, KeyDerivationFunction, PublicKey, RawKey, WorkNonce,
 };
-use std::{
-    fs::{set_permissions, File, Permissions},
-    os::unix::prelude::PermissionsExt,
-    path::Path,
-    sync::{Mutex, MutexGuard},
-};
-use std::{io::Write, ops::RangeBounds};
+use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+
+use crate::{Fan, LmdbDatabase, LmdbEnv, LmdbRangeIterator, Transaction, WriteTransaction};
 
 pub struct Fans {
     pub password: Fan,
@@ -251,9 +255,7 @@ impl LmdbWalletStore {
             .to_str()
             .ok_or_else(|| anyhow!("invalid path"))?;
 
-        let db = env
-            .environment
-            .create_db(Some(path_str), DatabaseFlags::empty())?;
+        let db = env.create_db(Some(path_str), DatabaseFlags::empty())?;
         *self.db_handle.lock().unwrap() = Some(db);
         Ok(())
     }

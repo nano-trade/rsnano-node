@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use rsnano_nullable_lmdb::{
     ConfiguredDatabase, ConfiguredDatabaseBuilder, DatabaseFlags, EnvironmentOptions,
-    EnvironmentStubBuilder, LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
+    EnvironmentStubBuilder, LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory, Stat,
 };
 
 use crate::{LmdbConfig, ReadTransaction, SyncStrategy, WriteTransaction};
@@ -78,7 +78,7 @@ impl LmdbEnvFactory {
 }
 
 pub struct LmdbEnv {
-    pub environment: LmdbEnvironment,
+    environment: LmdbEnvironment,
     path: PathBuf,
 }
 
@@ -122,7 +122,7 @@ impl LmdbEnv {
         Ok(())
     }
 
-    pub fn copy_db(&self, destination: &Path) -> lmdb::Result<()> {
+    pub fn copy_db(&self, destination: &Path) -> rsnano_nullable_lmdb::Result<()> {
         self.environment.copy_db(destination)
     }
 
@@ -132,6 +132,14 @@ impl LmdbEnv {
         flags: DatabaseFlags,
     ) -> rsnano_nullable_lmdb::Result<LmdbDatabase> {
         self.environment.create_db(name, flags)
+    }
+
+    pub fn open_db(&self, name: Option<&str>) -> rsnano_nullable_lmdb::Result<LmdbDatabase> {
+        self.environment.open_db(name)
+    }
+
+    pub fn stat(&self) -> lmdb::Result<Stat> {
+        self.environment.stat()
     }
 }
 

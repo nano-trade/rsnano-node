@@ -1,15 +1,16 @@
-use crate::{
-    iterator::LmdbRangeIterator, LmdbDatabase, LmdbEnv, LmdbIterator, Transaction,
-    WriteTransaction, PENDING_TEST_DATABASE,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
+use std::{ops::RangeBounds, sync::Arc};
+
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
     Account, BlockHash, PendingInfo, PendingKey,
 };
-use rsnano_nullable_lmdb::ConfiguredDatabase;
+use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::{ops::RangeBounds, sync::Arc};
+
+use crate::{
+    iterator::LmdbRangeIterator, LmdbDatabase, LmdbEnv, LmdbIterator, Transaction,
+    WriteTransaction, PENDING_TEST_DATABASE,
+};
 
 pub struct LmdbPendingStore {
     database: LmdbDatabase,
@@ -19,9 +20,7 @@ pub struct LmdbPendingStore {
 
 impl LmdbPendingStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("pending"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("pending"), DatabaseFlags::empty())?;
 
         Ok(Self {
             database,

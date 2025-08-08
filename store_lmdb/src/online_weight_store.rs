@@ -1,6 +1,7 @@
-use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, Transaction, WriteTransaction};
-use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::Amount;
+use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+
+use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, Transaction, WriteTransaction};
 
 pub struct LmdbOnlineWeightStore {
     database: LmdbDatabase,
@@ -8,9 +9,7 @@ pub struct LmdbOnlineWeightStore {
 
 impl LmdbOnlineWeightStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("online_weight"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("online_weight"), DatabaseFlags::empty())?;
         Ok(Self { database })
     }
 

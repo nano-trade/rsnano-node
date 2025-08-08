@@ -1,11 +1,13 @@
+use std::ops::RangeBounds;
+
+use rsnano_core::{BlockHash, NoValue};
+use rsnano_nullable_lmdb::ConfiguredDatabase;
+
 use crate::{
     LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
     PRUNED_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
-use rsnano_core::{BlockHash, NoValue};
-use rsnano_nullable_lmdb::ConfiguredDatabase;
-use std::ops::RangeBounds;
 
 pub struct LmdbPrunedStore {
     database: LmdbDatabase,
@@ -13,9 +15,7 @@ pub struct LmdbPrunedStore {
 
 impl LmdbPrunedStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("pruned"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("pruned"), DatabaseFlags::empty())?;
         Ok(Self { database })
     }
 

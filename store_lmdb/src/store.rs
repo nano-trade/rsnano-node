@@ -79,14 +79,14 @@ impl LmdbStore {
             peer: LmdbPeerStore::new(&env)?,
             confirmation_height: LmdbConfirmationHeightStore::new(&env)?,
             final_vote: LmdbFinalVoteStore::new(&env)?,
-            successors: LmdbSuccessorStore::new(&env.environment)?,
+            successors: LmdbSuccessorStore::new(&env)?,
             version: LmdbVersionStore::new(&env)?,
             env,
         })
     }
 
     pub fn memory_stats(&self) -> anyhow::Result<MemoryStats> {
-        let stats = self.env.environment.stat()?;
+        let stats = self.env.stat()?;
         Ok(MemoryStats {
             branch_pages: stats.branch_pages(),
             depth: stats.depth(),
@@ -126,21 +126,9 @@ pub fn create_backup_file(env: &LmdbEnv) -> anyhow::Result<()> {
         source_path
     );
 
-    let backup_path_cstr = CString::new(
-        backup_path
-            .as_os_str()
-            .to_str()
-            .ok_or_else(|| anyhow!("invalid backup path"))?,
-    )?;
-    let status =
-        unsafe { lmdb_sys::mdb_env_copy(env.environment.env(), backup_path_cstr.as_ptr()) };
-    if status != MDB_SUCCESS {
-        error!("{:?} backup failed", source_path);
-        Err(anyhow!("backup failed"))
-    } else {
-        info!("Backup created: {:?}", backup_path);
-        Ok(())
-    }
+    env.copy_db(&backup_path)?;
+    info!("Backup created: {:?}", backup_path);
+    Ok(())
 }
 
 fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {

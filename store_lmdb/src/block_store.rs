@@ -10,7 +10,7 @@ use rsnano_core::{
     utils::{BufferReader, Deserialize},
     BlockHash, SavedBlock,
 };
-use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags, MDB_LAST};
+use rsnano_nullable_lmdb::{sys::MDB_LAST, ConfiguredDatabase, DatabaseFlags, WriteFlags};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 use crate::{

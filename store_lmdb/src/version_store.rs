@@ -1,6 +1,6 @@
+use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
+
 use crate::{LmdbDatabase, LmdbEnv, Transaction, WriteTransaction, STORE_VERSION_CURRENT};
-use core::panic;
-use lmdb::{DatabaseFlags, WriteFlags};
 
 pub struct LmdbVersionStore {
     /// U256 (arbitrary key) -> blob
@@ -14,15 +14,13 @@ pub struct UpgradeInfo {
 
 impl LmdbVersionStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let db_handle = env
-            .environment
-            .create_db(Some("meta"), DatabaseFlags::empty())?;
+        let db_handle = env.create_db(Some("meta"), DatabaseFlags::empty())?;
 
         Ok(Self { db_handle })
     }
 
     pub fn try_read_version(env: &LmdbEnv) -> Option<i32> {
-        match env.environment.open_db(Some("meta")) {
+        match env.open_db(Some("meta")) {
             Ok(db) => {
                 let txn = env.begin_read();
                 load_version(&txn, db)

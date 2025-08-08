@@ -1,11 +1,13 @@
-use lmdb::{DatabaseFlags, WriteFlags};
-use lmdb_sys::{MDB_FIRST, MDB_NEXT};
 use num_traits::FromPrimitive;
 use tracing::{debug, error, info};
 
 use rsnano_core::{
     utils::{UnixMillisTimestamp, UnixTimestamp},
     BlockType,
+};
+use rsnano_nullable_lmdb::{
+    sys::{MDB_FIRST, MDB_NEXT},
+    DatabaseFlags, EnvironmentOptions, WriteFlags,
 };
 
 use crate::{
@@ -14,7 +16,6 @@ use crate::{
     LmdbEnv, LmdbEnvFactory, LmdbVersionStore, Transaction, FIRST_INCOMPATIBLE_STORE_VERSION,
     STORE_VERSION_CURRENT, STORE_VERSION_MINIMUM,
 };
-use rsnano_nullable_lmdb::EnvironmentOptions;
 
 pub fn create_and_update_lmdb_env(
     env_factory: &LmdbEnvFactory,
@@ -121,13 +122,8 @@ fn next_version(version: i32) -> i32 {
 fn create_successor_table(env: &LmdbEnv) -> Result<(), anyhow::Error> {
     info!("Creating block successor table...");
 
-    let block_db = env
-        .environment
-        .create_db(Some("blocks"), DatabaseFlags::empty())?;
-
-    let successor_db = env
-        .environment
-        .create_db(Some("successors"), DatabaseFlags::empty())?;
+    let block_db = env.create_db(Some("blocks"), DatabaseFlags::empty())?;
+    let successor_db = env.create_db(Some("successors"), DatabaseFlags::empty())?;
 
     let tx_read = env.begin_read();
     let mut tx_write = env.begin_write();
@@ -152,17 +148,9 @@ fn remove_successor_from_sideband_and_upgrade_timestamp_and_split_table(
 ) -> Result<(), anyhow::Error> {
     info!("Removing successor from sideband and upgrading timestamp to milliseconds and splitting block table...");
 
-    let block_db = env
-        .environment
-        .create_db(Some("blocks"), DatabaseFlags::empty())?;
-
-    let index_db = env
-        .environment
-        .create_db(Some(BLOCK_INDEX_DB_NAME), DatabaseFlags::empty())?;
-
-    let block_data_db = env
-        .environment
-        .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
+    let block_db = env.create_db(Some("blocks"), DatabaseFlags::empty())?;
+    let index_db = env.create_db(Some(BLOCK_INDEX_DB_NAME), DatabaseFlags::empty())?;
+    let block_data_db = env.create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
 
     let mut processed = 0;
     let tx_read = env.begin_read();

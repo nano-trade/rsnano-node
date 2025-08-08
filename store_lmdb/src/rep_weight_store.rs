@@ -1,15 +1,18 @@
-use crate::{
-    LmdbDatabase, LmdbEnv, RoCursor, Transaction, WriteTransaction, REP_WEIGHT_TEST_DATABASE,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
-use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_NEXT};
+use std::sync::Arc;
+
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
     Amount, PublicKey,
 };
-use rsnano_nullable_lmdb::ConfiguredDatabase;
+use rsnano_nullable_lmdb::{
+    sys::{MDB_cursor_op, MDB_FIRST, MDB_NEXT},
+    ConfiguredDatabase, DatabaseFlags, WriteFlags,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::sync::Arc;
+
+use crate::{
+    LmdbDatabase, LmdbEnv, RoCursor, Transaction, WriteTransaction, REP_WEIGHT_TEST_DATABASE,
+};
 
 pub struct LmdbRepWeightStore {
     database: LmdbDatabase,
@@ -19,9 +22,7 @@ pub struct LmdbRepWeightStore {
 
 impl LmdbRepWeightStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("rep_weights"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("rep_weights"), DatabaseFlags::empty())?;
 
         Ok(Self {
             database,

@@ -1,17 +1,18 @@
-use crate::{
-    iterator::LmdbIterator, LmdbDatabase, LmdbEnv, Transaction, WriteTransaction,
-    PEERS_TEST_DATABASE,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
-use rsnano_core::utils::{BufferWriter, Serialize};
-use rsnano_nullable_lmdb::ConfiguredDatabase;
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     array::TryFromSliceError,
     net::SocketAddrV6,
     ops::Deref,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+use rsnano_core::utils::{BufferWriter, Serialize};
+use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+
+use crate::{
+    iterator::LmdbIterator, LmdbDatabase, LmdbEnv, Transaction, WriteTransaction,
+    PEERS_TEST_DATABASE,
 };
 
 pub struct LmdbPeerStore {
@@ -22,9 +23,7 @@ pub struct LmdbPeerStore {
 
 impl LmdbPeerStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("peers"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("peers"), DatabaseFlags::empty())?;
 
         Ok(Self {
             database,

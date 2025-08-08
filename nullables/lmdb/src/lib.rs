@@ -9,8 +9,12 @@ mod rw_transaction;
 pub use configured_database::*;
 pub use database::*;
 pub use environment::*;
-pub use lmdb::{DatabaseFlags, EnvironmentFlags, Error, WriteFlags};
-pub use lmdb_sys::MDB_LAST;
+pub use lmdb::{DatabaseFlags, EnvironmentFlags, Error, Stat, WriteFlags};
+
+pub mod sys {
+    pub use lmdb_sys::*;
+}
+
 pub use ro_cursor::*;
 pub use ro_transaction::*;
 pub use rw_cursor::*;
