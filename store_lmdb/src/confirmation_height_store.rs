@@ -1,14 +1,15 @@
-use crate::{
-    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction,
-    WriteTransaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
+use std::ops::RangeBounds;
+
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
     Account, ConfirmationHeightInfo,
 };
-use rsnano_nullable_lmdb::ConfiguredDatabase;
-use std::ops::RangeBounds;
+use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
+
+use crate::{
+    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction,
+    WriteTransaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
+};
 
 pub struct LmdbConfirmationHeightStore {
     database: LmdbDatabase,
@@ -16,9 +17,7 @@ pub struct LmdbConfirmationHeightStore {
 
 impl LmdbConfirmationHeightStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("confirmation_height"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("confirmation_height"), DatabaseFlags::empty())?;
 
         Ok(Self { database })
     }

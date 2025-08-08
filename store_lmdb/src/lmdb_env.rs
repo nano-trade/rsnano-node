@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use rsnano_nullable_lmdb::{
-    ConfiguredDatabase, ConfiguredDatabaseBuilder, EnvironmentOptions, EnvironmentStubBuilder,
-    LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
+    ConfiguredDatabase, ConfiguredDatabaseBuilder, DatabaseFlags, EnvironmentOptions,
+    EnvironmentStubBuilder, LmdbDatabase, LmdbEnvironment, LmdbEnvironmentFactory,
 };
 
 use crate::{LmdbConfig, ReadTransaction, SyncStrategy, WriteTransaction};
@@ -124,6 +124,14 @@ impl LmdbEnv {
 
     pub fn copy_db(&self, destination: &Path) -> lmdb::Result<()> {
         self.environment.copy_db(destination)
+    }
+
+    pub fn create_db(
+        &self,
+        name: Option<&str>,
+        flags: DatabaseFlags,
+    ) -> rsnano_nullable_lmdb::Result<LmdbDatabase> {
+        self.environment.create_db(name, flags)
     }
 }
 

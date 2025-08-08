@@ -1,21 +1,21 @@
-use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
-    BLOCK_DATA_DATABASE, BLOCK_INDEX_DATABASE,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
-use lmdb_sys::MDB_LAST;
-use rsnano_core::{
-    utils::{BufferReader, Deserialize},
-    BlockHash, SavedBlock,
-};
-use rsnano_nullable_lmdb::ConfiguredDatabase;
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     ops::RangeBounds,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
+};
+
+use rsnano_core::{
+    utils::{BufferReader, Deserialize},
+    BlockHash, SavedBlock,
+};
+use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags, MDB_LAST};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+
+use crate::{
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
+    BLOCK_DATA_DATABASE, BLOCK_INDEX_DATABASE,
 };
 
 pub struct LmdbBlockStore {
@@ -66,13 +66,8 @@ impl LmdbBlockStore {
     }
 
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let index_db = env
-            .environment
-            .create_db(Some(BLOCK_INDEX_DB_NAME), DatabaseFlags::empty())?;
-
-        let block_db = env
-            .environment
-            .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
+        let index_db = env.create_db(Some(BLOCK_INDEX_DB_NAME), DatabaseFlags::empty())?;
+        let block_db = env.create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
 
         let next_id = find_next_free_id(env, block_db)?;
 

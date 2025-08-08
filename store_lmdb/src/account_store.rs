@@ -3,12 +3,11 @@ use crate::{
     parallel_traversal, LmdbDatabase, LmdbEnv, Transaction, WriteTransaction,
     ACCOUNT_TEST_DATABASE,
 };
-use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
     Account, AccountInfo,
 };
-use rsnano_nullable_lmdb::ConfiguredDatabase;
+use rsnano_nullable_lmdb::{ConfiguredDatabase, DatabaseFlags, WriteFlags};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{ops::RangeBounds, sync::Arc};
 
@@ -20,9 +19,7 @@ pub struct LmdbAccountStore {
 
 impl LmdbAccountStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("accounts"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("accounts"), DatabaseFlags::empty())?;
 
         Ok(Self {
             database,

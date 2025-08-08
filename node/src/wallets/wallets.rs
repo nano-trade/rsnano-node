@@ -201,14 +201,9 @@ impl Wallets {
 
     pub fn initialize(&mut self) -> anyhow::Result<()> {
         let mut guard = self.mutex.lock().unwrap();
-        self.db = Some(
-            self.env
-                .environment
-                .create_db(None, DatabaseFlags::empty())?,
-        );
+        self.db = Some(self.env.create_db(None, DatabaseFlags::empty())?);
         self.send_action_ids_handle = Some(
             self.env
-                .environment
                 .create_db(Some("send_action_ids"), DatabaseFlags::empty())?,
         );
 

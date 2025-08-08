@@ -1,12 +1,14 @@
-use crate::{
-    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
-};
-use lmdb::{DatabaseFlags, WriteFlags};
+use std::ops::RangeBounds;
+
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
     BlockHash, QualifiedRoot,
 };
-use std::ops::RangeBounds;
+
+use crate::{
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, Transaction, WriteTransaction,
+};
+use rsnano_nullable_lmdb::{DatabaseFlags, WriteFlags};
 
 /// Maps root to block hash for generated final votes.
 /// nano::qualified_root -> nano::block_hash
@@ -16,9 +18,7 @@ pub struct LmdbFinalVoteStore {
 
 impl LmdbFinalVoteStore {
     pub fn new(env: &LmdbEnv) -> anyhow::Result<Self> {
-        let database = env
-            .environment
-            .create_db(Some("final_votes"), DatabaseFlags::empty())?;
+        let database = env.create_db(Some("final_votes"), DatabaseFlags::empty())?;
 
         Ok(Self { database })
     }
