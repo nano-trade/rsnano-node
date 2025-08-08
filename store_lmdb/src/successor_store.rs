@@ -75,14 +75,14 @@ mod tests {
             (3.into(), 4.into()),
             (5.into(), 6.into()),
         ]);
-        let tx = env.tx_begin_read();
+        let tx = env.begin_read();
         assert_eq!(store.count(&tx), 3);
     }
 
     #[test]
     fn put() {
         let (store, env) = create_test_store(&[]);
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
         let put_tracker = tx.track_puts();
         let block = BlockHash::from(1);
         let successor = BlockHash::from(2);
@@ -104,7 +104,7 @@ mod tests {
     fn track_puts() {
         let (store, env) = create_test_store(&[]);
         let put_tracker = store.track_puts();
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
         let block = BlockHash::from(1);
         let successor = BlockHash::from(2);
 
@@ -121,7 +121,7 @@ mod tests {
             (5.into(), 6.into()),
         ]);
 
-        let tx = env.tx_begin_read();
+        let tx = env.begin_read();
         let successor = store.get(&tx, &3.into());
         assert_eq!(successor, Some(4.into()))
     }
@@ -130,7 +130,7 @@ mod tests {
     fn no_successor_found() {
         let (store, env) = create_test_store(&[]);
 
-        let tx = env.tx_begin_read();
+        let tx = env.begin_read();
         let successor = store.get(&tx, &3.into());
         assert_eq!(successor, None);
     }
@@ -146,14 +146,14 @@ mod tests {
             .finish();
         let env = LmdbEnv::new(lmdb_env, "/nulled-env");
         let store = LmdbSuccessorStore::new(&env.environment).unwrap();
-        let tx = env.tx_begin_read();
+        let tx = env.begin_read();
         store.get(&tx, &block_hash);
     }
 
     #[test]
     fn delete() {
         let (store, env) = create_test_store(&[]);
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
         let delete_tracker = tx.track_deletions();
 
         let block_hash = BlockHash::from(123);

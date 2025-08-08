@@ -102,7 +102,7 @@ impl LmdbAccountStore {
         action: impl Fn(&mut dyn Iterator<Item = (Account, AccountInfo)>) + Send + Sync,
     ) {
         parallel_traversal(thread_count, &|start, end, is_last| {
-            let tx = env.tx_begin_read();
+            let tx = env.begin_read();
             let start_account = Account::from(start);
             let end_account = Account::from(end);
             if is_last {
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn empty_store() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         let account = Account::from(1);
         let result = fixture.store.get(&txn, &account);
         assert_eq!(result, None);
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn add_one_account() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = txn.track_puts();
 
         let account = Account::from(1);
@@ -217,7 +217,7 @@ mod tests {
         let account = Account::from(1);
         let info = AccountInfo::new_test_instance();
         let fixture = Fixture::with_stored_accounts(vec![(account.clone(), info.clone())]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let result = fixture.store.get(&txn, &account);
 
@@ -230,7 +230,7 @@ mod tests {
             (Account::from(1), AccountInfo::new_test_instance()),
             (Account::from(2), AccountInfo::new_test_instance()),
         ]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let count = fixture.store.count(&txn);
 
@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn delete_account() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let delete_tracker = txn.track_deletions();
 
         let account = Account::from(1);
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn begin_empty_store_nullable() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         let mut it = fixture.store.iter(&txn);
         assert_eq!(it.next(), None);
     }
@@ -280,7 +280,7 @@ mod tests {
             (account1.clone(), info1.clone()),
             (account2.clone(), info2.clone()),
         ]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let mut it = fixture.store.iter(&txn);
         assert_eq!(it.next(), Some((account1, info1)));
@@ -305,7 +305,7 @@ mod tests {
             (account1.clone(), info1.clone()),
             (account3.clone(), info3.clone()),
         ]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let mut it = fixture.store.iter_range(&txn, Account::from(2)..);
 
@@ -344,7 +344,7 @@ mod tests {
     fn track_inserted_account_info() {
         let fixture = Fixture::new();
         let put_tracker = fixture.store.track_puts();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let account = Account::from(1);
         let info = AccountInfo::new_test_instance();
 

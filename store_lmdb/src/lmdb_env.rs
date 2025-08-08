@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
 use rsnano_nullable_lmdb::{
     ConfiguredDatabase, ConfiguredDatabaseBuilder, EnvironmentOptions, EnvironmentStubBuilder,
@@ -106,12 +103,12 @@ impl LmdbEnv {
         }
     }
 
-    pub fn tx_begin_read(&self) -> ReadTransaction {
+    pub fn begin_read(&self) -> ReadTransaction {
         ReadTransaction::new(&self.environment)
             .expect("Could not create LMDB read-only transaction")
     }
 
-    pub fn tx_begin_write(&self) -> WriteTransaction {
+    pub fn begin_write(&self) -> WriteTransaction {
         WriteTransaction::new(&self.environment)
             .expect("Could not create LMDB read-write transaction")
     }
@@ -172,7 +169,7 @@ mod tests {
                 .create_db(Some("testdb"), DatabaseFlags::empty())
                 .unwrap();
 
-            let mut txn = env.tx_begin_write();
+            let mut txn = env.begin_write();
             let tracker = txn.track_puts();
             let key = &[1, 2, 3];
             let value = &[4, 5, 6];

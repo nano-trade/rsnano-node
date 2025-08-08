@@ -137,7 +137,7 @@ mod tests {
         let root = QualifiedRoot::new_test_instance();
         let hash = BlockHash::from(333);
         let fixture = Fixture::with_stored_entries(vec![(root.clone(), hash)]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let result = fixture.store.get(&txn, &root);
 
@@ -148,7 +148,7 @@ mod tests {
     fn delete() {
         let root = QualifiedRoot::new_test_instance();
         let fixture = Fixture::with_stored_entries(vec![(root.clone(), BlockHash::from(333))]);
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let delete_tracker = txn.track_deletions();
 
         fixture.store.del(&mut txn, &root);
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn clear() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let clear_tracker = txn.track_clears();
 
         fixture.store.clear(&mut txn);

@@ -45,7 +45,7 @@ impl ClearCommand {
         let path = global_args.data_path.join("data.ldb");
         let env = LmdbEnvFactory::default().create_env(&path)?;
         let online_weight_store = LmdbOnlineWeightStore::new(&env)?;
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
 
         online_weight_store.clear(&mut txn);
 
@@ -57,7 +57,7 @@ impl ClearCommand {
         let path = global_args.data_path.join("data.ldb");
         let env = LmdbEnvFactory::default().create_env(&path)?;
         let peer_store = LmdbPeerStore::new(&env)?;
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
 
         peer_store.clear(&mut txn);
 

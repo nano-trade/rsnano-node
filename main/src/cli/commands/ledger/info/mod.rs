@@ -28,7 +28,7 @@ impl InfoCommand {
         let path = global_args.data_path.join("data.ldb");
         let env = LmdbEnvFactory::default().create_env(&path)?;
         let peer_store = LmdbPeerStore::new(&env)?;
-        let txn = env.tx_begin_read();
+        let txn = env.begin_read();
 
         for peer in peer_store.iter(&txn) {
             println!("{:?}", peer.0);

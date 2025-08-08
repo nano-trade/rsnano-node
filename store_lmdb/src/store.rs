@@ -98,11 +98,11 @@ impl LmdbStore {
     }
 
     pub fn tx_begin_read(&self) -> ReadTransaction {
-        self.env.tx_begin_read()
+        self.env.begin_read()
     }
 
     pub fn tx_begin_write(&self) -> WriteTransaction {
-        self.env.tx_begin_write()
+        self.env.begin_write()
     }
 }
 

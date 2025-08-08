@@ -95,7 +95,7 @@ impl LmdbWalletStore {
         };
         store.initialize(env, wallet)?;
         let handle = store.db_handle();
-        let txn = &mut env.tx_begin_write();
+        let txn = &mut env.begin_write();
         if let Err(lmdb::Error::NotFound) = txn.get(handle, Self::version_special().as_bytes()) {
             store.version_put(txn, Self::VERSION_CURRENT);
             let salt = RawKey::random();
@@ -162,7 +162,7 @@ impl LmdbWalletStore {
         };
         store.initialize(env, wallet)?;
         let handle = store.db_handle();
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
         match txn.get(handle, Self::version_special().as_bytes()) {
             Ok(_) => panic!("wallet store already initialized"),
             Err(lmdb::Error::NotFound) => {}

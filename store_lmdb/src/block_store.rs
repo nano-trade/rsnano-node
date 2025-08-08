@@ -198,7 +198,7 @@ fn get_block_id(id_bytes: &[u8]) -> u64 {
 }
 
 fn find_next_free_id(env: &LmdbEnv, block_db: LmdbDatabase) -> Result<u64, anyhow::Error> {
-    let tx = env.tx_begin_read();
+    let tx = env.begin_read();
     let cursor = tx.open_ro_cursor(block_db)?;
     match cursor.get(None, None, MDB_LAST) {
         Ok((Some(key), _)) => Ok(get_block_id(key) + 1),
@@ -239,7 +239,7 @@ mod tests {
     fn empty() {
         let fixture = Fixture::new();
         let store = &fixture.store;
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         assert!(store.get(&txn, &BlockHash::from(1)).is_none());
         assert_eq!(store.exists(&txn, &BlockHash::from(1)), false);
@@ -260,7 +260,7 @@ mod tests {
             .build();
 
         let fixture = Fixture::with_env(env);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let result = fixture.store.get(&txn, &block.hash());
         assert_eq!(result, Some(block));
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn add_block() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = txn.track_puts();
         let block = SavedBlock::new_test_open_block();
 
@@ -298,7 +298,7 @@ mod tests {
     fn track_inserted_blocks() {
         let fixture = Fixture::new();
         let block = SavedBlock::new_test_open_block();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = fixture.store.track_puts();
 
         fixture.store.put(&mut txn, &block);
@@ -316,7 +316,7 @@ mod tests {
             .configured_database(block_index)
             .configured_database(block_data)
             .build();
-        let txn = env.tx_begin_read();
+        let txn = env.begin_read();
         let block_store = LmdbBlockStore::new(&env).unwrap();
         assert_eq!(block_store.get(&txn, &block.hash()), Some(block));
     }

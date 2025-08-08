@@ -24,7 +24,7 @@ impl LmdbVersionStore {
     pub fn try_read_version(env: &LmdbEnv) -> Option<i32> {
         match env.environment.open_db(Some("meta")) {
             Ok(db) => {
-                let txn = env.tx_begin_read();
+                let txn = env.begin_read();
                 load_version(&txn, db)
             }
             Err(_) => None,

@@ -27,7 +27,7 @@ fn check_ledger_file(ledger_file: impl Into<PathBuf>) {
     let env = LmdbEnvFactory::default().create_env(ledger_file).unwrap();
     let block_store = LmdbBlockStore::new(&env).unwrap();
 
-    let tx = env.tx_begin_read();
+    let tx = env.begin_read();
     let total_blocks = block_store.count(&tx);
     let mut checked: u64 = 0;
     let problematic = Mutex::new(Vec::new());

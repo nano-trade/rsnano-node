@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn not_found() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         let result = fixture.store.get(&txn, &PendingKey::new_test_instance());
         assert!(result.is_none());
         assert_eq!(
@@ -189,7 +189,7 @@ mod tests {
         let key = PendingKey::new_test_instance();
         let info = PendingInfo::new_test_instance();
         let fixture = Fixture::with_stored_data(vec![(key.clone(), info.clone())]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let result = fixture.store.get(&txn, &key);
 
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn add_pending() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = txn.track_puts();
         let pending_key = PendingKey::new_test_instance();
         let pending = PendingInfo::new_test_instance();
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn delete() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let delete_tracker = txn.track_deletions();
         let pending_key = PendingKey::new_test_instance();
 
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn iter_empty() {
         let fixture = Fixture::new();
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
         assert!(fixture.store.iter(&tx).next().is_none());
     }
 
@@ -248,7 +248,7 @@ mod tests {
         let key = PendingKey::new_test_instance();
         let info = PendingInfo::new_test_instance();
         let fixture = Fixture::with_stored_data(vec![(key.clone(), info.clone())]);
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
 
         let mut it = fixture.store.iter(&tx);
         let (k, v) = it.next().unwrap();
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn tracks_puts() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let key = PendingKey::new_test_instance();
         let info = PendingInfo::new_test_instance();
         let put_tracker = fixture.store.track_puts();
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn tracks_deletions() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let key = PendingKey::new_test_instance();
         let delete_tracker = fixture.store.track_deletions();
 

@@ -447,7 +447,7 @@ mod test {
             .create_db(Some("foo"), DatabaseFlags::empty())
             .unwrap();
 
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
         let delete_tracker = tx.track_deletions();
 
         let key = vec![1, 2, 3];
@@ -459,7 +459,7 @@ mod test {
     #[test]
     fn tracks_clears() {
         let env = LmdbEnv::new_null();
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
         let clear_tracker = txn.track_clears();
 
         let database = LmdbDatabase::new_null(42);

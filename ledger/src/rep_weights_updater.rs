@@ -144,7 +144,7 @@ mod tests {
         let rep_weights = RepWeightCache::new();
         let rep_weights_updater = RepWeightsUpdater::new(store, Amount::zero(), &rep_weights);
         rep_weights_updater.representation_put(representative, weight);
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
 
         // set weight to 0
         rep_weights_updater.representation_add(
@@ -177,7 +177,7 @@ mod tests {
         let rep_weights_updater = RepWeightsUpdater::new(store, Amount::zero(), &rep_weights);
         rep_weights_updater.representation_put(rep1, weight);
         rep_weights_updater.representation_put(rep2, weight);
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
 
         // set weight to 0
         rep_weights_updater.representation_add_dual(
@@ -197,7 +197,7 @@ mod tests {
         let env = Arc::new(LmdbEnv::new_null());
         let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let put_tracker = store.track_puts();
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
         let representative = PublicKey::from(1);
         let min_weight = Amount::from(10);
         let rep_weight = Amount::from(9);
@@ -224,7 +224,7 @@ mod tests {
         );
         let store = Arc::new(LmdbRepWeightStore::new(&env).unwrap());
         let put_tracker = store.track_puts();
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
         let min_weight = Amount::from(10);
         let rep_weights = RepWeightCache::new();
         let rep_weights_updater = RepWeightsUpdater::new(store, min_weight, &rep_weights);

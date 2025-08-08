@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn empty_store() {
         let fixture = Fixture::new();
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
         let store = &fixture.store;
 
         assert_eq!(store.count(&tx), 0);
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn add_pruned_info() {
         let fixture = Fixture::new();
-        let mut tx = fixture.env.tx_begin_write();
+        let mut tx = fixture.env.begin_write();
         let put_tracker = tx.track_puts();
         let hash = BlockHash::from(1);
 
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn count() {
         let fixture = Fixture::with_stored_data(vec![BlockHash::from(1), BlockHash::from(2)]);
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
 
         assert_eq!(fixture.store.count(&tx), 2);
         assert_eq!(fixture.store.exists(&tx, &BlockHash::from(1)), true);
@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn iterate() {
         let fixture = Fixture::with_stored_data(vec![BlockHash::from(1), BlockHash::from(2)]);
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
 
         assert_eq!(fixture.store.iter(&tx).next(), Some(BlockHash::from(1)));
         assert_eq!(
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn delete() {
         let fixture = Fixture::new();
-        let mut tx = fixture.env.tx_begin_write();
+        let mut tx = fixture.env.begin_write();
         let delete_tracker = tx.track_deletions();
         let hash = BlockHash::from(1);
 
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn pruned_random() {
         let fixture = Fixture::with_stored_data(vec![BlockHash::from(42)]);
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
         let random_hash = fixture.store.random(&tx);
         assert_eq!(random_hash, Some(BlockHash::from(42)));
     }

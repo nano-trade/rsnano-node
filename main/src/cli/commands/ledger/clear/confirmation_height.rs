@@ -36,7 +36,7 @@ impl ConfirmationHeightArgs {
         let env = env_factory.create_env(&path)?;
         let confirmation_height_store = LmdbConfirmationHeightStore::new(&env)?;
 
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
 
         if let Some(account_hex) = &self.account {
             let account = Account::decode_account(account_hex)?;

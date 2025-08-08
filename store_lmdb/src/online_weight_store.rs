@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn empty_store() {
         let fixture = Fixture::new();
-        let tx = fixture.env.tx_begin_read();
+        let tx = fixture.env.begin_read();
         let store = &fixture.store;
         assert_eq!(store.count(&tx), 0);
         assert!(store.iter(&tx).next().is_none());
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn count() {
         let fixture = Fixture::with_stored_data(vec![(1, Amount::raw(100)), (2, Amount::raw(200))]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let count = fixture.store.count(&txn);
 
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn add() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = txn.track_puts();
 
         let time = 1;
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn iterate_ascending() {
         let fixture = Fixture::with_stored_data(vec![(1, Amount::raw(100)), (2, Amount::raw(200))]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let mut it = fixture.store.iter(&txn);
         assert_eq!(it.next(), Some((1, Amount::raw(100))));
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn iterate_descending() {
         let fixture = Fixture::with_stored_data(vec![(1, Amount::raw(100)), (2, Amount::raw(200))]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let mut it = fixture.store.iter_rev(&txn);
         assert_eq!(it.next(), Some((2, Amount::raw(200))));
@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn delete() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let delete_tracker = txn.track_deletions();
 
         let time = 1;

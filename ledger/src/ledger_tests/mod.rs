@@ -355,7 +355,7 @@ fn ledger_cache() {
     {
         let pruned = LmdbPrunedStore::new(&env).unwrap();
         let accounts = LmdbAccountStore::new(&env).unwrap();
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
 
         pruned.put(&mut tx, &1.into());
         pruned.put(&mut tx, &2.into());

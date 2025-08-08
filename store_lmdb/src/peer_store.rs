@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn empty_store() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         let store = &fixture.store;
         assert_eq!(store.count(&txn), 0);
         assert_eq!(store.exists(&txn, TEST_PEER_A), false);
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn add_one_endpoint() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = txn.track_puts();
 
         let key = TEST_PEER_A;
@@ -249,7 +249,7 @@ mod tests {
     fn exists() {
         let fixture = Fixture::with_stored_data(vec![TEST_PEER_A.clone(), TEST_PEER_B.clone()]);
 
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         assert_eq!(fixture.store.exists(&txn, TEST_PEER_A), true);
         assert_eq!(fixture.store.exists(&txn, TEST_PEER_B), true);
@@ -259,14 +259,14 @@ mod tests {
     #[test]
     fn count() {
         let fixture = Fixture::with_stored_data(vec![TEST_PEER_A, TEST_PEER_B]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         assert_eq!(fixture.store.count(&txn), 2);
     }
 
     #[test]
     fn delete() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let delete_tracker = txn.track_deletions();
 
         fixture.store.del(&mut txn, TEST_PEER_A);
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn track_puts() {
         let fixture = Fixture::new();
-        let mut tx = fixture.env.tx_begin_write();
+        let mut tx = fixture.env.begin_write();
         let time = UNIX_EPOCH + Duration::from_secs(1261440000);
         let put_tracker = fixture.store.track_puts();
 
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn track_deletes() {
         let fixture = Fixture::new();
-        let mut tx = fixture.env.tx_begin_write();
+        let mut tx = fixture.env.begin_write();
         let delete_tracker = fixture.store.track_deletions();
 
         fixture.store.del(&mut tx, TEST_PEER_A);

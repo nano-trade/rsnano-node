@@ -47,7 +47,7 @@ fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<bool> {
     let version_store = LmdbVersionStore::new(env)?;
 
     let mut version = {
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
         match version_store.get(&tx) {
             Some(v) => v,
             None => {
@@ -99,7 +99,7 @@ fn do_upgrades(env: &mut LmdbEnv) -> anyhow::Result<bool> {
 
         version = next_version(version);
 
-        let mut tx = env.tx_begin_write();
+        let mut tx = env.begin_write();
         version_store.put(&mut tx, version);
     }
 
@@ -129,8 +129,8 @@ fn create_successor_table(env: &LmdbEnv) -> Result<(), anyhow::Error> {
         .environment
         .create_db(Some("successors"), DatabaseFlags::empty())?;
 
-    let tx_read = env.tx_begin_read();
-    let mut tx_write = env.tx_begin_write();
+    let tx_read = env.begin_read();
+    let mut tx_write = env.begin_write();
     let mut processed = 0;
     let mut cursor = tx_read.open_ro_cursor(block_db)?;
 
@@ -165,8 +165,8 @@ fn remove_successor_from_sideband_and_upgrade_timestamp_and_split_table(
         .create_db(Some(BLOCK_DATA_DB_NAME), DatabaseFlags::empty())?;
 
     let mut processed = 0;
-    let tx_read = env.tx_begin_read();
-    let mut tx_write = env.tx_begin_write();
+    let tx_read = env.begin_read();
+    let mut tx_write = env.begin_write();
     let cursor = tx_read.open_ro_cursor(block_db)?;
     let mut op = MDB_FIRST;
     let mut hash_bytes = [0; 32];
@@ -346,7 +346,7 @@ mod tests {
     fn writes_db_version_for_new_store() {
         let mut env = LmdbEnv::new_null();
         upgrade_if_needed(&mut env).unwrap();
-        let txn = env.tx_begin_read();
+        let txn = env.begin_read();
         let version_store = LmdbVersionStore::new(&env).unwrap();
         assert_eq!(version_store.get(&txn), Some(STORE_VERSION_CURRENT));
     }
@@ -363,7 +363,7 @@ mod tests {
 
     fn set_store_version(env: &LmdbEnv, current_version: i32) -> Result<(), anyhow::Error> {
         let version_store = LmdbVersionStore::new(env)?;
-        let mut txn = env.tx_begin_write();
+        let mut txn = env.begin_write();
         version_store.put(&mut txn, current_version);
         Ok(())
     }

@@ -148,7 +148,7 @@ mod tests {
     fn count() {
         let fixture =
             Fixture::with_stored_data(vec![(1.into(), 100.into()), (2.into(), 200.into())]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         assert_eq!(fixture.store.count(&txn), 2);
     }
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn put() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let put_tracker = txn.track_puts();
         let account = PublicKey::from(1);
         let weight = Amount::from(42);
@@ -179,7 +179,7 @@ mod tests {
         let account = PublicKey::from(1);
         let weight = Amount::from(42);
         let fixture = Fixture::with_stored_data(vec![(account, weight)]);
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
 
         let result = fixture.store.get(&txn, &account);
 
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn delete() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
+        let mut txn = fixture.env.begin_write();
         let delete_tracker = txn.track_deletions();
         let account = PublicKey::from(1);
 
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn iter_empty() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         let mut iter = fixture.store.iter(&txn);
         assert_eq!(iter.next(), None);
     }
@@ -220,7 +220,7 @@ mod tests {
         let weight2 = Amount::from(200);
         let fixture = Fixture::with_stored_data(vec![(account1, weight1), (account2, weight2)]);
 
-        let txn = fixture.env.tx_begin_read();
+        let txn = fixture.env.begin_read();
         let mut iter = fixture.store.iter(&txn);
         assert_eq!(iter.next(), Some((account1, weight1)));
         assert_eq!(iter.next(), Some((account2, weight2)));
