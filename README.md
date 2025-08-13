@@ -8,7 +8,9 @@
 
 ### What is RsNano?
 
-RsNano is a Rust port of the original Nano node.
+RsNano is a Rust port of the original Nano node. This fork targets the
+Banano network, a Nano derivative where 1 BAN equals 10^29 raw, addresses
+use the `ban_` prefix and nodes listen on port 7071.
 
 ### Links & Resources
 
@@ -20,13 +22,13 @@ RsNano is a Rust port of the original Nano node.
 
 ## Option 1: Run the official docker image
 
-    docker run -p 7075:7075 -v ~/Nano:/root/Nano simpago/rsnano:V2.0 --network=live node run
+    docker run -p 7071:7071 -v ~/Banano:/root/Banano simpago/rsnano:V2.0 --network=live node run
 
 ## Option 2: Build your own docker image
 
     docker build -f scripts/docker/node/Dockerfile -t rsnano-node https://github.com/simpago/rsnano-node.git#releases/v2
 
-    docker run -p 7075:7075 -v ~/Nano:/root/Nano rsnano-node:latest --network=live node run
+    docker run -p 7071:7071 -v ~/Banano:/root/Banano rsnano-node:latest --network=live node run
 
 ## Option 3: Build from source
 

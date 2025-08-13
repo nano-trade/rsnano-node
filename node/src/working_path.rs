@@ -15,7 +15,7 @@ pub fn working_path_for(network: Networks) -> Option<PathBuf> {
             Networks::Invalid => return None,
             Networks::NanoDevNetwork => "NanoDev",
             Networks::NanoBetaNetwork => "NanoBeta",
-            Networks::NanoLiveNetwork => "Nano",
+            Networks::NanoLiveNetwork => "Banano",
             Networks::NanoTestNetwork => "NanoTest",
         };
         path.push(subdir);

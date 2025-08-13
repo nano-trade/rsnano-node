@@ -15,24 +15,24 @@ impl Amount {
         Self { raw: value }
     }
 
-    /// 10^24 raw or 0.000001 nano
+    /// 10^23 raw or 0.000001 banano
     pub const fn micronano(value: u128) -> Self {
         Self {
-            raw: value * 10u128.pow(24),
+            raw: value * 10u128.pow(23),
         }
     }
 
-    /// 10^27 raw or 0.001 nano
+    /// 10^26 raw or 0.001 banano
     pub const fn millinano(value: u128) -> Self {
         Self {
-            raw: value * 10u128.pow(27),
+            raw: value * 10u128.pow(26),
         }
     }
 
-    /// 10^30 raw
+    /// 10^29 raw
     pub const fn nano(value: u128) -> Self {
         Self {
-            raw: value * 10u128.pow(30),
+            raw: value * 10u128.pow(29),
         }
     }
 
