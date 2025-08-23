@@ -117,10 +117,10 @@ pub struct NodeConfig {
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
-    Lazy::new(|| get_env_or_default_string("NANO_DEFAULT_PEER", "peering.nano.org"));
+    Lazy::new(|| get_env_or_default_string("NANO_DEFAULT_PEER", "livenet.banano.cc"));
 
 static DEFAULT_BETA_PEER_NETWORK: Lazy<String> =
-    Lazy::new(|| get_env_or_default_string("NANO_DEFAULT_PEER", "peering-beta.nano.org"));
+    Lazy::new(|| get_env_or_default_string("NANO_DEFAULT_PEER", "livenet-beta.banano.cc"));
 
 static DEFAULT_TEST_PEER_NETWORK: Lazy<String> =
     Lazy::new(|| get_env_or_default_string("NANO_DEFAULT_PEER", "peering-test.nano.org"));
