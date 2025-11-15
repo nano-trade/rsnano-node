@@ -62,9 +62,10 @@ impl std::fmt::Debug for WorkThresholds {
 
 static PUBLISH_FULL: LazyLock<WorkThresholds> = LazyLock::new(|| {
     WorkThresholds::new(
-        0xffffffc000000000,
-        0xfffffff800000000, // 8x higher than epoch_1
-        0xfffffe0000000000, // 8x lower than epoch_1
+        0xfffffe0000000000,
+        //epoch 2 block has not been released, so above^ still applies
+        0xfffffff000000000, // 32x higher than originally
+        0x0000000000000000, // remove receive work requirements
     )
 });
 
