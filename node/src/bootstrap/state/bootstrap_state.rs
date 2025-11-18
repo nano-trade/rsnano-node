@@ -88,9 +88,9 @@ impl BootstrapState {
         self.counters.outdated_accounts_found += outdated.accounts.len();
 
         for account in &outdated.accounts {
-            // Use the lowest possible priority here
+            // Use initial priority to give accounts multiple retry attempts before eviction
             self.candidate_accounts
-                .priority_set(account, CandidateAccounts::PRIORITY_CUTOFF);
+                .priority_set(account, CandidateAccounts::PRIORITY_INITIAL);
 
             self.last_outdated_accounts.push_back(*account);
             if self.last_outdated_accounts.len() > 20 {
